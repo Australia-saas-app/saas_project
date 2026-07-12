@@ -2,7 +2,7 @@
 
 import React, { useState } from "react"
 import { FormControl, FormField, FormItem, FormMessage } from "./form"
-import { uploadFiles } from "@/src/utils/uploadFile"
+import { uploadFiles } from "@/src/shared/utils/uploadFile"
 
 
 interface Props {
