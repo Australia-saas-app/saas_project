@@ -1,4 +1,4 @@
-import axiosInstanceClient from "../lib/axiosInstance/client";
+import axiosInstanceClient from "@/src/infra/lib/axiosInstance/client";
 
 export const uploadFile = async (file: File): Promise<string> => {
     const formData = new FormData();
