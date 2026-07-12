@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppSelector } from '@/src/core/store/hooks'
 
+import { LoadingScreen } from '@/src/business/account/components/loading-screen'
+
 const Page = () => {
   const { isAuthenticated, token, loading } = useAppSelector((state) => state.auth)
   const router = useRouter()
@@ -19,8 +21,8 @@ const Page = () => {
   }, [mounted, loading, router])
 
   return (
-    <div className="min-h-screen flex items-center justify-center font-bold bg-base-100">
-      Redirecting...
+    <div className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center">
+      <LoadingScreen title="Redirecting" subtitle="Taking you to the login page..." destination="" />
     </div>
   )
 }
