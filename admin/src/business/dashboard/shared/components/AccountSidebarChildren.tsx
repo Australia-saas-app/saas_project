@@ -25,7 +25,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
 
   const handleLogout = () => {
     dispatch(logout())
-    router.replace("/account/login")
+    router.replace("/admin/login")
   }
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/")

@@ -1,0 +1,385 @@
+#1
+admin-frontend/
+├─ public/
+├─ docs/
+│  ├─ architecture/
+│  ├─ api-contracts/
+│  └─ decisions/
+│
+├─ src/
+│  ├─ app/                              # application shell / bootstrap
+│  │  ├─ providers/
+│  │  │  ├─ router/
+│  │  │  ├─ query/
+│  │  │  ├─ auth/
+│  │  │  ├─ i18n/
+│  │  │  ├─ theme/
+│  │  │  └─ error/
+│  │  ├─ layouts/
+│  │  │  ├─ AdminLayout/
+│  │  │  ├─ AuthLayout/
+│  │  │  └─ MinimalLayout/
+│  │  ├─ router/
+│  │  │  ├─ index.tsx
+│  │  │  ├─ route-types.ts
+│  │  │  └─ guards/
+│  │  ├─ store/                         # only truly global app state
+│  │  ├─ styles/
+│  │  ├─ config/
+│  │  │  ├─ env.ts
+│  │  │  ├─ app-config.ts
+│  │  │  ├─ permissions.ts
+│  │  │  └─ navigation.ts
+│  │  ├─ App.tsx
+│  │  └─ main.tsx
+│  │
+│  ├─ core/                             # framework-agnostic core helpers
+│  │  ├─ api/
+│  │  │  ├─ http-client.ts
+│  │  │  ├─ api-error.ts
+│  │  │  ├─ interceptors/
+│  │  │  └─ types/
+│  │  ├─ auth/
+│  │  ├─ acl/
+│  │  ├─ logger/
+│  │  ├─ monitoring/
+│  │  ├─ utils/
+│  │  ├─ constants/
+│  │  └─ types/
+│  │
+│  ├─ shared/                           # reusable UI + shared business helpers
+│  │  ├─ ui/
+│  │  │  ├─ button/
+│  │  │  ├─ modal/
+│  │  │  ├─ form/
+│  │  │  ├─ table/
+│  │  │  ├─ badge/
+│  │  │  ├─ input/
+│  │  │  ├─ date-picker/
+│  │  │  └─ index.ts
+│  │  ├─ components/
+│  │  │  ├─ PageHeader/
+│  │  │  ├─ DataTable/
+│  │  │  ├─ ConfirmDialog/
+│  │  │  ├─ EmptyState/
+│  │  │  └─ index.ts
+│  │  ├─ hooks/
+│  │  ├─ lib/
+│  │  ├─ utils/
+│  │  ├─ types/
+│  │  ├─ constants/
+│  │  └─ permissions/
+│  │
+│  ├─ modules/                          # MOST IMPORTANT: business feature modules
+│  │  ├─ dashboard/
+│  │  │  ├─ routes/
+│  │  │  ├─ pages/
+│  │  │  ├─ components/
+│  │  │  ├─ widgets/
+│  │  │  ├─ services/
+│  │  │  ├─ api/
+│  │  │  ├─ hooks/
+│  │  │  ├─ store/
+│  │  │  ├─ types/
+│  │  │  ├─ utils/
+│  │  │  ├─ constants/
+│  │  │  └─ index.ts
+│  │  │
+│  │  ├─ users/
+│  │  │  ├─ routes/
+│  │  │  │  └─ index.tsx
+│  │  │  ├─ pages/
+│  │  │  │  ├─ UserListPage.tsx
+│  │  │  │  ├─ UserDetailsPage.tsx
+│  │  │  │  ├─ UserCreatePage.tsx
+│  │  │  │  └─ UserEditPage.tsx
+│  │  │  ├─ components/
+│  │  │  │  ├─ UserTable/
+│  │  │  │  ├─ UserForm/
+│  │  │  │  ├─ UserStatusBadge/
+│  │  │  │  └─ UserFilters/
+│  │  │  ├─ api/
+│  │  │  │  ├─ user.api.ts
+│  │  │  │ ├─ user.mapper.ts
+│  │  │  │ └─ user.query.ts
+│  │  │  ├─ services/
+│  │  │  │ └─ user.service.ts
+│  │  │  ├─ hooks/
+│  │  │  │ ├─ useUsers.ts
+│  │  │  │ ├─ useUserDetails.ts
+│  │  │  │ └─ useUserMutations.ts
+│  │  │  ├─ store/
+│  │  │  │ └─ user-filter.store.ts
+│  │  │  ├─ types/
+│  │  │  │ ├─ user.types.ts
+│  │  │  │ ├─ user.dto.ts
+│  │  │  │ └─ user.form.ts
+│  │  │  ├─ permissions/
+│  │  │  │ └─ user.permissions.ts
+│  │  │  ├─ utils/
+│  │  │  ├─ constants/
+│  │  │  ├─ tests/
+│  │  │  └─ index.ts
+│  │  │
+│  │  ├─ roles/
+│  │  ├─ auth-management/
+│  │  ├─ catalog/
+│  │  ├─ categories/
+│  │  ├─ products/
+│  │  ├─ inventory/
+│  │  ├─ pricing/
+│  │  ├─ orders/
+│  │  ├─ customers/
+│  │  ├─ payments/
+│  │  ├─ coupons/
+│  │  ├─ shipping/
+│  │  ├─ cms/
+│  │  ├─ notifications/
+│  │  ├─ reports/
+│  │  ├─ settings/
+│  │  └─ audit-log/
+│  │
+│  ├─ integrations/                     # external systems only
+│  │  ├─ firebase/
+│  │  ├─ socket/
+│  │  ├─ sentry/
+│  │  ├─ analytics/
+│  │  └─ storage/
+│  │
+│  ├─ mocks/
+│  └─ test/
+│
+├─ package.json
+├─ tsconfig.json
+├─ vite.config.ts
+└─ README.md
+
+
+
+#2
+admin-panel/
+│
+├── apps/                         # Future micro frontend container
+│   └── shell/                    # Main admin shell (layout, routing)
+│       ├── App.tsx
+│       ├── routes.ts
+│       └── providers/
+│
+├── modules/                      # Domain ভিত্তিক feature modules (IMPORTANT)
+│   ├── auth/
+│   │   ├── api/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── hooks/
+│   │   ├── store/
+│   │   ├── types/
+│   │   └── index.ts
+│   │
+│   ├── users/
+│   ├── roles-permissions/
+│   ├── dashboard/
+│   ├── finance/
+│   ├── projects/
+│   ├── support/
+│   ├── reports/
+│   └── settings/
+│
+├── shared/                       # Shared reusable resources
+│   ├── components/
+│   │   ├── ui/
+│   │   ├── forms/
+│   │   └── tables/
+│   │
+│   ├── hooks/
+│   ├── utils/
+│   ├── constants/
+│   ├── types/
+│   └── services/                 # API client, axios instance
+│
+├── layouts/                      # Admin layouts
+│   ├── MainLayout/
+│   ├── AuthLayout/
+│   └── DashboardLayout/
+│
+├── routes/                       # Central routing config
+│   ├── index.ts
+│   └── protectedRoutes.ts
+│
+├── store/                        # Global state (Redux/Zustand)
+│   ├── index.ts
+│   └── rootReducer.ts
+│
+├── config/                       # App configuration
+│   ├── env.ts
+│   ├── permissions.ts
+│   └── navigation.ts
+│
+├── assets/
+│   ├── images/
+│   ├── icons/
+│   └── styles/
+│
+├── middleware/                   # Auth guard, permission guard
+│
+├── bootstrap/                    # App initialization
+│   └── initApp.ts
+│
+├── index.html
+├── main.tsx
+├── vite.config.ts / webpack.config.js
+└── package.json
+
+
+
+
+#3
+admin/
+│
+├── apps/
+│   └── admin-shell/
+│       ├── src/
+│       ├── index.tsx
+│       ├── App.tsx
+│       ├── routes.ts
+│       └── bootstrap.ts
+│
+├── modules/
+│
+│   ├── dashboard/
+│   │   ├── api/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── routes/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   ├── store/
+│   │   ├── types/
+│   │   ├── utils/
+│   │   ├── permissions/
+│   │   ├── i18n/
+│   │   └── index.ts
+│   │
+│   ├── authentication/
+│   │
+│   ├── users/
+│   │
+│   ├── roles/
+│   │
+│   ├── permissions/
+│   │
+│   ├── companies/
+│   │
+│   ├── affiliates/
+│   │
+│   ├── finance/
+│   │
+│   ├── wallets/
+│   │
+│   ├── subscriptions/
+│   │
+│   ├── invoices/
+│   │
+│   ├── payments/
+│   │
+│   ├── tickets/
+│   │
+│   ├── support/
+│   │
+│   ├── reports/
+│   │
+│   ├── analytics/
+│   │
+│   ├── notifications/
+│   │
+│   ├── cms/
+│   │
+│   ├── media/
+│   │
+│   ├── logs/
+│   │
+│   ├── audit/
+│   │
+│   ├── settings/
+│   │
+│   ├── localization/
+│   │
+│   ├── integrations/
+│   │
+│   ├── api-keys/
+│   │
+│   ├── webhooks/
+│   │
+│   ├── feature-flags/
+│   │
+│   └── developer-tools/
+│
+├── packages/
+│
+│   ├── ui/
+│   │
+│   ├── layouts/
+│   │
+│   ├── icons/
+│   │
+│   ├── themes/
+│   │
+│   ├── forms/
+│   │
+│   ├── tables/
+│   │
+│   ├── charts/
+│   │
+│   ├── dialogs/
+│   │
+│   ├── notifications/
+│   │
+│   ├── auth/
+│   │
+│   ├── permissions/
+│   │
+│   ├── api/
+│   │
+│   ├── query/
+│   │
+│   ├── state/
+│   │
+│   ├── validation/
+│   │
+│   ├── hooks/
+│   │
+│   ├── utils/
+│   │
+│   ├── constants/
+│   │
+│   ├── config/
+│   │
+│   ├── localization/
+│   │
+│   └── types/
+│
+├── shared/
+│
+│   ├── assets/
+│   ├── styles/
+│   ├── providers/
+│   ├── contexts/
+│   ├── middleware/
+│   ├── router/
+│   ├── env/
+│   ├── storage/
+│   ├── helpers/
+│   └── bootstrap/
+│
+├── public/
+│
+├── scripts/
+│
+├── tests/
+│
+├── docs/
+│
+├── .env
+├── vite.config.ts
+├── tsconfig.json
+├── package.json
+└── README.md

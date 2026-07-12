@@ -1,0 +1,61 @@
+# Admin Panel Folder Structure
+# Architecture: Modular Monolith (Prepared for Micro-Frontend scaling)
+
+admin-app/
+├─ public/                        # Static assets (images, fonts, favicons)
+├─ docs/                          # Project documentation and API contracts
+│
+├─ src/
+│  ├─ app/                        # Application Shell & Routing (Next.js App Router)
+│  │  ├─ (dashboard)/             # Protected dashboard routes
+│  │  ├─ login/                   # Public authentication routes
+│  │  ├─ layout.tsx               # Global layout and providers
+│  │  └─ page.tsx                 # Root redirect to login
+│  │
+│  ├─ core/                       # Framework-agnostic core services
+│  │  ├─ context/                 # Global React Contexts (e.g., Auth, Theme)
+│  │  └─ store/                   # Global State Management (Redux/Zustand)
+│  │
+│  ├─ shared/                     # Reusable UI components & utilities
+│  │  ├─ ui/                      # Generic UI components (Buttons, Modals, Inputs)
+│  │  ├─ hooks/                   # Custom reusable React hooks
+│  │  ├─ utils/                   # Helper functions (Date formatters, validators)
+│  │  ├─ types/                   # Global TypeScript interfaces
+│  │  └─ constants/               # Global constants and enums
+│  │
+│  ├─ business/                   # Core Business Domain Modules (Features)
+│  │  ├─ dashboard/               # Main admin analytics and widgets
+│  │  ├─ users/                   # User management and roles
+│  │  ├─ account/                 # Profile and KYC management
+│  │  ├─ finance/                 # Escrow, wallets, and transactions
+│  │  ├─ settings/                # Platform configuration
+│  │  └─ common/                  # Shared business logic across modules
+│  │
+│  ├─ infra/                      # Infrastructure & External Integrations
+│  │  ├─ api/                     # Network clients (Axios, Fetch wrappers)
+│  │  ├─ config/                  # Environment variables and app configuration
+│  │  └─ lib/                     # Third-party library initializations (Firebase, Sentry)
+│
+├─ .env                           # Environment variables
+├─ package.json                   # Dependencies and scripts
+├─ tsconfig.json                  # TypeScript configuration
+└─ README.md                      # Project setup instructions
+
+
+================================================================================
+FUTURE SCALE: HOW TO CONVERT TO MICRO-FRONTENDS (MFE)
+================================================================================
+Currently, this architecture is a "Modular Monolith". It is perfectly organized by 
+business domain, which guarantees high development speed today while ensuring it 
+is 100% prepared for Micro-Frontend splitting tomorrow.
+
+When the application scales and performance/team size demands Micro-Frontends, 
+the migration path is trivial because the boundaries already exist:
+
+1. Move the `app/` folder into a new `apps/shell/` container (Webpack Module Federation).
+2. Take independent folders from `business/` (e.g., `business/finance`) and 
+   move them into their own standalone repositories or workspaces (e.g., `apps/finance-mfe/`).
+3. The `core/`, `shared/`, and `infra/` folders are extracted into an NPM Package 
+   or a shared Monorepo library (`packages/shared-ui`, `packages/core-services`) 
+   so all independent Micro-Frontends can consume them.
+4. The Shell dynamically imports the Business Micro-Frontends at runtime based on routes.

@@ -1,0 +1,681 @@
+#1
+
+├── docker-compose.yml
+├── kong/
+│   ├── kong.yml
+│   └── Dockerfile
+├── services/
+│   ├── customer-service/
+│   │   ├── src/
+│   │   │   ├── controllers/
+│   │   │   │   └── customerController.js
+│   │   │   ├── models/
+│   │   │   │   └── Customer.js
+│   │   │   ├── routes/
+│   │   │   │   └── customerRoutes.js
+│   │   │   ├── middleware/
+│   │   │   │   └── auth.js
+│   │   │   └── app.js
+│   │   ├── .dockerignore
+│   │   ├── package.json
+│   │   └── Dockerfile
+│   ├── order-service/
+│   │   ├── src/
+│   │   │   ├── controllers/
+│   │   │   │   └── orderController.js
+│   │   │   ├── models/
+│   │   │   │   └── Order.js
+│   │   │   ├── routes/
+│   │   │   │   └── orderRoutes.js
+│   │   │   └── app.js
+│   │   ├── .dockerignore
+│   │   ├── package.json
+│   │   └── Dockerfile
+│   ├── payment-service/
+│   │   ├── src/
+│   │   │   ├── controllers/
+│   │   │   │   └── paymentController.js
+│   │   │   ├── models/
+│   │   │   │   └── Payment.js
+│   │   │   ├── routes/
+│   │   │   │   └── paymentRoutes.js
+│   │   │   └── app.js
+|   │   ├── .env   
+│   │   ├── .dockerignore
+│   │   ├── package.json
+│   │   └── Dockerfile
+|   |-- chat-service/
+|   |   ├── src/
+|   |   │   ├── config/
+|   |   │   │   └── database.js
+|   |   │   ├── controllers/
+|   |   │   │   └── chatController.js
+|   |   │   ├── middleware/
+|   |   │   │   ├── errorHandler.js
+|   |   │   │   └── validation.js
+|   |   │   ├── models/
+|   |   │   │   ├── Message.js
+|   |   │   │   └── Room.js
+|   |   │   ├── routes/
+|   |   │   │   └── chatRoutes.js
+|   |   │   ├── socket/
+|   |   │   │   └── socketHandler.js
+|   |   │   └── app.js
+|   |   ├── .env
+|   |   ├── .dockerignore
+|   |   ├── docker-compose.yml
+|   |   ├── Dockerfile
+|   |   └── package.json
+│   ├── file-service/
+│   │   ├── src/
+│   │   │   ├── controllers/
+│   │   │   │   └── fileController.js
+│   │   │   ├── models/
+│   │   │   │   └── File.js
+│   │   │   ├── routes/
+│   │   │   │   └── fileRoutes.js
+│   │   │   ├── storage/
+│   │   │   │   └── uploads/
+│   │   │   └── app.js
+│   │   ├── package.json
+|   |   ├── .env
+│   │   ├── .dockerignore
+│   │   └── Dockerfile
+│   └── cache-service/
+│   │   ├── src/
+│   │   │   ├── models/
+│   │   │   │   └── File.js
+│   │   │   ├── controllers/
+│   │   │   │   └── cacheController.js
+│   │   │   ├── routes/
+│   │   │   │   └── cacheRoutes.js
+│   │   │   └── app.js
+│   │   ├── package.json
+|   │   ├── .env
+│   │   ├── .dockerignore
+│       └── Dockerfile
+├── shared/
+│   ├── utils/
+│   │   ├── logger.js
+│   │   ├── validation.js
+│   │   └── constants.js
+│   └── middleware/
+│       ├── errorHandler.js
+│       └── rateLimiter.js
+└── 
+
+
+
+#2
+backend/
+
+│
+├── apps/
+│   │
+│   ├── api-gateway/
+│   ├── admin-api/
+│   ├── public-api/
+│   ├── mobile-api/
+│   └── webhook-api/
+│
+├── services/
+│   │
+│   ├── authentication/
+│   ├── sso/
+│   ├── user/
+│   ├── business/
+│   ├── admin/
+│   ├── affiliate/
+│   ├── wallet/
+│   ├── payment/
+│   ├── withdraw/
+│   ├── notification/
+│   ├── chat/
+│   ├── review/
+│   ├── subscription/
+│   ├── currency/
+│   ├── file-storage/
+│   ├── analytics/
+│   ├── monitoring/
+│   ├── audit-log/
+│   ├── cache/
+│   ├── config/
+│   ├── security/
+│   ├── support/
+│   │
+│   ├── technology/
+│   ├── real-estate/
+│   ├── visa/
+│   ├── transport/
+│   ├── courses/
+│   ├── careers/
+│   ├── marketplace/
+│   │
+│   └── platform/
+│
+├── shared/
+│   │
+│   ├── auth/
+│   ├── database/
+│   ├── cache/
+│   ├── logger/
+│   ├── utils/
+│   ├── middleware/
+│   ├── exceptions/
+│   ├── constants/
+│   ├── validation/
+│   ├── pagination/
+│   ├── events/
+│   ├── messaging/
+│   ├── queue/
+│   ├── storage/
+│   ├── notification/
+│   └── security/
+│
+├── infrastructure/
+│   │
+│   ├── docker/
+│   ├── kubernetes/
+│   ├── nginx/
+│   ├── terraform/
+│   ├── monitoring/
+│   ├── logging/
+│   └── ci-cd/
+│
+├── packages/
+│   ├── sdk/
+│   ├── common/
+│   ├── event-bus/
+│   ├── grpc/
+│   └── protobuf/
+│
+├── scripts/
+├── docs/
+├── tests/
+└── tools/
+
+
+
+#3
+backend/
+├─ apps/
+│  ├─ api-gateway/
+│  │  └─ src/
+│  │     ├─ main.ts
+│  │     ├─ app.module.ts
+│  │     ├─ routes/
+│  │     ├─ middleware/
+│  │     ├─ guards/
+│  │     ├─ interceptors/
+│  │     └─ config/
+│  │
+│  ├─ admin-api/
+│  │  └─ src/
+│  │     ├─ main.ts
+│  │     ├─ app.module.ts
+│  │     ├─ modules/
+│  │     │  ├─ dashboard/
+│  │     │  ├─ users/
+│  │     │  ├─ vendors/
+│  │     │  ├─ content/
+│  │     │  ├─ finance/
+│  │     │  ├─ reports/
+│  │     │  └─ settings/
+│  │     └─ config/
+│  │
+│  ├─ public-api/
+│  │  └─ src/
+│  │     ├─ main.ts
+│  │     ├─ app.module.ts
+│  │     ├─ modules/
+│  │     └─ config/
+│  │
+│  └─ worker/
+│     └─ src/
+│        ├─ main.ts
+│        ├─ jobs/
+│        ├─ consumers/
+│        ├─ schedulers/
+│        └─ config/
+│
+├─ services/
+│  ├─ identity-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ identity.module.ts
+│  │
+│  ├─ user-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ user.module.ts
+│  │
+│  ├─ organization-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ organization.module.ts
+│  │
+│  ├─ catalog-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ catalog.module.ts
+│  │
+│  ├─ booking-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ booking.module.ts
+│  │
+│  ├─ order-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ order.module.ts
+│  │
+│  ├─ payment-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ payment.module.ts
+│  │
+│  ├─ invoice-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ invoice.module.ts
+│  │
+│  ├─ review-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ review.module.ts
+│  │
+│  ├─ notification-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ notification.module.ts
+│  │
+│  ├─ cms-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ cms.module.ts
+│  │
+│  ├─ media-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ media.module.ts
+│  │
+│  ├─ search-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ search.module.ts
+│  │
+│  ├─ analytics-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ analytics.module.ts
+│  │
+│  ├─ audit-service/
+│  │  └─ src/
+│  │     ├─ application/
+│  │     ├─ domain/
+│  │     ├─ infrastructure/
+│  │     ├─ interfaces/
+│  │     └─ audit.module.ts
+│  │
+│  └─ business-domains/
+│     ├─ technical-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ technical.module.ts
+│     │
+│     ├─ real-estate-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ real-estate.module.ts
+│     │
+│     ├─ education-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ education.module.ts
+│     │
+│     ├─ consulting-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ consulting.module.ts
+│     │
+│     ├─ healthcare-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ healthcare.module.ts
+│     │
+│     ├─ legal-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ legal.module.ts
+│     │
+│     ├─ logistics-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ logistics.module.ts
+│     │
+│     ├─ travel-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ travel.module.ts
+│     │
+│     ├─ recruitment-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ recruitment.module.ts
+│     │
+│     ├─ marketplace-service/
+│     │  └─ src/
+│     │     ├─ application/
+│     │     ├─ domain/
+│     │     ├─ infrastructure/
+│     │     ├─ interfaces/
+│     │     └─ marketplace.module.ts
+│     │
+│     └─ local-business-service/
+│        └─ src/
+│           ├─ application/
+│           ├─ domain/
+│           ├─ infrastructure/
+│           ├─ interfaces/
+│           └─ local-business.module.ts
+│
+├─ packages/
+│  ├─ core/
+│  │  ├─ domain/
+│  │  ├─ application/
+│  │  └─ utils/
+│  │
+│  ├─ contracts/
+│  │  ├─ events/
+│  │  ├─ commands/
+│  │  ├─ queries/
+│  │  └─ api/
+│  │
+│  ├─ database/
+│  │  ├─ orm/
+│  │  ├─ migrations/
+│  │  ├─ seeds/
+│  │  └─ base-repository/
+│  │
+│  ├─ event-bus/
+│  │  ├─ event-bus.interface.ts
+│  │  ├─ in-memory-event-bus.ts
+│  │  ├─ outbox/
+│  │  └─ handlers/
+│  │
+│  ├─ messaging/
+│  │  ├─ queue.interface.ts
+│  │  ├─ kafka/
+│  │  ├─ rabbitmq/
+│  │  └─ serializer/
+│  │
+│  ├─ auth/
+│  │  ├─ jwt/
+│  │  ├─ permissions/
+│  │  ├─ guards/
+│  │  └─ policies/
+│  │
+│  ├─ cache/
+│  │  ├─ redis/
+│  │  └─ memory/
+│  │
+│  ├─ config/
+│  │  ├─ env/
+│  │  ├─ loaders/
+│  │  └─ validators/
+│  │
+│  ├─ observability/
+│  │  ├─ logger/
+│  │  ├─ tracing/
+│  │  ├─ metrics/
+│  │  └─ health/
+│  │
+│  ├─ security/
+│  │  ├─ encryption/
+│  │  ├─ hashing/
+│  │  └─ tokenization/
+│  │
+│  ├─ storage/
+│  │  ├─ s3/
+│  │  ├─ local/
+│  │  └─ storage.interface.ts
+│  │
+│  ├─ notifications/
+│  │  ├─ email/
+│  │  ├─ sms/
+│  │  ├─ push/
+│  │  └─ templates/
+│  │
+│  ├─ search/
+│  │  ├─ elasticsearch/
+│  │  ├─ opensearch/
+│  │  └─ indexing/
+│  │
+│  ├─ tenancy/
+│  │  ├─ tenant-context/
+│  │  └─ tenant-resolver/
+│  │
+│  └─ testing/
+│     ├─ fixtures/
+│     ├─ factories/
+│     ├─ mocks/
+│     └─ helpers/
+│
+├─ platform/
+│  ├─ docs/
+│  │  ├─ architecture/
+│  │  ├─ adr/
+│  │  ├─ event-catalog/
+│  │  └─ service-catalog/
+│  │
+│  ├─ deployment/
+│  │  ├─ docker/
+│  │  ├─ kubernetes/
+│  │  └─ terraform/
+│  │
+│  ├─ scripts/
+│  │  ├─ dev/
+│  │  ├─ ci/
+│  │  ├─ release/
+│  │  └─ db/
+│  │
+│  └─ monitoring/
+│     ├─ grafana/
+│     ├─ prometheus/
+│     └─ alerts/
+│
+├─ .github/
+│  └─ workflows/
+│
+├─ .env.example
+├─ package.json
+├─ pnpm-workspace.yaml
+├─ turbo.json
+├─ tsconfig.base.json
+└─ README.md
+
+
+#4
+backend/
+│
+├── apps/
+│   ├── api-gateway/
+│   ├── admin-api/
+│   ├── public-api/
+│   ├── mobile-api/
+│   └── webhook-api/
+│
+├── services/
+│   │
+│   ├── auth/
+│   │
+│   ├── user/
+│   │
+│   ├── organization/
+│   │
+│   ├── billing/
+│   │
+│   ├── payment/
+│   │
+│   ├── notification/
+│   │
+│   ├── email/
+│   │
+│   ├── sms/
+│   │
+│   ├── storage/
+│   │
+│   ├── search/
+│   │
+│   ├── analytics/
+│   │
+│   ├── audit/
+│   │
+│   ├── report/
+│   │
+│   ├── setting/
+│   │
+│   ├── cms/
+│   │
+│   ├── media/
+│   │
+│   ├── ai/
+│   │
+│   ├── chat/
+│   │
+│   ├── support/
+│   │
+│   ├── marketplace/
+│   │
+│   ├── ecommerce/
+│   │
+│   ├── real-estate/
+│   │
+│   ├── education/
+│   │
+│   ├── healthcare/
+│   │
+│   ├── tourism/
+│   │
+│   ├── logistics/
+│   │
+│   ├── technical-service/
+│   │
+│   ├── job/
+│   │
+│   ├── event/
+│   │
+│   ├── finance/
+│   │
+│   └── common/
+│
+├── shared/
+│   ├── auth/
+│   ├── cache/
+│   ├── logger/
+│   ├── config/
+│   ├── database/
+│   ├── queue/
+│   ├── event/
+│   ├── security/
+│   ├── helper/
+│   ├── constants/
+│   ├── exception/
+│   ├── middleware/
+│   ├── validation/
+│   ├── encryption/
+│   └── utils/
+│
+├── infrastructure/
+│   ├── mysql/
+│   ├── redis/
+│   ├── elasticsearch/
+│   ├── kafka/
+│   ├── rabbitmq/
+│   ├── minio/
+│   ├── s3/
+│   ├── grpc/
+│   ├── websocket/
+│   └── docker/
+│
+├── packages/
+│
+├── scripts/
+│
+├── docs/
+│
+├── deployment/
+│
+├── tests/
+│
+└── tools/
+

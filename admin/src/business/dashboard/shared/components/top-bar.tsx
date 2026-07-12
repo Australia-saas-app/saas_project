@@ -46,7 +46,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
     setTimeout(() => {
       setIsLogoutModalOpen(false)
       dispatch(logout())
-      router.replace("/account/login")
+      router.replace("/admin/login")
       setIsLoggingOut(false)
     }, 0)
   }

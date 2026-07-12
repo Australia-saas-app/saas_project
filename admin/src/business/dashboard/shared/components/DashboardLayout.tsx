@@ -35,7 +35,7 @@ export default function DashboardLayout({
       if (wasAuthenticated) {
         setIsLoggingOut(true)
       } else {
-        router.replace("/account/login")
+        router.replace("/admin/login")
       }
     }
   }, [mounted, isAuthenticated, token, loading, router, wasAuthenticated])
@@ -46,7 +46,7 @@ export default function DashboardLayout({
         <LoadingScreen 
           title="Signing Out" 
           subtitle="Securing your data and closing session..." 
-          destination="/account/login" 
+          destination="/admin/login" 
         />
       </div>
     )

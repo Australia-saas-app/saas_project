@@ -1,0 +1,474 @@
+User Service
+User capabilities:
+Post projects to the platform
+Chat separately and independently for each project
+Make separate payments for each project
+Give ratings and reviews after project completion
+Approve or reject project deliverables
+Report disputes or issues on any project
+
+
+Registration
+Input: Full Name , Email / Phone, Password, (OTP Verification)
+Action: After Successful Registration redirect to the login page
+
+Login
+Input: Email / Phone, Password
+Rules: 
+A user can only log in to one device at a time; multiple devices cannot be active simultaneously
+First login from a new device or IP address → OTP verification required
+Same device + same IP → OTP not required 
+After login, user is redirected to the relevant service dashboard
+
+Identity Verification (KYC)
+Full Name, Photo (KYC), Gender, Date of Birth, Nationality, Government ID (NID/Passport/Driving License) (KYC), Passport Number, Permanent Address (Country, City, State, ZIP Code, Address)
+Rules: 
+This applies when more than 70 percent of the total project cost is outstanding
+If you suspect fake activity
+If you transact large amounts of money
+If you see suspicious transactions
+If you detect suspicious activity
+KYC is required before withdrawing money
+Unusual login / transaction
+If you deposit / withdraw more than a certain limit
+If you receive a high-value payment
+If multiple transactions are fast
+KYC Status
+pending
+approved
+rejected
+expired
+
+
+Profile update
+Before KYC Verification
+Users can update:
+Full Name 
+Profile Photo
+Currency (Default USD, user can change to local currency anytime)
+Phone Number / Email (Max 3)
+Primary Phone / Email
+Rules
+OTP required for adding phone/email
+Password confirmation required for deleting phone/email
+Primary phone/email cannot be deleted
+After KYC Verification
+Users can update:
+Profile Photo
+Currency (Default USD, user can change to local currency anytime)
+Phone Number / Email
+Primary Phone / Email
+Locked Information
+Full Name
+Date of Birth
+Country
+National ID / Passport Information
+Identity Verification (KYC)
+Rules
+OTP required for adding phone/email
+Password confirmation required for deleting phone/email
+Primary phone/email cannot be deleted
+Verified identity information cannot be changed directly
+
+Change password
+Input: Current Password, New Password, Confirm Password 
+Rules:
+After a successful password change, the user will be automatically logged out and must log in again
+
+Account Security (2FA)
+Input: Select one of the previously added and verified email addresses or phone numbers for OTP delivery 
+Primary Email or Phone + Password → OTP Verification required 
+Rules:
+OTP will also be required when logging in from a Login with a new device, Delete cookies/cache, Don't enable "Remember this device", Change VPN/IP/location, Change password, Suspicious activity detected, Attempt to login from a different country,
+
+Account Delete
+Rules:
+Wallet balance must be $0.00 
+Remaining unpaid project amount must be $0.00 
+No active or ongoing projects 
+If all conditions are met, the account is deleted immediately and status set to Dormant
+
+Account Recovery
+Rules:
+A deleted account can be restored within 60 days 
+After 60 days, the account cannot be recovered
+
+Forgot Password
+Input: Primary or Secondary Email / Phone (OTP Verification)
+Input: New Password  ,Confirm Password 
+Rules:
+If a secondary email or phone is used for recovery, it will be set as the new primary 
+Two-Factor Authentication (2FA) will be automatically turned OFF after password recovery
+
+
+………………………………………………………………………………………………………………
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Role 
+Status 
+Permission 
+Policy
+
+
+user
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+User Status 
+
+Active
+User can access all features
+Suspended
+Order create , Project chat , (Payment / pay for Project )
+Wallet  (Add money ,Withdraw )
+Refund request ,Reviews , Reporting
+Profile Updates (Change name, email, phone)    
+Cannot be accessed.
+Block
+User can not login
+Dormant
+The user cannot access the account without recovery.
+Closed
+All access is permanently blocked.
+
+
+
+
+User Account
+Action
+User Registration -
+Full Name, Currency, Email/Phone, Password
+OTP verification
+Auto login and redirect to dashboard
+Login - 
+Email/Phone, Password
+A user can only log in to one device at a time. Multiple devices cannot be active at the same time.
+The first time you log in from a new device or IP address, you will also need an OTP.
+Same device + same IP → OTP not required
+When the user logs in, they will be redirected to the relevant service dashboard.
+Identity Verification 
+Full Name, Photo (KYC), Gender, Date of Birth, Nationality, Government ID (NID/Passport/Driving License) (KYC), Passport Number, Permanent Address (Country, City, State, ZIP Code, Address)
+Identity verification will be required when the unpaid project amount exceeds 60%.
+Profile update -
+Before verifying the account using identity proof, the user can edit
+Full Name, Profile Photo 
+Add up to 3 phone numbers or emails via OTP verification
+Delete phone/email → Requires password
+Primary email/password can’t delete
+Change primary phone/email
+
+After verifying the account using identity proof, the user can edit
+Profile Photo 
+Add up to 3 phone numbers or emails via OTP verification
+Delete phone/email → Requires password
+Change primary phone/email
+Primary email/password can’t delete
+
+
+Change password
+Current Password
+New Password
+Confirm Password
+After a successful password change,. the user will be automatically logged out and must log in again.
+Account  delete
+Phone /Email, password
+Wallet balance must be 0. 
+The remaining project amount must be 0. 
+No active or ongoing projects .
+If all conditions are met, the account can be deleted immediately.
+
+Account recovery deadline
+
+
+A deleted account can be restored within 60 days
+After 60 days, the account cannot be recovered
+ Forgot Password
+Enter registered primary or secondary  Email or Phone(when user forgot password using secondary email or phone then secondary email or phone set as primary)  OTP Verification
+New Password
+Confirm Password
+Automatically Two-Factor Authentication Off
+If password recovery is done using a secondary email or phone, it will be set as the new primary
+ Two-Factor Authentication (2FA) will be automatically turned OFF
+Account Security 
+To enable 2FA, turn on authentication by selecting one of the previously added email addresses or phone numbers for the user
+
+OTP will be required on every login.
+
+
+
+
+
+
+
+
+User Status 
+User Status
+Description
+Rule
+Active
+User can access all features
+If the remaining unpaid project amount becomes greater than 60%, the account will be automatically suspended.
+Only one KYC verification is required. Once completed, it remains valid.
+Suspended
+Order create , Project chat , (Payment / pay for Project )
+Wallet  (Add money ,Withdraw )
+Refund request ,Reviews , Reporting
+Profile Updates (Change name, email, phone)    
+Cannot be accessed.
+After KYC  verification account status automatically update active
+Block
+User can not login
+
+
+Fraud / Scam detection
+Fake payment, duplicate transaction, wallet misuse
+Document / KYC issues
+Fake ID, passport, NID
+Policy violation
+Abuse, harassment, offensive content
+Security risk
+Hack attempt, account compromise, suspicious login
+Dormant
+The user cannot access the account without recovery.
+
+
+When a user deletes their account, the status is set to Dormant.
+If the user logs in again within 60 days, the account status will be updated back to Active automatically.
+
+
+Closed
+All access is permanently blocked.
+If a user has no wallet balance, no projects, and no payment-related data, the account may be hard-deleted after 60 days.
+After 60 days User can not recovery his account 
+If the user has wallet funds, project history, or payment-related records, the account will be permanently deleted (hard delete) after 5 years, in compliance with security and regulatory policies. 
+
+
+Role + Permissions + 
+Role = USER /AFFILIATE /BUSINESS /ADMIN/ SUPER ADMIN
+
+
+Permissions
+
+
+Profile
+- User Registration 
+- Login 
+- Identity Verification 
+- Profile update 
+- Change password
+- Account  delete
+- Account recovery deadline
+- Forgot Password
+- Account Security 
+
+
+wallet
+- wallet.add_card
+- wallet.add_money
+- wallet.refund
+- wallet.withdraw
+
+
+Technology
+- project.create
+- project.update
+- project.delete
+- project.payment
+- project.Refund
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. Project Management
+Post a new project
+Select a project category
+Set a budget, deadline, requirement
+Track an existing project
+
+2. Business Selection System
+View different business profiles
+Compare ratings, reviews, performance
+Select a suitable business
+Invite or assign directly
+
+ 3. Communication System
+Chat with business and admin
+Converse with project-specific
+Share files, images, documents
+Request a meeting
+
+ 4. Payment System
+Make project payments
+Deposit money in escrow
+Approve payment according to milestones
+View payment history
+
+ 5. Approval System
+Review work once delivered
+Approve / Reject / Request revision
+Accept final project
+
+6. Review & Rating System
+Rate the business
+Write feedback
+Evaluate service quality
+
+7. Dispute & Complaint System
+File a complaint if there is a problem
+Request a refund
+Get admin support
+Submit evidence
+
+8. Dashboard & Tracking
+Active project status see
+Progress tracking (milestone-wise)
+View payment & wallet status
+Notification dashboard
+
+9. Notification System
+Project update alert
+Payment confirmation
+Message notification
+Deadline reminder
+
+10. Profile Management
+Profile update
+Change contact info
+Manage security settings
+Setting preferences
+
+11. Security Control
+2FA / OTP login
+Login device management
+Account protection settings
+Password update
+
+12. File Management
+Project file upload
+Receive file from Business
+File download / preview
+
+13. Activity History
+All project history
+Payment history
+Communication logs
+Action tracking
+
+Simple Flow (How it works)
+Client signup
+By posting the project
+Select Business
+Payment in escrow
+Work is complete
+Client approves
+Project is finished
+
+Example
+Client posted website design project
+Budget: $100
+Business selected
+Work complete → approved
+Payment release is
