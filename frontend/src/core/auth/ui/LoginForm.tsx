@@ -59,7 +59,12 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
         })
       });
       
-      const resData = await response.json();
+      let resData;
+      try {
+        resData = await response.json();
+      } catch (e) {
+        throw new Error(`Server Error (${response.status}): The server returned an invalid response. Please check if the backend is running.`);
+      }
       
       if (!response.ok) {
         if (response.status === 403 && resData.error) {
@@ -198,9 +203,9 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
 
       {/* Status Block Modal */}
       {statusModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-xl animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm bg-blue-50 rounded-2xl shadow-2xl p-6 text-center border border-blue-200">
+            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
               <AlertOctagon className="w-8 h-8" />
             </div>
             
@@ -211,7 +216,7 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
             
             <Button 
               onClick={() => setStatusModal({ ...statusModal, isOpen: false })}
-              className="w-full h-11 text-sm font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm"
+              className="w-full h-11 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm"
             >
               OK, I Understand
             </Button>

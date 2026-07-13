@@ -12,7 +12,12 @@ export const loginUser = createAsyncThunk(
         body: JSON.stringify({ contact: credentials.email, password: credentials.password, role: 'super-admin' })
       });
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        return rejectWithValue(`Server Error (${response.status}): The server returned an invalid response. Please check if the backend is running.`);
+      }
       
       if (!response.ok) {
         return rejectWithValue(data.error || data.message || 'Invalid credentials');
