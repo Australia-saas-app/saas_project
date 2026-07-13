@@ -10,7 +10,7 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
-  await app.listen(4000);
-  console.log(`Backend API running on http://localhost:4000`);
+  await app.listen(4000, '0.0.0.0');
+  console.log(`Backend API running on http://0.0.0.0:4000`);
 }
 bootstrap();
