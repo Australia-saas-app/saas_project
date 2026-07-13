@@ -9,6 +9,9 @@ import { TableHeading } from "@/src/shared/ui/table/TableHeading"
 import { TableRow } from "@/src/shared/ui/table/TableRow"
 import { TableColumn } from "@/src/shared/ui/table/TableColumn"
 import { Loader2, Eye, Search } from "lucide-react"
+import { UserActionModal } from "./UserActionModal"
+import { useAppSelector } from "@/src/core/store/hooks"
+import { toast } from "sonner"
 
 type BackendUser = {
     userId: string
@@ -19,6 +22,12 @@ type BackendUser = {
     currency?: string
     status?: string
     createdAt?: string
+    totalProject?: number
+    totalAmount?: number
+    paidAmount?: number
+    dueAmount?: number
+    refundAmount?: number
+    profit?: number
 }
 
 // ---------------------------------------------------------
@@ -71,7 +80,13 @@ const AllUserTable: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1)
     const [totalResults, setTotalResults] = useState(0)
     const [debouncedQuery, setDebouncedQuery] = useState(query)
+    
+    // Modal State
+    const [selectedUser, setSelectedUser] = useState<BackendUser | null>(null)
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    
     const router = useRouter()
+    const token = useAppSelector(state => state.auth.token)
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -82,31 +97,47 @@ const AllUserTable: React.FC = () => {
 
     useEffect(() => {
         let active = true
-        const fetch = async () => {
+        const fetchUsers = async () => {
             setIsFetching(true)
             try {
-                // Simulate network request delay for a beautiful loading state
-                await new Promise(resolve => setTimeout(resolve, 0))
+                const response = await fetch('/api/users?role=user', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                if (!response.ok) throw new Error('Network response was not ok')
+                const resData = await response.json()
                 
                 if (!active) return
 
-                let filtered = [...dummyUsersData]
+                let filtered = resData.data.map((u: any) => ({
+                    userId: u.id,
+                    fullName: u.fullName || u.email,
+                    email: u.email || u.phone,
+                    currency: u.currency,
+                    status: u.status,
+                    createdAt: u.createdAt,
+                    totalProject: u.totalProject || 0,
+                    totalAmount: u.totalAmount || 0,
+                    paidAmount: u.paidAmount || 0,
+                    dueAmount: u.dueAmount || 0,
+                    refundAmount: u.refundAmount || 0,
+                    profit: u.profit || 0
+                }))
 
                 // Apply Filters
                 if (debouncedQuery) {
                     const q = debouncedQuery.toLowerCase()
-                    filtered = filtered.filter(u => 
+                    filtered = filtered.filter((u: BackendUser) => 
                         u.fullName?.toLowerCase().includes(q) || 
                         u.email?.toLowerCase().includes(q)
                     )
                 }
 
                 if (status && status !== "All Statuses") {
-                    filtered = filtered.filter(u => u.status?.toLowerCase() === status.toLowerCase())
+                    filtered = filtered.filter((u: BackendUser) => u.status?.toLowerCase() === status.toLowerCase())
                 }
 
                 if (currency && currency !== "All Currencies") {
-                    filtered = filtered.filter(u => u.currency === currency)
+                    filtered = filtered.filter((u: BackendUser) => u.currency === currency)
                 }
 
                 setTotalResults(filtered.length)
@@ -117,17 +148,57 @@ const AllUserTable: React.FC = () => {
                 const paginated = filtered.slice(startIdx, startIdx + pageSize)
                 
                 setItems(paginated)
+            } catch (error) {
+                console.error("Failed to fetch users", error)
+                if (active) setItems([])
             } finally {
                 if (active) setIsFetching(false)
             }
         }
-        fetch()
+        fetchUsers()
         return () => { active = false }
-    }, [page, pageSize, status, debouncedQuery, currency, startDate, endDate])
+    }, [page, pageSize, status, debouncedQuery, currency, startDate, endDate, token])
 
-    const handleView = (userId?: string) => {
-        if (!userId) return
-        router.push(`/all-users/${userId}`)
+    const handleView = (user: BackendUser) => {
+        setSelectedUser(user)
+        setIsModalOpen(true)
+    }
+
+    const handleStatusUpdate = async (userId: string, newStatus: string) => {
+        try {
+            const res = await fetch(`/api/users/${userId}/status`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (!res.ok) throw new Error("Failed to update");
+            
+            // Update local state
+            setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
+            toast.success("User status updated successfully");
+        } catch (e: any) {
+            toast.error(e.message || "Failed to update status");
+        }
+    }
+
+    const handleDelete = async (userId: string) => {
+        try {
+            const res = await fetch(`/api/users/${userId}`, { 
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("Failed to delete");
+            
+            // Update local state
+            setItems(prev => prev.filter(u => u.userId !== userId));
+            setTotalResults(prev => prev - 1);
+            toast.success("User deleted successfully");
+        } catch (e: any) {
+            toast.error(e.message || "Failed to delete user");
+        }
     }
 
     return (
@@ -149,17 +220,20 @@ const AllUserTable: React.FC = () => {
 
                 <Table>
                     <TableHeading>
-                        <TableColumn isHeader style={{ width: '9%' }}>ID</TableColumn>
-                        <TableColumn isHeader style={{ width: '28%' }}>User Details</TableColumn>
-                        <TableColumn isHeader style={{ width: '15%' }}>Currency</TableColumn>
-                        <TableColumn isHeader style={{ width: '16%' }}>Status</TableColumn>
-                        <TableColumn isHeader style={{ width: '20%' }}>Created At</TableColumn>
-                        <TableColumn isHeader align="center" style={{ width: '12%' }}>Action</TableColumn>
+                        <TableColumn isHeader style={{ width: '8%' }}>User Id</TableColumn>
+                        <TableColumn isHeader style={{ width: '10%' }}>Total Project</TableColumn>
+                        <TableColumn isHeader style={{ width: '12%' }}>Total Amount</TableColumn>
+                        <TableColumn isHeader style={{ width: '12%' }}>Paid Amount</TableColumn>
+                        <TableColumn isHeader style={{ width: '12%' }}>Due Amount</TableColumn>
+                        <TableColumn isHeader style={{ width: '12%' }}>Refund Amount</TableColumn>
+                        <TableColumn isHeader style={{ width: '12%' }}>Profit</TableColumn>
+                        <TableColumn isHeader style={{ width: '12%' }}>Status</TableColumn>
+                        <TableColumn isHeader align="center" style={{ width: '10%' }}>Action</TableColumn>
                     </TableHeading>
                     <tbody>
                         {isFetching ? (
                             <TableRow>
-                                <TableColumn colSpan={6}>
+                                <TableColumn colSpan={9}>
                                     <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
                                         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                                         <span className="text-gray-500 font-medium">Fetching users...</span>
@@ -168,7 +242,7 @@ const AllUserTable: React.FC = () => {
                             </TableRow>
                         ) : items.length === 0 ? (
                             <TableRow>
-                                <TableColumn colSpan={6}>
+                                <TableColumn colSpan={9}>
                                     <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
                                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
                                             <Search className="w-6 h-6 text-gray-400" />
@@ -182,36 +256,37 @@ const AllUserTable: React.FC = () => {
                             items.map((u, idx) => (
                                 <TableRow key={u.userId}>
                                     <TableColumn>
-                                        #{(page - 1) * pageSize + idx + 1}
+                                        #{u.userId.slice(0,5)}
                                     </TableColumn>
                                     <TableColumn>
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
-                                                {u.fullName ? u.fullName.charAt(0).toUpperCase() : 'U'}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="font-semibold text-gray-800 dark:text-gray-100 truncate">{u.fullName || 'Unknown User'}</div>
-                                                <div className="text-xs text-gray-500 truncate">{u.email || '-'}</div>
-                                            </div>
-                                        </div>
+                                        {u.totalProject || 0}
                                     </TableColumn>
                                     <TableColumn>
-                                        {u.currency || '-'}
+                                        {u.totalAmount || 0} {u.currency || 'USD'}
                                     </TableColumn>
                                     <TableColumn>
-                                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${getStatusColor(u.status || '')}`}>
+                                        {u.paidAmount || 0} {u.currency || 'USD'}
+                                    </TableColumn>
+                                    <TableColumn>
+                                        {u.dueAmount || 0} {u.currency || 'USD'}
+                                    </TableColumn>
+                                    <TableColumn>
+                                        {u.refundAmount ? `${u.refundAmount} ${u.currency || 'USD'}` : '..........'}
+                                    </TableColumn>
+                                    <TableColumn>
+                                        {u.profit || 0} {u.currency || 'USD'}
+                                    </TableColumn>
+                                    <TableColumn>
+                                        <span className={`px-2.5 py-1 text-[11px] font-bold tracking-wider rounded-sm ${getStatusColor(u.status || '')}`}>
                                             {(u.status || 'UNKNOWN').toUpperCase()}
                                         </span>
                                     </TableColumn>
-                                    <TableColumn>
-                                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}
-                                    </TableColumn>
                                     <TableColumn align="center">
                                         <button
-                                            onClick={() => handleView(u.userId)}
-                                            className="inline-flex items-center justify-center p-2 rounded-md hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors"
+                                            onClick={() => handleView(u)}
+                                            className="inline-flex items-center justify-center px-4 py-1 text-xs font-bold rounded-sm bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors"
                                         >
-                                            <Eye className="w-4 h-4" />
+                                            VIEW
                                         </button>
                                     </TableColumn>
                                 </TableRow>
@@ -233,6 +308,15 @@ const AllUserTable: React.FC = () => {
                 </div>
 
             </div>
+
+            {/* Action Modal */}
+            <UserActionModal 
+                isOpen={isModalOpen} 
+                user={selectedUser} 
+                onClose={() => setIsModalOpen(false)} 
+                onStatusUpdate={handleStatusUpdate}
+                onDelete={handleDelete}
+            />
         </div>
     )
 }

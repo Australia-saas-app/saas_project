@@ -5,14 +5,20 @@ export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async (credentials: { email: string; password: string }, { rejectWithValue }) => {
     try {
-      // Simulate network latency
-      await new Promise(resolve => setTimeout(resolve, 0));
-
-      // TODO: Replace with actual API call
-      // const response = await axiosInstance.post('/auth/login', credentials);
-      // return response.data;
-      if (credentials.email && credentials.password) {
-        return { token: 'mock-jwt-token', user: { email: credentials.email, role: 'admin' } };
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact: credentials.email, password: credentials.password, role: 'super-admin' })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return rejectWithValue(data.error || data.message || 'Invalid credentials');
+      }
+      
+      if (data.data) {
+        return { token: 'mock-jwt-token', user: data.data };
       }
       return rejectWithValue('Invalid credentials');
     } catch (error: any) {

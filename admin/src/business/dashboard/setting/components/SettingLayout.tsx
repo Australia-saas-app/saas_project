@@ -4,15 +4,33 @@ import { Form } from "@/src/shared/ui/form/form"
 import { FormInput } from "@/src/shared/ui/form/form-input"
 import { Button } from "@/src/shared/ui/ui/button"
 import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { useState } from "react"
+import { useAppSelector } from "@/src/core/store/hooks"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
-type PasswordFormValues = {
-  oldPassword: string
-  newPassword: string
-  confirmPassword: string
-}
+const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]).{8,}$/;
+
+const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1, "Old password is required"),
+  newPassword: z.string().regex(passwordRegex, "Password must be at least 8 characters, include 1 uppercase, 1 number, and 1 special character"),
+  confirmPassword: z.string()
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+})
+
+type PasswordFormValues = z.infer<typeof changePasswordSchema>
 
 const SettingLayout = () => {
+  const user = useAppSelector((state) => state.auth.user)
+  const token = useAppSelector((state) => state.auth.token)
+  const [isLoading, setIsLoading] = useState(false)
+
   const form = useForm<PasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
     defaultValues: {
       oldPassword: "",
       newPassword: "",
@@ -20,13 +38,36 @@ const SettingLayout = () => {
     },
   })
 
-  const onSubmit = (values: PasswordFormValues) => {
-    if (values.newPassword !== values.confirmPassword) {
-      form.setError("confirmPassword", { type: "validate", message: "Passwords do not match" })
-      return
+  const onSubmit = async (values: PasswordFormValues) => {
+    if (!user?.email) {
+      toast.error("User not logged in");
+      return;
     }
-    // Replace with API call
-    alert("Password updated")
+
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: user.email,
+          oldPassword: values.oldPassword,
+          newPassword: values.newPassword
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Failed to update password");
+      
+      toast.success("Password updated successfully");
+      form.reset();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -77,9 +118,15 @@ const SettingLayout = () => {
                 <div className="pt-2 flex justify-center">
                   <Button
                     type="submit"
-                    className="w-full py-2.5 rounded-md bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
+                    disabled={isLoading}
+                    className="w-full py-2.5 rounded-md bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:bg-blue-600"
                   >
-                    Update Password
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : "Update Password"}
                   </Button>
                 </div>
               </form>

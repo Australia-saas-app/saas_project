@@ -10,9 +10,13 @@ import { TableHeading } from "@/src/shared/ui/table/TableHeading"
 import { TableColumn } from "@/src/shared/ui/table/TableColumn"
 import { TableRow } from "@/src/shared/ui/table/TableRow"
 import { Pagination } from "@/src/shared/ui/ui/pagination"
+import { Loader2 } from "lucide-react"
+import { UserActionModal } from "../../allUsers/components/UserActionModal"
+import { useAppSelector } from "@/src/core/store/hooks"
+import { toast } from "sonner"
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type BusinessStatus = "ACTIVE" | "SUSPEND" | "BLOCK" | "DORMANT" | "CLOSED" | "INACTIVE"
+type BusinessStatus = "ACTIVE" | "PENDING" | "SUSPEND" | "BLOCK" | "DORMANT" | "CLOSED" | "INACTIVE"
 
 interface BusinessRow {
   id: string
@@ -27,42 +31,15 @@ interface BusinessRow {
   status: BusinessStatus
 }
 
-// ── Dummy Data ─────────────────────────────────────────────────────────────
-const BUSINESS_TYPES = [
-  "Technology",
-  "Retail",
-  "Real Estate",
-  "Visa & Travel",
-  "Finance",
-  "Healthcare",
-]
-const STATUSES: BusinessStatus[] = ["ACTIVE", "SUSPEND", "BLOCK", "DORMANT", "CLOSED", "INACTIVE"]
-const COUNTRIES = ["Australia", "Japan", "United States", "United Kingdom", "Canada", "Germany"]
-const NAMES = ["tast", "tarzan", "quantum", "nexus", "vertex", "horizon"]
-
-const dummyBusinesses: BusinessRow[] = Array.from({ length: 54 }).map((_, i) => {
-  return {
-    id: String(i + 1),
-    businessId: String(10001 + i).padStart(5, "0"),
-    businessName: NAMES[i % NAMES.length],
-    businessType: BUSINESS_TYPES[i % BUSINESS_TYPES.length],
-    securityDeposit: `${(i % 5 === 0) ? 45 : 20} USD`,
-    dueAmount: `510 USD`,
-    percentageRate: `50%`,
-    paidAmount: `100 USD`,
-    country: COUNTRIES[i % COUNTRIES.length],
-    status: STATUSES[i % STATUSES.length],
-  }
-})
-
 // ── Status Badge ───────────────────────────────────────────────────────────
 function getStatusStyle(status: BusinessStatus) {
   switch (status) {
     case "ACTIVE":   return "bg-emerald-100 text-emerald-700 border-emerald-200"
+    case "PENDING":  return "bg-amber-100 text-amber-700 border-amber-200"
     case "SUSPEND":  return "bg-orange-100 text-orange-700 border-orange-200"
     case "BLOCK":    return "bg-red-100 text-red-700 border-red-200"
     case "DORMANT":  return "bg-slate-100 text-slate-600 border-slate-200"
-    case "CLOSED":   return "bg-yellow-100 text-yellow-700 border-yellow-200"
+    case "CLOSED":   return "bg-zinc-100 text-zinc-700 border-zinc-200"
     case "INACTIVE": return "bg-gray-100 text-gray-500 border-gray-200"
     default:         return "bg-gray-100 text-gray-500 border-gray-200"
   }
@@ -79,26 +56,116 @@ const AllBusinessTable: React.FC = () => {
   const [endDate, setEndDate]           = useState("")
   const [page, setPage]                 = useState(1)
   const [pageSize, setPageSize]         = useState(10)
+  
+  const [items, setItems] = useState<any[]>([])
+  const [isFetching, setIsFetching] = useState(false)
+  const [totalResults, setTotalResults] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  
+  // Modal State
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
+  const token = useAppSelector(state => state.auth.token)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    let arr = dummyBusinesses
-    if (country !== "All Countries")       arr = arr.filter(a => a.country === country)
-    if (businessTypeFilter !== "All Business") arr = arr.filter(a => a.businessType === businessTypeFilter)
-    if (status !== "All Statuses")         arr = arr.filter(a => a.status === status)
-    if (q) arr = arr.filter(a =>
-      a.businessId.includes(q) ||
-      a.businessName.toLowerCase().includes(q) ||
-      (a.businessType || "").toLowerCase().includes(q)
-    )
-    return arr
-  }, [query, country, businessTypeFilter, status])
+  React.useEffect(() => {
+    const handler = setTimeout(() => setDebouncedQuery(query), 300)
+    return () => clearTimeout(handler)
+  }, [query])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const pageItems  = filtered.slice((page - 1) * pageSize, page * pageSize)
+  React.useEffect(() => {
+    let active = true
+    const fetchBusinesses = async () => {
+      setIsFetching(true)
+      try {
+        const response = await fetch('/api/users?role=business', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!response.ok) throw new Error('Failed to fetch')
+        const resData = await response.json()
+        
+        if (!active) return
 
-  const handleView = (businessId: string) => {
-    router.push(`/all-businesses/${businessId}`)
+        let filtered = resData.data.map((u: any) => ({
+          userId: u.id,
+          businessId: u.id.slice(0,5),
+          fullName: u.businessName || u.fullName || 'Unknown Business',
+          email: u.email || '-',
+          businessName: u.businessName || u.fullName || 'Unknown Business',
+          businessType: u.businessType || 'NA',
+          createdAt: u.createdAt,
+          securityDeposit: `${u.securityDeposit || 0} ${u.currency || 'USD'}`,
+          dueAmount: `${u.dueAmount || 0} ${u.currency || 'USD'}`,
+          percentageRate: `${u.percentageRate || 0}%`,
+          paidAmount: `${u.paidAmount || 0} ${u.currency || 'USD'}`,
+          status: (u.status || 'ACTIVE').toUpperCase()
+        }))
+
+        const q = debouncedQuery.toLowerCase()
+        if (q) {
+          filtered = filtered.filter((b: any) => 
+            b.businessId.toLowerCase().includes(q) ||
+            b.businessName.toLowerCase().includes(q)
+          )
+        }
+        if (status !== "All Statuses") {
+          filtered = filtered.filter((b: any) => b.status === status)
+        }
+        if (businessTypeFilter !== "All Business") {
+           filtered = filtered.filter((b: any) => b.businessType === businessTypeFilter)
+        }
+
+        setTotalResults(filtered.length)
+        setTotalPages(Math.max(1, Math.ceil(filtered.length / pageSize)))
+        const startIdx = (page - 1) * pageSize
+        setItems(filtered.slice(startIdx, startIdx + pageSize))
+      } catch (err) {
+        console.error(err)
+        if (active) setItems([])
+      } finally {
+        if (active) setIsFetching(false)
+      }
+    }
+    fetchBusinesses()
+    return () => { active = false }
+  }, [page, pageSize, status, debouncedQuery, businessTypeFilter, token])
+
+  const handleView = (user: any) => {
+    setSelectedUser(user)
+    setIsModalOpen(true)
+  }
+
+  const handleStatusUpdate = async (userId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/users/${userId}/status`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
+      toast.success("Business status updated successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update status");
+    }
+  }
+
+  const handleDelete = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/users/${userId}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      setItems(prev => prev.filter(u => u.userId !== userId));
+      setTotalResults(prev => prev - 1);
+      toast.success("Business deleted successfully");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete user");
+    }
   }
 
   return (
@@ -124,7 +191,8 @@ const AllBusinessTable: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 rounded-md shadow-lg z-[100]">
                 <SelectItem value="All Countries" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Countries</SelectItem>
-                {COUNTRIES.map(c => <SelectItem key={c} value={c} className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">{c}</SelectItem>)}
+                <SelectItem value="Australia">Australia</SelectItem>
+                <SelectItem value="Japan">Japan</SelectItem>
               </SelectContent>
             </Select>
 
@@ -152,7 +220,12 @@ const AllBusinessTable: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 rounded-md shadow-lg z-[100]">
                 <SelectItem value="All Business" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Business</SelectItem>
-                {BUSINESS_TYPES.map(t => <SelectItem key={t} value={t} className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">{t}</SelectItem>)}
+                <SelectItem value="Technology">Technology</SelectItem>
+                <SelectItem value="Retail">Retail</SelectItem>
+                <SelectItem value="Real Estate">Real Estate</SelectItem>
+                <SelectItem value="Visa & Travel">Visa & Travel</SelectItem>
+                <SelectItem value="Finance">Finance</SelectItem>
+                <SelectItem value="Healthcare">Healthcare</SelectItem>
               </SelectContent>
             </Select>
 
@@ -163,7 +236,11 @@ const AllBusinessTable: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 rounded-md shadow-lg z-[100]">
                 <SelectItem value="All Statuses" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Statuses</SelectItem>
-                {STATUSES.map(s => <SelectItem key={s} value={s} className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">{s}</SelectItem>)}
+                <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                <SelectItem value="SUSPEND">SUSPEND</SelectItem>
+                <SelectItem value="BLOCK">BLOCK</SelectItem>
+                <SelectItem value="DORMANT">DORMANT</SelectItem>
+                <SelectItem value="CLOSED">CLOSED</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -183,7 +260,16 @@ const AllBusinessTable: React.FC = () => {
             <TableColumn isHeader style={{ width: '6%'   }} align="center">Action</TableColumn>
           </TableHeading>
           <tbody>
-            {pageItems.length === 0 ? (
+            {isFetching ? (
+                <TableRow>
+                    <TableColumn colSpan={9}>
+                        <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                            <span className="text-gray-500 font-medium">Fetching businesses...</span>
+                        </div>
+                    </TableColumn>
+                </TableRow>
+            ) : items.length === 0 ? (
               <TableRow>
                 <TableColumn colSpan={9}>
                   <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
@@ -196,8 +282,8 @@ const AllBusinessTable: React.FC = () => {
                 </TableColumn>
               </TableRow>
             ) : (
-              pageItems.map((b) => (
-                <TableRow key={b.id}>
+              items.map((b) => (
+                <TableRow key={b.userId}>
                   {/* Business ID */}
                   <TableColumn>
                     <span className="font-mono text-sm font-semibold text-blue-600">#{b.businessId}</span>
@@ -235,7 +321,7 @@ const AllBusinessTable: React.FC = () => {
 
                   {/* Status */}
                   <TableColumn>
-                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${getStatusStyle(b.status)}`}>
+                    <span className={`px-2.5 py-1 text-[11px] font-bold tracking-wider rounded-sm border ${getStatusStyle(b.status)}`}>
                       {b.status}
                     </span>
                   </TableColumn>
@@ -243,10 +329,10 @@ const AllBusinessTable: React.FC = () => {
                   {/* Action */}
                   <TableColumn align="center">
                     <button
-                      onClick={() => handleView(b.businessId)}
-                      className="inline-flex items-center justify-center p-2 rounded-md hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors"
+                      onClick={() => handleView(b)}
+                      className="inline-flex items-center justify-center px-4 py-1 text-xs font-bold rounded-sm bg-yellow-400 text-yellow-900 hover:bg-yellow-500 transition-colors"
                     >
-                      <Eye className="w-4 h-4" />
+                      VIEW
                     </button>
                   </TableColumn>
                 </TableRow>
@@ -262,12 +348,20 @@ const AllBusinessTable: React.FC = () => {
             totalPages={totalPages}
             onPageChange={(p) => setPage(p)}
             pageSize={pageSize}
-            totalResults={filtered.length}
+            totalResults={totalResults}
             onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
           />
         </div>
 
       </div>
+
+      <UserActionModal 
+          isOpen={isModalOpen} 
+          user={selectedUser} 
+          onClose={() => setIsModalOpen(false)} 
+          onStatusUpdate={handleStatusUpdate}
+          onDelete={handleDelete}
+      />
     </div>
   )
 }

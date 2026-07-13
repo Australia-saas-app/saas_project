@@ -34,7 +34,7 @@ export function Providers({ children }: ProvidersProps) {
       <HydrationWrapper>
         <QueryClientProvider client={queryClient}>
           <UserProvider>
-            <Toaster position="top-right" richColors />
+            <Toaster position="top-right" richColors duration={5000} />
 
             {children}
           </UserProvider>
