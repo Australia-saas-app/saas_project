@@ -25,7 +25,8 @@ const statuses = ["ACTIVE", "PENDING", "SUSPEND", "DORMANT", "CLOSED", "BLOCK"];
 export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete }: UserActionModalProps) {
   const [selectedStatus, setSelectedStatus] = useState(user?.status?.toUpperCase() || "ACTIVE");
   const [isUpdating, setIsUpdating] = useState(false);
-  const [updatingAction, setUpdatingAction] = useState<string>("");
+  const [updatingAction, setUpdatingAction] = React.useState<string>('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Update local state when user changes
@@ -43,32 +44,57 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
   };
 
   const handleDelete = async () => {
-    if (confirm("Are you sure you want to permanently delete this user?")) {
-      setIsDeleting(true);
-      await onDelete(user.userId);
-      setIsDeleting(false);
-      onClose();
-    }
+    setIsDeleting(true);
+    await onDelete(user.userId);
+    setIsDeleting(false);
+    setShowDeleteConfirm(false);
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
         className="relative w-full bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-        style={{ maxWidth: "450px" }}
+        style={{ maxWidth: showDeleteConfirm ? "400px" : "450px" }}
       >
         
-        {/* Header */}
+        {showDeleteConfirm ? (
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Delete User?</h3>
+            <p className="text-slate-600 mb-6">
+              Are you sure you want to permanently delete <span className="font-semibold">{user.fullName}</span>? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                No, Cancel
+              </button>
+              <button 
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm shadow-red-600/20 transition-all disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <h3 className="text-lg font-semibold text-slate-800">Manage Account</h3>
           <div className="flex items-center gap-2">
             <button 
-              onClick={handleDelete}
+              onClick={() => setShowDeleteConfirm(true)}
               disabled={isDeleting || !!updatingAction}
               className="flex items-center justify-center p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50"
               title="Delete Account"
             >
-              {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 size={18} strokeWidth={2.5} />}
             </button>
             <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
               <X className="w-5 h-5" />
@@ -170,6 +196,8 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

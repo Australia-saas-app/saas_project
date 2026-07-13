@@ -23,8 +23,8 @@ export const loginUser = createAsyncThunk(
         return rejectWithValue(data.error || data.message || 'Invalid credentials');
       }
       
-      if (data.data) {
-        return { token: 'mock-jwt-token', user: data.data };
+      if (data.data && data.token) {
+        return { token: data.token, user: data.data };
       }
       return rejectWithValue('Invalid credentials');
     } catch (error: any) {
@@ -54,9 +54,13 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     hydrate: (state) => {
-      // Disabled auto-login from localStorage as requested so users always see the login page first.
-      // const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      // if (token) { ... }
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      if (token && user) {
+        state.isAuthenticated = true;
+        state.token = token;
+        state.user = JSON.parse(user);
+      }
     },
     logout: (state) => {
       state.isAuthenticated = false;

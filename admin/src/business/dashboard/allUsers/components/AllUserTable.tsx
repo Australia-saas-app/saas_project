@@ -174,7 +174,10 @@ const AllUserTable: React.FC = () => {
                 },
                 body: JSON.stringify({ status: newStatus })
             });
-            if (!res.ok) throw new Error("Failed to update");
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || "Failed to update");
+            }
             
             // Update local state
             setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
@@ -191,7 +194,10 @@ const AllUserTable: React.FC = () => {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!res.ok) throw new Error("Failed to delete");
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || "Failed to delete");
+            }
             
             // Update local state
             setItems(prev => prev.filter(u => u.userId !== userId));
