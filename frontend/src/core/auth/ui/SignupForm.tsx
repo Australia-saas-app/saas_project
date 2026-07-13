@@ -125,6 +125,9 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
     if (e.key === "Backspace" && otp[index] === "" && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
+    if (e.key === "Enter") {
+      handleVerifyOtp();
+    }
   };
 
   const handleVerifyOtp = async () => {
@@ -199,6 +202,7 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
                 className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 text-slate-900 placeholder-slate-400 transition-all outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !isOtpSent) handleSendOtp(); }}
               />
             </div>
           </div>
@@ -214,6 +218,7 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
                 className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 text-slate-900 placeholder-slate-400 transition-all outline-none disabled:bg-slate-50 disabled:text-slate-500"
                 value={contact}
                 onChange={handleContactChange}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !isOtpSent) handleSendOtp(); }}
               />
             </div>
             {!isOtpSent && (
@@ -297,6 +302,7 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
                       setPassword(e.target.value);
                       setError("");
                     }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAccount(); }}
                   />
                 </div>
                 <div className="text-[10px] text-slate-500 ml-1 mt-1 space-y-0.5">

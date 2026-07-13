@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  assetPrefix: '/admin_assets',
   devIndicators: {
     appIsrStatus: false,
     buildActivity: false,

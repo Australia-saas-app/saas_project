@@ -30,7 +30,7 @@ services:
     environment:
       - NODE_ENV=production
       # Next.js will use this public URL for API calls
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=/api
     restart: always
     networks:
       - saas_network
@@ -45,7 +45,7 @@ services:
     container_name: saas_admin
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_API_URL=/api
     restart: always
     networks:
       - saas_network

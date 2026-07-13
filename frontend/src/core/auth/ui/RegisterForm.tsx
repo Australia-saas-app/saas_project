@@ -100,6 +100,9 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
     if (e.key === "Backspace" && otp[index] === "" && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
+    if (e.key === "Enter") {
+      handleVerifyOtp();
+    }
   };
 
   const handleVerifyOtp = async () => {
@@ -196,6 +199,7 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
               className="w-full h-10 pl-9 pr-4 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-50"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !isOtpSent) handleSendOtp(); }}
             />
           </div>
         </div>
@@ -211,6 +215,7 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
               className="w-full h-10 pl-9 pr-4 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-slate-900 placeholder-slate-400 outline-none disabled:bg-slate-50"
               value={contact}
               onChange={handleContactChange}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !isOtpSent) handleSendOtp(); }}
             />
           </div>
           {!isOtpSent && (
@@ -270,6 +275,7 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
                   className="w-full h-10 pl-9 pr-4 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-slate-900 outline-none"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAccount(); }}
                 />
               </div>
               <div className="text-[10px] text-slate-500 mt-1 flex flex-wrap gap-x-2">
