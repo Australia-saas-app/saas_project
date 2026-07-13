@@ -27,7 +27,8 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const isProd = process.env.NODE_ENV === 'production';
+    const backendUrl = process.env.BACKEND_URL || (isProd ? 'http://saas_backend:4000' : 'http://localhost:4000');
     return [
       {
         source: '/api/:path*',
