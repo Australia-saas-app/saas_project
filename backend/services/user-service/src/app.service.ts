@@ -31,6 +31,15 @@ export class AppService implements OnModuleInit {
   async registerUser(data: any): Promise<User> {
     const isEmail = data.contact.includes('@');
     
+    // Check for duplicate account
+    const existingUser = await this.userRepository.findOne({
+      where: isEmail ? { email: data.contact } : { phone: data.contact }
+    });
+
+    if (existingUser) {
+      throw new Error('Email or phone number already exists');
+    }
+
     // Create new user with defaults managed by TypeORM decorators
     const newUser = this.userRepository.create({
       fullName: data.fullName,
@@ -38,7 +47,6 @@ export class AppService implements OnModuleInit {
       phone: !isEmail ? data.contact : null,
       passwordHash: data.password, // Raw for dev simplicity
       role: data.role || 'user',
-      status: 'ACTIVE',
       businessName: data.role === 'business' ? data.fullName : null, // Assuming fullName as businessName if not provided separately
     });
     

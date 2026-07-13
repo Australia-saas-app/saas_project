@@ -10,8 +10,12 @@ export class AppController {
   @Post('auth/register')
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async register(@Body() body: RegisterDto) {
-    const user = await this.appService.registerUser(body);
-    return { success: true, data: user };
+    try {
+      const user = await this.appService.registerUser(body);
+      return { success: true, data: user };
+    } catch (e: any) {
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
   }
 
   @Patch('auth/change-password')
