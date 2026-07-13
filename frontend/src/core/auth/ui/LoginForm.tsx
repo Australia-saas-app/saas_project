@@ -96,116 +96,120 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
   };
 
   return (
-    <div className="w-full p-8 rounded-2xl bg-white border border-slate-200 shadow-lg">
-      <div className="text-center mb-5">
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome Back</h2>
-        <p className="text-slate-500 text-sm mt-1">Access your unified Super App dashboard.</p>
-      </div>
-
-      {/* Role Selector */}
-      <div className="grid grid-cols-3 gap-2 mb-5 p-1 bg-slate-100 rounded-xl">
-        {roles.map(({ key, label, icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setSelectedRole(key)}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-150 ${
-              selectedRole === key
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {icon}
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Email Field */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">Email or Phone</label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="you@example.com"
-              className={`pl-9 ${errors.email ? 'border-red-500 focus-visible:border-red-500' : ''}`}
-              {...register("email")}
-            />
-          </div>
-          {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
+    <div className="relative w-full p-8 rounded-2xl bg-white border border-slate-200 shadow-lg overflow-hidden">
+      
+      {/* Wrapper to apply standard CSS blur instead of backdrop-blur (which fails in 3D contexts) */}
+      <div className={`transition-all duration-300 ${statusModal.isOpen ? "blur-md opacity-60 pointer-events-none select-none" : ""}`}>
+        <div className="text-center mb-5">
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome Back</h2>
+          <p className="text-slate-500 text-sm mt-1">Access your unified Super App dashboard.</p>
         </div>
 
-        {/* Password Field */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">Password</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              className={`pl-9 pr-10 ${errors.password ? 'border-red-500 focus-visible:border-red-500' : ''}`}
-              {...register("password")}
-            />
+        {/* Role Selector */}
+        <div className="grid grid-cols-3 gap-2 mb-5 p-1 bg-slate-100 rounded-xl">
+          {roles.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSelectedRole(key)}
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-150 ${
+                selectedRole === key
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Email Field */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700">Email or Phone</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="you@example.com"
+                className={`pl-9 ${errors.email ? 'border-red-500 focus-visible:border-red-500' : ''}`}
+                {...register("email")}
+              />
+            </div>
+            {errors.email && <p className="text-red-500 text-xs">{errors.email.message}</p>}
+          </div>
+
+          {/* Password Field */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-700">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                className={`pl-9 pr-10 ${errors.password ? 'border-red-500 focus-visible:border-red-500' : ''}`}
+                {...register("password")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
+          </div>
+
+          {/* Remember me + Forgot Password */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-me"
+                checked={rememberMe}
+                onCheckedChange={(v) => setRememberMe(!!v)}
+              />
+              <label htmlFor="remember-me" className="text-sm text-slate-600 cursor-pointer select-none">
+                Remember me
+              </label>
+            </div>
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              onClick={onForgotPassword}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              Forgot password?
             </button>
           </div>
-          {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
-        </div>
 
-        {/* Remember me + Forgot Password */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="remember-me"
-              checked={rememberMe}
-              onCheckedChange={(v) => setRememberMe(!!v)}
-            />
-            <label htmlFor="remember-me" className="text-sm text-slate-600 cursor-pointer select-none">
-              Remember me
-            </label>
-          </div>
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-11 text-sm font-semibold mt-2"
+          >
+            {isLoading ? <Loader2 className="animate-spin h-4 w-4" /> : "Log In"}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Don&apos;t have an account?{" "}
           <button
             type="button"
-            onClick={onForgotPassword}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            onClick={onToggleForm}
+            className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
           >
-            Forgot password?
+            Sign up
           </button>
-        </div>
-
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="w-full h-11 text-sm font-semibold mt-2"
-        >
-          {isLoading ? <Loader2 className="animate-spin h-4 w-4" /> : "Log In"}
-        </Button>
-      </form>
-
-      <p className="mt-6 text-center text-sm text-slate-600">
-        Don&apos;t have an account?{" "}
-        <button
-          type="button"
-          onClick={onToggleForm}
-          className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
-        >
-          Sign up
-        </button>
-      </p>
+        </p>
+      </div>
 
       {/* Status Block Modal */}
       {statusModal.isOpen && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-white/30 backdrop-blur-md rounded-2xl animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 text-center border border-slate-200">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm bg-blue-50 rounded-2xl shadow-2xl p-6 text-center border border-blue-200">
+            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-sm">
               <AlertOctagon className="w-8 h-8" />
             </div>
             
@@ -216,7 +220,7 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
             
             <Button 
               onClick={() => setStatusModal({ ...statusModal, isOpen: false })}
-              className="w-full h-11 text-sm font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm"
+              className="w-full h-11 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm"
             >
               OK, I Understand
             </Button>

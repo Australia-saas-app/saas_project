@@ -25,6 +25,7 @@ const statuses = ["ACTIVE", "PENDING", "SUSPEND", "DORMANT", "CLOSED", "BLOCK"];
 export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete }: UserActionModalProps) {
   const [selectedStatus, setSelectedStatus] = useState(user?.status?.toUpperCase() || "ACTIVE");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [updatingAction, setUpdatingAction] = useState<string>("");
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Update local state when user changes
@@ -51,27 +52,37 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <h3 className="text-lg font-semibold text-slate-800">Manage Account</h3>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleDelete}
+              disabled={isDeleting || !!updatingAction}
+              className="flex items-center justify-center p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50"
+              title="Delete Account"
+            >
+              {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+            </button>
+            <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5 space-y-5">
           
           <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
               {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
             </div>
-            <div className="flex-1">
-              <div className="font-bold text-slate-900">{user.fullName || "Unknown"}</div>
-              <div className="text-sm text-slate-500">{user.email || "No Email"}</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-slate-900 truncate">{user.fullName || "Unknown"}</div>
+              <div className="text-sm text-slate-500 truncate">{user.email || "No Email"}</div>
               {user.createdAt && (
                 <div className="text-xs text-slate-400 mt-1 font-medium">
                   Joined: {new Date(user.createdAt).toLocaleDateString("en-US", {
@@ -93,27 +104,27 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={async () => {
-                    setIsUpdating(true);
+                    setUpdatingAction('ACTIVE');
                     await onStatusUpdate(user.userId, 'ACTIVE');
-                    setIsUpdating(false);
+                    setUpdatingAction('');
                     onClose();
                   }}
-                  disabled={isUpdating || isDeleting}
+                  disabled={!!updatingAction || isDeleting}
                   className="flex-1 flex items-center justify-center gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50"
                 >
-                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve Account"}
+                  {updatingAction === 'ACTIVE' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve Account"}
                 </button>
                 <button
                   onClick={async () => {
-                    setIsUpdating(true);
+                    setUpdatingAction('BLOCK');
                     await onStatusUpdate(user.userId, 'BLOCK');
-                    setIsUpdating(false);
+                    setUpdatingAction('');
                     onClose();
                   }}
-                  disabled={isUpdating || isDeleting}
+                  disabled={!!updatingAction || isDeleting}
                   className="flex-1 flex items-center justify-center gap-2 h-11 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
                 >
-                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Block Account"}
+                  {updatingAction === 'BLOCK' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Block Account"}
                 </button>
               </div>
             </div>
@@ -135,20 +146,11 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100">
-          <button 
-            onClick={handleDelete}
-            disabled={isDeleting || isUpdating}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-            Delete
-          </button>
-
+        <div className="flex items-center justify-end px-6 py-4 bg-slate-50 border-t border-slate-100">
           <div className="flex gap-2">
             <button 
               onClick={onClose}
-              disabled={isUpdating || isDeleting}
+              disabled={!!updatingAction || isDeleting}
               className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
               Cancel
@@ -156,10 +158,10 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
             {user.status?.toUpperCase() !== 'PENDING' && (
               <button 
                 onClick={handleUpdate}
-                disabled={isUpdating || isDeleting || selectedStatus === user.status?.toUpperCase()}
+                disabled={!!updatingAction || isDeleting || selectedStatus === user.status?.toUpperCase()}
                 className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm shadow-blue-600/20 transition-all disabled:opacity-50 disabled:shadow-none"
               >
-                {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
+                {updatingAction === 'UPDATE' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Update Status
               </button>
             )}
