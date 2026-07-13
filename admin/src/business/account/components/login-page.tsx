@@ -161,20 +161,20 @@ export function LoginPage({ onForgotPassword, onSuccess }: LoginPageProps) {
 
       {/* Status Block Modal */}
       {statusModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 text-center border border-slate-200 dark:border-slate-800">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm bg-blue-50 dark:bg-slate-900 rounded-2xl shadow-2xl p-6 text-center border border-blue-200 dark:border-blue-800">
+            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
               <AlertOctagon className="w-8 h-8" />
             </div>
             
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Account {statusModal.status}</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+            <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">Account {statusModal.status}</h3>
+            <p className="text-sm text-blue-700/80 dark:text-blue-300 mb-6 leading-relaxed">
               {statusModal.description}
             </p>
             
             <button 
               onClick={() => setStatusModal({ ...statusModal, isOpen: false })}
-              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white font-bold shadow-sm transition-colors"
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all active:scale-95"
             >
               OK, I Understand
             </button>

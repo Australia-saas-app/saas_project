@@ -16,11 +16,21 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/admin/login',
+        basePath: false,
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/:path*',
+        destination: 'http://localhost:4000/:path*',
       },
     ];
   },

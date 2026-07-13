@@ -1,0 +1,58 @@
+# Frontend Panel Folder Structure (Customer & Business Apps)
+# Architecture: Modular Monolith (Prepared for Micro-Frontend scaling)
+
+frontend-app/
+├─ public/                        # Static assets (images, fonts, favicons)
+├─ docs/                          # Project documentation and API contracts
+│
+├─ src/
+│  ├─ app/                        # Application Shell & Routing (Next.js App Router)
+│  │  ├─ (dashboard)/             # Protected dashboard routes (Customer & Business)
+│  │  ├─ login/                   # Public authentication routes
+│  │  ├─ layout.tsx               # Global layout and providers
+│  │  └─ page.tsx                 # Root redirect to login
+│  │
+│  ├─ core/                       # Framework-agnostic core services
+│  │  ├─ auth/                    # Authentication and identity state
+│  │  ├─ user/                    # Centralized user context
+│  │  └─ projects/                # Project and state management context
+│  │
+│  ├─ shared/                     # Reusable UI components & utilities
+│  │  ├─ ui/                      # Generic UI components (Buttons, Modals, Inputs)
+│  │  ├─ payment/                 # Wallet and transaction UI/Logic
+│  │  ├─ hooks/                   # Custom reusable React hooks
+│  │  ├─ utils/                   # Helper functions (Date formatters, validators)
+│  │  ├─ types/                   # Global TypeScript interfaces
+│  │  └─ constants/               # Global constants and enums
+│  │
+│  ├─ business/                   # Core Business Domain Modules (Features)
+│  │  ├─ marketplace/             # General marketplace logic and UI
+│  │  ├─ rider/                   # Rider-specific booking UI and logic
+│  │  └─ [other_domains]/         # Future domain modules
+│  │
+│  ├─ infra/                      # Infrastructure & External Integrations
+│  │  ├─ api/                     # Network clients (Axios, Fetch wrappers)
+│  │  ├─ config/                  # Environment variables and app configuration
+│  │  └─ lib/                     # Third-party library initializations (Firebase, Sentry)
+│
+├─ .env                           # Environment variables
+├─ package.json                   # Dependencies and scripts
+├─ tsconfig.json                  # TypeScript configuration
+└─ README.md                      # Project setup instructions
+
+
+================================================================================
+FUTURE SCALE: HOW TO CONVERT TO MICRO-FRONTENDS (MFE)
+================================================================================
+Currently, this architecture is a "Modular Monolith". It is perfectly organized by 
+business domain, guaranteeing high development speed today while ensuring it 
+is 100% prepared for Micro-Frontend splitting based on performance needs tomorrow.
+
+When the application scales and performance demands Micro-Frontends:
+
+1. Move the `app/` folder into a new `apps/shell/` container (Webpack Module Federation).
+2. Extract the Customer and Business domains (e.g., `business/rider`, `business/marketplace`) 
+   into their own standalone repositories or workspaces (e.g., `apps/rider-mfe/`).
+3. Extract `core/`, `shared/`, and `infra/` into a shared Monorepo library 
+   (`packages/shared-ui`) so all independent Micro-Frontends can consume them.
+4. The Shell dynamically imports the distinct Frontend Micro-Frontends at runtime.

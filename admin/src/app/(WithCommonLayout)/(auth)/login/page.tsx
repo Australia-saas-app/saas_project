@@ -18,8 +18,8 @@ export default function LoginPageRoute() {
 
   return (
     <LoginPage
-      onSignup={() => router.push(`/admin/registration`)}
-      onForgotPassword={() => router.push(`/admin/forgot-password`)}
+      onSignup={() => router.push(`/registration`)}
+      onForgotPassword={() => router.push(`/forgot-password`)}
       onSuccess={() => {
         setShowLoading(true)
       }}

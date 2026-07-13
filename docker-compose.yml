@@ -46,6 +46,7 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=/api
+      - BACKEND_URL=http://saas_backend:4000
     restart: always
     networks:
       - saas_network

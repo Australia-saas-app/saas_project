@@ -1,0 +1,60 @@
+# Backend Services Folder Structure
+# Architecture: Microservices (Currently grouped by modules, ready for Event-Driven separation)
+
+backend-services/
+├─ docs/                          # API documentation, Postman collections
+│
+├─ src/
+│  ├─ core/                       # Core Microservices (System Foundation)
+│  │  ├─ api-gateway/             # Centralized routing and rate limiting
+│  │  ├─ authentication/          # JWT generation and validation
+│  │  ├─ security/                # WAF, encryption, and threat prevention
+│  │  ├─ sso/                     # Single Sign-On integrations
+│  │  └─ user/                    # Central User Identity & KYC logic
+│  │
+│  ├─ shared/                     # Shared Microservices (Cross-domain features)
+│  │  ├─ chat/                    # Real-time WebSocket messaging service
+│  │  ├─ payment/                 # Global payment processing
+│  │  ├─ escrow/                  # Escrow vault and lock management
+│  │  ├─ wallet/                  # Ledger and balance tracking
+│  │  ├─ milestones/              # Milestone tracking logic
+│  │  └─ review/                  # Global rating and feedback system
+│  │
+│  ├─ business/                   # Domain Microservices (The 20+ Business Offerings)
+│  │  ├─ marketplace/             # Technology and freelance project logic
+│  │  ├─ rider/                   # Rider geolocation and booking logic
+│  │  └─ [other_domains]/         # e.g., Transport, Plumbing, Affiliate services
+│  │
+│  ├─ infra/                      # Infrastructure Services
+│  │  ├─ analytics/               # System-wide metrics
+│  │  ├─ monitoring/              # Health checks and alerting
+│  │  ├─ notification/            # Email, SMS, and Push notifications
+│  │  └─ database/                # Global DB configuration (Future: DB-per-service)
+│
+├─ .env                           # Environment variables
+├─ package.json                   # Dependencies and scripts
+├─ tsconfig.json                  # TypeScript configuration
+└─ docker-compose.yml             # Container orchestration
+└─ README.md                      # Project setup instructions
+
+
+================================================================================
+FUTURE SCALE: HOW TO CONVERT TO MICROSERVICES + EVENT-DRIVEN
+================================================================================
+Currently, the backend operates as "Microservices (Modular)". Modules act as logical 
+services that communicate directly via internal APIs.
+
+As the platform scales to 30-40 Microservices, the architecture will evolve into 
+an "Event-Driven Microservices" model:
+
+1. Breakout Modules: Each folder in `business/`, `core/`, and `shared/` will become 
+   its own physically independent Node.js/Go service container.
+2. Event-Driven Messaging: Instead of synchronous API calls, services will communicate 
+   asynchronously via an Event Bus (e.g., Apache Kafka / RabbitMQ). 
+   (e.g., The `rider` service emits a "Ride Completed" event, and the `wallet` service 
+   listens to that event to move the funds).
+3. API Gateway: The `core/api-gateway` becomes the sole entry point for the Frontend 
+   and Admin apps, securely routing external HTTP requests to the 40+ internal services.
+4. Database Scaling: Currently using a Single Database. In the future, this transitions 
+   to "Multiple DB per service" (e.g., the `wallet` service uses a high-consistency Postgres DB, 
+   while the `chat` service uses a NoSQL MongoDB).

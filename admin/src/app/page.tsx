@@ -16,7 +16,7 @@ const Page = () => {
 
   useEffect(() => {
     if (mounted && !loading) {
-      router.replace('/admin/login')
+      router.replace('/login')
     }
   }, [mounted, loading, router])
 
