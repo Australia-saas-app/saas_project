@@ -12,10 +12,16 @@ The project is divided into three core environments:
 - **`backend/`**: The robust API and database layer serving the core business logic.
 
 ## 🛠️ Technology Stack
-- **Frameworks**: Next.js (React)
+- **Frontend Framework**: Next.js 16.2 (React 18)
+- **Backend Framework**: NestJS (TypeScript)
+- **Database & ORM**: PostgreSQL with TypeORM
 - **Styling**: Tailwind CSS & custom dark mode themes
-- **State Management**: Redux Toolkit & React Query
-- **Architecture**: Micro-frontend/monorepo style layout
+- **UI Components**: shadcn/ui, Radix UI, vaul
+- **State Management**: Redux Toolkit & Zustand
+- **Data Fetching**: React Query (@tanstack/react-query)
+- **Forms & Validation**: React Hook Form, Zod, class-validator, class-transformer
+- **Notifications**: Sonner (Toast notifications)
+- **Architecture**: Micro-frontend/monorepo style layout via Docker Compose
 
 
 ## 📝 Registration & Authentication

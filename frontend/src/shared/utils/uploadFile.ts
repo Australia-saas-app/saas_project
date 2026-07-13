@@ -10,3 +10,10 @@ export async function uploadFile(file: File): Promise<string> {
     }, 1000);
   });
 }
+
+/**
+ * Stub for uploading multiple files.
+ */
+export async function uploadFiles(files: File[]): Promise<string[]> {
+  return Promise.all(files.map(file => uploadFile(file)));
+}

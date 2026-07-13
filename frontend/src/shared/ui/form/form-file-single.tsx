@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { FormControl, FormField, FormItem, FormMessage } from "./form"
 import FileUpload from "./FileUpload"
-import { uploadFile } from "@/src/utils/uploadFile"
+import { uploadFile } from "@/src/shared/utils/uploadFile"
 
 
 interface Props {
