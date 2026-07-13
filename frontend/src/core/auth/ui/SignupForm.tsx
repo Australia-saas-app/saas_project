@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { isValidPhoneNumber, parsePhoneNumber } from "libphonenumber-js";
+import { Eye, EyeOff } from "lucide-react";
 
 interface SignupFormProps {
   onToggleForm?: (e: React.MouseEvent) => void;
@@ -16,6 +17,7 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
   const [contact, setContact] = useState("");
   const [contactType, setContactType] = useState<"none" | "email" | "phone">("none");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
   // Progressive States
@@ -294,9 +296,9 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
                 <label className="text-xs font-medium text-slate-700 ml-1">Create a Secure Password</label>
                 <div className="relative group">
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 text-slate-900 placeholder-slate-400 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 text-slate-900 placeholder-slate-400 transition-all outline-none pr-10"
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
@@ -304,6 +306,13 @@ export function SignupForm({ onToggleForm }: SignupFormProps) {
                     }}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAccount(); }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
                 <div className="text-[10px] text-slate-500 ml-1 mt-1 space-y-0.5">
                   <p className={password.length >= 8 ? "text-emerald-600" : ""}>• Minimum 8 characters</p>

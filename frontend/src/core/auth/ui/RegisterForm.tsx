@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { User, Mail, Lock, Loader2, Users, Briefcase, UserCheck } from "lucide-react";
+import { User, Mail, Lock, Loader2, Users, Briefcase, UserCheck, Eye, EyeOff } from "lucide-react";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { Button } from "@/shared/ui/ui/button";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
   const [password, setPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [selectedRole, setSelectedRole] = useState<RoleType>("user");
+  const [showPassword, setShowPassword] = useState(false);
 
   // Progressive States
   const [isOtpSent, setIsOtpSent] = useState(false);
@@ -270,13 +271,20 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  className="w-full h-10 pl-9 pr-4 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-slate-900 outline-none"
+                  className="w-full h-10 pl-9 pr-10 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-slate-900 outline-none"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAccount(); }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
               <div className="text-[10px] text-slate-500 mt-1 flex flex-wrap gap-x-2">
                 <span className={password.length >= 8 ? "text-emerald-600" : ""}>• 8+ chars</span>

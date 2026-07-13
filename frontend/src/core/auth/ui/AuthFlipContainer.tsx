@@ -70,7 +70,7 @@ export function AuthFlipContainer() {
           {backView === "register" && (
             <RegisterForm 
               onToggleForm={() => handleNavigate("login")} 
-              onSuccess={() => handleNavigate("otp_register")} 
+              onSuccess={() => handleNavigate("login")} 
             />
           )}
           {backView === "otp_register" && (

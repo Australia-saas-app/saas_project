@@ -38,6 +38,7 @@ export class AppService implements OnModuleInit {
       phone: !isEmail ? data.contact : null,
       passwordHash: data.password, // Raw for dev simplicity
       role: data.role || 'user',
+      status: 'ACTIVE',
       businessName: data.role === 'business' ? data.fullName : null, // Assuming fullName as businessName if not provided separately
     });
     

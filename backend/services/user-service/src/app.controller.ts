@@ -38,8 +38,8 @@ export class AppController {
     try {
       const { user, token } = await this.appService.loginUser(body);
       
-      // Status Guard
-      if (user.status !== 'ACTIVE' && user.status !== 'active') {
+      // Status Guard (Super admins bypass this)
+      if (user.role !== 'super-admin' && user.status !== 'ACTIVE' && user.status !== 'active') {
         throw new HttpException({
           status: HttpStatus.FORBIDDEN,
           error: user.status.toUpperCase(),
