@@ -152,7 +152,7 @@ export const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
           <div className="space-y-3 flex-1">
             <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-md">
               <div className="flex items-center gap-4">
-                <Image src="/cards/visa.png" alt="Visa Card" width={64} height={40} className="rounded" />
+                <Image src="/admin/cards/visa.png" alt="Visa Card" width={64} height={40} className="rounded" />
                 <div>
                   <h4 className="font-medium text-gray-900 dark:text-white">Mastercard ****1234</h4>
                   <span className="text-sm text-gray-500 dark:text-slate-300">05/02/2025</span>
@@ -163,7 +163,7 @@ export const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
 
             <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-md">
               <div className="flex items-center gap-4">
-                <Image src="/cards/visa.png" alt="Visa Card" width={64} height={40} className="rounded" />
+                <Image src="/admin/cards/visa.png" alt="Visa Card" width={64} height={40} className="rounded" />
                 <div>
                   <h4 className="font-medium text-gray-900 dark:text-white">Mastercard ****3333</h4>
                   <span className="text-sm text-gray-500 dark:text-slate-300">05/02/2025</span>

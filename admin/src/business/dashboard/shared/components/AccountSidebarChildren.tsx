@@ -120,7 +120,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="relative flex items-center justify-center w-12 h-12 shrink-0 cursor-pointer"
           >
-            <Image src="/logo_1.png" alt="Logo" width={48} height={48} style={{ height: "auto" }} className="object-contain" />
+            <Image src="/admin/logo_1.png" alt="Logo" width={48} height={48} style={{ height: "auto" }} className="object-contain" />
           </motion.div>
           <AnimatePresence>
             {isOpen && (
