@@ -8,7 +8,7 @@ export default function ResetPasswordPageRoute() {
   const router = useRouter()
 
   const handleSuccess = () => {
-    router.push(`/admin/success`)
+    router.push(`/success`)
   }
 
   return <ResetPasswordPage onSuccess={handleSuccess} />

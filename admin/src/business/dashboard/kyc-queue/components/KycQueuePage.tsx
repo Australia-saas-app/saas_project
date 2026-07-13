@@ -35,7 +35,7 @@ export default function KycQueuePage() {
   const { data: applications, isLoading } = useQuery<KycApplication[]>({
     queryKey: ["kyc-applications"],
     queryFn: async () => {
-      // return apiClient.get<KycApplication[]>("/admin/kyc/pending");
+      // return apiClient.get<KycApplication[]>("/kyc/pending");
       
       // MOCK DATA for now until backend is ready
       return new Promise((resolve) => {
@@ -68,7 +68,7 @@ export default function KycQueuePage() {
   // 2. Approve Mutation
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      // return apiClient.post(`/admin/kyc/${id}/approve`, {});
+      // return apiClient.post(`/kyc/${id}/approve`, {});
       return new Promise(resolve => setTimeout(resolve, 0));
     },
     onSuccess: () => {
@@ -81,7 +81,7 @@ export default function KycQueuePage() {
   // 3. Reject Mutation
   const rejectMutation = useMutation({
     mutationFn: async (id: string) => {
-      // return apiClient.post(`/admin/kyc/${id}/reject`, {});
+      // return apiClient.post(`/kyc/${id}/reject`, {});
       return new Promise(resolve => setTimeout(resolve, 0));
     },
     onSuccess: () => {

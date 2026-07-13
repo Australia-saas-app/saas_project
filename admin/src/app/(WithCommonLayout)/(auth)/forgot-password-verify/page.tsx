@@ -16,11 +16,11 @@ export default function ForgotPasswordVerifyPageRoute() {
   const email = encodedEmail ? atob(encodedEmail) : ""
 
   const handleSuccess = () => {
-    router.push(`/admin/reset-password`)
+    router.push(`/reset-password`)
   }
 
   const handleBackToLogin = () => {
-    router.push(`/admin/login`)
+    router.push(`/login`)
   }
 
   return <ForgotPasswordVerifyPage email={email} onSuccess={handleSuccess} onBackToLogin={handleBackToLogin} />

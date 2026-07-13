@@ -11,11 +11,11 @@ export default function ForgotPasswordPageRoute() {
 
   const handleNext = (email: string) => {
     const encodedEmail = btoa(email)
-    router.push(`/admin/forgot-password-verify?email=${encodedEmail}`)
+    router.push(`/forgot-password-verify?email=${encodedEmail}`)
   }
 
   const handleBackToLogin = () => {
-    router.push(`/admin/login`)
+    router.push(`/login`)
   }
 
   return <ForgotPasswordPage onNext={handleNext} onBackToLogin={handleBackToLogin} />

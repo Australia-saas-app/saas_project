@@ -3,6 +3,7 @@
 import { Table, TableBody, TableColumn, TableHeading, TableRow } from "@/src/shared/ui/table"
 import { Badge } from "@/src/shared/ui/ui/badge"
 import { Button } from "@/src/shared/ui/ui/button"
+import { Eye } from "lucide-react"
 import { useRouter } from "next/navigation"
 import React from "react"
 import type { UserRow } from "./users.types"
@@ -67,7 +68,13 @@ const UsersTable: React.FC<Props> = ({ items, onView }) => {
             </TableColumn>
             <TableColumn align="center">
               <div className="flex justify-center">
-                <Button size="sm" onClick={() => handleView(row.userId)}>VIEW</Button>
+                <button
+                  onClick={() => handleView(row.userId)}
+                  className="inline-flex items-center justify-center p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors"
+                  title="View User"
+                >
+                  <Eye className="w-5 h-5" />
+                </button>
               </div>
             </TableColumn>
           </TableRow>

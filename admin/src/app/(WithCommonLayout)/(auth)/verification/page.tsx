@@ -8,7 +8,7 @@ export default function VerificationPageRoute() {
   const router = useRouter()
 
   const handleSuccess = () => {
-    router.push(`/admin/success`)
+    router.push(`/success`)
   }
 
   return <VerificationPage onSuccess={handleSuccess} />

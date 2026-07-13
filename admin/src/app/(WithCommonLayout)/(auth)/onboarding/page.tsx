@@ -8,7 +8,7 @@ export default function OnboardingPageRoute() {
   const router = useRouter()
 
   const handleNext = () => {
-    router.push(`/admin/verification`)
+    router.push(`/verification`)
   }
 
   return <OnboardingFlow  initialData={{}} onNext={handleNext} />

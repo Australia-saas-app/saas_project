@@ -8,7 +8,7 @@ export default function SuccessPageRoute() {
   const router = useRouter()
 
   const handleDone = () => {
-    router.push(`/admin/login`)
+    router.push(`/login`)
   }
 
   return <SuccessPage onDone={handleDone} />
