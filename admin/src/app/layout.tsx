@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: "System Database",
   description: "Maritime Database and Management System",
   icons: {
-    icon: "/admin/logo_1.png",
+    icon: "/logo_1.png",
   },
 };
 
