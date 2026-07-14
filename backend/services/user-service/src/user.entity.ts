@@ -20,6 +20,9 @@ export class User {
   @Column({ nullable: true })
   passwordHash: string;
 
+  @Column({ nullable: true })
+  recoveryKey: string;
+
   @Column({ default: 'PENDING' })
   status: string;
 

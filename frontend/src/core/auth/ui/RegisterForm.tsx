@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { User, Mail, Lock, Loader2, Users, Briefcase, UserCheck, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, Loader2, Users, Briefcase, UserCheck, Eye, EyeOff, KeyRound, Copy } from "lucide-react";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { Button } from "@/shared/ui/ui/button";
 import { toast } from "sonner";
@@ -32,6 +32,8 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
   // Progressive States
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [showRecoveryKey, setShowRecoveryKey] = useState(false);
+  const [recoveryKey, setRecoveryKey] = useState("");
   
   // OTP States
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -129,6 +131,22 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
   const handleCreateAccount = async () => {
     if (!agreed) return toast.error("You must agree to the Terms.");
     if (!isPasswordValid(password)) return toast.error("Password does not meet requirements.");
+    
+    // Instead of submitting to API right away, show the optional Recovery Key phase
+    setShowRecoveryKey(true);
+  };
+
+  const handleGenerateKey = () => {
+    // Generate a secure-looking random string for the recovery key
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let key = '';
+    for (let i = 0; i < 32; i++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setRecoveryKey(key);
+  };
+
+  const submitFinalRegistration = async () => {
     setIsLoading(true);
     
     try {
@@ -139,7 +157,8 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
           fullName,
           contact,
           password,
-          role: selectedRole
+          role: selectedRole,
+          recoveryKey: recoveryKey || null
         })
       });
       
@@ -151,10 +170,82 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
       onSuccess();
     } catch (err: any) {
       toast.error(err.message || 'An error occurred during registration.');
+      setShowRecoveryKey(false); // Go back to form to fix errors
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (showRecoveryKey) {
+    return (
+      <div className="w-full px-8 py-10 rounded-2xl bg-white border border-slate-200 shadow-lg animate-in fade-in zoom-in-95 duration-300">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
+            <KeyRound className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">Recovery Key</h2>
+          <p className="text-sm text-slate-500 leading-relaxed px-4">
+            Choose your preferred recovery method to keep your account safe and secure across all platform services.
+            <br/><br/>
+            Your Recovery Key helps you regain access if you forget your password or lose access to your email or phone number.
+          </p>
+        </div>
+
+        <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 mb-6">
+          {recoveryKey ? (
+            <>
+              <div className="flex items-center gap-3">
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={recoveryKey} 
+                  className="flex-1 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg h-11 px-4 outline-none cursor-copy"
+                  onClick={() => {
+                    navigator.clipboard.writeText(recoveryKey);
+                    toast.success("Recovery key copied to clipboard!");
+                  }}
+                />
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(recoveryKey);
+                    toast.success("Recovery key copied to clipboard!");
+                  }}
+                  className="h-11 px-4 shrink-0 border-slate-200 hover:bg-slate-100 gap-2 font-semibold"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy
+                </Button>
+              </div>
+              <p className="text-xs text-amber-600 font-medium mt-3 text-center flex items-center justify-center gap-1.5">
+                <EyeOff className="w-3.5 h-3.5" />
+                Do not share this key with anyone. Store it securely.
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center py-2 text-center">
+              <p className="text-sm text-slate-600 mb-4">You have not generated a Recovery Key yet. Generating a key is optional but highly recommended.</p>
+              <Button 
+                onClick={handleGenerateKey}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              >
+                Generate Key
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <Button 
+          onClick={submitFinalRegistration} 
+          disabled={isLoading}
+          className="w-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20"
+        >
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit & Create Account"}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-8 py-6 rounded-2xl bg-white border border-slate-200 shadow-lg">

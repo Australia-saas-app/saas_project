@@ -35,10 +35,12 @@ const passwordSchema = z.object({
 })
 
 interface ForgotPasswordPageProps {
-  onBackToLogin: () => void
+  onBackToLogin: () => void;
+  onNext?: (email: string) => void;
+  onSuccess?: () => void;
 }
 
-export function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPageProps) {
+export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotPasswordPageProps) {
   const [phase, setPhase] = useState<"email" | "otp" | "reset">("email")
   const [verifiedEmail, setVerifiedEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)

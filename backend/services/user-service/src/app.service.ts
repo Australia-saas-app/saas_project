@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { JwtService } from '@nestjs/jwt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -48,6 +49,7 @@ export class AppService implements OnModuleInit {
       passwordHash: data.password, // Raw for dev simplicity
       role: data.role || 'user',
       businessName: data.role === 'business' ? data.fullName : null, // Assuming fullName as businessName if not provided separately
+      recoveryKey: data.recoveryKey || null,
     });
     
     return await this.userRepository.save(newUser);
