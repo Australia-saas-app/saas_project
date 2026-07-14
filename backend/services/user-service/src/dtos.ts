@@ -53,3 +53,23 @@ export class ChangePasswordDto {
   })
   newPassword: string;
 }
+
+export class VerifyEmailDto {
+  @IsEmail({}, { message: 'Invalid email format' })
+  @IsNotEmpty({ message: 'Email is required' })
+  email: string;
+}
+
+export class ForgotPasswordResetDto {
+  @IsEmail({}, { message: 'Invalid email format' })
+  @IsNotEmpty({ message: 'Email is required' })
+  email: string;
+
+  @IsNotEmpty({ message: 'New password is required' })
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @Matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]).{8,}$/, {
+    message: 'Password must contain at least 1 uppercase letter, 1 number, and 1 special character',
+  })
+  newPassword: string;
+}

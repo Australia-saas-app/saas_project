@@ -84,7 +84,12 @@ export function LoginPage({ onForgotPassword, onSuccess }: LoginPageProps) {
   }, [isAuthenticated, token, router, onSuccess])
 
   const onSubmit = async (data: LoginFormValues) => {
-    dispatch(loginUser({ email: data.email, password: data.password }))
+    try {
+      await dispatch(loginUser({ email: data.email, password: data.password })).unwrap();
+      toast.success("Successfully logged in");
+    } catch (err) {
+      // Errors are handled by the useEffect watching the Redux error state
+    }
   }
 
   if (isAuthenticated || token) {

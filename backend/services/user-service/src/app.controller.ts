@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Query, Patch, Param, Delete, HttpException, HttpStatus, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AppService } from './app.service';
 import { AuthGuard } from './auth.guard';
-import { RegisterDto, LoginDto, ChangePasswordDto } from './dtos';
+import { RegisterDto, LoginDto, ChangePasswordDto, VerifyEmailDto, ForgotPasswordResetDto } from './dtos';
 
 @Controller()
 export class AppController {
@@ -24,6 +24,32 @@ export class AppController {
   async changePassword(@Body() body: ChangePasswordDto) {
     try {
       const success = await this.appService.changePassword(body);
+      return { success };
+    } catch (e: any) {
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Post('auth/verify-email')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async verifyEmail(@Body() body: VerifyEmailDto) {
+    try {
+      const exists = await this.appService.verifyEmail(body.email);
+      if (!exists) {
+        throw new HttpException('Email not exists', HttpStatus.NOT_FOUND);
+      }
+      return { success: true };
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Post('auth/forgot-password-reset')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async forgotPasswordReset(@Body() body: ForgotPasswordResetDto) {
+    try {
+      const success = await this.appService.forgotPasswordReset(body);
       return { success };
     } catch (e: any) {
       throw new HttpException(e.message, HttpStatus.BAD_REQUEST);

@@ -145,4 +145,23 @@ export class AppService implements OnModuleInit {
     await this.userRepository.save(user);
     return true;
   }
+  async verifyEmail(email: string): Promise<boolean> {
+    const user = await this.userRepository.findOne({ where: { email } });
+    return !!user;
+  }
+
+  async forgotPasswordReset(data: any): Promise<boolean> {
+    const user = await this.userRepository.findOne({ where: { email: data.email } });
+    if (!user) throw new Error('User not found');
+
+    // Validation regex: minimum 8 chars, 1 uppercase, 1 number, 1 special character
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]).{8,}$/;
+    if (!passwordRegex.test(data.newPassword)) {
+      throw new Error('Password does not meet requirements');
+    }
+
+    user.passwordHash = data.newPassword;
+    await this.userRepository.save(user);
+    return true;
+  }
 }
