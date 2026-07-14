@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { User } from './user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
@@ -101,11 +101,15 @@ export class AppService implements OnModuleInit {
 
   async loginUser(data: any): Promise<{ user: User, token: string }> {
     const isEmail = data.contact.includes('@');
-    const user = await this.userRepository.findOne({
-      where: isEmail 
-        ? { email: data.contact, role: data.role }
-        : { phone: data.contact, role: data.role }
-    });
+    
+    // If role is 'super-admin' (from Admin Panel), we just find by email/phone.
+    // If a specific role is provided from the frontend app, we strictly match it.
+    const whereClause: any = isEmail ? { email: data.contact } : { phone: data.contact };
+    if (data.role && data.role !== 'super-admin') {
+      whereClause.role = data.role;
+    }
+
+    const user = await this.userRepository.findOne({ where: whereClause });
 
     if (!user) throw new Error('User not found');
     if (user.passwordHash !== data.password) throw new Error('Invalid credentials');
@@ -149,28 +153,42 @@ export class AppService implements OnModuleInit {
   }
   async verifyContact(contact: string, role: string): Promise<boolean> {
     const isEmail = contact.includes('@');
-    const user = await this.userRepository.findOne({ 
-      where: isEmail ? { email: contact, role } : { phone: contact, role } 
-    });
+    
+    const whereClause: any = isEmail ? { email: contact } : { phone: contact };
+    if (role && role !== 'super-admin') {
+      whereClause.role = role;
+    }
+
+    const user = await this.userRepository.findOne({ where: whereClause });
     return !!user;
   }
 
   async verifyRecoveryKey(recoveryKey: string, role: string): Promise<{ fullName: string, email: string } | null> {
-    const user = await this.userRepository.findOne({ where: { recoveryKey, role } });
+    const whereClause: any = { recoveryKey };
+    if (role && role !== 'super-admin') {
+      whereClause.role = role;
+    }
+    
+    const user = await this.userRepository.findOne({ where: whereClause });
     if (!user) return null;
     return { fullName: user.fullName, email: user.email };
   }
 
   async forgotPasswordReset(data: any): Promise<boolean> {
     const isEmail = data.identifier.includes('@');
+    
     // identifier could be email, phone, or recoveryKey
-    let user = await this.userRepository.findOne({ 
-      where: [
-        { email: data.identifier, role: data.role },
-        { phone: data.identifier, role: data.role },
-        { recoveryKey: data.identifier, role: data.role }
-      ]
-    });
+    const whereClauses: any[] = [
+      { email: data.identifier },
+      { phone: data.identifier },
+      { recoveryKey: data.identifier }
+    ];
+
+    if (data.role && data.role !== 'super-admin') {
+      whereClauses.forEach(clause => clause.role = data.role);
+    }
+    
+    let user = await this.userRepository.findOne({ where: whereClauses });
     
     if (!user) throw new Error('User not found');
 

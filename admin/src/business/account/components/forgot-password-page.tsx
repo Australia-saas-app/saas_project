@@ -82,10 +82,10 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
     setIsSubmitting(true)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-      const res = await fetch(`${apiUrl}/auth/verify-email`, {
+      const res = await fetch(`${apiUrl}/auth/verify-contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: data.email })
+        body: JSON.stringify({ contact: data.email, role: 'super-admin' })
       })
       const result = await res.json()
       
@@ -120,7 +120,7 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
       const res = await fetch(`${apiUrl}/auth/forgot-password-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: verifiedEmail, newPassword: data.newPassword })
+        body: JSON.stringify({ identifier: verifiedEmail, role: 'super-admin', newPassword: data.newPassword })
       })
       const result = await res.json()
       

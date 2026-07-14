@@ -128,6 +128,29 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
     }, 1000);
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast.success("Recovery key copied to clipboard!");
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+        toast.success("Recovery key copied to clipboard!");
+      }
+    } catch (err) {
+      toast.error("Failed to copy. Please copy manually.");
+    }
+  };
+
   const handleCreateAccount = async () => {
     if (!agreed) return toast.error("You must agree to the Terms.");
     if (!isPasswordValid(password)) return toast.error("Password does not meet requirements.");
@@ -200,18 +223,12 @@ export function RegisterForm({ onToggleForm, onSuccess }: RegisterFormProps) {
                   readOnly 
                   value={recoveryKey} 
                   className="w-full bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg h-11 pl-4 pr-12 outline-none cursor-copy"
-                  onClick={() => {
-                    navigator.clipboard.writeText(recoveryKey);
-                    toast.success("Recovery key copied to clipboard!");
-                  }}
+                  onClick={() => copyToClipboard(recoveryKey)}
                 />
                 <button 
                   type="button" 
                   title="Copy"
-                  onClick={() => {
-                    navigator.clipboard.writeText(recoveryKey);
-                    toast.success("Recovery key copied to clipboard!");
-                  }}
+                  onClick={() => copyToClipboard(recoveryKey)}
                   className="absolute right-3 text-slate-400 hover:text-blue-600 transition-colors"
                 >
                   <Copy className="w-5 h-5" />

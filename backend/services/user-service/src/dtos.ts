@@ -20,6 +20,10 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @IsOptional()
+  @IsString()
+  recoveryKey?: string;
 }
 
 export class LoginDto {

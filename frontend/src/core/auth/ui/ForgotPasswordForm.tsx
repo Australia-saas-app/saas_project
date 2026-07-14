@@ -32,7 +32,9 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
   
   const [contact, setContact] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const setError = (msg: string) => {
+    if (msg) toast.error(msg);
+  };
 
   // OTP State
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -96,7 +98,11 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         toast.success("Verification code sent.");
       }
     } catch (err: any) {
-      setError(err.message || "Verification failed.");
+      let msg = err.message || "Verification failed.";
+      if (msg.includes("Contact not found for this role") || msg.includes("Contact not found")) {
+        msg = selectedMethod === 'email' ? "Email not found" : selectedMethod === 'phone' ? "Phone Number not found" : "Backup code not found";
+      }
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -197,12 +203,6 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 {label}
               </button>
             ))}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-5 p-3 bg-red-50/80 border border-red-100 rounded-xl text-red-600 text-sm font-medium text-center animate-in fade-in">
-            {error}
           </div>
         )}
 
