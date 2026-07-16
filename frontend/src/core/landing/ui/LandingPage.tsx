@@ -46,7 +46,7 @@ const accountTypes = [
       "24/7 Customer Support",
     ],
     buttonText: "Create User Account",
-    image: "/userCard.PNG",
+    image: "/userCard.png",
     cardBg: "bg-blue-50/40 border-blue-100",
     role: "user",
   },
@@ -65,7 +65,7 @@ const accountTypes = [
       "Withdraw Anytime",
     ],
     buttonText: "Join as Affiliate",
-    image: "/affiliateCard.PNG",
+    image: "/affiliateCard.png",
     cardBg: "bg-purple-50/40 border-purple-100",
     role: "affiliate",
   },
@@ -84,7 +84,7 @@ const accountTypes = [
       "Analytics & Reports",
     ],
     buttonText: "Create Business Account",
-    image: "/businessCard.PNG",
+    image: "/businessCard.png",
     cardBg: "bg-green-50/40 border-green-100",
     role: "business",
   },
@@ -238,6 +238,7 @@ export function LandingPage({ onGetStarted, onSignUp }: LandingPageProps) {
                   fill
                   sizes="(max-width: 1024px) 100vw, 33vw"
                   className="object-cover object-left"
+                  priority
                 />
               </div>
             </div>
