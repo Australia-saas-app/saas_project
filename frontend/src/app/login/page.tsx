@@ -1,11 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { toast } from "sonner";
 import { AuthFlipContainer } from "@/core/auth/ui/AuthFlipContainer";
 import { Navbar } from "@/core/landing/ui/Navbar";
+import { useAuth } from "@/core/auth/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
+
+  // If already logged in, bounce back to home with toast
+  useEffect(() => {
+    if (isAuthenticated) {
+      toast.info("An account is already logged in!");
+      router.replace("/");
+    }
+  }, [isAuthenticated, router]);
+
+  // Don't render the login form if authenticated (avoids flash before redirect)
+  if (isAuthenticated) return null;
 
   return (
     <div
