@@ -83,11 +83,11 @@ export function Navbar({ onSignUp, showGetStarted = true }: NavbarProps) {
               ))}
             </div>
 
-            {/* ─── Auth Area: shown on ALL screen sizes ─── */}
+            {/* ─── Auth Area: shown on ALL screen sizes when logged in, desktop-only Sign up ─── */}
             {isAuthenticated && user ? (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* Notification Bell */}
-                <button className="relative p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+                <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
                   <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white">
                     2
@@ -95,7 +95,7 @@ export function Navbar({ onSignUp, showGetStarted = true }: NavbarProps) {
                 </button>
 
                 {/* Chat Icon */}
-                <button className="relative p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+                <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
                   <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white">
                     12
@@ -161,9 +161,10 @@ export function Navbar({ onSignUp, showGetStarted = true }: NavbarProps) {
                 </div>
               </div>
             ) : showGetStarted ? (
+              /* Sign up — desktop only; mobile users see it in hamburger */
               <button
                 onClick={onSignUp}
-                className="px-4 sm:px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm shadow-blue-600/20 transition-all duration-150 active:scale-95 whitespace-nowrap"
+                className="hidden lg:block px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm shadow-blue-600/20 transition-all duration-150 active:scale-95 whitespace-nowrap"
               >
                 Sign up
               </button>
@@ -208,14 +209,15 @@ export function Navbar({ onSignUp, showGetStarted = true }: NavbarProps) {
 
       {/* Logout Confirmation Modal */}
       {logoutModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[340px] p-7 text-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
+          <div style={{ width: '360px', maxWidth: 'calc(100vw - 32px)' }} className="bg-white rounded-2xl shadow-2xl p-7 text-center mx-auto">
+            {/* Icon */}
             <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
               <LogOut className="w-6 h-6 text-red-500" strokeWidth={1.8} />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Logout</h3>
             <p className="text-sm text-slate-500 mb-7 leading-relaxed">
-              Are you sure you want to log out of your session? You will need to log in again to access the dashboard.
+              Are you sure you want to log out of your session?<br />You will need to log in again to access the dashboard.
             </p>
             <div className="flex gap-3">
               <button
