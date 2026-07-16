@@ -36,7 +36,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
   const [isOtpVerified, setIsOtpVerified] = useState(false);
   const [showRecoveryKey, setShowRecoveryKey] = useState(false);
   const [recoveryKey, setRecoveryKey] = useState("");
-  
+
   // OTP States
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -116,7 +116,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      
+
       let correctOtp = "123456";
       if (selectedRole === "business") correctOtp = "234567";
       if (selectedRole === "affiliate") correctOtp = "345678";
@@ -156,7 +156,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
   const handleCreateAccount = async () => {
     if (!agreed) return toast.error("You must agree to the Terms.");
     if (!isPasswordValid(password)) return toast.error("Password does not meet requirements.");
-    
+
     // Instead of submitting to API right away, show the optional Recovery Key phase
     setShowRecoveryKey(true);
   };
@@ -173,7 +173,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
 
   const submitFinalRegistration = async () => {
     setIsLoading(true);
-    
+
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -186,11 +186,11 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
           recoveryKey: recoveryKey || null
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) throw new Error(data.message || 'Failed to create account');
-      
+
       toast.success("Account created successfully!");
       onSuccess();
     } catch (err: any) {
@@ -211,7 +211,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">Recovery Key</h2>
           <p className="text-sm text-slate-500 leading-relaxed px-4">
             Choose your preferred recovery method to keep your account safe and secure across all platform services.
-            <br/><br/>
+            <br /><br />
             Your Recovery Key helps you regain access if you forget your password or lose access to your email or phone number.
           </p>
         </div>
@@ -220,15 +220,15 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
           {recoveryKey ? (
             <>
               <div className="relative flex items-center">
-                <input 
-                  type="text" 
-                  readOnly 
-                  value={recoveryKey} 
+                <input
+                  type="text"
+                  readOnly
+                  value={recoveryKey}
                   className="w-full bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg h-11 pl-4 pr-12 outline-none cursor-copy"
                   onClick={() => copyToClipboard(recoveryKey)}
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   title="Copy"
                   onClick={() => copyToClipboard(recoveryKey)}
                   className="absolute right-3 text-slate-400 hover:text-blue-600 transition-colors"
@@ -244,7 +244,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
           ) : (
             <div className="flex flex-col items-center py-2 text-center">
               <p className="text-sm text-slate-600 mb-4">You have not generated a Recovery Key yet. Generating a key is optional but highly recommended.</p>
-              <Button 
+              <Button
                 onClick={handleGenerateKey}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
               >
@@ -254,8 +254,8 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
           )}
         </div>
 
-        <Button 
-          onClick={submitFinalRegistration} 
+        <Button
+          onClick={submitFinalRegistration}
           disabled={isLoading}
           className="w-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20"
         >
@@ -293,11 +293,10 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
                 setIsOtpVerified(false);
                 setOtp(["", "", "", "", "", ""]);
               }}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-150 ${
-                isSelected 
-                  ? "bg-blue-600 text-white shadow-sm" 
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-150 ${isSelected
+                  ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
-              } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {icon}
               {label}

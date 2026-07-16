@@ -55,21 +55,21 @@ function AuthFlipContainerContent() {
           style={{ backfaceVisibility: "hidden" }}
         >
           {frontView === "login" && (
-            <LoginForm 
+            <LoginForm
               key={loginKey}
-              onToggleForm={() => handleNavigate("register")} 
-              onForgotPassword={() => handleNavigate("forgot_password")} 
+              onToggleForm={() => handleNavigate("register")}
+              onForgotPassword={() => handleNavigate("forgot_password")}
             />
           )}
           {frontView === "forgot_password" && (
-            <ForgotPasswordForm 
-              onBack={() => handleNavigate("login")} 
-              onSuccess={() => handleNavigate("otp_login")} 
+            <ForgotPasswordForm
+              onBack={() => handleNavigate("login")}
+              onSuccess={() => handleNavigate("otp_login")}
             />
           )}
           {frontView === "otp_login" && (
-            <OtpForm 
-              onBack={() => handleNavigate("login")} 
+            <OtpForm
+              onBack={() => handleNavigate("login")}
             />
           )}
         </div>
@@ -83,17 +83,17 @@ function AuthFlipContainerContent() {
           }}
         >
           {backView === "register" && (
-            <RegisterForm 
+            <RegisterForm
               key={registerKey}
               initialRole={initialRole}
               isRoleLocked={isRoleLocked}
-              onToggleForm={() => handleNavigate("login")} 
-              onSuccess={() => handleNavigate("login")} 
+              onToggleForm={() => handleNavigate("login")}
+              onSuccess={() => handleNavigate("login")}
             />
           )}
           {backView === "otp_register" && (
-            <OtpForm 
-              onBack={() => handleNavigate("register")} 
+            <OtpForm
+              onBack={() => handleNavigate("register")}
             />
           )}
         </div>

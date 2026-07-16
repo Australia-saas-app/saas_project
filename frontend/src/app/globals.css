@@ -3,6 +3,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── Global performance & smoothness ── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent; /* remove blue flash on mobile tap */
+}
+
+button,
+a {
+  cursor: pointer;
+  touch-action: manipulation; /* removes 300ms click delay on mobile */
+}
+
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -58,14 +58,14 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
           role: selectedRole
         })
       });
-      
+
       let resData;
       try {
         resData = await response.json();
       } catch (e) {
         throw new Error(`Server Error (${response.status}): The server returned an invalid response. Please check if the backend is running.`);
       }
-      
+
       if (!response.ok) {
         if (response.status === 403 && resData.error) {
           // Status Guard Triggered
@@ -76,18 +76,18 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
           else if (status === 'DORMANT') description = "Your account is inactive due to long periods of no activity.";
           else if (status === 'CLOSED') description = "Your account has been closed.";
           else if (status === 'BLOCK') description = "Your account has been permanently blocked. Contact support.";
-          
+
           setStatusModal({ isOpen: true, status, description });
           setIsLoading(false);
           return;
         }
         throw new Error(resData.message || "Failed to login");
       }
-      
+
       // Setup auth context (if needed) and route
       await login(resData.data, resData.token); // Use real backend data
       toast.success("Welcome back! Login successful.");
-      router.push("/dashboard");
+      router.push("/");
     } catch (err: any) {
       toast.error(err.message || "Invalid credentials.");
     } finally {
@@ -97,7 +97,7 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
 
   return (
     <div className="relative w-full p-8 rounded-2xl bg-white border border-slate-200 shadow-lg overflow-hidden">
-      
+
       {/* Wrapper to apply standard CSS blur instead of backdrop-blur (which fails in 3D contexts) */}
       <div className={`transition-all duration-300 ${statusModal.isOpen ? "blur-md opacity-60 pointer-events-none select-none" : ""}`}>
         <div className="text-center mb-5">
@@ -117,11 +117,10 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
                   reset();
                 }
               }}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-150 ${
-                selectedRole === key
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all duration-150 ${selectedRole === key
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
-              }`}
+                }`}
             >
               {icon}
               {label}
@@ -217,13 +216,13 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
             <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-sm">
               <AlertOctagon className="w-8 h-8" />
             </div>
-            
+
             <h3 className="text-xl font-bold text-slate-900 mb-2">Account {statusModal.status}</h3>
             <p className="text-sm text-slate-600 mb-6 leading-relaxed">
               {statusModal.description}
             </p>
-            
-            <Button 
+
+            <Button
               onClick={() => setStatusModal({ ...statusModal, isOpen: false })}
               className="w-full h-11 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm"
             >

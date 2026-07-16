@@ -24,12 +24,12 @@ const roles: { key: RoleType; label: string; icon: React.ReactNode }[] = [
 
 export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
   const { verifyContact, verifyRecoveryKey, forgotPasswordReset } = useAuth();
-  
+
   const [selectedRole, setSelectedRole] = useState<RoleType>("user");
   const [selectedMethod, setSelectedMethod] = useState<MethodType>("email");
   const [showMethodSelection, setShowMethodSelection] = useState(false);
   const [phase, setPhase] = useState<PhaseType>("input");
-  
+
   const [contact, setContact] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const setError = (msg: string) => {
@@ -40,7 +40,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [timeLeft, setTimeLeft] = useState(180);
-  
+
   // Backup Code Match State
   const [matchedUser, setMatchedUser] = useState<{ fullName: string; email: string } | null>(null);
 
@@ -72,7 +72,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
   const handleVerifyContact = async () => {
     setError("");
     if (!contact.trim()) return setError(`Please enter your ${selectedMethod === 'email' ? 'email' : selectedMethod === 'phone' ? 'phone number' : 'backup code'}.`);
-    
+
     if (selectedMethod === "email" && !isEmailValid(contact)) return setError("Invalid email address.");
     if (selectedMethod === "phone") {
       try {
@@ -125,7 +125,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
   const handleVerifyOtp = () => {
     const code = otp.join("");
     if (code.length < 6) return setError("Enter the full 6-digit code.");
-    
+
     setIsLoading(true);
     // Simulate backend OTP verification matching RegisterForm
     setTimeout(() => {
@@ -147,7 +147,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
   const handleResetPassword = async () => {
     if (!isPasswordValid(password)) return setError("Password does not meet requirements.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
-    
+
     setIsLoading(true);
     try {
       await forgotPasswordReset({
@@ -195,9 +195,8 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                   setContact("");
                   setError("");
                 }}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                  selectedRole === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${selectedRole === key ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 {icon}
                 {label}
@@ -209,7 +208,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         {/* Phase 0: Select Method */}
         {showMethodSelection && (
           <div className="space-y-3 animate-in slide-in-from-right-4 duration-300">
-            <button 
+            <button
               onClick={() => handleSelectMethod("email")}
               className="w-full flex items-start gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group"
             >
@@ -221,8 +220,8 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 <p className="text-xs text-slate-500">Receive a verification code at your registered email address.</p>
               </div>
             </button>
-            
-            <button 
+
+            <button
               onClick={() => handleSelectMethod("phone")}
               className="w-full flex items-start gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group"
             >
@@ -235,7 +234,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
               </div>
             </button>
 
-            <button 
+            <button
               onClick={() => handleSelectMethod("backup_code")}
               className="w-full flex items-start gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group"
             >
@@ -247,7 +246,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 <p className="text-xs text-slate-500">Enter the recovery key you saved when you created your account.</p>
               </div>
             </button>
-            
+
             <Button variant="ghost" onClick={() => setShowMethodSelection(false)} className="w-full text-slate-500 mt-2">
               Cancel
             </Button>
@@ -263,9 +262,9 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  {selectedMethod === 'email' ? <Mail className="w-4 h-4 text-slate-400" /> : 
-                   selectedMethod === 'phone' ? <Smartphone className="w-4 h-4 text-slate-400" /> : 
-                   <KeyRound className="w-4 h-4 text-slate-400" />}
+                  {selectedMethod === 'email' ? <Mail className="w-4 h-4 text-slate-400" /> :
+                    selectedMethod === 'phone' ? <Smartphone className="w-4 h-4 text-slate-400" /> :
+                      <KeyRound className="w-4 h-4 text-slate-400" />}
                 </div>
                 <input
                   type="text"
@@ -288,7 +287,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
             </Button>
 
             <div className="text-center pt-2">
-              <button 
+              <button
                 onClick={() => setShowMethodSelection(true)}
                 className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
               >
@@ -301,12 +300,12 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         {/* Phase 2: OTP Verification */}
         {phase === "otp" && (
           <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-             <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-center">
+            <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-center">
               <p className="text-sm font-medium text-slate-700 mb-4">
-                Enter the 6-digit code sent to<br/>
+                Enter the 6-digit code sent to<br />
                 <span className="font-bold text-slate-900">{contact}</span>
               </p>
-              
+
               <div className="flex justify-center gap-2 mb-5">
                 {otp.map((digit, index) => (
                   <input
@@ -326,8 +325,8 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                 <span className="font-medium text-slate-500">
                   {timeLeft > 0 ? `Expires in ${formatTime(timeLeft)}` : "Expired"}
                 </span>
-                <button 
-                  onClick={() => { setPhase("input"); setTimeLeft(0); }} 
+                <button
+                  onClick={() => { setPhase("input"); setTimeLeft(0); }}
                   className="font-bold text-blue-600 hover:text-blue-700"
                 >
                   Resend Code
@@ -349,7 +348,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         {/* Phase 3: Reset Password */}
         {phase === "reset" && (
           <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-            
+
             {matchedUser && (
               <div className="flex items-start gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100 mb-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
