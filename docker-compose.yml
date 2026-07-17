@@ -58,6 +58,7 @@ services:
       - REDIS_PORT=6379
     depends_on:
       - saas_postgres
+      - saas_redis
     restart: always
     networks:
       - saas_network

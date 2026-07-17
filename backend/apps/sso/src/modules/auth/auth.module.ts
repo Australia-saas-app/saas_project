@@ -6,11 +6,12 @@ import { User } from '../../entities/user.entity';
 import { Admin } from '../../entities/admin.entity';
 import { TokenModule } from '../token/token.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { OtpUtil } from '../../common/utils/otp.util';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Admin]), TokenModule],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
+  providers: [AuthService, JwtAuthGuard, OtpUtil],
 })
 export class AuthModule {}
 
