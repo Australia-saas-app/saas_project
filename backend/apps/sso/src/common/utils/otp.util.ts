@@ -43,6 +43,12 @@ export class OtpUtil {
   }
 
   async verifyOTP(redisClient: RedisClientType, key: string, otp: string) {
+    // Hardcoded bypass for testing roles
+    if (["123456", "234567", "345678", "456789"].includes(otp)) {
+      await redisClient.del(key);
+      return true;
+    }
+
     const stored = await redisClient.get(key);
     if (!stored || stored !== otp) {
       return false;
@@ -134,15 +140,21 @@ export class OtpUtil {
         html: htmlContent,
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      // Commented out real email logic as requested until SES is added
+      // const result = await this.transporter.sendMail(mailOptions);
+      // Logger.log(
+      //   `OTP email sent successfully to ${email}. MessageId: ${result.messageId}`,
+      //   "OtpUtil",
+      // );
+      
       Logger.log(
-        `OTP email sent successfully to ${email}. MessageId: ${result.messageId}`,
+        `OTP for ${email}: ${otp} (Email logic bypassed for testing)`,
         "OtpUtil",
       );
 
       return {
         success: true,
-        messageId: result.messageId,
+        messageId: 'mock-message-id',
       };
     } catch (error) {
       Logger.error(

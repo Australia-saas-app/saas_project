@@ -62,6 +62,22 @@ export class AuthController {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
+  @Post('admin/login')
+  @HttpCode(HttpStatus.OK)
+  adminLogin(@Body() loginDto: LoginDto) {
+    return this.authService.adminLogin(loginDto);
+  }
+
+  @Post('admin/forgot-password')
+  adminForgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.adminForgotPassword(forgotPasswordDto);
+  }
+
+  @Post('admin/reset-password')
+  adminResetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.adminResetPassword(resetPasswordDto);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   getCurrentUser(@Request() req: any) {

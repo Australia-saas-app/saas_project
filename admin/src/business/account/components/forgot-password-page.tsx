@@ -80,7 +80,7 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
     setIsSubmitting(true)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-      const res = await fetch(`${apiUrl}/sso/auth/user/forgot-password`, {
+      const res = await fetch(`${apiUrl}/sso/auth/admin/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: data.email })
@@ -107,7 +107,7 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
     setIsSubmitting(true)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-      const res = await fetch(`${apiUrl}/sso/auth/user/reset-password`, {
+      const res = await fetch(`${apiUrl}/sso/auth/admin/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: verifiedEmail, otp: otpDigits.join(""), newPassword: data.newPassword })
@@ -133,38 +133,56 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
   }
 
   return (
-    <Card className="w-full shadow-none bg-base-100 md:w-1/3 py-16 mx-auto border-2 border-border/50 relative">
-      <button 
-        onClick={onBackToLogin}
-        className="absolute top-6 left-6 text-slate-500 hover:text-slate-800 transition-colors"
-      >
-        <ArrowLeft className="w-5 h-5" />
-      </button>
+    <div className="flex flex-col items-center justify-center w-full min-h-[85vh]">
+      <div className="relative w-full px-4" style={{ maxWidth: '480px' }}>
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm overflow-hidden relative">
+          
+          <button 
+            onClick={onBackToLogin}
+            className="absolute top-6 left-6 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
 
-      <CardHeader>
-        <CardTitle className="text-2xl text-center font-bold">
-          {phase === "email" && "Forgot Password"}
-          {phase === "otp" && "Verify OTP"}
-          {phase === "reset" && "Reset Password"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-10">
+          <div className="p-8 pb-6 border-b border-gray-100 dark:border-gray-800 text-center mt-6 md:mt-0">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight mb-2">
+              {phase === "email" && "Forgot Password"}
+              {phase === "otp" && "Verify OTP"}
+              {phase === "reset" && "Reset Password"}
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              {phase === "email" && "Enter your email to receive a recovery code"}
+              {phase === "otp" && "Enter the 6-digit code sent to your email"}
+              {phase === "reset" && "Create a new strong password for your account"}
+            </p>
+          </div>
+
+          <div className="p-8 pt-10">
         
         {/* PHASE 1: EMAIL */}
         {phase === "email" && (
           <Form {...emailForm}>
             <form onSubmit={emailForm.handleSubmit(handleVerifyEmail)} className="space-y-6">
-              <div>
-                <label className="text-sm font-semibold mb-2 block">Email Address</label>
-                <FormTextInput control={emailForm.control} name="email" placeholder="Enter your email" />
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 pl-1">Email Address</label>
+                <div className="transition-all duration-200 focus-within:scale-[1.02]">
+                  <FormTextInput 
+                    control={emailForm.control} 
+                    name="email" 
+                    placeholder="Enter your email" 
+                    className="placeholder:opacity-60 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
+                  />
+                </div>
               </div>
-              <button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center"
-              >
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify"}
-              </button>
+              <div className="pt-4 flex justify-center">
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 rounded-md bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:hover:bg-blue-600 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify Email"}
+                </button>
+              </div>
             </form>
           </Form>
         )}
@@ -172,10 +190,10 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
         {/* PHASE 2: OTP */}
         {phase === "otp" && (
           <div className="space-y-5 animate-in fade-in duration-300">
-            <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-center">
-              <p className="text-sm font-medium text-slate-700 mb-4">
+            <div className="p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 text-center">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">
                 Enter the 6-digit code sent to<br/>
-                <span className="font-bold text-slate-900">{verifiedEmail}</span>
+                <span className="font-bold text-slate-900 dark:text-white">{verifiedEmail}</span>
               </p>
 
               <div className="flex justify-center gap-2 mb-5">
@@ -200,42 +218,44 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
                         otpRefs.current[index - 1]?.focus();
                       }
                     }}
-                    className="w-11 h-13 text-center text-xl font-bold bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-11 h-13 text-center text-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                     style={{ height: "3rem" }}
                   />
                 ))}
               </div>
 
               <div className="flex justify-between items-center text-xs px-1">
-                <span className="font-medium text-slate-500">
+                <span className="font-medium text-slate-500 dark:text-slate-400">
                   {timeLeft > 0 ? `Expires in ${formatTime(timeLeft)}` : "Expired"}
                 </span>
                 <button
                   type="button"
                   disabled={timeLeft > 0}
                   onClick={handleResendOTP}
-                  className="font-bold text-blue-600 hover:text-blue-800 disabled:opacity-40 transition-colors"
+                  className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 disabled:opacity-40 transition-colors"
                 >
                   Resend OTP
                 </button>
               </div>
             </div>
 
-            <button
-              type="button"
-              disabled={isSubmitting || otpDigits.join("").length < 6}
-              onClick={() => {
-                const code = otpDigits.join("");
-                if (code.length === 6) {
-                  setPhase("reset");
-                } else {
-                  toast.error("Please enter a 6-digit OTP");
-                }
-              }}
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center justify-center disabled:opacity-50"
-            >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify OTP"}
-            </button>
+            <div className="pt-4 flex justify-center">
+              <button
+                type="button"
+                disabled={isSubmitting || otpDigits.join("").length < 6}
+                onClick={() => {
+                  const code = otpDigits.join("");
+                  if (code.length === 6) {
+                    setPhase("reset");
+                  } else {
+                    toast.error("Please enter a 6-digit OTP");
+                  }
+                }}
+                className="w-full py-2.5 rounded-md bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:hover:bg-blue-600 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify OTP"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -244,19 +264,20 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
           <Form {...passwordForm}>
             <form onSubmit={passwordForm.handleSubmit(handleResetPassword)} className="space-y-5">
               
-              <div className="relative">
-                <label className="text-sm font-semibold mb-2 block">New Password</label>
-                <div className="relative">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 pl-1">New Password</label>
+                <div className="relative transition-all duration-200 focus-within:scale-[1.02]">
                   <FormTextInput 
                     control={passwordForm.control} 
                     name="newPassword" 
                     type={showNewPassword ? "text" : "password"} 
                     placeholder="Enter new password" 
+                    className="placeholder:opacity-60 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium tracking-widest pr-10"
                   />
                   <button 
                     type="button" 
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -270,37 +291,42 @@ export function ForgotPasswordPage({ onBackToLogin, onNext, onSuccess }: ForgotP
                 <span className={/[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]/.test(passwordForm.watch("newPassword") || "") ? "text-emerald-600" : ""}>• 1 special</span>
               </div>
 
-              <div className="relative">
-                <label className="text-sm font-semibold mb-2 block">Confirm Password</label>
-                <div className="relative">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 pl-1">Confirm Password</label>
+                <div className="relative transition-all duration-200 focus-within:scale-[1.02]">
                   <FormTextInput 
                     control={passwordForm.control} 
                     name="confirmPassword" 
                     type={showConfirmPassword ? "text" : "password"} 
                     placeholder="Confirm new password" 
+                    className="placeholder:opacity-60 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium tracking-widest pr-10"
                   />
                   <button 
                     type="button" 
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
 
-              <button 
-                type="submit" 
-                disabled={isSubmitting || !passwordForm.formState.isValid}
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center mt-4"
-              >
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Reset Password"}
-              </button>
+              <div className="pt-4 flex justify-center">
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting || !passwordForm.formState.isValid}
+                  className="w-full py-2.5 rounded-md bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:hover:bg-blue-600 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Reset Password"}
+                </button>
+              </div>
             </form>
           </Form>
         )}
 
-      </CardContent>
-    </Card>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

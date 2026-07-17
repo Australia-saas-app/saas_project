@@ -128,12 +128,11 @@ export const useForgotPassword = () => {
     })
 }
 
-export const useResetPassword = (token?: string) => {
-    return useMutation<{ success: boolean; message?: string }, Error, { password: string }>({
+export const useResetPassword = () => {
+    return useMutation<{ success: boolean; message?: string }, Error, { email: string, otp: string, newPassword: string }>({
         mutationKey: ["RESET_PASSWORD"],
-        mutationFn: async ({ password }) => {
-            if (!token) throw new Error('Reset token is missing');
-            return await confirmPasswordReset(password, token);
+        mutationFn: async (payload) => {
+            return await confirmPasswordReset(payload);
         },
         onSuccess: (data) => {
             toast.success(data?.message || 'Password reset successfully');

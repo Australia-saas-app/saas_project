@@ -78,7 +78,7 @@ const AllBusinessTable: React.FC = () => {
     const fetchBusinesses = async () => {
       setIsFetching(true)
       try {
-        const response = await fetch('/api/users?role=business', {
+        const response = await fetch('/api/sso/auth/admin/users?accountType=business', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) throw new Error('Failed to fetch')
@@ -86,7 +86,7 @@ const AllBusinessTable: React.FC = () => {
         
         if (!active) return
 
-        let filtered = resData.data.map((u: any) => ({
+        let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
           userId: u.id,
           businessId: u.id.slice(0,5),
           fullName: u.businessName || u.fullName || 'Unknown Business',
@@ -137,7 +137,7 @@ const AllBusinessTable: React.FC = () => {
 
   const handleStatusUpdate = async (userId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/users/${userId}/status`, {
+      const res = await fetch(`/api/sso/auth/admin/users/${userId}/status`, {
           method: 'PATCH',
           headers: { 
             'Content-Type': 'application/json',

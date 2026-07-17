@@ -8,17 +8,17 @@ export const registerUser = async (userData: any) => {
 }
 
 export const loginUser = async (userData: any) => {
-    const res = await axiosInstance.post('/auth/login', userData);
+    const res = await axiosInstance.post('/sso/auth/admin/login', userData);
     return res.data;
 }
 
 export const requestPasswordReset = async (payload: { email: string }) => {
-    const res = await axiosInstance.post('/auth/forgot-password', payload);
+    const res = await axiosInstance.post('/sso/auth/admin/forgot-password', payload);
     return res.data;
 }
 
-export const confirmPasswordReset = async (password: string, token: string) => {
-    const res = await axiosInstance.post('/auth/reset-password', { password, token });
+export const confirmPasswordReset = async (payload: { email: string, otp: string, newPassword: string }) => {
+    const res = await axiosInstance.post('/sso/auth/admin/reset-password', payload);
     return res.data;
 }
 

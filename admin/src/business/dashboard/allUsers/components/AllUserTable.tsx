@@ -100,7 +100,7 @@ const AllUserTable: React.FC = () => {
         const fetchUsers = async () => {
             setIsFetching(true)
             try {
-                const response = await fetch('/api/users?role=user', {
+                const response = await fetch('/api/sso/auth/admin/users?accountType=user', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 if (!response.ok) throw new Error('Network response was not ok')
@@ -108,7 +108,7 @@ const AllUserTable: React.FC = () => {
                 
                 if (!active) return
 
-                let filtered = resData.data.map((u: any) => ({
+                let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
                     userId: u.id,
                     fullName: u.fullName || u.email,
                     email: u.email || u.phone,
@@ -166,7 +166,7 @@ const AllUserTable: React.FC = () => {
 
     const handleStatusUpdate = async (userId: string, newStatus: string) => {
         try {
-            const res = await fetch(`/api/users/${userId}/status`, {
+            const res = await fetch(`/api/sso/auth/admin/users/${userId}/status`, {
                 method: 'PATCH',
                 headers: { 
                     'Content-Type': 'application/json',

@@ -12,7 +12,7 @@ export const loginUser = createAsyncThunk(
         ...(isEmail ? { email: credentials.email } : { phone: credentials.email }),
       };
       
-      const response = await fetch(`${apiUrl}/sso/auth/user/login`, {
+      const response = await fetch(`${apiUrl}/sso/auth/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

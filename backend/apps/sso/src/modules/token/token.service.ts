@@ -262,8 +262,11 @@ export class TokenService {
   }
 
   private ensureUserIsAllowed(user: User) {
-    if ([UserStatus.BLOCKED, UserStatus.CLOSED].includes(user.status)) {
-      throw new ForbiddenException('Account is blocked or closed');
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException({
+        error: user.status.toLowerCase(),
+        error_description: `Account is ${user.status.toLowerCase()}`,
+      });
     }
   }
 

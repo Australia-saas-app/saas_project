@@ -21,6 +21,7 @@ import {
   Database
 } from "lucide-react";
 import React, { useEffect,  useState } from "react";
+import { useAppSelector } from "@/src/core/store/hooks";
 // Chart registration will be run client-side inside useEffect to avoid SSR side-effects
 
 import { Inter } from "next/font/google";
@@ -88,9 +89,32 @@ const DashboardPageLayout: React.FC = () => {
     setMounted(true);
   }, []);
 
+  const [stats, setStats] = useState<any>({ totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 });
+  const token = useAppSelector(state => state.auth.token);
+
   useEffect(() => {
-    // Keep empty or add other client side initializations here if needed.
-  }, []);
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/sso/auth/admin/users?limit=1', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          const types = resData.data?.analytics?.accountTypes || [];
+          const userObj = types.find((t:any) => t.accountType === 'user');
+          const businessObj = types.find((t:any) => t.accountType === 'business');
+          const affiliateObj = types.find((t:any) => t.accountType === 'affiliate');
+          setStats({
+            totalUsers: resData.data?.analytics?.totalUsers || 0,
+            userCount: userObj ? Number(userObj.count) : 0,
+            businessCount: businessObj ? Number(businessObj.count) : 0,
+            affiliateCount: affiliateObj ? Number(affiliateObj.count) : 0,
+          });
+        }
+      } catch (e) {}
+    };
+    if (token) fetchStats();
+  }, [token]);
 
   // keep `visibleCount` state for potential "See more" UI; no handler needed currently
   if (!mounted) {
@@ -122,6 +146,14 @@ const DashboardPageLayout: React.FC = () => {
       </div>
 
 
+
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <CardDataStats item={{ name: "Total Accounts", number: stats.totalUsers, icon: Users }} index={0} />
+        <CardDataStats item={{ name: "Users", number: stats.userCount, icon: Smartphone }} index={1} />
+        <CardDataStats item={{ name: "Businesses", number: stats.businessCount, icon: Globe }} index={2} />
+        <CardDataStats item={{ name: "Affiliates", number: stats.affiliateCount, icon: Share2 }} index={3} />
+      </div>
 
       {/* Row 2: Visitor Analytics */}
       <div className="w-full">

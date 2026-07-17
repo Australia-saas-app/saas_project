@@ -1,37 +1,35 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, AccountType, UserStatus } from './entities/user.entity';
+import { Admin } from './entities/admin.entity';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 
 async function bootstrap() {
   console.log('Bootstrapping Application to seed Superadmin...');
   const app = await NestFactory.createApplicationContext(AppModule);
   
-  const userRepository = app.get<Repository<User>>(getRepositoryToken(User));
+  const adminRepository = app.get<Repository<Admin>>(getRepositoryToken(Admin));
 
   const email = 'superadmin@systemdb.com';
-  let user = await userRepository.findOne({ where: { email } });
+  let admin = await adminRepository.findOne({ where: { email } });
+  
+  const hashedPassword = await bcrypt.hash('Superadmin@123', 10);
 
-  if (user) {
-    console.log(`User ${email} already exists. Updating password...`);
-    user.password = 'Superadmin@123';
-    // Let BeforeUpdate hook hash the password
+  if (admin) {
+    console.log(`Admin ${email} already exists. Updating password...`);
+    admin.password = 'Superadmin@123';
   } else {
-    console.log(`Creating new user ${email}...`);
-    user = userRepository.create({
+    console.log(`Creating new admin ${email}...`);
+    admin = adminRepository.create({
       email,
-      password: 'Superadmin@123', // BeforeInsert hook will hash it
-      accountType: AccountType.USER,
-      status: UserStatus.ACTIVE,
-      emailVerified: true,
+      password: 'Superadmin@123',
+      role: 'super_admin' as any,
       fullName: 'Super Admin',
-      phone: '+10000000000',
-      phoneVerified: true,
     });
   }
 
-  await userRepository.save(user);
+  await adminRepository.save(admin);
   console.log('Superadmin seeded successfully!');
   await app.close();
 }

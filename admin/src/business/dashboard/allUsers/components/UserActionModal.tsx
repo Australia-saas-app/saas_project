@@ -114,7 +114,7 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
               <div className="text-sm text-slate-500 truncate">{user.email || "No Email"}</div>
               {user.createdAt && (
                 <div className="text-xs text-slate-400 mt-1 font-medium">
-                  Joined: {new Date(user.createdAt).toLocaleDateString("en-US", {
+                  Joined: {new Date(user.createdAt).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "long",
                     year: "numeric"

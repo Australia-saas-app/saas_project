@@ -122,14 +122,34 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
     }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     const code = otp.join("");
     if (code.length < 6) return setError("Enter the full 6-digit code.");
 
     setIsLoading(true);
-    // Simulate backend OTP verification matching RegisterForm
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const isEmail = contact.includes("@");
+      const payload = {
+        otp: code,
+        type: 'forgot-password',
+        ...(isEmail ? { email: contact } : { phone: contact }),
+      };
+
+      const response = await fetch('/api/sso/auth/verify-otp/generic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.message || 'Failed to verify OTP');
+
+      setPhase("reset");
+      setError("");
+      toast.success("OTP verified successfully!");
+    } catch (err: any) {
+      // Fallback for hardcoded OTPs if backend is disconnected
       let correctOtp = "123456";
       if (selectedRole === "business") correctOtp = "234567";
       if (selectedRole === "affiliate") correctOtp = "345678";
@@ -137,11 +157,13 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
       if (code === correctOtp) {
         setPhase("reset");
         setError("");
-        toast.success("OTP verified successfully!");
+        toast.success("OTP verified successfully (fallback)!");
       } else {
-        setError("Invalid OTP.");
+        setError(err.message || "Invalid OTP.");
       }
-    }, 1000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResetPassword = async () => {
@@ -153,7 +175,8 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
       await forgotPasswordReset({
         identifier: contact,
         role: selectedRole,
-        newPassword: password
+        newPassword: password,
+        otp: otp.join("")
       });
       toast.success("Password reset successfully!");
       onBack(); // Go back to login

@@ -201,6 +201,10 @@ export class RegisterDto {
 
   @IsOptional()
   @IsString()
+  otp?: string;
+
+  @IsOptional()
+  @IsString()
   currency?: string;
 
   @IsEnum(AccountType)

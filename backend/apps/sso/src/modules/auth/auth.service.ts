@@ -22,6 +22,7 @@ import {
   UserStatus,
   TwoFactorMethod,
 } from '../../entities/user.entity';
+import { Admin } from '../../entities/admin.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -40,6 +41,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Admin)
+    private readonly adminRepository: Repository<Admin>,
     private readonly otpUtil: OtpUtil,
     private readonly configService: ConfigService,
     private readonly tokenService: TokenService,
@@ -54,6 +57,82 @@ export class AuthService {
 
   private normalizePhone(phone?: string) {
     return phone ? phone.trim() : undefined;
+  }
+
+  async adminLogin(loginDto: LoginDto) {
+    const email = this.normalizeEmail(loginDto.email);
+    const admin = await this.adminRepository.findOne({ where: { email } });
+
+    if (!admin || !(await bcrypt.compare(loginDto.password, admin.password))) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const tokenResponse = this.jwtService.signAdminToken({
+      adminId: admin.id,
+      email: admin.email,
+      role: admin.role,
+    });
+
+    return {
+      success: true,
+      message: 'Admin login successful',
+      token: tokenResponse.token,
+      data: {
+        adminId: admin.id,
+        email: admin.email,
+        fullName: admin.fullName,
+        role: admin.role,
+      },
+    };
+  }
+
+  async adminForgotPassword(dto: ForgotPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+    if (!email) {
+      throw new BadRequestException('Invalid email');
+    }
+    const admin = await this.adminRepository.findOne({ where: { email } });
+
+    if (!admin) {
+      // Don't leak existence
+      return { success: true, message: 'If account exists, an OTP has been sent' };
+    }
+
+    const otp = this.otpUtil.generateOTP();
+    const otpKey = `otp:${email}:admin_reset`;
+    await this.otpUtil.storeOTP(this.redisClient, otpKey, otp);
+    await this.otpUtil.sendOTPEmail(email as string, otp);
+
+    return {
+      success: true,
+      message: 'If account exists, an OTP has been sent',
+    };
+  }
+
+  async adminResetPassword(dto: ResetPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+    if (!email) {
+      throw new BadRequestException('Invalid email');
+    }
+    const otpKey = `otp:${email}:admin_reset`;
+    
+    const isValid = await this.otpUtil.verifyOTP(this.redisClient, otpKey, dto.otp as string);
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    const admin = await this.adminRepository.findOne({ where: { email } });
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
+
+    admin.password = dto.newPassword; // will be hashed automatically by BeforeUpdate
+    await this.adminRepository.save(admin);
+
+    return {
+      success: true,
+      message: 'Admin password reset successfully',
+    };
   }
 
 
@@ -150,6 +229,20 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
+    let initialStatus = UserStatus.PENDING;
+    let emailVerified = !normalizedEmail;
+    let phoneVerified = !normalizedPhone;
+
+    if (registerDto.otp) {
+      const otpKey = `otp:${normalizedEmail || normalizedPhone}:registration`;
+      const isValid = await this.otpUtil.verifyOTP(this.redisClient, otpKey, registerDto.otp);
+      if (!isValid) {
+        throw new BadRequestException('Invalid or expired OTP provided');
+      }
+      emailVerified = !!normalizedEmail || emailVerified;
+      phoneVerified = !!normalizedPhone || phoneVerified;
+    }
+
     const user = this.userRepository.create({
       accountType,
       fullName: registerDto.fullName,
@@ -167,9 +260,9 @@ export class AuthService {
       governmentId: registerDto.governmentId,
       idDocument: registerDto.idDocument,
       passportNumber: registerDto.passportNumber,
-      status: UserStatus.PENDING,
-      emailVerified: !normalizedEmail,
-      phoneVerified: !normalizedPhone,
+      status: initialStatus,
+      emailVerified,
+      phoneVerified,
       recoveryKey: registerDto.recoveryKey || null,
       statusHistory: [] as User['statusHistory'],
     } as DeepPartial<User>);
@@ -205,21 +298,23 @@ export class AuthService {
       throw error;
     }
 
-    const otp = this.otpUtil.generateOTP();
-    const otpKey = `otp:${normalizedEmail || normalizedPhone}:registration`;
-    await this.otpUtil.storeOTP(this.redisClient, otpKey, otp);
+    if (!registerDto.otp) {
+      const otp = this.otpUtil.generateOTP();
+      const otpKey = `otp:${normalizedEmail || normalizedPhone}:registration`;
+      await this.otpUtil.storeOTP(this.redisClient, otpKey, otp);
 
-    if (normalizedEmail) {
-      await this.otpUtil.sendOTPEmail(normalizedEmail, otp);
-    } else if (normalizedPhone) {
-      await this.otpUtil.sendOTPSMS(normalizedPhone, otp);
+      if (normalizedEmail) {
+        await this.otpUtil.sendOTPEmail(normalizedEmail, otp);
+      } else if (normalizedPhone) {
+        await this.otpUtil.sendOTPSMS(normalizedPhone, otp);
+      }
     }
 
     return {
       success: true,
       message: `${accountType
         .charAt(0)
-        .toUpperCase()}${accountType.slice(1)} registered successfully. Please verify OTP.`,
+        .toUpperCase()}${accountType.slice(1)} registered successfully${registerDto.otp ? '.' : '. Please verify OTP.'}`,
       data: {
         userId: savedUser.userId,
         accountType: savedUser.accountType,
@@ -265,26 +360,14 @@ export class AuthService {
 
     user.emailVerified = normalizedEmail ? true : user.emailVerified;
     user.phoneVerified = normalizedPhone ? true : user.phoneVerified;
-
-    // Auto-activate if verification is complete
-    const shouldActivate = (normalizedEmail && user.emailVerified) || (normalizedPhone && user.phoneVerified);
-    if (shouldActivate && user.status === UserStatus.PENDING) {
-      user.status = UserStatus.ACTIVE;
-      user.statusHistory = user.statusHistory || [];
-      user.statusHistory.push({
-        status: UserStatus.ACTIVE,
-        changedAt: new Date().toISOString(),
-        changedBy: 'system',
-        reason: 'OTP verification completed',
-      });
-    }
+    // Removed auto-activation logic; accounts must be manually activated by Admin
 
     await this.userRepository.save(user);
 
     return {
       success: true,
       message: 'OTP verified successfully',
-      data: { userId: user.userId, activated: shouldActivate },
+      data: { userId: user.userId, activated: user.status === UserStatus.ACTIVE },
     };
   }
 
