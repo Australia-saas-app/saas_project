@@ -12,7 +12,7 @@ services:
       dockerfile: Dockerfile
     container_name: saas_frontend
     ports:
-      - "8000:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
       # Next.js will use this public URL for API calls
