@@ -26,14 +26,11 @@ export default function HomePage() {
   }, [router, isAuthenticated]);
 
   const handleSignUp = useCallback((role?: string | any) => {
-    if (isAuthenticated) {
-      toast.info("An account is already logged in!");
-      return;
-    }
+    // Always allow creating a new account regardless of login state
     const roleString = typeof role === "string" ? role : undefined;
     const roleParam = roleString ? `&role=${roleString}` : "";
     router.push(`/login?mode=register${roleParam}`);
-  }, [router, isAuthenticated]);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-[#e9f1fc] font-[family-name:var(--font-geist-sans)] pt-16">

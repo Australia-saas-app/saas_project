@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { LoginForm } from "./LoginForm";
 import { RegisterForm } from "./RegisterForm";
 import { OtpForm } from "./OtpForm";
 import { ForgotPasswordForm } from "./ForgotPasswordForm";
+import { useAuth } from "@/core/auth/context/AuthContext";
 
 type AuthView = "login" | "register" | "otp_login" | "otp_register" | "forgot_password";
 type RoleType = "user" | "affiliate" | "business";
@@ -25,6 +27,8 @@ function AuthFlipContainerContent() {
   const [loginKey, setLoginKey] = useState<number>(Date.now());
   const [registerKey, setRegisterKey] = useState<number>(Date.now());
 
+  const { isAuthenticated } = useAuth();
+
   const handleNavigate = (view: AuthView) => {
     setCurrentView(view);
     if (view === "login" || view === "forgot_password" || view === "otp_login") {
@@ -34,6 +38,15 @@ function AuthFlipContainerContent() {
       setBackView(view);
       setRegisterKey(Date.now());
     }
+  };
+
+  // Intercept register->login navigation when already authenticated
+  const handleRegisterToLogin = () => {
+    if (isAuthenticated) {
+      toast.info("An account is already logged in!");
+      return;
+    }
+    handleNavigate("login");
   };
 
   // It's flipped if we are on register or otp_register
@@ -87,8 +100,8 @@ function AuthFlipContainerContent() {
               key={registerKey}
               initialRole={initialRole}
               isRoleLocked={isRoleLocked}
-              onToggleForm={() => handleNavigate("login")}
-              onSuccess={() => handleNavigate("login")}
+              onToggleForm={handleRegisterToLogin}
+              onSuccess={handleRegisterToLogin}
             />
           )}
           {backView === "otp_register" && (

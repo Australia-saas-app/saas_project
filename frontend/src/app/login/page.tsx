@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AuthFlipContainer } from "@/core/auth/ui/AuthFlipContainer";
 import { Navbar } from "@/core/landing/ui/Navbar";
@@ -10,17 +10,25 @@ import { useAuth } from "@/core/auth/context/AuthContext";
 export default function LoginPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const [searchParamsReady, setSearchParamsReady] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  // If already logged in, bounce back to home with toast
+  // Determine mode on client side
   useEffect(() => {
-    if (isAuthenticated) {
-      toast.info("An account is already logged in!");
-      router.replace("/");
-    }
-  }, [isAuthenticated, router]);
+    const params = new URLSearchParams(window.location.search);
+    setIsRegisterMode(params.get('mode') === 'register');
+    setSearchParamsReady(true);
+  }, []);
 
-  // Don't render the login form if authenticated (avoids flash before redirect)
-  if (isAuthenticated) return null;
+  // If already logged in AND trying to access LOGIN (not register), silently redirect home
+  useEffect(() => {
+    if (searchParamsReady && isAuthenticated && !isRegisterMode) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, isRegisterMode, router, searchParamsReady]);
+
+  // Don't render the login form if authenticated in login mode (avoids flash)
+  if (searchParamsReady && isAuthenticated && !isRegisterMode) return null;
 
   return (
     <div
