@@ -141,7 +141,7 @@ export class OtpUtil {
       `;
 
       const mailOptions = {
-        from: `<${fromEmail}>`,
+        from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
         to: email,
         subject: "Your OTP Verification Code",
         text: textContent,

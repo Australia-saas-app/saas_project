@@ -84,8 +84,7 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: adminpassword
       POSTGRES_DB: saas_db
-    ports:
-      - "5432:5432" # Exposed for manual PGAdmin access if needed
+    # Removed ports 5432:5432 to prevent host port conflicts; internal network handles it.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -98,6 +97,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: adminpassword
+    # Removed ports 27017:27017 to prevent host port conflicts
     volumes:
       - mongodb_data:/data/db
     restart: always
@@ -107,6 +107,7 @@ services:
   saas-redis:
     image: redis:7-alpine
     container_name: saas-redis
+    # Removed ports 6379:6379 to prevent host port conflicts
     volumes:
       - redis_data:/data
     restart: always
