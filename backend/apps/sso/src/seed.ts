@@ -32,6 +32,7 @@ async function bootstrap() {
   await adminRepository.save(admin);
   console.log('Superadmin seeded successfully!');
   await app.close();
+  process.exit(0);
 }
 
 bootstrap().catch((err) => {
