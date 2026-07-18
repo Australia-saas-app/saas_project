@@ -14,17 +14,17 @@ export class OtpUtil {
       10,
     );
 
-    // Initialize Nodemailer with SES SMTP
+    // Initialize Nodemailer with generic SMTP
     this.transporter = nodemailer.createTransport({
       host: this.configService.get(
-        "SES_SMTP_HOST",
-        "email-smtp.us-east-1.amazonaws.com",
+        "SMTP_HOST",
+        "smtp.gmail.com",
       ),
-      port: parseInt(this.configService.get("SES_SMTP_PORT", "587")),
+      port: parseInt(this.configService.get("SMTP_PORT", "587")),
       secure: false, // true for 465, false for other ports
       auth: {
-        user: this.configService.get("SES_SMTP_USER"),
-        pass: this.configService.get("SES_SMTP_PASSWORD"),
+        user: this.configService.get("SMTP_USER"),
+        pass: this.configService.get("SMTP_PASSWORD"),
       },
     });
   }
@@ -68,8 +68,8 @@ export class OtpUtil {
 
     try {
       const fromEmail = this.configService.get(
-        "SES_FROM_EMAIL",
-        "noreply@vero2.com",
+        "SMTP_FROM_EMAIL",
+        "noreply@systemdb.com",
       );
       const htmlContent = `
         <!DOCTYPE html>

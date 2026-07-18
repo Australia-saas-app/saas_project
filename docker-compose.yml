@@ -63,6 +63,10 @@ services:
       - REDIS_HOST=saas_redis
       - REDIS_PORT=6379
       - SSO_SYNCHRONIZE=true
+      - PORT=3001
+      - SMTP_USER=abdulrafiumahesar@gmail.com
+      - SMTP_PASSWORD=kkzdajqzqvwkybgq
+      - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
     depends_on:
       - saas_postgres
       - saas_redis
