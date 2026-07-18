@@ -173,10 +173,9 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
     setIsLoading(true);
     try {
       await forgotPasswordReset({
-        identifier: contact,
+        ...(selectedMethod === "backup_code" ? { recoveryKey: contact } : { identifier: contact, otp: otp.join("") }),
         role: selectedRole,
-        newPassword: password,
-        otp: otp.join("")
+        newPassword: password
       });
       toast.success("Password reset successfully!");
       onBack(); // Go back to login

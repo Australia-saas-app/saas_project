@@ -281,6 +281,60 @@ export class User {
     descriptionOfServices: string;
   };
 
+  // --- Flattened Metrics & Stats (Used by Admin Dashboard) ---
+  
+  // User metrics
+  @Column({ type: 'int', default: 0 })
+  totalProject: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  totalAmount: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  paidAmount: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  dueAmount: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  refundAmount: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  profit: number;
+
+  // Business metrics
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  securityDeposit: number;
+
+  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
+  percentageRate: number;
+
+  @Column({ type: 'varchar', length: 255, default: 'NA' })
+  businessName: string;
+
+  @Column({ type: 'varchar', length: 255, default: 'NA' })
+  businessType: string;
+
+  // Affiliate metrics
+  @Column({ type: 'int', default: 0 })
+  conversions: number;
+
+  @Column({ type: 'int', default: 0 })
+  referrals: number;
+
+  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0 })
+  commission: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 2, default: 0 })
+  earnings: number;
+
+  @Column({ type: 'int', default: 1 })
+  level: number;
+
+  @Column({ type: 'varchar', length: 255, default: 'NA' })
+  industryType: string;
+
+
   @CreateDateColumn()
   createdAt: Date;
 

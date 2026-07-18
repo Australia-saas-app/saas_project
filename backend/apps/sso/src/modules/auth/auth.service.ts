@@ -126,8 +126,10 @@ export class AuthService {
       throw new NotFoundException('Admin not found');
     }
 
-    admin.password = dto.newPassword; // will be hashed automatically by BeforeUpdate
-    await this.adminRepository.save(admin);
+    const newHashedPassword = await bcrypt.hash(dto.newPassword, 10);
+    await this.adminRepository.update(admin.id, {
+      password: newHashedPassword
+    });
 
     return {
       success: true,
@@ -263,7 +265,7 @@ export class AuthService {
       status: initialStatus,
       emailVerified,
       phoneVerified,
-      recoveryKey: registerDto.recoveryKey || null,
+      recoveryKey: registerDto.recoveryKey?.trim() || null,
       statusHistory: [] as User['statusHistory'],
     } as DeepPartial<User>);
 
@@ -538,7 +540,7 @@ export class AuthService {
     }
 
     const whereConditions: FindOptionsWhere<User>[] = [];
-    if (recoveryKey) whereConditions.push({ recoveryKey });
+    if (recoveryKey && recoveryKey.trim()) whereConditions.push({ recoveryKey: recoveryKey.trim() });
     if (normalizedEmail) whereConditions.push({ email: normalizedEmail });
     if (normalizedPhone) whereConditions.push({ phone: normalizedPhone });
 
@@ -550,10 +552,13 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    user.password = await bcrypt.hash(resetPasswordDto.newPassword, 10);
-    user.twoFactorEnabled = false;
-    user.twoFactorMethod = null as unknown as TwoFactorMethod;
-    await this.userRepository.save(user);
+    const newHashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+    
+    await this.userRepository.update(user.id, {
+      password: newHashedPassword,
+      twoFactorEnabled: false,
+      twoFactorMethod: null as unknown as TwoFactorMethod,
+    });
 
     return {
       success: true,
@@ -662,10 +667,11 @@ export class AuthService {
   }
 
   async verifyRecoveryKey(recoveryKey: string) {
-    if (!recoveryKey) {
+    if (!recoveryKey || !recoveryKey.trim()) {
       throw new BadRequestException('Recovery key is required');
     }
-    const user = await this.userRepository.findOne({ where: { recoveryKey } });
+    const cleanKey = recoveryKey.trim();
+    const user = await this.userRepository.findOne({ where: { recoveryKey: cleanKey } });
     if (!user) {
       throw new BadRequestException('Invalid recovery key');
     }
