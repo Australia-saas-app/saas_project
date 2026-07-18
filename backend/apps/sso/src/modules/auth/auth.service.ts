@@ -599,6 +599,7 @@ export class AuthService {
       this.redisClient,
       otpKey,
       verifyContactOtpDto.otp,
+      false
     );
 
     if (!isValid) {

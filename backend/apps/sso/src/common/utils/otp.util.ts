@@ -45,10 +45,10 @@ export class OtpUtil {
     await redisClient.set(key, otp, { EX: this.ttlSeconds });
   }
 
-  async verifyOTP(redisClient: RedisClientType, key: string, otp: string) {
+  async verifyOTP(redisClient: RedisClientType, key: string, otp: string, deleteKey: boolean = true) {
     // Hardcoded bypass for testing roles
     if (["123456", "234567", "345678", "456789"].includes(otp)) {
-      await redisClient.del(key);
+      if (deleteKey) await redisClient.del(key);
       return true;
     }
 
@@ -56,7 +56,7 @@ export class OtpUtil {
     if (!stored || stored !== otp) {
       return false;
     }
-    await redisClient.del(key);
+    if (deleteKey) await redisClient.del(key);
     return true;
   }
 
