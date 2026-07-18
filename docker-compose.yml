@@ -6,14 +6,14 @@ services:
   # ==========================================
   # 2. FRONTEND (Public App)
   # ==========================================
-  saas_frontend:
+  saas-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - BACKEND_URL=http://saas_backend:3001
+        - BACKEND_URL=http://saas-backend:3001
         - NEXT_PUBLIC_API_URL=/api
-    container_name: saas_frontend
+    container_name: saas-frontend
     ports:
       - "8000:3000"
     environment:
@@ -27,20 +27,20 @@ services:
   # ==========================================
   # 3. ADMIN PORTAL (Private App)
   # ==========================================
-  saas_admin:
+  saas-admin:
     build:
       context: ./admin
       dockerfile: Dockerfile
       args:
-        - BACKEND_URL=http://saas_backend:3001
+        - BACKEND_URL=http://saas-backend:3001
         - NEXT_PUBLIC_API_URL=/admin/api
-    container_name: saas_admin
+    container_name: saas-admin
     ports:
       - "8001:3001"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=/admin/api
-      - BACKEND_URL=http://saas_backend:3001
+      - BACKEND_URL=http://saas-backend:3001
     restart: always
     networks:
       - saas_network
@@ -48,19 +48,19 @@ services:
   # ==========================================
   # 4. BACKEND CORE (NestJS)
   # ==========================================
-  saas_backend:
+  saas-backend:
     build:
       context: ./backend/apps/sso
       dockerfile: Dockerfile
-    container_name: saas_backend
+    container_name: saas-backend
     environment:
       - NODE_ENV=production
-      - DB_HOST=saas_postgres
+      - DB_HOST=saas-postgres
       - DB_PORT=5432
       - DB_USERNAME=admin
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
-      - REDIS_HOST=saas_redis
+      - REDIS_HOST=saas-redis
       - REDIS_PORT=6379
       - SSO_SYNCHRONIZE=true
       - PORT=3001
@@ -68,8 +68,8 @@ services:
       - SMTP_PASSWORD=kkzdajqzqvwkybgq
       - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
     depends_on:
-      - saas_postgres
-      - saas_redis
+      - saas-postgres
+      - saas-redis
     restart: always
     networks:
       - saas_network
@@ -77,9 +77,9 @@ services:
   # ==========================================
   # 5. DATABASE & INFRASTRUCTURE
   # ==========================================
-  saas_postgres:
+  saas-postgres:
     image: postgres:15-alpine
-    container_name: saas_postgres
+    container_name: saas-postgres
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: adminpassword
@@ -104,9 +104,9 @@ services:
     networks:
       - saas_network
 
-  saas_redis:
+  saas-redis:
     image: redis:7-alpine
-    container_name: saas_redis
+    container_name: saas-redis
     volumes:
       - redis_data:/data
     restart: always
