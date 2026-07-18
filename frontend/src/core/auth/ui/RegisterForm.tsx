@@ -136,6 +136,7 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
       const isEmail = contact.includes("@");
       const payload = {
         otp: code,
+        type: 'registration',
         ...(isEmail ? { email: contact } : { phone: contact }),
       };
 
@@ -446,10 +447,6 @@ export function RegisterForm({ onToggleForm, onSuccess, initialRole = "user", is
             <Button onClick={handleVerifyOtp} disabled={isLoading || otp.join("").length < 6} className="w-full h-10 mb-2">
               {isLoading ? <Loader2 className="animate-spin h-4 w-4" /> : "Verify Code"}
             </Button>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">{timeLeft > 0 ? `Expires in ${formatTime(timeLeft)}` : "Expired"}</span>
-              <button type="button" onClick={handleSendOtp} disabled={timeLeft > 0 || isLoading} className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50">Resend</button>
-            </div>
           </div>
         )}
 
