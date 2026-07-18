@@ -92,6 +92,12 @@ export function LoginForm({ onToggleForm, onForgotPassword }: LoginFormProps) {
           setIsLoading(false);
           return;
         }
+        if (response.status === 401) {
+          setStatusModal({ isOpen: true, status: 'INVALID CREDENTIALS', description: resData.message || "The email or password you entered is incorrect. Please try again." });
+          setIsLoading(false);
+          return;
+        }
+
         throw new Error(resData.message || "Failed to login");
       }
 
