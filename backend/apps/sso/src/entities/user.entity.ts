@@ -113,7 +113,7 @@ export class User {
   })
   accountType: AccountType;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   fullName: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
@@ -122,7 +122,7 @@ export class User {
   @Column({ type: 'varchar', length: 50, nullable: true, unique: true })
   phone: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   password: string;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
