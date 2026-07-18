@@ -9,7 +9,7 @@ async function bootstrap() {
   console.log('Bootstrapping Application to seed Superadmin...');
   const app = await NestFactory.createApplicationContext(AppModule);
   
-  const adminRepository = app.get<Repository<Admin>>(getRepositoryToken(Admin));
+  const adminRepository = app.get<Repository<Admin>>(getRepositoryToken(Admin), { strict: false });
 
   const email = 'superadmin@systemdb.com';
   let admin = await adminRepository.findOne({ where: { email } });
@@ -18,12 +18,12 @@ async function bootstrap() {
 
   if (admin) {
     console.log(`Admin ${email} already exists. Updating password...`);
-    admin.password = 'Superadmin@123';
+    admin.password = hashedPassword;
   } else {
     console.log(`Creating new admin ${email}...`);
     admin = adminRepository.create({
       email,
-      password: 'Superadmin@123',
+      password: hashedPassword,
       role: 'super_admin' as any,
       fullName: 'Super Admin',
     });
