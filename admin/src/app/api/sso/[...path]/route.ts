@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
 async function handleProxy(req: NextRequest, props: { params: Promise<{ path: string[] }> }) {
   const params = await props.params;
   const pathString = params.path.join('/');

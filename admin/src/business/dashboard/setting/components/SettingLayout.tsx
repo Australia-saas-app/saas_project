@@ -46,7 +46,7 @@ const SettingLayout = () => {
 
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/change-password', {
+      const res = await fetch('/admin/api/auth/change-password', {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',

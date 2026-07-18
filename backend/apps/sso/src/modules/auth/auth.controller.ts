@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -30,6 +31,15 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 @Controller('sso/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Delete('admin/users/:userId')
+  @UseGuards(JwtAuthGuard)
+  deleteUser(@Param('userId') userId: string, @Request() req: any) {
+    if (req.user?.role !== 'super_admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.authService.deleteUser(userId);
+  }
 
   @Post('user/register')
   @HttpCode(HttpStatus.CREATED)

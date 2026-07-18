@@ -80,7 +80,7 @@ const AllAffiliateTable: React.FC = () => {
     const fetchAffiliates = async () => {
       setIsFetching(true)
       try {
-        const response = await fetch('/api/sso/auth/admin/users?accountType=agency', {
+        const response = await fetch('/admin/api/sso/auth/admin/users?accountType=agency', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) throw new Error('Failed to fetch')
@@ -140,7 +140,7 @@ const AllAffiliateTable: React.FC = () => {
 
   const handleStatusUpdate = async (userId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/sso/auth/admin/users/${userId}/status`, {
+      const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
@@ -158,7 +158,7 @@ const AllAffiliateTable: React.FC = () => {
 
   const handleDelete = async (userId: string) => {
     try {
-      const res = await fetch(`/api/users/${userId}`, { 
+      const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}`, { 
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

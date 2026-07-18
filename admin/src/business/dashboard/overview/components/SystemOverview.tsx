@@ -48,7 +48,7 @@ const SystemOverview: React.FC = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/sso/auth/admin/stats', {
+        const res = await fetch('/admin/api/sso/auth/admin/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await res.json()

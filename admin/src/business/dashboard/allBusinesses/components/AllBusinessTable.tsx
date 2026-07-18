@@ -78,7 +78,7 @@ const AllBusinessTable: React.FC = () => {
     const fetchBusinesses = async () => {
       setIsFetching(true)
       try {
-        const response = await fetch('/api/sso/auth/admin/users?accountType=business', {
+        const response = await fetch('/admin/api/sso/auth/admin/users?accountType=business', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) throw new Error('Failed to fetch')
@@ -137,7 +137,7 @@ const AllBusinessTable: React.FC = () => {
 
   const handleStatusUpdate = async (userId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/sso/auth/admin/users/${userId}/status`, {
+      const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
           method: 'PATCH',
           headers: { 
             'Content-Type': 'application/json',
@@ -155,8 +155,8 @@ const AllBusinessTable: React.FC = () => {
 
   const handleDelete = async (userId: string) => {
     try {
-      const res = await fetch(`/api/users/${userId}`, { 
-        method: 'DELETE',
+      const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}`, { 
+          method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to delete");

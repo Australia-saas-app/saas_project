@@ -95,7 +95,7 @@ const DashboardPageLayout: React.FC = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/sso/auth/admin/users?limit=1', {
+        const response = await fetch('/admin/api/sso/auth/admin/users?limit=1', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {

@@ -100,7 +100,7 @@ const AllUserTable: React.FC = () => {
         const fetchUsers = async () => {
             setIsFetching(true)
             try {
-                const response = await fetch('/api/sso/auth/admin/users?accountType=user', {
+                const response = await fetch('/admin/api/sso/auth/admin/users?accountType=user', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 if (!response.ok) throw new Error('Network response was not ok')
@@ -166,7 +166,7 @@ const AllUserTable: React.FC = () => {
 
     const handleStatusUpdate = async (userId: string, newStatus: string) => {
         try {
-            const res = await fetch(`/api/sso/auth/admin/users/${userId}/status`, {
+            const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
                 method: 'PATCH',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -190,7 +190,7 @@ const AllUserTable: React.FC = () => {
 
     const handleDelete = async (userId: string) => {
         try {
-            const res = await fetch(`/api/users/${userId}`, { 
+            const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}`, { 
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
