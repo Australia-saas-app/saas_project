@@ -1011,6 +1011,8 @@ export class AuthService {
 
   async updateUserStatus(userId: string, status: string, reason: string, adminEmail: string | undefined) {
     status = status.toLowerCase();
+    if (status === 'suspend') status = 'suspended';
+    if (status === 'block') status = 'blocked';
     const user = await this.findUserByAnyId(userId);
     if (!user) {
       throw new NotFoundException('User not found');

@@ -17,8 +17,8 @@ async function bootstrap() {
   const hashedPassword = await bcrypt.hash('Superadmin@123', 10);
 
   if (admin) {
-    console.log(`Admin ${email} already exists. Updating password...`);
-    admin.password = hashedPassword;
+    console.log(`Admin ${email} already exists. Skipping password override...`);
+    // Do not override password
   } else {
     console.log(`Creating new admin ${email}...`);
     admin = adminRepository.create({
