@@ -3,7 +3,7 @@ import { getNewAccessToken } from "@/src/server/AuthService";
 import { toApiError } from "@/src/lib/api-error";
 import logger from "@/src/lib/logger";
 import axios from "axios";
-import { cookies } from "next/headers";
+import { getCookie, setCookie } from "@/src/utils/cookie-utils";
 
 const axiosInstance = axios.create({
   baseURL: envConfig.apiBaseURL,
@@ -20,8 +20,7 @@ if (envConfig.isDev) {
 
 axiosInstance.interceptors.request.use(
   async function (config) {
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("accessToken")?.value;
+    const accessToken = getCookie("accessToken");
     // Only attach Authorization if it isn't already explicitly set
     if (accessToken && !(config.headers && "Authorization" in config.headers)) {
       // Use Bearer prefix to match the REST standard and serverFetch.ts
@@ -49,8 +48,7 @@ axiosInstance.interceptors.response.use(
         const accessToken = res?.data?.accessToken;
         if (accessToken) {
           config.headers["Authorization"] = `Bearer ${accessToken}`;
-          const cookieStore = await cookies();
-          cookieStore.set("accessToken", accessToken);
+          setCookie("accessToken", accessToken);
           return axiosInstance(config);
         }
       } catch (refreshError) {
