@@ -17,7 +17,7 @@ export default function VerificationPageRoute() {
   const params = useParams()
   const router = useRouter()
   const accountType = (params.type as AccountType) || "user"
-  const draft = useMemo(() => loadSignupDraft(), [])
+  const draft = useMemo(() => loadSignupDraft(accountType), [accountType])
   const email = getSignupContactEmail(draft)
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function VerificationPageRoute() {
   }, [accountType, draft.contact, draft.password, router])
 
   const handleSuccess = async (code: string) => {
-    const signupData = loadSignupDraft()
+    const signupData = loadSignupDraft(accountType)
     if (!signupData.contact || !signupData.password) {
       throw new Error("Signup data is missing. Please start registration again.")
     }
@@ -43,7 +43,7 @@ export default function VerificationPageRoute() {
       accountType: String(signupData.accountType ?? accountType),
     });
 
-    clearSignupDraft()
+    clearSignupDraft(accountType)
     toast.success("Account verified. Complete your profile to unlock work features.")
     router.push(`/${accountType}/complete-profile`)
   }

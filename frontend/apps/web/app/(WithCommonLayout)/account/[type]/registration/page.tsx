@@ -14,7 +14,7 @@ export default function RegistrationPageRoute() {
   const accountType = (params.type as AccountType) || "user"
 
   useEffect(() => {
-    clearSignupDraft()
+    clearSignupDraft(accountType)
   }, [accountType])
 
   const handleNext = async (data: Record<string, unknown>) => {
@@ -30,7 +30,7 @@ export default function RegistrationPageRoute() {
     await registerUser(payload);
     
     // Progressive signup: verify contact first; full profile happens after login.
-    saveSignupDraft({ ...data, accountType })
+    saveSignupDraft(accountType, data)
     router.push(`/account/${accountType}/verification`)
   }
 

@@ -1,1 +1,1 @@
-export const getTeam = async () => null;
+export const getTeam = async () => ({ data: [] as any[] });

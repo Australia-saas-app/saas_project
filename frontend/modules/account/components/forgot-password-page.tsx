@@ -154,14 +154,7 @@ export function ForgotPasswordPage({ onNext, onBackToLogin }: ForgotPasswordPage
                 control={form.control} 
                 name="email" 
                 placeholder={placeholder}
-                type={view === 'phone' ? "tel" : "text"}
-                onChange={(e) => {
-                  if (view === 'phone') {
-                    // Accept only numbers, spaces, and +
-                    e.target.value = e.target.value.replace(/[^\d\s+]/g, '');
-                  }
-                  form.setValue('email', e.target.value);
-                }}
+                type="text"
               />
             </div>
           </div>

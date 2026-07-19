@@ -1,1 +1,1 @@
-export const getNotice = async () => null;
+export const getNotice = async () => ({ data: [] as any[] });
