@@ -63,7 +63,13 @@ export const useUserRegistration = () => {
 
     return useMutation<AuthResponse, Error, FieldValues>({
         mutationKey: ["USER_REGISTRATION"],
-        mutationFn: async (userData) => await registerUser(userData),
+        mutationFn: async (userData) => {
+            const result = await registerUser(userData);
+            if (!result || !result.success) {
+                throw new Error(result?.message || "Registration failed");
+            }
+            return result as AuthResponse;
+        },
         onSuccess: (data) => {
             toast.success('User Account create successfully');
             activityLog.record("USER_REGISTRATION", { role: data?.data?.user?.role });
@@ -93,7 +99,13 @@ export const useUserLogin = (redirectUrl?: string | null) => {
 
     return useMutation<AuthResponse, Error, FieldValues>({
         mutationKey: ["USER_LOGIN", redirectUrl ?? ""],
-        mutationFn: async (userData) => await loginUser(userData),
+        mutationFn: async (userData) => {
+            const result = await loginUser(userData);
+            if (!result || !result.success) {
+                throw new Error(result?.message || "Login failed");
+            }
+            return result as AuthResponse;
+        },
         onSuccess: async (data) => {
             toast.success('Login Successfully');
             activityLog.record("USER_LOGIN", { role: data?.data?.user?.role });

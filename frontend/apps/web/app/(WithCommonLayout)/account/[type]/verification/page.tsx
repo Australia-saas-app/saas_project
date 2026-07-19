@@ -35,13 +35,17 @@ export default function VerificationPageRoute() {
     const contactStr = String(signupData.contact);
     const isEmail = contactStr.includes("@");
 
-    await verifyOtpAndLogin({
+    const response = await verifyOtpAndLogin({
       email: isEmail ? contactStr : undefined,
       phone: !isEmail ? contactStr : undefined,
       otp: code,
       password: String(signupData.password),
       accountType: String(signupData.accountType ?? accountType),
     });
+
+    if (!response || !response.success) {
+      throw new Error(response?.message || "Verification and login failed");
+    }
 
     clearSignupDraft(accountType)
     toast.success("Account verified. Complete your profile to unlock work features.")

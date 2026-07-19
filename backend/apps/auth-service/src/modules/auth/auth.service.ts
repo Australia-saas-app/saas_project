@@ -722,7 +722,7 @@ export class AuthService {
     if (query.search) {
       const like = `%${query.search.toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(user.userId) LIKE :like OR LOWER(user.fullName) LIKE :like OR LOWER(user.email) LIKE :like OR LOWER(user.phone) LIKE :like)',
+        '(LOWER(CAST(user.userId AS text)) LIKE :like OR LOWER(CAST(user.fullName AS text)) LIKE :like OR LOWER(CAST(user.email AS text)) LIKE :like OR LOWER(CAST(user.phone AS text)) LIKE :like)',
         { like },
       );
     }
@@ -785,7 +785,7 @@ export class AuthService {
       if (query.search) {
         const like = `%${query.search.toLowerCase()}%`;
         statusQb.andWhere(
-          '(LOWER(user.userId) LIKE :like OR LOWER(user.fullName) LIKE :like OR LOWER(user.email) LIKE :like OR LOWER(user.phone) LIKE :like)',
+          '(LOWER(CAST(user.userId AS text)) LIKE :like OR LOWER(CAST(user.fullName AS text)) LIKE :like OR LOWER(CAST(user.email AS text)) LIKE :like OR LOWER(CAST(user.phone AS text)) LIKE :like)',
           { like },
         );
       }
@@ -804,7 +804,7 @@ export class AuthService {
       if (query.search) {
         const like = `%${query.search.toLowerCase()}%`;
         typeQb.andWhere(
-          '(LOWER(user.userId) LIKE :like OR LOWER(user.fullName) LIKE :like OR LOWER(user.email) LIKE :like OR LOWER(user.phone) LIKE :like)',
+          '(LOWER(CAST(user.userId AS text)) LIKE :like OR LOWER(CAST(user.fullName AS text)) LIKE :like OR LOWER(CAST(user.email AS text)) LIKE :like OR LOWER(CAST(user.phone AS text)) LIKE :like)',
           { like },
         );
       }

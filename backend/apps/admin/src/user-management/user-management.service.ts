@@ -28,7 +28,7 @@ export class UserManagementService {
     if (includeSearch && query.search) {
       const like = `%${query.search.toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(user.userId) LIKE :like OR LOWER(user.fullName) LIKE :like OR LOWER(user.email) LIKE :like OR LOWER(user.phone) LIKE :like)',
+        '(LOWER(CAST(user.userId AS text)) LIKE :like OR LOWER(CAST(user.fullName AS text)) LIKE :like OR LOWER(CAST(user.email AS text)) LIKE :like OR LOWER(CAST(user.phone AS text)) LIKE :like)',
         { like },
       );
     }
@@ -165,7 +165,21 @@ export class UserManagementService {
       throw new NotFoundException('User not found');
     }
 
-    user.status = updateStatusDto.status;
+    // Map uppercase/frontend statuses to the proper enum
+    const statusStr = (updateStatusDto.status as string).toUpperCase();
+    const statusMap: Record<string, UserStatus> = {
+      ACTIVE: UserStatus.ACTIVE,
+      PENDING: UserStatus.PENDING,
+      INACTIVE: UserStatus.INACTIVE,
+      SUSPEND: UserStatus.SUSPENDED,
+      SUSPENDED: UserStatus.SUSPENDED,
+      BLOCK: UserStatus.BLOCKED,
+      BLOCKED: UserStatus.BLOCKED,
+      DORMANT: UserStatus.DORMANT,
+      CLOSED: UserStatus.CLOSED,
+    };
+    
+    user.status = statusMap[statusStr] || updateStatusDto.status;
     await this.userRepository.save(user);
 
     // TODO: Log status change history

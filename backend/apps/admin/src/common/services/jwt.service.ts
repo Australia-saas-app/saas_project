@@ -125,13 +125,12 @@ export class JwtService {
     try {
       const payload = verify(token, this.publicKey, {
         algorithms: ['RS256'],
-        issuer: this.issuer,
         audience: 'admin',
       }) as AdminTokenPayload;
 
       if (!payload.adminId || !payload.email || !payload.role) {
         Logger.warn(
-          'Admin token missing required fields',
+          'Admin token missing required fields: ' + JSON.stringify(payload),
           JwtService.name,
         );
         return null;
@@ -139,8 +138,9 @@ export class JwtService {
 
       return payload;
     } catch (error) {
-      Logger.debug(
-        `Token verification failed: ${error.message}`,
+      Logger.error(
+        `Token verification failed: ${error.message} - token: ${token.substring(0, 20)}...`,
+        error.stack,
         JwtService.name,
       );
       return null;

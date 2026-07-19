@@ -35,7 +35,7 @@ export class AgencyManagementService {
     if (includeSearch && query.search) {
       const like = `%${query.search.toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(user.userId) LIKE :like OR LOWER(user.agencyName) LIKE :like OR LOWER(user.email) LIKE :like OR LOWER(user.phone) LIKE :like)',
+        "(LOWER(CAST(user.userId AS text)) LIKE :like OR LOWER(CAST(user.agencyInfo->>'agencyName' AS text)) LIKE :like OR LOWER(CAST(user.email AS text)) LIKE :like OR LOWER(CAST(user.phone AS text)) LIKE :like)",
         { like },
       );
     }
@@ -185,7 +185,22 @@ export class AgencyManagementService {
 
     const previousStatus = agency.status;
     agency.statusHistory = history;
-    agency.status = updateStatusDto.status as any;
+
+    // Map uppercase/frontend statuses to the proper enum
+    const statusStr = (updateStatusDto.status as string).toUpperCase();
+    const statusMap: Record<string, UserStatus> = {
+      ACTIVE: UserStatus.ACTIVE,
+      PENDING: UserStatus.PENDING,
+      INACTIVE: UserStatus.INACTIVE,
+      SUSPEND: UserStatus.SUSPENDED,
+      SUSPENDED: UserStatus.SUSPENDED,
+      BLOCK: UserStatus.BLOCKED,
+      BLOCKED: UserStatus.BLOCKED,
+      DORMANT: UserStatus.DORMANT,
+      CLOSED: UserStatus.CLOSED,
+    };
+    
+    agency.status = statusMap[statusStr] || (updateStatusDto.status as any);
 
     await this.userRepository.save(agency);
 

@@ -25,7 +25,7 @@ const envConfig = {
   },
 
   /** Human-readable application name used in metadata */
-  appName: process.env.NEXT_PUBLIC_APP_NAME || "System DB",
+  appName: "Vero",
 
   /** Current runtime environment */
   appEnv: (process.env.NEXT_PUBLIC_APP_ENV || process.env.NODE_ENV || "development") as

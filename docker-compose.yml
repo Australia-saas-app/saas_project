@@ -2,6 +2,28 @@ version: '3.8'
 
 services:
 
+  # ==========================================
+  # 1. API GATEWAY (Kong DB-less)
+  # ==========================================
+  kong:
+    image: kong:3.5
+    container_name: kong-gateway
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    ports:
+      - "8000:8000"
+      - "8002:8001" # Admin API exposed on 8002 to avoid conflict with saas-admin on 8001
+    volumes:
+      - ./kong/kong.yml:/kong/declarative/kong.yml
+    restart: always
+    networks:
+      - saas_network
 
   # ==========================================
   # 2. FRONTEND (Public App)
@@ -11,15 +33,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - BACKEND_URL=http://saas-backend:3001
-        - NEXT_PUBLIC_API_URL=/api
+        - NEXT_PUBLIC_BACKEND_URL=http://kong:8000
     container_name: saas-frontend
     ports:
-      - "8000:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
-      # Next.js will use this public URL for API calls
-      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_BACKEND_URL=http://kong:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - kong
     restart: always
     networks:
       - saas_network
@@ -32,29 +56,32 @@ services:
       context: ./admin
       dockerfile: Dockerfile
       args:
-        - BACKEND_URL=http://saas-backend:3001
-        - NEXT_PUBLIC_API_URL=/admin/api
+        - NEXT_PUBLIC_BACKEND_URL=http://kong:8000
     container_name: saas-admin
     ports:
       - "8001:3001"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=/admin/api
-      - BACKEND_URL=http://saas-backend:3001
+      - NEXT_PUBLIC_BACKEND_URL=http://kong:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - kong
     restart: always
     networks:
       - saas_network
 
   # ==========================================
-  # 4. BACKEND CORE (NestJS)
+  # 4. BACKEND MICROSERVICES (Internal)
   # ==========================================
-  saas-backend:
+  saas-backend-sso:
     build:
       context: ./backend/apps/sso
       dockerfile: Dockerfile
-    container_name: saas-backend
+    container_name: saas-backend-sso
     environment:
       - NODE_ENV=production
+      - PORT=3001
       - DB_HOST=saas-postgres
       - DB_PORT=5432
       - DB_USERNAME=admin
@@ -62,14 +89,54 @@ services:
       - DB_NAME=saas_db
       - REDIS_HOST=saas-redis
       - REDIS_PORT=6379
+      - REDIS_URL=redis://saas-redis:6379
       - SSO_SYNCHRONIZE=true
-      - PORT=3001
       - SMTP_USER=abdulrafiumahesar@gmail.com
       - SMTP_PASSWORD=kkzdajqzqvwkybgq
       - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
     depends_on:
       - saas-postgres
       - saas-redis
+    restart: always
+    networks:
+      - saas_network
+
+  saas-backend-admin:
+    build:
+      context: ./backend/apps/admin
+      dockerfile: Dockerfile
+    container_name: saas-backend-admin
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=admin
+      - DB_PASSWORD=adminpassword
+      - DB_NAME=saas_db
+    depends_on:
+      - saas-postgres
+      - saas-backend-sso
+    restart: always
+    networks:
+      - saas_network
+
+  saas-backend-platform:
+    build:
+      context: ./backend/apps/platform
+      dockerfile: Dockerfile
+    container_name: saas-backend-platform
+    environment:
+      - NODE_ENV=production
+      - PORT=3006
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=admin
+      - DB_PASSWORD=adminpassword
+      - DB_NAME=saas_db
+    depends_on:
+      - saas-postgres
+      - saas-backend-sso
     restart: always
     networks:
       - saas_network
@@ -84,7 +151,6 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: adminpassword
       POSTGRES_DB: saas_db
-    # Removed ports 5432:5432 to prevent host port conflicts; internal network handles it.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -97,7 +163,6 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: adminpassword
-    # Removed ports 27017:27017 to prevent host port conflicts
     volumes:
       - mongodb_data:/data/db
     restart: always
@@ -107,37 +172,11 @@ services:
   saas-redis:
     image: redis:7-alpine
     container_name: saas-redis
-    # Removed ports 6379:6379 to prevent host port conflicts
     volumes:
       - redis_data:/data
     restart: always
     networks:
       - saas_network
-
-#   saas_zookeeper:
-#     image: confluentinc/cp-zookeeper:latest
-#     container_name: saas_zookeeper
-#     environment:
-#       ZOOKEEPER_CLIENT_PORT: 2181
-#       ZOOKEEPER_TICK_TIME: 2000
-#     restart: always
-#     networks:
-#       - saas_network
-# 
-#   saas_kafka:
-#     image: confluentinc/cp-kafka:latest
-#     container_name: saas_kafka
-#     depends_on:
-#       - saas_zookeeper
-#     environment:
-#       KAFKA_BROKER_ID: 1
-#       KAFKA_ZOOKEEPER_CONNECT: saas_zookeeper:2181
-#       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://saas_kafka:9092
-#       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-#     restart: always
-#     networks:
-#       - saas_network
-
 
 volumes:
   postgres_data:

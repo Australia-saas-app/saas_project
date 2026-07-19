@@ -3,7 +3,8 @@
 import { cookies } from "next/headers";
 import { FieldValues } from "react-hook-form";
 import { z } from "zod";
-import axiosInstance from "@/src/lib/axiosInstance";
+import envConfig from "@/src/shared/config";
+import axios from "axios";
 import {
   parseApiError,
   getLoginErrorMessage,
@@ -11,6 +12,10 @@ import {
   isNetworkOrTimeoutError,
 } from "@/src/lib/api-error";
 import logger from "@/src/lib/logger";
+
+const axiosInstance = axios.create({
+  baseURL: envConfig.apiBaseURL,
+});
 
 import { normalizeContact } from "@/src/lib/normalize-contact";
 
@@ -121,9 +126,10 @@ export const registerUser = async (userData: FieldValues) => {
   const validation = serverRegisterSchema.safeParse(userData);
   if (!validation.success) {
     const issue = validation.error.issues[0];
-    throw new Error(
-      issue ? `${issue.path.join(".") || "form"}: ${issue.message}` : "Invalid registration data"
-    );
+    return {
+      success: false,
+      message: issue ? `${issue.path.join(".") || "form"}: ${issue.message}` : "Invalid registration data"
+    };
   }
 
   try {
@@ -147,8 +153,8 @@ export const registerUser = async (userData: FieldValues) => {
     return data;
   } catch (error: unknown) {
     const message = parseApiError(error, "Registration failed");
-    log.warn("API registration failed", { reason: message });
-    throw new Error(message);
+    logger.warn("API registration failed", { reason: message });
+    return { success: false, message };
   }
 };
 
@@ -181,7 +187,7 @@ export const verifyOtpAndLogin = async (payload: { email?: string; phone?: strin
     const { data: verifyData } = await axiosInstance.post("/sso/auth/user/verify-otp", verifyPayload);
     
     if (!verifyData?.success) {
-      throw new Error(verifyData?.message || "OTP verification failed");
+      return { success: false, message: verifyData?.message || "OTP verification failed" };
     }
 
     // 2. Login to get token
@@ -205,8 +211,8 @@ export const verifyOtpAndLogin = async (payload: { email?: string; phone?: strin
     return verifyData;
   } catch (error: unknown) {
     const message = parseApiError(error, "Verification failed");
-    log.warn("OTP verification failed", { reason: message });
-    throw new Error(message);
+    logger.warn("OTP verification failed", { reason: message });
+    return { success: false, message };
   }
 };
 
@@ -254,7 +260,7 @@ export const loginUser = async (userData: FieldValues) => {
 
   const validation = serverLoginSchema.safeParse({ identifier, password });
   if (!validation.success) {
-    throw new Error(AUTH_MESSAGES.invalidCredentials);
+    return { success: false, message: AUTH_MESSAGES.invalidCredentials };
   }
 
 
@@ -273,22 +279,23 @@ export const loginUser = async (userData: FieldValues) => {
       return data;
     }
 
-    throw new Error(
-      typeof data?.message === "string" && data.message.trim()
+    return {
+      success: false,
+      message: typeof data?.message === "string" && data.message.trim()
         ? data.message
         : AUTH_MESSAGES.invalidCredentials
-    );
+    };
   } catch (error: unknown) {
     const axiosError = error as any;
     if (axiosError?.response?.status === 403) {
       const errCode = axiosError.response.data?.error;
       if (["pending", "suspended", "dormant", "blocked", "closed"].includes(errCode)) {
-        throw new Error(JSON.stringify({ type: "STATUS_ERROR", status: errCode }));
+        return { success: false, message: JSON.stringify({ type: "STATUS_ERROR", status: errCode }) };
       }
     }
     const message = getLoginErrorMessage(error);
-    log.warn("Login failed", { reason: message });
-    throw new Error(message);
+    logger.warn("Login failed", { reason: message });
+    return { success: false, message };
   }
 };
 

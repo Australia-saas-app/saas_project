@@ -12,7 +12,7 @@ substitutions:
   _REGION: us-central1
   _REPOSITORY: system-db-frontend
   _WEB_SERVICE: system-db-web
-  _BACKEND_URL: http://localhost:3006
+  _BACKEND_URL: http://localhost:8000
   _SITE_URL: http://localhost:3000
   _ADMIN_URL: http://localhost:3001
   _APP_NAME: System DB

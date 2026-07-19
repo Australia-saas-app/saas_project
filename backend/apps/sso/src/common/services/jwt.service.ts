@@ -196,10 +196,10 @@ export class JwtService {
     try {
       return verify(token, this.publicKey, {
         algorithms: ['RS256'],
-        issuer: this.issuer,
         audience: 'admin',
       }) as AdminTokenPayload;
     } catch (error) {
+      Logger.error(`Token verification failed: ${error.message} - token: ${token.substring(0, 20)}...`, error.stack, JwtService.name);
       return null;
     }
   }

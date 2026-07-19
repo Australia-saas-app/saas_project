@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Vero App";
+const APP_NAME = "Vero";
 const APP_DESCRIPTION =
   "Maritime Database and Management System – connect, collaborate, and grow your maritime business.";
 const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://system-db.example.com";

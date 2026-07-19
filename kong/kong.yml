@@ -1,0 +1,59 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: sso-service
+    url: http://saas-backend-sso:3001
+    routes:
+      - name: sso-route
+        paths:
+          - /api/v1/sso
+        strip_path: true
+
+  - name: admin-service
+    url: http://saas-backend-admin:3002
+    routes:
+      - name: admin-route
+        paths:
+          - /api/v1/admin
+        strip_path: true
+
+  - name: platform-service
+    url: http://saas-backend-platform:3006
+    routes:
+      - name: platform-route
+        paths:
+          - /api/v1/platform
+        strip_path: true
+
+  - name: file-storage-service
+    url: http://saas-backend-file-storage:3007
+    routes:
+      - name: file-storage-route
+        paths:
+          - /api/v1/file-storage
+        strip_path: true
+
+  - name: chat-service
+    url: http://saas-backend-chat:3008
+    routes:
+      - name: chat-route
+        paths:
+          - /api/v1/chat
+        strip_path: true
+
+  - name: technology-service
+    url: http://saas-backend-technology:3010
+    routes:
+      - name: technology-route
+        paths:
+          - /api/v1/technology
+        strip_path: true
+
+  - name: user-service
+    url: http://saas-backend-user:3013
+    routes:
+      - name: user-route
+        paths:
+          - /api/v1/users
+        strip_path: true
