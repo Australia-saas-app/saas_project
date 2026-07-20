@@ -23,9 +23,7 @@ import { toast } from "sonner";
 
 const createSignupSchema = (accountType: "user" | "affiliate" | "business") => {
   const email = z.string()
-    .min(1, "Email is required")
-    .refine((val) => val.includes("@"), "Not an email format, @ missing")
-    .refine((val) => z.string().email().safeParse(val).success, "Invalid email format");
+    .min(1, "Email or phone is required");
 
   const base = {
     fullName: z.string().min(2, "Full name is required"),
@@ -291,112 +289,8 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
         </div>
       )}
 
-      <div className="mb-2">
-        <h3 className="hidden text-xl font-bold tracking-tight text-foreground lg:block">
-          {SIGNUP_TITLES[accountType]}
-        </h3>
-        <p className="hidden text-sm text-muted-foreground lg:block">{SIGNUP_HINTS[accountType]}</p>
-      </div>
-
-      {onAccountTypeChange && step === 1 && (
-        <AccountTypeTabs value={accountType} onChange={onAccountTypeChange} />
-      )}
-
       <Form {...form}>
-        {submitErrors && (
-          <div
-            role="alert"
-            className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
-          >
-            {submitErrors}
-          </div>
-        )}
-
         <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-          
-          {/* STEP 1 & ONWARDS: Info */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Full name</label>
-            <FormTextInput control={form.control} name="fullName" placeholder="John Smith" />
-          </div>
-
-          {accountType === "user" && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">
-                Preferred currency
-              </label>
-              <select
-                {...form.register("currency")}
-                disabled={step > 1}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all disabled:opacity-50"
-              >
-                <option value="USD">USD — US Dollar</option>
-                <option value="INR">INR — Indian Rupee</option>
-                <option value="EUR">EUR — Euro</option>
-                <option value="GBP">GBP — British Pound</option>
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Email
-            </label>
-            <FormTextInput control={form.control} name="email" placeholder="you@company.com" />
-          </div>
-
-          {step === 1 && (
-            <Button
-              type="button"
-              onClick={handleContinueToOtp}
-              disabled={isSendingOtp}
-              className="w-full bg-primary hover:bg-primary/90 mt-6"
-              size="lg"
-            >
-              {isSendingOtp ? "Sending OTP..." : "Continue"}
-            </Button>
-          )}
-
-          {/* STEP 2 & ONWARDS: OTP Verification */}
-          {step >= 2 && (
-            <div className="pt-2 relative animate-in fade-in slide-in-from-top-2 duration-500">
-              <label className="mb-1.5 block text-sm font-medium text-foreground text-center sm:text-left">Verification Code</label>
-              
-              <div className="relative">
-                <OtpInput
-                  value={otp}
-                  onChange={(val) => {
-                    setOtp(val);
-                    if (val.length === 6) handleVerifyOtp(val);
-                  }}
-                  length={6}
-                  disabled={isVerifyingOtp || otpVerified || step > 2}
-                />
-                
-                {otpVerified && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-[2px] rounded-xl overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-2 border-[3px] border-emerald-600 dark:border-emerald-500 rounded-lg text-emerald-600 dark:text-emerald-500 font-black tracking-widest uppercase transform -rotate-[12deg] animate-in zoom-in duration-500 bg-white/95 dark:bg-[#1c1c1e]/95 shadow-xl backdrop-blur-sm">
-                      <CheckCircle2 className="w-5 h-5" strokeWidth={3} />
-                      <span className="text-lg mt-0.5">Verified</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {step === 2 && !otpVerified && (
-                <div className="mt-3 text-center">
-                  <button
-                    type="button"
-                    disabled={timeLeft > 0 || isSendingOtp || isVerifyingOtp}
-                    onClick={handleResendOtp}
-                    className="text-sm font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground transition-colors"
-                  >
-                    {timeLeft > 0 ? `Resend code in ${formatTime(timeLeft)}` : "Resend code"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
           <div className="relative w-full">
             <div className={`space-y-6 transition-all duration-300 ${step === 4 ? "blur-[3px] pointer-events-none opacity-40 select-none" : ""}`}>
               <div className="mb-2">
