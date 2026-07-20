@@ -18,6 +18,8 @@ import { OtpInput } from "./OtpInput";
 import { useSendRegistrationOtp, useVerifyRegistrationOtp } from "@/src/shared/hooks/auth.hook";
 import { CheckCircle2, Copy, Check, XCircle } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import Modal from "@/src/components/ui/modal";
+import { toast } from "sonner";
 
 const createSignupSchema = (accountType: "user" | "affiliate" | "business") => {
   const email = z.string()
@@ -156,7 +158,9 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
       setOtpVerified(true);
       setTimeout(() => setStep(3), 1000); // Small delay to show green tick before moving to step 3
     } catch (err) {
-      setSubmitErrors(err instanceof Error ? err.message : "Invalid OTP.");
+      const msg = err instanceof Error ? err.message : "Invalid OTP.";
+      setSubmitErrors(msg);
+      toast.error(msg);
     }
   };
 
@@ -187,6 +191,7 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
     if (generatedKey) {
       navigator.clipboard.writeText(generatedKey);
       setCopied(true);
+      toast.success("Key copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -198,6 +203,7 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
       const data = form.getValues();
       const payload = { ...data, otp, recoveryKey: generatedKey };
       await Promise.resolve(onNext(payload));
+      toast.success("Account created successfully!");
       clearSignupDraft(accountType);
     } catch (err) {
       setSubmitErrors(err instanceof Error ? err.message : "Sign up failed. Please try again.");
@@ -214,10 +220,10 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
 
   const passwordValue = (form.watch("password") as string) || "";
   const passwordRequirements = [
-    { label: "At least 8 characters", met: passwordValue.length >= 8 },
-    { label: "Contains a number", met: /[0-9]/.test(passwordValue) },
-    { label: "Contains an uppercase letter", met: /[A-Z]/.test(passwordValue) },
-    { label: "Contains a special character", met: /[^A-Za-z0-9]/.test(passwordValue) },
+    { label: "8+ chars", met: passwordValue.length >= 8 },
+    { label: "1 number", met: /[0-9]/.test(passwordValue) },
+    { label: "1 uppercase", met: /[A-Z]/.test(passwordValue) },
+    { label: "1 special", met: /[^A-Za-z0-9]/.test(passwordValue) },
   ];
 
   const agreeValue = form.watch("agreeToTerms");
@@ -357,20 +363,22 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
                 />
               </div>
 
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                <p className="text-sm font-medium text-foreground mb-3">Password requirements:</p>
-                {passwordRequirements.map((req, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    {req.met ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    <span className={req.met ? "text-emerald-600 dark:text-emerald-500 font-medium" : "text-muted-foreground"}>
-                      {req.label}
-                    </span>
-                  </div>
-                ))}
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs font-medium text-foreground mb-2">Password requirements:</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {passwordRequirements.map((req, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-xs">
+                      {req.met ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-500" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-muted-foreground" />
+                      )}
+                      <span className={req.met ? "text-emerald-600 dark:text-emerald-500 font-medium" : "text-muted-foreground"}>
+                        {req.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <FormCheckbox
@@ -393,53 +401,62 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
             </div>
           )}
 
-          {/* STEP 4: Generate Key */}
-          {step === 4 && (
-            <div className="animate-in fade-in zoom-in-95 duration-500 mt-6">
-              <div className="rounded-xl border border-border bg-card p-6 text-center space-y-4 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/40 via-primary to-primary/40" />
-                
-                <h4 className="text-lg font-bold text-foreground">Account Ready</h4>
-                <p className="text-sm text-muted-foreground">
-                  Your account is ready. You may optionally generate a recovery key to restore your account if you lose access.
+          {/* STEP 4: Generate Key (Modal) */}
+          <Modal
+            isOpen={step === 4}
+            onClose={() => {}} // User must click a button to proceed
+            title="Account Ready"
+            size="md"
+            closeOnOverlayClick={false}
+            showCloseButton={false}
+          >
+            <div className="text-center space-y-4">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-left space-y-2 mb-4">
+                <p className="text-sm font-medium text-foreground">
+                  <span className="font-bold text-primary">Note:</span> Generating a Recovery Key is <span className="font-semibold">optional but highly recommended</span>.
                 </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  If you ever lose access to your email or phone number, this Recovery Key will be the <strong>only way</strong> to safely regain access to your account and funds.
+                </p>
+              </div>
 
-                {!generatedKey ? (
-                  <Button type="button" variant="outline" onClick={handleGenerateKey} className="w-full border-primary/20 hover:bg-primary/5">
-                    Generate Recovery Key
-                  </Button>
-                ) : (
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-foreground block text-left">Your Recovery Key</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="text" 
-                        readOnly 
-                        value={generatedKey} 
-                        className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground font-mono focus:outline-none"
-                      />
-                      <Button type="button" size="icon" variant="outline" onClick={handleCopy} className="shrink-0">
-                        {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-amber-600 dark:text-amber-500 font-medium text-left">
-                      Copy this key and store it securely. It will not be shown again!
-                    </p>
+              {!generatedKey ? (
+                <Button type="button" variant="outline" onClick={handleGenerateKey} className="w-full border-primary/20 hover:bg-primary/5">
+                  Generate Recovery Key
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground block text-left">Your Recovery Key</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={generatedKey} 
+                      className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground font-mono focus:outline-none"
+                    />
+                    <Button type="button" size="icon" variant="outline" onClick={handleCopy} className="shrink-0">
+                      {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+                    </Button>
                   </div>
-                )}
+                  <p className="text-xs text-amber-600 dark:text-amber-500 font-medium text-left">
+                    Copy this key and store it securely. It will not be shown again!
+                  </p>
+                </div>
+              )}
 
+              <div className="pt-2">
                 <Button
                   type="button"
                   onClick={handleSubmitFinal}
                   disabled={isSubmitting}
-                  className="w-full bg-primary hover:bg-primary/90 mt-4"
+                  className="w-full bg-primary hover:bg-primary/90"
                   size="lg"
                 >
-                  {isSubmitting ? "Saving..." : "Submit"}
+                  {isSubmitting ? "Creating Account..." : (!generatedKey ? "Skip & Create Account" : "Submit & Create Account")}
                 </Button>
               </div>
             </div>
-          )}
+          </Modal>
 
           {step < 4 && (
             <p className="text-center text-sm text-muted-foreground mt-6">
