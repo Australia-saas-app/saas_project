@@ -83,8 +83,6 @@ const nextConfig: NextConfig = {
         experimental: {
           optimizeCss: true,
           optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
-          cpus: 1,
-          memoryBasedWorkersCount: true,
         },
       }),
 
