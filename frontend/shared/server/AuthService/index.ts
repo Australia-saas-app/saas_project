@@ -79,7 +79,7 @@ function getRefreshCookieOptions(rememberMe: boolean = false) {
  */
 async function persistSessionTokens(payload: unknown, rememberMe: boolean = false) {
   const data = payload as
-    { token?: string; accessToken?: string; refreshToken?: string } | undefined;
+    { token?: string; accessToken?: string; refreshToken?: string; user?: any } | undefined;
   const accessToken = data?.token || data?.accessToken;
   if (!accessToken) return;
 
@@ -87,6 +87,9 @@ async function persistSessionTokens(payload: unknown, rememberMe: boolean = fals
   cookieStore.set("accessToken", accessToken, getCookieOptions(rememberMe));
   if (data?.refreshToken) {
     cookieStore.set("refreshToken", data.refreshToken, getRefreshCookieOptions(rememberMe));
+  }
+  if (data?.user) {
+    cookieStore.set("user", JSON.stringify(data.user), getCookieOptions(rememberMe));
   }
 }
 
@@ -338,6 +341,16 @@ export const getCurrentUser = async () => {
     while (payload.length % 4 !== 0) payload += "=";
     const json = Buffer.from(payload, "base64").toString("utf8");
     const parsed = JSON.parse(json) as IDecodedToken;
+    
+    // Merge full name and email from the "user" cookie
+    const userCookie = cookieStore.get("user")?.value;
+    if (userCookie) {
+      try {
+        const userObj = JSON.parse(userCookie);
+        return { ...parsed, ...userObj };
+      } catch {}
+    }
+    
     // Note: do NOT log token payload – it may contain PII
     return parsed;
   } catch {
