@@ -74,8 +74,8 @@ export default function MobileBottomNav() {
             <li key={item.label}>
               <Link
                 href={item.href}
-                className={`flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium ${
-                  active ? "text-blue-600" : "text-muted-foreground"
+                className={`flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium transition-colors ${
+                  active ? "text-blue-600 pointer-events-none" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Icon className="h-5 w-5" />

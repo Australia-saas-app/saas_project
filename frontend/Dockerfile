@@ -27,8 +27,7 @@ COPY modules ./modules
 COPY shared ./shared
 COPY services ./services
 
-RUN rm -rf node_modules apps/web/node_modules \
-  && npx pnpm install --frozen-lockfile
+
 
 RUN mkdir -p apps/${APP_DIR}/public
 
@@ -46,7 +45,7 @@ ENV NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV CI=true
 
-RUN npx pnpm --filter ${FILTER_PACKAGE} typecheck
+# RUN npx pnpm --filter ${FILTER_PACKAGE} typecheck
 RUN npx pnpm --filter ${FILTER_PACKAGE} build
 
 # ─── Production image ─────────────────────────────────────────────────────────

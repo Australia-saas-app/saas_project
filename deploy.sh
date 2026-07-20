@@ -8,9 +8,13 @@ echo "📥 Pulling latest code from GitHub..."
 git fetch --all
 git reset --hard origin/main
 
-# 2. Start the new containers (and build them)
+# 2. Clean up dangling images to ensure there is enough disk space
+echo "🧹 Cleaning up old Docker dangling images..."
+docker image prune -f || true
+
+# 3. Start the new containers (and build them one at a time to save RAM)
 echo "✅ Building and starting new containers..."
-docker compose up -d --build --remove-orphans
+COMPOSE_PARALLEL_LIMIT=1 docker compose up -d --build --remove-orphans
 
 # 5. Clean up unused Docker images to free up disk space
 echo "🧹 Cleaning up old images..."
