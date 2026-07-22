@@ -88,13 +88,17 @@ const AllBusinessTable: React.FC = () => {
 
         let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
           userId: u.userId || u.id,
-          businessId: (u.userId || u.id || '').slice(0,5),
+          businessId: u.userId || (u.id || '').slice(0,5),
           fullName: u.businessName || u.fullName || 'Unknown Business',
           email: u.email,
           phone: u.phone,
           businessName: u.businessName || u.fullName || 'Unknown Business',
           businessType: u.businessType || 'NA',
           createdAt: u.createdAt,
+          nationality: u.nationality,
+          dateOfBirth: u.dateOfBirth,
+          governmentId: u.governmentId || u.nationalIdentity,
+          idDocument: u.idDocument || u.documentUrl,
           securityDeposit: `${u.securityDeposit || 0} ${u.currency || 'USD'}`,
           dueAmount: `${u.dueAmount || 0} ${u.currency || 'USD'}`,
           percentageRate: `${u.percentageRate || 0}%`,

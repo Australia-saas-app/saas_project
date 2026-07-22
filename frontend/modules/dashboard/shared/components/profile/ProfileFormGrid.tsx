@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon } from "lucide-react";
+import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon, Trash2, Eye, X } from "lucide-react";
 import { useUser } from "@/src/context/user.provider";
 import { useProfileDisplay } from "../../hooks/use-profile-display";
 import { ALL_COUNTRIES, ALL_NATIONALITIES, CURRENCY_LIST } from "@/src/shared/constants/countries";
 import { markProfileComplete, type ProfileAccountType } from "@/src/shared/lib/profile-completion";
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import UploadDocumentModal from "@/src/shared/components/UploadDocumentModal";
 
 export default function ProfileFormGrid() {
@@ -43,6 +44,10 @@ export default function ProfileFormGrid() {
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+
+  const overrides = getProfileOverrides(rawUserId);
+  const showUnverifiedBanner = Boolean(overrides.unverifiedByAdmin && !overrides.resubmitted);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -155,8 +160,8 @@ export default function ProfileFormGrid() {
   return (
     <>
       <form onSubmit={handleUpdate} className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8">
-        {/* Unverified Banner */}
-        {!isVerified && (
+        {/* Unverified Banner - ONLY shown when admin explicitly unverified */}
+        {showUnverifiedBanner && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3 text-amber-900 dark:text-amber-200">
             <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
             <div className="text-xs sm:text-sm font-medium leading-relaxed">
@@ -332,27 +337,74 @@ export default function ProfileFormGrid() {
               <span className="text-red-500 font-bold">*</span>
             </label>
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${documentUrl ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
-                  <FileText className="h-5 w-5" />
+              <div className="flex items-center gap-3 min-w-0">
+                <div 
+                  onClick={() => documentUrl && setPreviewModalOpen(true)}
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden transition-all ${
+                    documentUrl 
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 cursor-pointer hover:scale-105 border border-emerald-500/20" 
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {documentUrl ? (
+                    <img src={documentUrl} alt="Thumbnail" className="h-full w-full object-cover rounded-xl" />
+                  ) : (
+                    <FileText className="h-5 w-5" />
+                  )}
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {documentUrl ? "ID Card / Passport Uploaded" : "No Document Uploaded"}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground flex items-center gap-2 truncate">
+                    {documentUrl ? (
+                      <>
+                        <span className="cursor-pointer hover:underline" onClick={() => setPreviewModalOpen(true)}>
+                          ID Card / Passport Attached
+                        </span>
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full">
+                          Uploaded
+                        </span>
+                      </>
+                    ) : (
+                      "No Document Uploaded"
+                    )}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {documentUrl ? "Document image attached — Click button to view or change" : "Upload your ID Card or Passport (PNG, JPG, JPEG)"}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {documentUrl ? "Click thumbnail or name to view full preview image" : "Upload your ID Card or Passport (PNG, JPG, JPEG)"}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setUploadModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                {documentUrl ? "Change Document" : "Upload Document"}
-              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {documentUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-all"
+                    title="View Document Preview"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>View</span>
+                  </button>
+                )}
+                {documentUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setDocumentUrl("")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all"
+                    title="Remove Document Selection"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Remove</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setUploadModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {documentUrl ? "Change Document" : "Upload Document"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -393,6 +445,28 @@ export default function ProfileFormGrid() {
         existingUrl={documentUrl}
         onUploadSuccess={(url) => setDocumentUrl(url)}
       />
+
+      {/* Full Image Preview Popup Modal */}
+      {previewModalOpen && documentUrl && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative max-w-3xl w-full bg-card rounded-2xl overflow-hidden border border-border shadow-2xl p-5 flex flex-col items-center">
+            <button
+              onClick={() => setPreviewModalOpen(false)}
+              className="absolute top-3 right-3 p-2 text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h4 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" /> Identity Document / Passport Preview
+            </h4>
+            <img
+              src={documentUrl}
+              alt="Document Full View"
+              className="max-h-[75vh] w-full object-contain rounded-xl border border-border bg-black/5"
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }

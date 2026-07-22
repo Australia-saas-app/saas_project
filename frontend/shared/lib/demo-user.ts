@@ -99,11 +99,12 @@ export function getDisplayUserId(user: IUser | IDecodedToken | null): string {
   else if (role.includes("business") || role.includes("seller")) prefix = "BSN-";
 
   const digits = rawId.replace(/\D/g, "");
-  let numStr = "01";
+  let val = 1;
   if (digits) {
-    const val = parseInt(digits.slice(-4), 10) || 1;
-    numStr = val < 10 ? `0${val}` : `${val}`;
+    const parsed = parseInt(digits.slice(-4), 10);
+    if (!isNaN(parsed) && parsed > 0) val = parsed;
   }
+  const numStr = val < 10 ? `0${val}` : `${val}`;
 
   return `${prefix}${numStr}`;
 }
