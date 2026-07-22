@@ -33,7 +33,7 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isVerified } =
     useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
@@ -87,9 +87,17 @@ export default function RoleProfileCard({
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-3">
                 <h3 className="text-xl font-bold text-foreground">{fullName}</h3>
-                <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
+                <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
+                  isVerified
+                    ? "border-emerald-500/20 bg-emerald-500/10"
+                    : "border-amber-500/20 bg-amber-500/10"
+                }`}>
+                  <div className={`h-2 w-2 rounded-full ${isVerified ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+                  <span className={`text-[11px] font-bold ${
+                    isVerified ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                  }`}>
+                    {isVerified ? "Active" : "Pending"}
+                  </span>
                 </div>
               </div>
               <div className="text-xs font-medium text-muted-foreground">

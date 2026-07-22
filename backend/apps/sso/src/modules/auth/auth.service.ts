@@ -1060,6 +1060,8 @@ export class AuthService {
     status = status.toLowerCase();
     if (status === 'suspend') status = 'suspended';
     if (status === 'block') status = 'blocked';
+    if (status === 'verify' || status === 'activate' || status === 'approved') status = 'active';
+    if (status === 'unverify' || status === 'deactivate' || status === 'rejected') status = 'pending';
     const user = await this.findUserByAnyId(userId);
     if (!user) {
       throw new NotFoundException('User not found');

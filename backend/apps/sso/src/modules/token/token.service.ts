@@ -262,7 +262,7 @@ export class TokenService {
   }
 
   private ensureUserIsAllowed(user: User) {
-    if (user.status !== UserStatus.ACTIVE) {
+    if (user.status !== UserStatus.ACTIVE && user.status !== UserStatus.PENDING) {
       throw new ForbiddenException({
         error: user.status.toLowerCase(),
         error_description: `Account is ${user.status.toLowerCase()}`,

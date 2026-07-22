@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { CheckCircle, Pencil } from "lucide-react";
+import { CheckCircle, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards, { DocumentUploadButton } from "../../shared/components/profile/DocumentCards";
@@ -9,7 +9,7 @@ import { addProfileDocument } from "@/src/shared/utils/profile-storage";
 import { useProfileDisplay } from "../../shared/hooks/use-profile-display";
 
 export default function ProfilePageLayout() {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile } = useProfileDisplay();
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isVerified, status } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
 
@@ -65,9 +65,13 @@ export default function ProfilePageLayout() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-bold tracking-tight text-foreground">{fullName}</h2>
-                <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Active
+                <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+                  isVerified
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                }`}>
+                  <span className={`h-2 w-2 rounded-full ${isVerified ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+                  {isVerified ? "Active" : "Pending"}
                 </span>
               </div>
               <p className="text-xs font-medium text-muted-foreground">
@@ -77,12 +81,19 @@ export default function ProfilePageLayout() {
             </div>
           </div>
 
-          {/* Top Right Header Actions (Edit button REMOVED) */}
+          {/* Top Right Header Actions */}
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-              <CheckCircle className="h-4 w-4" />
-              Verified Account
-            </span>
+            {isVerified ? (
+              <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckCircle className="h-4 w-4" />
+                Verified Account
+              </span>
+            ) : (
+              <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                <Clock className="h-4 w-4" />
+                Pending Verification
+              </span>
+            )}
             <input
               ref={docUploadRef}
               type="file"

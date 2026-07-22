@@ -84,15 +84,17 @@ export function useProfileDisplay() {
 
   const joiningDate =
     overrides.joiningDate ??
-    (user && "createdAt" in user && user.createdAt
+    (user && "createdAt" in user && user.createdAt && !isNaN(new Date(user.createdAt).getTime())
       ? new Date(user.createdAt).toLocaleDateString("en-US", {
           year: "numeric",
           month: "short",
           day: "numeric",
         })
-      : isDemo
-        ? "Jan 1, 2024"
-        : "—")
+      : new Date().toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }))
 
   const initials = getInitials(fullName);
   const hasCustomAvatar = Boolean(overrides.avatarUrl || (user && "profilePhoto" in user && user.profilePhoto));
@@ -122,6 +124,10 @@ export function useProfileDisplay() {
     setRevision((n) => n + 1)
   }
 
+  const status = String(overrides.status ?? (user && "status" in user && user.status ? user.status : "pending")).toLowerCase();
+  const isVerified = status === "active" || status === "verified" || status === "approved";
+  const documentUrl = overrides.documentUrl || (user && "idDocument" in user ? String(user.idDocument) : "");
+
   return {
     rawUserId,
     displayUserId: getDisplayUserId(user),
@@ -139,6 +145,9 @@ export function useProfileDisplay() {
     avatarUrl,
     initials,
     hasCustomAvatar,
+    status,
+    isVerified,
+    documentUrl,
     fields,
     overrides,
     updateProfile,

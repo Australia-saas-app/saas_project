@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronDown, User, ShieldCheck } from "lucide-react";
+import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon } from "lucide-react";
 import { useUser } from "@/src/context/user.provider";
 import { useProfileDisplay } from "../../hooks/use-profile-display";
 import { ALL_COUNTRIES, ALL_NATIONALITIES, CURRENCY_LIST } from "@/src/shared/constants/countries";
 import { markProfileComplete, type ProfileAccountType } from "@/src/shared/lib/profile-completion";
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
+import UploadDocumentModal from "@/src/shared/components/UploadDocumentModal";
 
 export default function ProfileFormGrid() {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function ProfileFormGrid() {
     dateOfBirth: initialDateOfBirth,
     nationalIdentity: initialNationalIdentity,
     currency: initialCurrency,
+    documentUrl: initialDocumentUrl,
+    isVerified,
     updateProfile,
   } = useProfileDisplay();
 
@@ -38,8 +41,18 @@ export default function ProfileFormGrid() {
   const [phone, setPhone] = useState(initialPhone || "");
   const [secondaryEmail, setSecondaryEmail] = useState(initialSecondaryEmail || "");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
+  const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isFormValid = Boolean(
+    nationality?.trim() &&
+    dateOfBirth?.trim() &&
+    nationalIdentity?.trim() &&
+    phone?.trim() &&
+    documentUrl?.trim()
+  );
 
   useEffect(() => {
     if (initialNationality && !nationality) setNationality(initialNationality);
@@ -79,6 +92,11 @@ export default function ProfileFormGrid() {
       return;
     }
 
+    if (!documentUrl || !documentUrl.trim()) {
+      toast.error("Please upload your ID Card or Passport document.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -93,6 +111,8 @@ export default function ProfileFormGrid() {
         dateOfBirth,
         nationalIdentity,
         currency,
+        documentUrl,
+        resubmitted: true,
       };
 
       // 1. Save locally & persist profile overrides for immediate UI reflection
@@ -109,6 +129,7 @@ export default function ProfileFormGrid() {
         nationality,
         dateOfBirth,
         governmentId: nationalIdentity,
+        idDocument: documentUrl,
         phone: `${countryCode}${phone}`,
         email,
         currency,
@@ -132,187 +153,246 @@ export default function ProfileFormGrid() {
   };
 
   return (
-    <form onSubmit={handleUpdate} className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-8">
-        {/* 1. Full Name (Read-only) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-            <span>Full Name</span>
-            <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Non-editable)</span>
-          </label>
-          <input
-            type="text"
-            value={fullName}
-            readOnly
-            disabled
-            className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground cursor-not-allowed opacity-90 truncate"
-          />
-        </div>
-
-        {/* 2. Nationality (Mandatory A-Z Dropdown using Nationalities) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <span>Nationality</span>
-            <span className="text-red-500 font-bold">*</span>
-          </label>
-          <div className="relative w-full">
-            <select
-              value={nationality}
-              onChange={(e) => setNationality(e.target.value)}
-              required
-              className="w-full max-w-full truncate appearance-none rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 pr-8 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
-            >
-              <option value="" disabled>
-                Select nationality...
-              </option>
-              {ALL_NATIONALITIES.map((nat: string) => (
-                <option key={nat} value={nat} className="bg-card text-foreground">
-                  {nat}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
+    <>
+      <form onSubmit={handleUpdate} className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8">
+        {/* Unverified Banner */}
+        {!isVerified && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3 text-amber-900 dark:text-amber-200">
+            <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+            <div className="text-xs sm:text-sm font-medium leading-relaxed">
+              <span className="font-bold block text-sm">Account Status: Pending Verification</span>
+              Data and Document is not verified by admin. Please re-check and re-upload your document if needed.
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 3. Date of Birth (Mandatory Date Picker) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <span>Date of Birth</span>
-            <span className="text-red-500 font-bold">*</span>
-          </label>
-          <input
-            type="date"
-            value={dateOfBirth}
-            onChange={(e) => setDateOfBirth(e.target.value)}
-            required
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
-          />
-        </div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-8">
+          {/* 1. Full Name (Read-only) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+              <span>Full Name</span>
+              <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Non-editable)</span>
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              readOnly
+              disabled
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground cursor-not-allowed opacity-90 truncate"
+            />
+          </div>
 
-        {/* 4. National Identity (Mandatory Input) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <span>National Identity</span>
-            <span className="text-red-500 font-bold">*</span>
-          </label>
-          <input
-            type="text"
-            placeholder="Govt ID / CNIC / SSN / Passport"
-            value={nationalIdentity}
-            onChange={(e) => setNationalIdentity(e.target.value)}
-            required
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
-          />
-        </div>
-
-        {/* 5. Phone Number with Dial Code Dropdown (Mandatory) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <span>Phone Number</span>
-            <span className="text-red-500 font-bold">*</span>
-          </label>
-          <div className="flex gap-2 w-full">
-            {/* Dial Code Selector */}
-            <div className="relative w-24 sm:w-28 shrink-0">
+          {/* 2. Nationality (Mandatory A-Z Dropdown using Nationalities) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Nationality</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
+            <div className="relative w-full">
               <select
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-input bg-background px-2 py-2 sm:px-2.5 sm:py-2.5 pr-6 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+                value={nationality}
+                onChange={(e) => setNationality(e.target.value)}
+                required
+                className="w-full max-w-full truncate appearance-none rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 pr-8 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
               >
-                {ALL_COUNTRIES.map((c) => (
-                  <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="bg-card text-foreground">
-                    {c.code} ({c.dialCode})
+                <option value="" disabled>
+                  Select nationality...
+                </option>
+                {ALL_NATIONALITIES.map((nat: string) => (
+                  <option key={nat} value={nat} className="bg-card text-foreground">
+                    {nat}
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-1.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
             </div>
+          </div>
 
-            {/* Phone Input */}
+          {/* 3. Date of Birth (Mandatory Date Picker) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Date of Birth</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
             <input
-              type="tel"
-              placeholder="e.g. 3001234567"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
               required
-              className="flex-1 min-w-0 rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
             />
           </div>
-        </div>
 
-        {/* 6. Secondary Email (Optional) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-            <span>Secondary Email</span>
-            <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Optional)</span>
-          </label>
-          <input
-            type="email"
-            placeholder="secondary@example.com"
-            value={secondaryEmail}
-            onChange={(e) => setSecondaryEmail(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
-          />
-        </div>
+          {/* 4. National Identity (Mandatory Input) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>National Identity</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Govt ID / CNIC / SSN / Passport"
+              value={nationalIdentity}
+              onChange={(e) => setNationalIdentity(e.target.value)}
+              required
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+            />
+          </div>
 
-        {/* 7. Email Address (Read-only from DB) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-            <span>Email Address</span>
-            <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Registered DB Email)</span>
-          </label>
-          <input
-            type="email"
-            value={email}
-            readOnly
-            disabled
-            className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground cursor-not-allowed opacity-90 truncate"
-          />
-        </div>
+          {/* 5. Phone Number with Dial Code Dropdown (Mandatory) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Phone Number</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
+            <div className="flex gap-2 w-full">
+              {/* Dial Code Selector */}
+              <div className="relative w-24 sm:w-28 shrink-0">
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  className="w-full appearance-none rounded-lg border border-input bg-background px-2 py-2 sm:px-2.5 sm:py-2.5 pr-6 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+                >
+                  {ALL_COUNTRIES.map((c) => (
+                    <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="bg-card text-foreground">
+                      {c.code} ({c.dialCode})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
+              </div>
 
-        {/* 8. Preferred Currency (Theme Dropdown) */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Preferred Currency
-          </label>
-          <div className="relative w-full">
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="w-full max-w-full truncate appearance-none rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 pr-8 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
-            >
-              {CURRENCY_LIST.map((cur) => (
-                <option key={cur.code} value={cur.code} className="bg-card text-foreground">
-                  {cur.code} ({cur.symbol}) — {cur.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
+              {/* Phone Input */}
+              <input
+                type="tel"
+                placeholder="e.g. 3001234567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                className="flex-1 min-w-0 rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
+              />
+            </div>
+          </div>
+
+          {/* 6. Secondary Email (Optional) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+              <span>Secondary Email</span>
+              <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Optional)</span>
+            </label>
+            <input
+              type="email"
+              placeholder="secondary@example.com"
+              value={secondaryEmail}
+              onChange={(e) => setSecondaryEmail(e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+            />
+          </div>
+
+          {/* 7. Email Address (Read-only from DB) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+              <span>Email Address</span>
+              <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Registered DB Email)</span>
+            </label>
+            <input
+              type="email"
+              value={email}
+              readOnly
+              disabled
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground cursor-not-allowed opacity-90 truncate"
+            />
+          </div>
+
+          {/* 8. Preferred Currency (Theme Dropdown) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Preferred Currency
+            </label>
+            <div className="relative w-full">
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full max-w-full truncate appearance-none rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 pr-8 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
+              >
+                {CURRENCY_LIST.map((cur) => (
+                  <option key={cur.code} value={cur.code} className="bg-card text-foreground">
+                    {cur.code} ({cur.symbol}) — {cur.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+
+          {/* 9. Mandatory Document Upload Row */}
+          <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Identity Document / Passport</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${documentUrl ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {documentUrl ? "ID Card / Passport Uploaded" : "No Document Uploaded"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {documentUrl ? "Document image attached — Click button to view or change" : "Upload your ID Card or Passport (PNG, JPG, JPEG)"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {documentUrl ? "Change Document" : "Upload Document"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Bottom Update Button Section */}
-      <div className="pt-4 border-t border-border flex items-center justify-end">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-lg bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-60 flex items-center gap-2"
-        >
-          {isSubmitting ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-              <span>Updating Profile...</span>
-            </>
-          ) : (
-            <>
-              <Check className="h-4 w-4" />
-              <span>Update Profile</span>
-            </>
+        {/* Bottom Update Button Section */}
+        <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
+          {!isFormValid && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+              * Please fill all mandatory fields and upload your ID document to enable Update Profile.
+            </p>
           )}
-        </button>
-      </div>
-    </form>
+          <div className="w-full sm:w-auto flex justify-end">
+            <button
+              type="submit"
+              disabled={!isFormValid || isSubmitting}
+              className="w-full sm:w-auto rounded-lg bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  <span>Updating Profile...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  <span>Update Profile</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Document Upload Modal */}
+      <UploadDocumentModal
+        open={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        existingUrl={documentUrl}
+        onUploadSuccess={(url) => setDocumentUrl(url)}
+      />
+    </>
   );
 }
