@@ -78,6 +78,41 @@ export const addProfileDocument = (userId: string, doc: StoredDocument) => {
   setStorageMap(DOCUMENTS_STORAGE_KEY, all);
 };
 
+/** Replace ALL documents for a user with a single new document (used when re-uploading). */
+export const setProfileDocument = (userId: string, doc: StoredDocument) => {
+  if (!userId) return;
+  const all = getStorageMap<StoredDocument[]>(DOCUMENTS_STORAGE_KEY);
+  all[userId] = [doc];
+  setStorageMap(DOCUMENTS_STORAGE_KEY, all);
+};
+
+/** Download a file from a data URL or external URL preserving the original extension/format. */
+export const downloadFile = (url: string, filename: string) => {
+  if (typeof window === "undefined") return;
+  if (url.startsWith("data:")) {
+    // Extract mime type from data URL, e.g. data:image/png;base64,...
+    const mime = url.split(";")[0].split(":")[1] || "";
+    const ext = mime.split("/")[1] || "";
+    // Ensure filename has correct extension
+    const hasExt = /\.(png|jpg|jpeg|gif|webp|pdf)$/i.test(filename);
+    const safeFilename = hasExt ? filename : ext ? `${filename}.${ext}` : filename;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = safeFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } else if (url.startsWith("blob:") || url.startsWith("http")) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
 export const downloadTextFile = (content: string, filename: string) => {
   if (typeof window === "undefined") return;
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });

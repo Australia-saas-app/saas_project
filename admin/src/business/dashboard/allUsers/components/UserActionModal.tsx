@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Loader2, Trash2, X, AlertTriangle, CheckCircle, ShieldAlert, FileText, Globe, Calendar, User, Mail, Shield, Eye, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 interface BackendUser {
@@ -18,6 +19,20 @@ interface BackendUser {
   governmentId?: string;
   idDocument?: string;
   documentUrl?: string;
+  documentName?: string;
+  avatarUrl?: string;
+}
+
+interface UserProfile {
+  nationality?: string;
+  dateOfBirth?: string;
+  nationalIdentity?: string;
+  governmentId?: string;
+  idDocument?: string;
+  documentUrl?: string;
+  documentName?: string;
+  avatarUrl?: string;
+  fullName?: string;
 }
 
 interface UserActionModalProps {
@@ -37,10 +52,29 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
   const [isDeleting, setIsDeleting] = useState(false);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
+  const [fetchedProfile, setFetchedProfile] = useState<UserProfile | null>(null);
+  const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
   useEffect(() => {
     if (user) setSelectedStatus(user.status?.toUpperCase() || "ACTIVE");
   }, [user]);
+
+  // Fetch full profile from backend when modal opens
+  useEffect(() => {
+    if (!isOpen || !user?.userId) return;
+    setFetchedProfile(null);
+    setIsFetchingProfile(true);
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token") || "" : "";
+    fetch(`/admin/api/sso/auth/admin/users/${user.userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) setFetchedProfile(data?.profile || data?.user?.profile || data);
+      })
+      .catch(() => {})
+      .finally(() => setIsFetchingProfile(false));
+  }, [isOpen, user?.userId]);
 
   if (!isOpen || !user) return null;
 
@@ -56,8 +90,9 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
     } catch {}
   }
 
-  const fullName = storedOverrides.fullName || user.fullName || "User";
-  const email = storedOverrides.email || user.email || user.phone || "No Email/Phone";
+  // Priority: fetchedProfile (from backend API) > user object > localStorage overrides
+  const fullName = fetchedProfile?.fullName || user.fullName || storedOverrides.fullName || "User";
+  const email = user.email || user.phone || "No Email/Phone";
   const role = String(user.accountType || user.role || "USER").toUpperCase();
   
   let prefix = "USR-";
@@ -70,15 +105,22 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
     ? user.userId
     : `${prefix}${val < 10 ? `0${val}` : `${val}`}`;
 
-  const nationality = storedOverrides.nationality || user.nationality || "NA";
-  const dateOfBirth = storedOverrides.dateOfBirth || user.dateOfBirth || "NA";
-  const nationalIdentity = storedOverrides.nationalIdentity || user.governmentId || user.nationalIdentity || "NA";
-  const documentUrl = storedOverrides.documentUrl || user.idDocument || user.documentUrl || "";
+  const nationality = fetchedProfile?.nationality || user.nationality || storedOverrides.nationality || "NA";
+  const dateOfBirth = fetchedProfile?.dateOfBirth || user.dateOfBirth || storedOverrides.dateOfBirth || "NA";
+  const nationalIdentity = fetchedProfile?.nationalIdentity || fetchedProfile?.governmentId || user.governmentId || user.nationalIdentity || storedOverrides.nationalIdentity || "NA";
+  const documentUrl = fetchedProfile?.idDocument || fetchedProfile?.documentUrl || user.idDocument || user.documentUrl || storedOverrides.documentUrl || "";
 
   const currentStatus = (user.status || storedOverrides.status || "PENDING").toUpperCase();
 
   const handleUpdate = async (newStatus?: string) => {
     const targetStatus = newStatus || selectedStatus;
+
+    // If already pending and clicking unverify, show info toast and exit
+    if (targetStatus === "PENDING" && currentStatus === "PENDING") {
+      toast.info("Account is already Pending");
+      return;
+    }
+
     setUpdatingAction(targetStatus);
 
     // Save unverified flag in storage if set to pending/unverify
@@ -109,6 +151,13 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
     }
 
     await onStatusUpdate(user.userId, targetStatus);
+
+    if (targetStatus === "PENDING") {
+      toast.warning(`Account Unverified — ${fullName} has been set to Pending.`);
+    } else if (targetStatus === "ACTIVE") {
+      toast.success(`Account Verified — ${fullName} is now Active.`);
+    }
+
     setUpdatingAction('');
     onClose();
   };
@@ -179,10 +228,24 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
 
               {/* Body */}
               <div className="px-6 py-5 space-y-5 max-h-[75vh] overflow-y-auto">
+                {isFetchingProfile && (
+                  <div className="flex items-center justify-center gap-2 py-3 text-xs text-slate-500">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading profile data…
+                  </div>
+                )}
                 {/* Account Summary Header */}
                 <div className="flex items-center gap-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-lg flex-shrink-0">
-                    {fullName ? fullName.charAt(0).toUpperCase() : 'U'}
+                  <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-lg flex-shrink-0 overflow-hidden border-2 border-white dark:border-slate-700 shadow-sm">
+                    {fetchedProfile?.avatarUrl || user.avatarUrl ? (
+                      <img
+                        src={fetchedProfile?.avatarUrl || user.avatarUrl}
+                        alt={fullName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span>{fullName ? fullName.charAt(0).toUpperCase() : 'U'}</span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -225,21 +288,29 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
                 {/* Document Preview Section */}
                 <div className="space-y-2">
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                    Identity Document / Passport Preview
+                    Identity Document / Passport
                   </span>
                   {documentUrl ? (
-                    <div 
-                      onClick={() => setImagePreviewOpen(true)}
-                      className="group relative rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/40 p-2 cursor-pointer hover:border-blue-500 transition-all"
-                    >
-                      <img
-                        src={documentUrl}
-                        alt="Document Preview"
-                        className="w-full max-h-48 object-contain rounded-lg bg-black/5"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-semibold text-xs gap-1.5 rounded-xl">
-                        <Eye className="w-4 h-4" /> Click to view full image
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4 text-blue-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                            {fetchedProfile?.documentName || user.documentName || "Identity Document"}
+                          </p>
+                          <p className="text-[10px] text-slate-400">Uploaded document</p>
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setImagePreviewOpen(true)}
+                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors shrink-0"
+                        title="Preview Document"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-5 text-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 text-xs font-medium">

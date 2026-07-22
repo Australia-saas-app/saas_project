@@ -4,16 +4,17 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon, Trash2, Eye, X } from "lucide-react";
+import SelectDropdown from "@/src/shared/components/SelectDropdown";
 import { useUser } from "@/src/context/user.provider";
 import { useProfileDisplay } from "../../hooks/use-profile-display";
 import { ALL_COUNTRIES, ALL_NATIONALITIES, CURRENCY_LIST } from "@/src/shared/constants/countries";
 import { markProfileComplete, type ProfileAccountType } from "@/src/shared/lib/profile-completion";
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
-import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
+import { getProfileOverrides, setProfileDocument } from "@/src/shared/utils/profile-storage";
 import UploadDocumentModal from "@/src/shared/components/UploadDocumentModal";
 
-export default function ProfileFormGrid() {
+export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange?: () => void } = {}) {
   const router = useRouter();
   const { user, refreshUser } = useUser();
   const {
@@ -47,7 +48,16 @@ export default function ProfileFormGrid() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const overrides = getProfileOverrides(rawUserId);
-  const showUnverifiedBanner = Boolean(overrides.unverifiedByAdmin && !overrides.resubmitted);
+  const [showUnverifiedBanner, setShowUnverifiedBanner] = useState(
+    Boolean(overrides.unverifiedByAdmin && !overrides.resubmitted)
+  );
+
+  // Re-evaluate banner when userId changes (login/switch)
+  useEffect(() => {
+    if (!rawUserId) return;
+    const o = getProfileOverrides(rawUserId);
+    setShowUnverifiedBanner(Boolean(o.unverifiedByAdmin && !o.resubmitted));
+  }, [rawUserId]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -147,6 +157,9 @@ export default function ProfileFormGrid() {
 
       toast.success("Profile Updated");
 
+      // Hide the unverified banner immediately after successful update
+      setShowUnverifiedBanner(false);
+
       // Stay on the profile page
       setTimeout(() => {
         setIsSubmitting(false);
@@ -165,8 +178,8 @@ export default function ProfileFormGrid() {
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3 text-amber-900 dark:text-amber-200">
             <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
             <div className="text-xs sm:text-sm font-medium leading-relaxed">
-              <span className="font-bold block text-sm">Account Status: Pending Verification</span>
-              Data and Document is not verified by admin. Please re-check and re-upload your document if needed.
+              <span className="font-bold block text-sm">⚠️ Account Unverified by Admin</span>
+              Your account has been marked as <span className="font-bold text-amber-700 dark:text-amber-300">Pending</span> by an administrator. Please review your personal information and re-upload a clear document if needed, then save your profile.
             </div>
           </div>
         )}
@@ -193,24 +206,13 @@ export default function ProfileFormGrid() {
               <span>Nationality</span>
               <span className="text-red-500 font-bold">*</span>
             </label>
-            <div className="relative w-full">
-              <select
-                value={nationality}
-                onChange={(e) => setNationality(e.target.value)}
-                required
-                className="w-full max-w-full truncate appearance-none rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 pr-8 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
-              >
-                <option value="" disabled>
-                  Select nationality...
-                </option>
-                {ALL_NATIONALITIES.map((nat: string) => (
-                  <option key={nat} value={nat} className="bg-card text-foreground">
-                    {nat}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
-            </div>
+            <SelectDropdown
+              value={nationality}
+              onChange={setNationality}
+              placeholder="Select nationality..."
+              required
+              options={ALL_NATIONALITIES.map((nat: string) => ({ label: nat, value: nat }))}
+            />
           </div>
 
           {/* 3. Date of Birth (Mandatory Date Picker) */}
@@ -252,19 +254,16 @@ export default function ProfileFormGrid() {
             </label>
             <div className="flex gap-2 w-full">
               {/* Dial Code Selector */}
-              <div className="relative w-24 sm:w-28 shrink-0">
-                <select
+              <div className="w-28 sm:w-32 shrink-0">
+                <SelectDropdown
                   value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-input bg-background px-2 py-2 sm:px-2.5 sm:py-2.5 pr-6 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
-                >
-                  {ALL_COUNTRIES.map((c) => (
-                    <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="bg-card text-foreground">
-                      {c.code} ({c.dialCode})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-1.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
+                  onChange={setCountryCode}
+                  placeholder="Code"
+                  options={ALL_COUNTRIES.map((c) => ({
+                    label: `${c.code} (${c.dialCode})`,
+                    value: c.dialCode,
+                  }))}
+                />
               </div>
 
               {/* Phone Input */}
@@ -314,20 +313,15 @@ export default function ProfileFormGrid() {
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Preferred Currency
             </label>
-            <div className="relative w-full">
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full max-w-full truncate appearance-none rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 pr-8 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
-              >
-                {CURRENCY_LIST.map((cur) => (
-                  <option key={cur.code} value={cur.code} className="bg-card text-foreground">
-                    {cur.code} ({cur.symbol}) — {cur.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 sm:top-3 h-4 w-4 text-muted-foreground" />
-            </div>
+            <SelectDropdown
+              value={currency}
+              onChange={setCurrency}
+              placeholder="Select currency..."
+              options={CURRENCY_LIST.map((cur) => ({
+                label: `${cur.code} (${cur.symbol}) — ${cur.name}`,
+                value: cur.code,
+              }))}
+            />
           </div>
 
           {/* 9. Mandatory Document Upload Row */}
@@ -443,7 +437,23 @@ export default function ProfileFormGrid() {
         open={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         existingUrl={documentUrl}
-        onUploadSuccess={(url) => setDocumentUrl(url)}
+        onUploadSuccess={(url) => {
+          setDocumentUrl(url);
+          // Replace the stored document entry so the card below always shows the latest
+          if (rawUserId) {
+            const fileExt = url.startsWith("data:image/png") ? "png" : url.startsWith("data:image/jpeg") || url.startsWith("data:image/jpg") ? "jpg" : "img";
+            setProfileDocument(rawUserId, {
+              id: `doc-${Date.now()}`,
+              type: "UPLOADED",
+              name: `identity-document.${fileExt}`,
+              mimeType: url.split(";")[0].split(":")[1] || "image/png",
+              sizeLabel: "",
+              uploadedAt: new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
+              url,
+            });
+            onDocumentChange?.();
+          }
+        }}
       />
 
       {/* Full Image Preview Popup Modal */}

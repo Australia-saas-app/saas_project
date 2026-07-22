@@ -60,11 +60,11 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-[400px] bg-card rounded-2xl shadow-2xl border border-border p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-[340px] bg-card rounded-2xl shadow-2xl border border-border p-4 space-y-3 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border pb-3">
+        <div className="flex items-center justify-between border-b border-border pb-2.5">
           <div>
-            <h3 className="text-lg font-bold text-foreground">Upload ID Card / Passport</h3>
+            <h3 className="text-base font-bold text-foreground">Upload ID Card / Passport</h3>
             <p className="text-xs text-muted-foreground">Select a clear PNG, JPG, or JPEG file</p>
           </div>
           <button
@@ -72,14 +72,14 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
             onClick={onClose}
             className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Drop / Preview Area */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          className={`group relative flex flex-col items-center justify-center min-h-[180px] rounded-xl border-2 border-dashed p-4 cursor-pointer transition-all ${
+          className={`group relative flex flex-col items-center justify-center min-h-[120px] rounded-xl border-2 border-dashed p-3 cursor-pointer transition-all ${
             previewUrl
               ? "border-primary/50 bg-muted/30"
               : "border-muted-foreground/30 hover:border-primary/60 hover:bg-muted/40"

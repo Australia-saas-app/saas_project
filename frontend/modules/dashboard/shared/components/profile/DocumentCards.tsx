@@ -1,42 +1,35 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Download, Eye, Upload } from "lucide-react";
-import AppModal from "../AppModal";
+import { Download, Upload } from "lucide-react";
 import {
-  downloadTextFile,
+  downloadFile,
   getProfileDocuments,
+  setProfileDocument,
   type StoredDocument,
 } from "@/src/shared/utils/profile-storage";
 
 interface DocumentCardsProps {
   userId: string;
   onUpload?: (doc: StoredDocument) => void;
+  /** Pass a revision counter from the parent to trigger re-read after profile save */
+  revision?: number;
 }
 
-export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) {
+export default function DocumentCards({ userId, onUpload, revision }: DocumentCardsProps) {
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
-  const [preview, setPreview] = useState<StoredDocument | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
 
+  // Re-read documents whenever userId or revision changes
   useEffect(() => {
+    if (!userId) return;
     setDocuments(getProfileDocuments(userId));
-  }, [userId]);
+  }, [userId, revision]);
 
   const handleDownload = (doc: StoredDocument) => {
     const fileUrl = doc.url || doc.dataUrl || doc.contentUrl;
-    if (fileUrl && typeof fileUrl === "string" && (fileUrl.startsWith("data:") || fileUrl.startsWith("blob:") || fileUrl.startsWith("http"))) {
-      const link = document.createElement("a");
-      link.href = fileUrl;
-      link.download = doc.name || "document";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      downloadTextFile(
-        doc.name,
-        doc.previewText ?? `${doc.type} document: ${doc.name}\nUploaded: ${doc.uploadedAt}`
-      );
+    if (fileUrl && typeof fileUrl === "string") {
+      downloadFile(fileUrl, doc.name || "document");
     }
   };
 
@@ -50,6 +43,7 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
         id: `doc-${Date.now()}`,
         type: "UPLOADED",
         name: file.name,
+        mimeType: file.type,
         sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
         uploadedAt: new Date().toLocaleDateString(undefined, {
           year: "numeric",
@@ -59,8 +53,10 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
         url: typeof reader.result === "string" ? reader.result : "",
         previewText: `Uploaded file: ${file.name}`,
       };
+      // Replace any old document (override previous)
+      setProfileDocument(userId, doc);
+      setDocuments([doc]);
       onUpload?.(doc);
-      setDocuments((prev) => [doc, ...prev]);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -69,6 +65,11 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
   return (
     <>
       <div className="flex flex-col gap-4 p-6 pt-0 md:flex-row">
+        {documents.length === 0 && (
+          <div className="w-full rounded-lg border border-dashed border-border bg-muted/30 p-5 text-center text-xs font-medium text-muted-foreground">
+            No document uploaded yet.
+          </div>
+        )}
         {documents.map((doc) => (
           <div
             key={doc.id}
@@ -120,21 +121,6 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
         accept="image/*,application/pdf"
         onChange={handleUpload}
       />
-
-      <AppModal
-        open={Boolean(preview)}
-        onClose={() => setPreview(null)}
-        title={preview?.name ?? "Document"}
-        description={preview?.type}
-        size="sm"
-      >
-        <p className="text-sm text-gray-600">
-          {preview?.previewText ?? "Document preview is not available for this file type."}
-        </p>
-        <p className="mt-2 text-xs text-gray-400">
-          {preview?.sizeLabel} • {preview?.uploadedAt}
-        </p>
-      </AppModal>
     </>
   );
 }

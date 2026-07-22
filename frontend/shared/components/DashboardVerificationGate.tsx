@@ -61,35 +61,8 @@ export default function DashboardVerificationGate({ children }: { children: Reac
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">{access.message}</p>
         <p className="mt-3 rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-          Status: {access.status}
+          Status: {access.status === "Not submitted" ? "Pending" : access.status}
         </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          {access.ctaHref && (
-            <Link
-              href={access.ctaHref}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
-            >
-              {isProfileGate && <UserRoundPen className="h-4 w-4" />}
-              {access.ctaLabel ?? "Continue"}
-            </Link>
-          )}
-          <button
-            type="button"
-            disabled={loggingOut}
-            onClick={async () => {
-              setLoggingOut(true);
-              try {
-                await logout();
-              } finally {
-                window.location.href = `/account/${accountType}/login`;
-              }
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-60"
-          >
-            <LogOut className="h-4 w-4" />
-            {loggingOut ? "Signing out…" : "Sign out"}
-          </button>
-        </div>
       </div>
     );
   }

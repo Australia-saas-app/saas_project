@@ -1,17 +1,16 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
-import DocumentCards, { DocumentUploadButton } from "../../shared/components/profile/DocumentCards";
-import { addProfileDocument } from "@/src/shared/utils/profile-storage";
+import DocumentCards from "../../shared/components/profile/DocumentCards";
 import { useProfileDisplay } from "../../shared/hooks/use-profile-display";
 
 export default function ProfilePageLayout() {
   const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isVerified, status } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
-  const docUploadRef = useRef<HTMLInputElement>(null);
+  const [docRevision, setDocRevision] = useState(0);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,11 +97,11 @@ export default function ProfilePageLayout() {
         </div>
 
         {/* Profile Interactive Form Grid */}
-        <ProfileFormGrid />
+        <ProfileFormGrid onDocumentChange={() => setDocRevision((r) => r + 1)} />
 
-        {/* Document Cards */}
+        {/* Document Cards - revision triggers re-read from storage */}
         <div className="border-t border-border">
-          <DocumentCards userId={rawUserId} />
+          <DocumentCards userId={rawUserId} revision={docRevision} />
         </div>
       </div>
     </div>
