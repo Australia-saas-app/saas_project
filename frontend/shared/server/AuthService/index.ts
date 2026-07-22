@@ -449,3 +449,12 @@ export const resetUserPassword = async (payload: { email?: string; phone?: strin
     return { success: false, message: parseApiError(error, "Failed to reset password") };
   }
 };
+
+export const completeUserProfile = async (payload: Record<string, any>) => {
+  try {
+    const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", payload);
+    return data;
+  } catch (error: unknown) {
+    return { success: false, message: parseApiError(error, "Failed to update profile") };
+  }
+};

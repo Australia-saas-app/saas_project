@@ -14,6 +14,8 @@ import { adminAppPath } from "@/src/constants/app-urls";
 import { ThemeToggle } from "@/src/shared/components/ThemeToggle";
 import { isProfileComplete, completeProfilePath } from "@/src/shared/lib/profile-completion";
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access";
+import { getUserIdFromAuthUser, getInitials } from "@/src/shared/lib/demo-user";
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import UniversalSearch from "@/src/modules/shared/components/search/UniversalSearch";
 import ServicesMegaMenu from "@/src/modules/shared/components/search/ServicesMegaMenu";
 import { PRIMARY_NAV } from "@/src/shared/constants/mega-menu";
@@ -56,7 +58,11 @@ export default function Header() {
     }
     setIsLoggingOut(false);
     setLogoutModalOpen(false);
-    router.push("/");
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
+    } else {
+      router.push("/");
+    }
   };
 
   const isSignupPage = pathname?.includes("/registration");
@@ -87,10 +93,19 @@ export default function Header() {
     return "/user/notices";
   }, [user, isAffiliate, isBusiness]);
 
+  const userId = getUserIdFromAuthUser(user);
+  const avatarUrl = useMemo(() => {
+    if (!userId) return null;
+    const overrides = getProfileOverrides(userId);
+    if (overrides.avatarUrl) return overrides.avatarUrl;
+    if (user && "profilePhoto" in user && user.profilePhoto) return String(user.profilePhoto);
+    return null;
+  }, [user, userId]);
+
   const userInitial = useMemo(() => {
     if (!user) return null;
-    const source = ("name" in user && user.name) || ("email" in user && user.email) || "";
-    return source.trim().charAt(0).toUpperCase() || null;
+    const source = ("fullName" in user && user.fullName) || ("name" in user && user.name) || ("email" in user && user.email) || "";
+    return getInitials(String(source));
   }, [user]);
 
   const goToAccount = () => {
@@ -232,12 +247,16 @@ export default function Header() {
                     className="flex items-center gap-1.5 sm:gap-2 pl-0.5 sm:pl-1 pr-2 sm:pr-3 py-1 bg-[#f0f4ff] hover:bg-blue-50 border border-blue-100 rounded-full transition-colors dark:bg-primary/10 dark:hover:bg-primary/20 dark:border-primary/20"
                   >
                     <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shrink-0 overflow-hidden">
-                      {userInitial ?? <User className="h-4 w-4" />}
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        userInitial ?? <User className="h-4 w-4" />
+                      )}
                     </div>
                     {/* Name + role visible on desktop only */}
                     <div className="hidden sm:flex flex-col items-start text-left">
                       <span className="text-xs sm:text-sm font-bold text-foreground leading-tight max-w-[90px] truncate">
-                        {('name' in user && user.name) || ('fullName' in user && user.fullName) || ('email' in user && user.email) || "User"}
+                        {('fullName' in user && user.fullName) || ('name' in user && user.name) || ('email' in user && user.email) || "User"}
                       </span>
                       <span className="text-[10px] text-muted-foreground capitalize leading-tight">
                         {user.accountType === "agency" ? "Affiliate" : user.accountType || ('roles' in user && user.roles?.[0]) || "User"}
@@ -253,7 +272,11 @@ export default function Header() {
                       <div className="px-4 py-2.5 border-b border-border mb-1">
                         <div className="flex items-center gap-3 mb-1">
                           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shrink-0 overflow-hidden">
-                            {userInitial ?? <User className="h-4 w-4" />}
+                            {avatarUrl ? (
+                              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              userInitial ?? <User className="h-4 w-4" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <div className="text-sm font-bold text-foreground truncate">{('name' in user && user.name) || ('fullName' in user && user.fullName) || ('email' in user && user.email) || "User"}</div>

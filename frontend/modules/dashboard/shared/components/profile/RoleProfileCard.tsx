@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { CheckCircle } from "lucide-react";
+import { useRef } from "react";
+import { CheckCircle, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import ProfileInfoGrid from "./ProfileInfoGrid";
+import ProfileFormGrid from "./ProfileFormGrid";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
-import ProfileEditModal from "./ProfileEditModal";
 import { addProfileDocument } from "@/src/shared/utils/profile-storage";
 import { useProfileDisplay } from "../../hooks/use-profile-display";
 
@@ -34,41 +33,79 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { userId, accountLabel, email, joiningDate, avatarUrl, fields, updateProfile } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile } =
     useProfileDisplay();
-  const [editOpen, setEditOpen] = useState(false);
-  const uploadRef = useRef<HTMLInputElement>(null);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  const docUploadRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      updateProfile({ avatarUrl: result });
+      toast.success("Profile picture updated.");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-      <div className="flex flex-col border-b border-gray-100 p-6 pb-6 md:p-8">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-col border-b border-border p-6 pb-6 md:p-8">
         <div className="mb-6 flex flex-col justify-between gap-6 lg:flex-row">
           <div className="flex items-start gap-5">
-            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border-[3px] border-primary shadow-sm md:h-[85px] md:w-[85px]">
-              <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+            {/* Avatar Container with Pencil Icon */}
+            <div className="relative h-20 w-20 shrink-0 md:h-[85px] md:w-[85px]">
+              <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-primary/20 bg-muted shadow-sm">
+                <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+              </div>
+              <button
+                type="button"
+                onClick={() => avatarFileRef.current?.click()}
+                title="Change profile photo"
+                className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow hover:bg-primary/90 transition-all border border-background"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              <input
+                ref={avatarFileRef}
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={handleAvatarChange}
+              />
             </div>
+
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-xl font-medium text-gray-800">{accountLabel}</h3>
-                <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1">
-                  <div className="h-2 w-2 rounded-full bg-[#10b981]" />
-                  <span className="text-[11px] font-bold text-gray-800">Active</span>
+                <h3 className="text-xl font-bold text-foreground">{fullName}</h3>
+                <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
                 </div>
               </div>
-              <div className="text-xs font-medium text-gray-500">
-                Joining date — <span className="text-gray-400">{joiningDate}</span>
+              <div className="text-xs font-medium text-muted-foreground">
+                Joining date — <span className="text-foreground/80">{joiningDate}</span>
               </div>
-              <div className="text-xs font-medium text-gray-500">{email}</div>
+              <div className="text-xs font-medium text-muted-foreground">{email}</div>
               {stats && stats.length > 0 && (
                 <div className="mt-1 flex flex-wrap items-center gap-4 md:gap-6">
                   {stats.map((stat, index) => (
                     <div key={stat.label} className="flex items-center gap-4 md:gap-6">
-                      {index > 0 && <div className="hidden h-8 w-px bg-gray-200 sm:block" />}
+                      {index > 0 && <div className="hidden h-8 w-px bg-border sm:block" />}
                       <div className="flex flex-col">
-                        <span className="mb-0.5 text-[11px] font-medium text-gray-500">
+                        <span className="mb-0.5 text-[11px] font-medium text-muted-foreground">
                           {stat.label}
                         </span>
-                        <span className="text-sm font-medium text-gray-800">{stat.value}</span>
+                        <span className="text-sm font-medium text-foreground">{stat.value}</span>
                       </div>
                     </div>
                   ))}
@@ -76,31 +113,26 @@ export default function RoleProfileCard({
               )}
             </div>
           </div>
+
+          {/* Top Right Header Actions (Top edit button REMOVED) */}
           <div className="flex flex-col items-start justify-between gap-4 lg:items-end">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5 rounded border border-[#10b981]/20 bg-[#ecfdf5] px-4 py-1.5 text-sm font-medium text-[#10b981]">
+              <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                 <CheckCircle className="h-4 w-4" />
                 Verified Account
               </div>
-              <button
-                type="button"
-                onClick={() => setEditOpen(true)}
-                className="rounded border border-gray-300 px-6 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Edit
-              </button>
             </div>
             {showDocumentButton && (
               <>
                 <input
-                  ref={uploadRef}
+                  ref={docUploadRef}
                   type="file"
                   className="hidden"
                   accept="image/*,application/pdf"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    addProfileDocument(userId, {
+                    addProfileDocument(rawUserId, {
                       id: `doc-${Date.now()}`,
                       type: "UPLOADED",
                       name: file.name,
@@ -112,11 +144,12 @@ export default function RoleProfileCard({
                     e.target.value = "";
                   }}
                 />
-                <DocumentUploadButton onClick={() => uploadRef.current?.click()} />
+                <DocumentUploadButton onClick={() => docUploadRef.current?.click()} />
               </>
             )}
           </div>
         </div>
+
         {levelProgress && (
           <LevelProgressSection
             completedLabel={levelProgress.completedLabel}
@@ -126,27 +159,21 @@ export default function RoleProfileCard({
           />
         )}
       </div>
-      <ProfileInfoGrid fields={fields} />
+
+      {/* Interactive Profile Form */}
+      <ProfileFormGrid />
+
       {showDocuments && (
-        <DocumentCards
-          userId={userId}
-          onUpload={(doc) => {
-            addProfileDocument(userId, doc);
-            toast.success(`${doc.name} added to your documents.`);
-          }}
-        />
+        <div className="border-t border-border">
+          <DocumentCards
+            userId={rawUserId}
+            onUpload={(doc) => {
+              addProfileDocument(rawUserId, doc);
+              toast.success(`${doc.name} added to your documents.`);
+            }}
+          />
+        </div>
       )}
-      <ProfileEditModal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        scope="limited"
-        initialLabel={accountLabel}
-        initialEmail={email}
-        onSave={(nextLabel, nextEmail) => {
-          updateProfile({ accountLabel: nextLabel, email: nextEmail, fullName: nextLabel });
-          toast.success("Profile updated successfully.");
-        }}
-      />
     </div>
   );
 }

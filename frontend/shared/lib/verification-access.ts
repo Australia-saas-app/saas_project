@@ -67,20 +67,15 @@ export function resolveDashboardAccess(
   const accountType = accountTypeFromRole(user.role);
 
   if (!isProfileComplete(userId)) {
-    if (isCompleteProfilePath(pathname)) {
+    if (isAccountMaintenancePath(pathname)) {
       return { allowed: true };
     }
     return {
       allowed: false,
       status: "Profile incomplete",
-      message:
-        accountType === "business"
-          ? "Finish your business profile before using wallet, services, or client tools."
-          : accountType === "affiliate"
-            ? "Finish your affiliate profile before promoting offers, earning, or using wallet tools."
-            : "Finish your profile before using dashboard work features.",
+      message: "Please complete your profile to unlock full dashboard features.",
       reason: "profile",
-      ctaHref: completeProfilePath(accountType),
+      ctaHref: `/${accountType}/profile`,
       ctaLabel: "Complete profile",
     };
   }

@@ -33,12 +33,17 @@ interface SidebarProps {
   onCloseMobile: () => void
 }
 
+import { isProfileComplete } from "@/src/shared/lib/profile-completion"
+import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user"
+import { useProfileDisplay } from "../hooks/use-profile-display"
+
 export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: SidebarProps) {
   const pathname = usePathname()
   const { user } = useUser()
   const { isAffiliate, isBusiness } = usePermission()
   const { t } = useLocale()
   const logoutMutation = useLogout()
+  const { avatarUrl } = useProfileDisplay()
 
   let dashboardPrefix = "/user"
   if (isAffiliate) {
@@ -46,6 +51,9 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
   } else if (isBusiness) {
     dashboardPrefix = "/business"
   }
+
+  const userId = getUserIdFromAuthUser(user)
+  const isComplete = isProfileComplete(userId)
 
   const menuItems = !isAffiliate && !isBusiness
     ? [
@@ -90,13 +98,16 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
 
   const getDisplayName = () => {
     if (!user) return "Guest User"
+    if ("fullName" in user && user.fullName) {
+      return user.fullName
+    }
     if ("firstName" in user && user.firstName) {
       return `${user.firstName} ${user.lastName || ""}`.trim()
     }
     if ("name" in user && user.name) {
       return user.name
     }
-    return user.email || "Account"
+    return user.email?.split("@")[0] || "Account"
   }
 
   const accountIdLabel = formatAccountIdLabel(user)
@@ -111,32 +122,37 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
       ? t.dashboard.user.settings
       : t.dashboard.affiliate.settings
 
-  const linkClass = (active: boolean) =>
+  const workspaceRole = isBusiness ? "Business" : isAffiliate ? "Affiliate" : "User"
+
+  const linkClass = (active: boolean, disabled: boolean) =>
     [
-      "flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors",
+      "group relative flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors",
       isExpanded ? "gap-3 px-3" : "justify-center px-0",
-      active
-        ? "bg-[#5D7293] text-white shadow-sm"
-        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      disabled
+        ? "opacity-45 cursor-not-allowed select-none bg-transparent text-muted-foreground/60"
+        : active
+          ? "bg-[#5D7293] text-white shadow-sm"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
     ].join(" ")
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
+      {/* Header section — displays User Full Name & Workspace role, centered */}
       <div
         className={`flex shrink-0 items-center border-b border-border ${
-          isExpanded ? "h-14 justify-between px-4" : "h-14 justify-center px-2"
+          isExpanded ? "h-16 justify-between px-4" : "h-16 justify-center px-2"
         }`}
       >
         {isExpanded ? (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">System DB</p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {isBusiness ? "Business" : isAffiliate ? "Affiliate" : "User"} workspace
+          <div className="min-w-0 flex-1 text-center">
+            <p className="truncate text-sm font-bold text-foreground">{getDisplayName()}</p>
+            <p className="truncate text-[11px] font-medium text-muted-foreground">
+              {workspaceRole} workspace
             </p>
           </div>
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5D7293] text-xs font-bold text-white">
-            S
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#5D7293] text-xs font-bold text-white shadow-sm">
+            {getDisplayName().charAt(0).toUpperCase()}
           </div>
         )}
         {isMobile && isExpanded && (
@@ -155,13 +171,28 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
         {menuItems.map((item) => {
           const active = isActive(item.href)
           const Icon = item.icon
+          const isDisabled = !isComplete
+
+          if (isDisabled) {
+            return (
+              <div
+                key={item.label}
+                title="Complete profile"
+                className={linkClass(false, true)}
+              >
+                <Icon className="h-5 w-5 shrink-0 opacity-50" />
+                {isExpanded && <span className="truncate">{item.label}</span>}
+              </div>
+            )
+          }
+
           return (
             <Link
               key={item.label}
               href={item.href}
               title={!isExpanded ? item.label : undefined}
               onClick={() => isMobile && onCloseMobile()}
-              className={linkClass(active)}
+              className={linkClass(active, false)}
             >
               <Icon className="h-5 w-5 shrink-0" />
               {isExpanded && <span className="truncate">{item.label}</span>}
@@ -170,13 +201,14 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
         })}
       </nav>
 
-      {/* Single account control — bottom of sidebar only */}
+      {/* Single account control — bottom of sidebar footer */}
       <div className={`shrink-0 border-t border-border ${isExpanded ? "p-3" : "px-2 py-3"}`}>
         <UserAccountMenu
           profileHref={`${dashboardPrefix}/profile`}
           settingsHref={`${dashboardPrefix}/settings`}
           displayName={getDisplayName()}
           subtitle={accountIdLabel}
+          avatarUrl={avatarUrl}
           isExpanded={isExpanded}
           menuPlacement="up"
           isLoggingOut={logoutMutation.isPending}

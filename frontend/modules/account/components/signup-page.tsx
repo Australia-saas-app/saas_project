@@ -139,29 +139,30 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
     if (!isValid) return;
 
     setSubmitErrors(null);
+    const emailVal = (form.getValues("email") as string).trim();
+    const isPhone = /^[0-9+\-\s()]+$/.test(emailVal);
+    const isEmail = emailVal.includes("@");
+
+    if (!isEmail && !isPhone) {
+      toast.error("Please enter a valid email or phone number.");
+      return;
+    }
+
     try {
-      const emailVal = (form.getValues("email") as string).trim();
-      const isPhone = /^[0-9+\-\s()]+$/.test(emailVal);
-      const isEmail = emailVal.includes("@");
-
-      if (!isEmail && !isPhone) {
-        toast.error("Email format is not correct");
-        return;
-      }
-
-      const payload = isEmail ? { email: emailVal, type: "registration" } : { phone: emailVal, type: "registration" };
+      const payload = isEmail
+        ? { email: emailVal, type: "registration" }
+        : { phone: emailVal, type: "registration" };
       await sendOtp(payload);
-
-      if (isEmail) {
-        toast.success("OTP sent successfully");
-      } else {
-        toast.success("Dummy OTP sent successfully");
-      }
-
+      // sendOtp throws on error — if we reach here, OTP was sent successfully
       setStep(2);
       setTimeLeft(179);
-    } catch (err) {
-      setSubmitErrors(err instanceof Error ? err.message : "Failed to send OTP.");
+      if (!isEmail) {
+        // Override the default success toast for phone with dummy OTP message
+        toast.dismiss();
+        toast.success("Use code 234567 to verify (SMS not implemented yet)");
+      }
+    } catch {
+      // Error toast is already shown by useSendRegistrationOtp.onError
     }
   };
 

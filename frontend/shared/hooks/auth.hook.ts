@@ -169,25 +169,35 @@ export const useResetPassword = (token?: string) => {
 
 export const useLogout = () => {
     const router = useRouter();
+    const { setUser } = useUser();
     return useMutation<{ success: boolean; message?: string } | void, Error>({
         mutationKey: ["USER_LOGOUT"],
         mutationFn: async () => await apiLogout(),
         onSuccess: () => {
+            setUser(null);
             toast.success('Logged out');
             activityLog.record("USER_LOGOUT");
-            // Admin app has no public site shell — send admins to admin login.
             const isAdminApp =
                 typeof window !== "undefined" &&
                 (window.location.port === "3001" ||
                     window.location.hostname.startsWith("admin.") ||
                     window.location.pathname.startsWith("/admin") ||
                     window.location.pathname.startsWith("/account/admin"));
-            const loginPath = isAdminApp ? "/account/admin/login" : ROUTES.auth.login;
-            router.push(loginPath);
+            const targetPath = isAdminApp ? "/account/admin/login" : "/";
+            if (typeof window !== "undefined") {
+                window.location.href = targetPath;
+                return;
+            }
+            router.push(targetPath);
             router.refresh();
         },
         onError: (error) => {
-            toast.error(parseApiError(error, 'Logout failed'));
+            setUser(null);
+            if (typeof window !== "undefined") {
+                window.location.href = "/";
+            } else {
+                router.push("/");
+            }
         }
     })
 }

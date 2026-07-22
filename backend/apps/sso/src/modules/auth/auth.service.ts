@@ -570,13 +570,27 @@ export class AuthService {
       throw new BadRequestException('Email or phone is required');
     }
 
-    if (type === 'admin_reset' || type === 'password_reset') {
+    if (type === 'admin_reset' || type === 'password_reset' || type === 'forgot-password') {
       if (normalizedEmail) {
         const user = await this.userRepository.findOne({ where: { email: normalizedEmail } });
         if (!user) throw new BadRequestException('Email not Exists');
       } else if (normalizedPhone) {
         const user = await this.userRepository.findOne({ where: { phone: normalizedPhone } });
         if (!user) throw new BadRequestException('Phone No not exists');
+      }
+    }
+
+    if (type === 'registration') {
+      const whereConditions: any[] = [];
+      if (normalizedEmail) whereConditions.push({ email: normalizedEmail });
+      if (normalizedPhone) whereConditions.push({ phone: normalizedPhone });
+
+      if (whereConditions.length > 0) {
+        const existing = await this.userRepository.findOne({ where: whereConditions });
+        if (existing) {
+          const field = normalizedEmail ? 'Email' : 'Phone number';
+          throw new BadRequestException(`${field} already exists`);
+        }
       }
     }
 

@@ -31,6 +31,17 @@ export default function DashboardVerificationGate({ children }: { children: Reac
     const accountType = accountTypeFromRole(user?.role);
     const isProfileGate = access.reason === "profile";
 
+    if (isProfileGate && access.ctaHref) {
+      if (typeof window !== "undefined" && pathname !== access.ctaHref) {
+        window.location.replace(access.ctaHref);
+        return (
+          <div className="flex min-h-[50vh] items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        );
+      }
+    }
+
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-4 text-center">
         <div

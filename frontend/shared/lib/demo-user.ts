@@ -10,8 +10,23 @@ export const DEMO_DISPLAY_IDS: Record<string, string> = {
   "demo-admin": "ADM-001",
 }
 
+export function getInitials(name?: string | null): string {
+  if (!name || !name.trim()) return "US";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  const word = parts[0];
+  if (word.length >= 2) {
+    return word.slice(0, 2).toUpperCase();
+  }
+  return word.charAt(0).toUpperCase();
+}
+
 export function getUserIdFromAuthUser(user: IUser | IDecodedToken | null): string | undefined {
   if (!user) return undefined
+  if ("userId" in user && user.userId) return String(user.userId)
+  if ("publicId" in user && user.publicId) return String(user.publicId)
   if ("id" in user && user.id) return String(user.id)
   return undefined
 }
