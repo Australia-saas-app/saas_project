@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e # Exit immediately if a command exits with a non-zero status.
-
+# CI/CD deployment verification trigger on new server
 echo "🚀 Starting Fast Real-time Deployment Process..."
 
 # Enable Docker BuildKit & Plain unbuffered progress for live GitHub Actions log streaming
