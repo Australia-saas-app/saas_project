@@ -291,7 +291,11 @@ const AllBusinessTable: React.FC = () => {
                 <TableRow key={b.userId}>
                   {/* Business ID */}
                   <TableColumn>
-                    <span className="font-mono text-sm font-semibold text-blue-600">#{b.businessId}</span>
+                    <span className="font-mono text-sm font-semibold text-blue-600">
+                      {b.businessId && (b.businessId.startsWith("BSN-") || b.businessId.startsWith("USR-") || b.businessId.startsWith("AFF-"))
+                        ? b.businessId
+                        : `BSN-${(parseInt((b.businessId || '').replace(/\D/g, '').slice(-4), 10) || 1) < 10 ? `0${parseInt((b.businessId || '').replace(/\D/g, '').slice(-4), 10) || 1}` : parseInt((b.businessId || '').replace(/\D/g, '').slice(-4), 10) || 1}`}
+                    </span>
                   </TableColumn>
 
                   {/* Business Name */}

@@ -94,26 +94,6 @@ export default function ProfilePageLayout() {
                 Pending Verification
               </span>
             )}
-            <input
-              ref={docUploadRef}
-              type="file"
-              className="hidden"
-              accept="image/*,application/pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                addProfileDocument(rawUserId, {
-                  id: `doc-${Date.now()}`,
-                  type: "UPLOADED",
-                  name: file.name,
-                  sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-                  uploadedAt: new Date().toLocaleDateString(),
-                });
-                toast.success(`${file.name} uploaded successfully.`);
-                e.target.value = "";
-              }}
-            />
-            <DocumentUploadButton onClick={() => docUploadRef.current?.click()} />
           </div>
         </div>
 

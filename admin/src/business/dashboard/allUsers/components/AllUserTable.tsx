@@ -252,7 +252,9 @@ const AllUserTable: React.FC = () => {
                             items.map((u, idx) => (
                                 <TableRow key={u.userId}>
                                     <TableColumn>
-                                        #{(u.userId || '').slice(0,5)}
+                                        {u.userId && (u.userId.startsWith("USR-") || u.userId.startsWith("AFF-") || u.userId.startsWith("BSN-"))
+                                          ? u.userId
+                                          : `USR-${(parseInt((u.userId || '').replace(/\D/g, '').slice(-4), 10) || 1) < 10 ? `0${parseInt((u.userId || '').replace(/\D/g, '').slice(-4), 10) || 1}` : parseInt((u.userId || '').replace(/\D/g, '').slice(-4), 10) || 1}`}
                                     </TableColumn>
                                     <TableColumn>
                                         {u.totalProject || 0}

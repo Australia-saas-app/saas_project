@@ -24,29 +24,45 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
   }, [userId]);
 
   const handleDownload = (doc: StoredDocument) => {
-    downloadTextFile(
-      doc.name,
-      doc.previewText ?? `${doc.type} document: ${doc.name}\nUploaded: ${doc.uploadedAt}`
-    );
+    const fileUrl = doc.url || doc.dataUrl || doc.contentUrl;
+    if (fileUrl && typeof fileUrl === "string" && (fileUrl.startsWith("data:") || fileUrl.startsWith("blob:") || fileUrl.startsWith("http"))) {
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = doc.name || "document";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      downloadTextFile(
+        doc.name,
+        doc.previewText ?? `${doc.type} document: ${doc.name}\nUploaded: ${doc.uploadedAt}`
+      );
+    }
   };
 
   const handleUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const doc: StoredDocument = {
-      id: `doc-${Date.now()}`,
-      type: "UPLOADED",
-      name: file.name,
-      sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-      uploadedAt: new Date().toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      previewText: `Uploaded file: ${file.name}`,
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const doc: StoredDocument = {
+        id: `doc-${Date.now()}`,
+        type: "UPLOADED",
+        name: file.name,
+        sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+        uploadedAt: new Date().toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        url: typeof reader.result === "string" ? reader.result : "",
+        previewText: `Uploaded file: ${file.name}`,
+      };
+      onUpload?.(doc);
+      setDocuments((prev) => [doc, ...prev]);
     };
-    onUpload?.(doc);
-    setDocuments((prev) => [doc, ...prev]);
+    reader.readAsDataURL(file);
     e.target.value = "";
   };
 
@@ -56,10 +72,10 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
         {documents.map((doc) => (
           <div
             key={doc.id}
-            className="flex flex-1 items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
+            className="flex flex-1 items-center justify-between rounded-lg border border-border bg-card p-4 shadow-sm"
           >
             <div className="flex min-w-0 items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-blue-50 text-blue-500">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
                 <svg
                   width="24"
                   height="24"
@@ -73,11 +89,11 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="mb-1 text-xs font-medium tracking-wider text-gray-500 uppercase">
+                <p className="mb-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
                   {doc.type}
                 </p>
-                <p className="truncate text-sm font-medium text-[#2f3d58]">{doc.name}</p>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="truncate text-sm font-medium text-foreground">{doc.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
                   {doc.sizeLabel} • Uploaded: {doc.uploadedAt}
                 </p>
               </div>
@@ -85,17 +101,10 @@ export default function DocumentCards({ userId, onUpload }: DocumentCardsProps) 
             <div className="ml-2 flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => setPreview(doc)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-                aria-label={`View ${doc.name}`}
-              >
-                <Eye className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
                 onClick={() => handleDownload(doc)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
                 aria-label={`Download ${doc.name}`}
+                title={`Download ${doc.name}`}
               >
                 <Download className="h-4 w-4" />
               </button>

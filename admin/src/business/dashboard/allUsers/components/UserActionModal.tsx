@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Loader2, Trash2, X, AlertTriangle, CheckCircle, ShieldAlert, FileText, Globe, Calendar, User, Mail, Shield, Eye } from "lucide-react";
+import { Loader2, Trash2, X, AlertTriangle, CheckCircle, ShieldAlert, FileText, Globe, Calendar, User, Mail, Shield, Eye, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 interface BackendUser {
   userId: string;
@@ -36,6 +36,7 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
 
   useEffect(() => {
     if (user) setSelectedStatus(user.status?.toUpperCase() || "ACTIVE");
@@ -249,46 +250,48 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
 
                 {/* Verify / Unverify & Status Controls */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => handleUpdate("ACTIVE")}
-                      disabled={!!updatingAction || isDeleting}
-                      className="flex-1 flex items-center justify-center gap-2 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all text-xs disabled:opacity-50"
-                    >
-                      {updatingAction === 'ACTIVE' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      Verify (Activate)
-                    </button>
-                    <button
-                      onClick={() => handleUpdate("PENDING")}
-                      disabled={!!updatingAction || isDeleting}
-                      className="flex-1 flex items-center justify-center gap-2 h-10 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm transition-all text-xs disabled:opacity-50"
-                    >
-                      {updatingAction === 'PENDING' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
-                      Unverify (Pending)
-                    </button>
-                  </div>
-
-                  {/* Status Dropdown after verify / for status override */}
-                  <div className="pt-2 flex items-center gap-3">
-                    <div className="flex-1">
-                      <select 
-                        value={selectedStatus}
-                        onChange={(e) => setSelectedStatus(e.target.value)}
-                        className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none"
+                  {currentStatus !== "ACTIVE" ? (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleUpdate("ACTIVE")}
+                        disabled={!!updatingAction || isDeleting}
+                        className="flex-1 flex items-center justify-center gap-2 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all text-xs disabled:opacity-50"
                       >
-                        {statuses.map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                        {updatingAction === 'ACTIVE' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        Verify (Activate)
+                      </button>
+                      <button
+                        onClick={() => handleUpdate("PENDING")}
+                        disabled={!!updatingAction || isDeleting}
+                        className="flex-1 flex items-center justify-center gap-2 h-10 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm transition-all text-xs disabled:opacity-50"
+                      >
+                        {updatingAction === 'PENDING' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
+                        Unverify (Pending)
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleUpdate(selectedStatus)}
-                      disabled={!!updatingAction || isDeleting}
-                      className="px-4 h-9 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50"
-                    >
-                      {updatingAction === selectedStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Update Status"}
-                    </button>
-                  </div>
+                  ) : (
+                    /* Status Dropdown ONLY shown AFTER account is verified */
+                    <div className="pt-2 flex items-center gap-3">
+                      <div className="flex-1">
+                        <select 
+                          value={selectedStatus}
+                          onChange={(e) => setSelectedStatus(e.target.value)}
+                          className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none"
+                        >
+                          {statuses.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => handleUpdate(selectedStatus)}
+                        disabled={!!updatingAction || isDeleting}
+                        className="px-4 h-9 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {updatingAction === selectedStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Update Status"}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -297,24 +300,65 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
         </div>
       </div>
 
-      {/* Full Image Preview Modal */}
+      {/* Full Image Preview Modal with Zoom Controls */}
       {imagePreviewOpen && documentUrl && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="relative max-w-3xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl p-4 flex flex-col items-center">
-            <button
-              onClick={() => setImagePreviewOpen(false)}
-              className="absolute top-3 right-3 p-2 text-white/70 hover:text-white bg-black/40 hover:bg-black/70 rounded-full transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-blue-400" /> Identity Document / Passport Full View
-            </h4>
-            <img
-              src={documentUrl}
-              alt="Document Full View"
-              className="max-h-[75vh] w-full object-contain rounded-lg"
-            />
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl p-5 flex flex-col items-center">
+            {/* Header & Zoom Controls Toolbar */}
+            <div className="w-full flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-400" /> Identity Document / Passport Preview
+              </h4>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setZoomScale((z) => Math.max(0.5, z - 0.25))}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-slate-300 min-w-[45px] text-center">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomScale((z) => Math.min(3, z + 0.25))}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomScale(1)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors ml-1"
+                  title="Reset Zoom"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setImagePreviewOpen(false);
+                    setZoomScale(1);
+                  }}
+                  className="p-1.5 text-white/70 hover:text-white bg-red-600/80 hover:bg-red-600 rounded-lg transition-colors ml-2"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Zoomable Image Container */}
+            <div className="w-full max-h-[70vh] overflow-auto flex items-center justify-center p-2 rounded-xl bg-black/40">
+              <img
+                src={documentUrl}
+                alt="Document Full View"
+                style={{ transform: `scale(${zoomScale})`, transition: "transform 0.15s ease-out" }}
+                className="max-h-[65vh] object-contain rounded-lg shadow-lg origin-center"
+              />
+            </div>
           </div>
         </div>
       )}

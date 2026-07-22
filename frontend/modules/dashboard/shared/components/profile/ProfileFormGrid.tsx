@@ -373,12 +373,12 @@ export default function ProfileFormGrid() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
                 {documentUrl && (
                   <button
                     type="button"
                     onClick={() => setPreviewModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-all"
+                    className="inline-flex flex-1 md:flex-none items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-all"
                     title="View Document Preview"
                   >
                     <Eye className="h-3.5 w-3.5 text-muted-foreground" />
@@ -389,7 +389,7 @@ export default function ProfileFormGrid() {
                   <button
                     type="button"
                     onClick={() => setDocumentUrl("")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all"
+                    className="inline-flex flex-1 md:flex-none items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all"
                     title="Remove Document Selection"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -399,10 +399,10 @@ export default function ProfileFormGrid() {
                 <button
                   type="button"
                   onClick={() => setUploadModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+                  className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-3.5 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all whitespace-nowrap"
                 >
-                  <Upload className="h-3.5 w-3.5" />
-                  {documentUrl ? "Change Document" : "Upload Document"}
+                  <Upload className="h-3.5 w-3.5 shrink-0" />
+                  <span>{documentUrl ? "Change Document" : "Upload Document"}</span>
                 </button>
               </div>
             </div>

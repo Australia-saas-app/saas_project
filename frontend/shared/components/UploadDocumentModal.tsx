@@ -60,7 +60,7 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-[400px] bg-card rounded-2xl shadow-2xl border border-border p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>

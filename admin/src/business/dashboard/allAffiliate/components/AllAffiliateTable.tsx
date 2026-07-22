@@ -295,7 +295,11 @@ const AllAffiliateTable: React.FC = () => {
                 <TableRow key={a.userId}>
                   {/* Affiliate ID */}
                   <TableColumn>
-                    <span className="font-mono text-sm font-semibold text-blue-600">#{a.affiliateId}</span>
+                    <span className="font-mono text-sm font-semibold text-blue-600">
+                      {a.affiliateId && (a.affiliateId.startsWith("AFF-") || a.affiliateId.startsWith("USR-") || a.affiliateId.startsWith("BSN-"))
+                        ? a.affiliateId
+                        : `AFF-${(parseInt((a.affiliateId || '').replace(/\D/g, '').slice(-4), 10) || 1) < 10 ? `0${parseInt((a.affiliateId || '').replace(/\D/g, '').slice(-4), 10) || 1}` : parseInt((a.affiliateId || '').replace(/\D/g, '').slice(-4), 10) || 1}`}
+                    </span>
                   </TableColumn>
 
                   {/* Affiliate name + email */}
