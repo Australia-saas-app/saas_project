@@ -16,12 +16,21 @@ import { toast } from "sonner"
 type BackendUser = {
     userId: string
     accountType?: string
+    role?: string
     fullName?: string
     email?: string
     phone?: string | null
     currency?: string
     status?: string
     createdAt?: string
+    nationality?: string
+    dateOfBirth?: string
+    governmentId?: string
+    nationalIdentity?: string
+    idDocument?: string
+    documentUrl?: string
+    avatarUrl?: string
+    profilePhoto?: string
     totalProject?: number
     totalAmount?: number
     paidAmount?: number
@@ -103,7 +112,11 @@ const AllUserTable: React.FC = () => {
                     nationality: u.nationality,
                     dateOfBirth: u.dateOfBirth,
                     governmentId: u.governmentId || u.nationalIdentity,
+                    nationalIdentity: u.nationalIdentity || u.governmentId,
                     idDocument: u.idDocument || u.documentUrl,
+                    documentUrl: u.idDocument || u.documentUrl,
+                    avatarUrl: u.profilePhoto || u.avatarUrl,
+                    profilePhoto: u.profilePhoto || u.avatarUrl,
                     totalProject: u.totalProject || 0,
                     totalAmount: u.totalAmount || 0,
                     paidAmount: u.paidAmount || 0,

@@ -82,6 +82,11 @@ export class UserManagementService {
         'user.currency',
         'user.createdAt',
         'user.updatedAt',
+        'user.profilePhoto',
+        'user.nationality',
+        'user.dateOfBirth',
+        'user.governmentId',
+        'user.idDocument',
       ]);
 
     this.applyFilters(qb, query);

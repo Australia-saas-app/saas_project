@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Download, Upload, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import {
   downloadFile,
   getProfileDocuments,
   setProfileDocument,
-  clearProfileDocuments,
   type StoredDocument,
 } from "@/src/shared/utils/profile-storage";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
@@ -14,16 +13,12 @@ import { completeUserProfile } from "@/src/shared/server/AuthService";
 interface DocumentCardsProps {
   userId: string;
   onUpload?: (doc: StoredDocument) => void;
-  /** Fired when a document is removed so parent can refresh */
   onRemove?: () => void;
-  /** Pass a revision counter from the parent to trigger re-read after profile save */
   revision?: number;
 }
 
 export default function DocumentCards({ userId, onUpload, onRemove, revision }: DocumentCardsProps) {
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   // Re-read documents whenever userId or revision changes
@@ -37,23 +32,6 @@ export default function DocumentCards({ userId, onUpload, onRemove, revision }: 
     if (fileUrl && typeof fileUrl === "string") {
       downloadFile(fileUrl, doc.name || "document");
     }
-  };
-
-  const handleDeleteConfirm = async (doc: StoredDocument) => {
-    setDeletingId(doc.id);
-    setConfirmId(null);
-    try {
-      // Clear idDocument from backend DB (send null to clear the field)
-      await completeUserProfile({ idDocument: null, governmentId: null }).catch(() => undefined);
-    } catch {
-      // silently continue — local removal still proceeds
-    }
-    // Remove from localStorage
-    clearProfileDocuments(userId);
-    // Remove from UI
-    setDocuments([]);
-    setDeletingId(null);
-    onRemove?.();
   };
 
   const handleUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -125,7 +103,7 @@ export default function DocumentCards({ userId, onUpload, onRemove, revision }: 
 
             {/* Actions */}
             <div className="ml-2 flex shrink-0 items-center gap-2">
-              {/* Download */}
+              {/* Download only */}
               <button
                 type="button"
                 onClick={() => handleDownload(doc)}
@@ -135,48 +113,6 @@ export default function DocumentCards({ userId, onUpload, onRemove, revision }: 
               >
                 <Download className="h-4 w-4" />
               </button>
-
-              {/* Delete — two-step: first click shows confirm, second executes */}
-              {confirmId === doc.id ? (
-                <div className="flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1">
-                  <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  <span className="text-xs font-medium text-rose-600 dark:text-rose-400 whitespace-nowrap">Remove?</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteConfirm(doc)}
-                    className="ml-1 text-xs font-bold text-rose-600 hover:text-rose-700 underline underline-offset-2"
-                    disabled={deletingId === doc.id}
-                  >
-                    {deletingId === doc.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      "Yes"
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmId(null)}
-                    className="ml-0.5 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    No
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmId(doc.id)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 transition-colors"
-                  aria-label={`Remove ${doc.name}`}
-                  title="Remove document"
-                  disabled={deletingId === doc.id}
-                >
-                  {deletingId === doc.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                </button>
-              )}
             </div>
           </div>
         ))}

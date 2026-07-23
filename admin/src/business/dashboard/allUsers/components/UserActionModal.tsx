@@ -21,6 +21,8 @@ interface BackendUser {
   documentUrl?: string;
   documentName?: string;
   avatarUrl?: string;
+  profilePhoto?: string;
+  currency?: string;
 }
 
 interface UserProfile {
@@ -53,80 +55,41 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
   const [isDeleting, setIsDeleting] = useState(false);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
-  const [fetchedProfile, setFetchedProfile] = useState<UserProfile | null>(null);
-  const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
   useEffect(() => {
     if (user) setSelectedStatus(user.status?.toUpperCase() || "ACTIVE");
   }, [user]);
 
-  // Fetch full profile from backend when modal opens
+  // Reset zoom when modal closes
   useEffect(() => {
-    if (!isOpen || !user?.userId) return;
-    setFetchedProfile(null);
-    setIsFetchingProfile(true);
-    // Use token passed as prop (from Redux in AllUserTable), fall back to localStorage
-    const token = propToken || (typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "");
-    fetch(`/admin/api/sso/auth/admin/users/${user.userId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.ok ? r.json() : null)
-      .then((res) => {
-        if (res) {
-          // Backend returns { success: true, data: { ...user fields } }
-          const d = res?.data || res;
-          setFetchedProfile({
-            fullName: d.fullName,
-            nationality: d.nationality,
-            dateOfBirth: d.dateOfBirth,
-            nationalIdentity: d.governmentId || d.nationalIdentity || d.identityNumber,
-            governmentId: d.governmentId,
-            idDocument: d.idDocument || d.documentUrl,
-            documentUrl: d.idDocument || d.documentUrl,
-            documentName: d.documentName || (d.idDocument ? "Identity Document" : undefined),
-            avatarUrl: d.profilePhoto || d.avatarUrl,
-          });
-        }
-      })
-      .catch(() => {})
-      .finally(() => setIsFetchingProfile(false));
-  }, [isOpen, user?.userId]);
+    if (!isOpen) setZoomScale(1);
+  }, [isOpen]);
 
   if (!isOpen || !user) return null;
 
-  // Retrieve any overrides from local storage if running unified
-  let storedOverrides: Record<string, any> = {};
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem("user_profile_overrides_v2");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        storedOverrides = parsed[user.userId] || {};
-      }
-    } catch {}
-  }
-
-  // Priority: fetchedProfile (from backend API) > user object > localStorage overrides
-  const fullName = fetchedProfile?.fullName || user.fullName || storedOverrides.fullName || "User";
+  // All profile data comes directly from the user prop
+  // (the backend getUsers list now returns all profile fields)
+  const fullName = user.fullName || "User";
   const email = user.email || user.phone || "No Email/Phone";
   const role = String(user.accountType || user.role || "USER").toUpperCase();
-  
+
   let prefix = "USR-";
   if (role.includes("AGENCY") || role.includes("AFFILIATE")) prefix = "AFF-";
   else if (role.includes("BUSINESS") || role.includes("SELLER")) prefix = "BSN-";
-  
+
   const rawIdDigits = user.userId ? user.userId.replace(/\D/g, "") : "1";
   const val = parseInt(rawIdDigits.slice(-4), 10) || 1;
   const displayId = user.userId && (user.userId.startsWith("USR-") || user.userId.startsWith("AFF-") || user.userId.startsWith("BSN-"))
     ? user.userId
     : `${prefix}${val < 10 ? `0${val}` : `${val}`}`;
 
-  const nationality = fetchedProfile?.nationality || user.nationality || storedOverrides.nationality || "NA";
-  const dateOfBirth = fetchedProfile?.dateOfBirth || user.dateOfBirth || storedOverrides.dateOfBirth || "NA";
-  const nationalIdentity = fetchedProfile?.nationalIdentity || fetchedProfile?.governmentId || user.governmentId || user.nationalIdentity || storedOverrides.nationalIdentity || "NA";
-  const documentUrl = fetchedProfile?.idDocument || fetchedProfile?.documentUrl || user.idDocument || user.documentUrl || storedOverrides.documentUrl || "";
+  const nationality = user.nationality || "NA";
+  const dateOfBirth = user.dateOfBirth || "NA";
+  const nationalIdentity = user.governmentId || user.nationalIdentity || "NA";
+  const documentUrl = user.idDocument || user.documentUrl || "";
+  const avatarUrl = user.avatarUrl || user.profilePhoto || "";
 
-  const currentStatus = (user.status || storedOverrides.status || "PENDING").toUpperCase();
+  const currentStatus = (user.status || "PENDING").toUpperCase();
 
   const handleUpdate = async (newStatus?: string) => {
     const targetStatus = newStatus || selectedStatus;
@@ -212,17 +175,13 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
 
               {/* Body */}
               <div className="px-6 py-5 space-y-5 max-h-[75vh] overflow-y-auto">
-                {isFetchingProfile && (
-                  <div className="flex items-center justify-center gap-2 py-3 text-xs text-slate-500">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading profile data…
-                  </div>
-                )}
+
                 {/* Account Summary Header */}
                 <div className="flex items-center gap-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
                   <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-lg flex-shrink-0 overflow-hidden border-2 border-white dark:border-slate-700 shadow-sm">
-                    {fetchedProfile?.avatarUrl || user.avatarUrl ? (
+                    {avatarUrl ? (
                       <img
-                        src={fetchedProfile?.avatarUrl || user.avatarUrl}
+                        src={avatarUrl}
                         alt={fullName}
                         className="w-full h-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -267,6 +226,20 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
                     <span className="text-slate-400 font-semibold block mb-0.5">National Identity</span>
                     <span className="font-bold text-slate-800 dark:text-slate-200">{nationalIdentity}</span>
                   </div>
+
+                  {user.phone && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-400 font-semibold block mb-0.5">Phone</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{user.phone}</span>
+                    </div>
+                  )}
+
+                  {user.currency && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-400 font-semibold block mb-0.5">Currency</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{user.currency}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Document Preview Section */}
@@ -282,7 +255,7 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
-                            {fetchedProfile?.documentName || user.documentName || "Identity Document"}
+                            {user.documentName || "Identity Document"}
                           </p>
                           <p className="text-[10px] text-slate-400">Uploaded document</p>
                         </div>
