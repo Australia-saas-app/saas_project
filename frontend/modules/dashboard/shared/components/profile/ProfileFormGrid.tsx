@@ -31,6 +31,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     documentUrl: initialDocumentUrl,
     isVerified,
     updateProfile,
+    status: userStatus,
   } = useProfileDisplay();
 
   const accountType: ProfileAccountType = accountTypeFromRole(user?.role);
@@ -48,16 +49,19 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const overrides = getProfileOverrides(rawUserId);
-  const [showUnverifiedBanner, setShowUnverifiedBanner] = useState(
-    Boolean(overrides.unverifiedByAdmin && !overrides.resubmitted)
-  );
 
-  // Re-evaluate banner when userId changes (login/switch)
+  // Show banner when status is pending (set by admin unverify) OR when localStorage explicitly marks unverifiedByAdmin
+  const isPendingStatus = userStatus === "pending" || userStatus === "unverified";
+  const isLocallyUnverified = Boolean(overrides.unverifiedByAdmin && !overrides.resubmitted);
+  const [showUnverifiedBanner, setShowUnverifiedBanner] = useState(isPendingStatus || isLocallyUnverified);
+
+  // Re-evaluate banner when userId or user status changes
   useEffect(() => {
     if (!rawUserId) return;
     const o = getProfileOverrides(rawUserId);
-    setShowUnverifiedBanner(Boolean(o.unverifiedByAdmin && !o.resubmitted));
-  }, [rawUserId]);
+    const locallyUnverified = Boolean(o.unverifiedByAdmin && !o.resubmitted);
+    setShowUnverifiedBanner(isPendingStatus || locallyUnverified);
+  }, [rawUserId, userStatus, isPendingStatus]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 

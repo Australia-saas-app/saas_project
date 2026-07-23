@@ -161,8 +161,21 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
         toast.dismiss();
         toast.success("Use code 234567 to verify (SMS not implemented yet)");
       }
-    } catch {
-      // Error toast is already shown by useSendRegistrationOtp.onError
+    } catch (err: any) {
+      // Error toast is already shown by useSendRegistrationOtp.onError,
+      // but we override here for "already exists" case with a clearer message
+      const msg: string = err?.message || "";
+      if (
+        msg.toLowerCase().includes("already exists") ||
+        msg.toLowerCase().includes("already registered") ||
+        msg.toLowerCase().includes("already used") ||
+        msg.toLowerCase().includes("conflict")
+      ) {
+        toast.dismiss(); // remove the generic toast shown by the hook
+        const label = isEmail ? "Email address" : "Phone number";
+        toast.error(`${label} is already registered. Please log in or use a different ${isEmail ? "email" : "phone number"}.`);
+      }
+      // Do NOT advance to step 2 — stay on step 1
     }
   };
 

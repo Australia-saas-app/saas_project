@@ -64,13 +64,27 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
     if (!isOpen || !user?.userId) return;
     setFetchedProfile(null);
     setIsFetchingProfile(true);
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token") || "" : "";
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "";
     fetch(`/admin/api/sso/auth/admin/users/${user.userId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) setFetchedProfile(data?.profile || data?.user?.profile || data);
+      .then((res) => {
+        if (res) {
+          // Backend returns { success: true, data: { ...user fields } }
+          const d = res?.data || res;
+          setFetchedProfile({
+            fullName: d.fullName,
+            nationality: d.nationality,
+            dateOfBirth: d.dateOfBirth,
+            nationalIdentity: d.governmentId || d.nationalIdentity || d.identityNumber,
+            governmentId: d.governmentId,
+            idDocument: d.idDocument || d.documentUrl,
+            documentUrl: d.idDocument || d.documentUrl,
+            documentName: d.documentName || (d.idDocument ? "Identity Document" : undefined),
+            avatarUrl: d.profilePhoto || d.avatarUrl,
+          });
+        }
       })
       .catch(() => {})
       .finally(() => setIsFetchingProfile(false));
@@ -114,41 +128,7 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
 
   const handleUpdate = async (newStatus?: string) => {
     const targetStatus = newStatus || selectedStatus;
-
-    // If already pending and clicking unverify, show info toast and exit
-    if (targetStatus === "PENDING" && currentStatus === "PENDING") {
-      toast.info("Account is already Pending");
-      return;
-    }
-
     setUpdatingAction(targetStatus);
-
-    // Save unverified flag in storage if set to pending/unverify
-    if (typeof window !== "undefined" && targetStatus === "PENDING") {
-      try {
-        const raw = localStorage.getItem("user_profile_overrides_v2") || "{}";
-        const map = JSON.parse(raw);
-        map[user.userId] = {
-          ...map[user.userId],
-          status: "pending",
-          unverifiedByAdmin: true,
-          resubmitted: false,
-        };
-        localStorage.setItem("user_profile_overrides_v2", JSON.stringify(map));
-      } catch {}
-    } else if (typeof window !== "undefined" && targetStatus === "ACTIVE") {
-      try {
-        const raw = localStorage.getItem("user_profile_overrides_v2") || "{}";
-        const map = JSON.parse(raw);
-        map[user.userId] = {
-          ...map[user.userId],
-          status: "active",
-          unverifiedByAdmin: false,
-          resubmitted: false,
-        };
-        localStorage.setItem("user_profile_overrides_v2", JSON.stringify(map));
-      } catch {}
-    }
 
     await onStatusUpdate(user.userId, targetStatus);
 
@@ -156,6 +136,8 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
       toast.warning(`Account Unverified — ${fullName} has been set to Pending.`);
     } else if (targetStatus === "ACTIVE") {
       toast.success(`Account Verified — ${fullName} is now Active.`);
+    } else {
+      toast.success(`Status updated to ${targetStatus}.`);
     }
 
     setUpdatingAction('');
