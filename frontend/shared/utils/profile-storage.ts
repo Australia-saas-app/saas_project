@@ -86,6 +86,14 @@ export const setProfileDocument = (userId: string, doc: StoredDocument) => {
   setStorageMap(DOCUMENTS_STORAGE_KEY, all);
 };
 
+/** Remove ALL documents for a user (used when user deletes their document). */
+export const clearProfileDocuments = (userId: string) => {
+  if (!userId) return;
+  const all = getStorageMap<StoredDocument[]>(DOCUMENTS_STORAGE_KEY);
+  delete all[userId];
+  setStorageMap(DOCUMENTS_STORAGE_KEY, all);
+};
+
 /** Download a file from a data URL or external URL preserving the original extension/format. */
 export const downloadFile = (url: string, filename: string) => {
   if (typeof window === "undefined") return;

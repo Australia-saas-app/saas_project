@@ -7,7 +7,7 @@ import { toast } from "sonner";
 interface UploadDocumentModalProps {
   open: boolean;
   onClose: () => void;
-  onUploadSuccess: (url: string) => void;
+  onUploadSuccess: (url: string, filename: string, sizeLabel: string) => void;
   existingUrl?: string;
 }
 
@@ -51,7 +51,9 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
 
     setIsUploading(true);
     setTimeout(() => {
-      onUploadSuccess(previewUrl);
+      const filename = selectedFile?.name || "identity-document";
+      const sizeLabel = selectedFile ? `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB` : "";
+      onUploadSuccess(previewUrl, filename, sizeLabel);
       toast.success("Document Uploaded Successfully");
       setIsUploading(false);
       onClose();

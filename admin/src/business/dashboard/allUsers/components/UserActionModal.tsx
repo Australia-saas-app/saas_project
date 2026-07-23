@@ -41,11 +41,12 @@ interface UserActionModalProps {
   onClose: () => void;
   onStatusUpdate: (userId: string, newStatus: string) => Promise<void>;
   onDelete: (userId: string) => Promise<void>;
+  token?: string;
 }
 
 const statuses = ["ACTIVE", "PENDING", "SUSPENDED", "DORMANT", "CLOSED", "BLOCKED"];
 
-export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete }: UserActionModalProps) {
+export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete, token: propToken }: UserActionModalProps) {
   const [selectedStatus, setSelectedStatus] = useState(user?.status?.toUpperCase() || "ACTIVE");
   const [updatingAction, setUpdatingAction] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -64,7 +65,8 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
     if (!isOpen || !user?.userId) return;
     setFetchedProfile(null);
     setIsFetchingProfile(true);
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "";
+    // Use token passed as prop (from Redux in AllUserTable), fall back to localStorage
+    const token = propToken || (typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "");
     fetch(`/admin/api/sso/auth/admin/users/${user.userId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })

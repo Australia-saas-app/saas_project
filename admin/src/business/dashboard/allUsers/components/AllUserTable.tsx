@@ -315,6 +315,7 @@ const AllUserTable: React.FC = () => {
                 onClose={() => setIsModalOpen(false)} 
                 onStatusUpdate={handleStatusUpdate}
                 onDelete={handleDelete}
+                token={token}
             />
         </div>
     )

@@ -11,7 +11,7 @@ import { ALL_COUNTRIES, ALL_NATIONALITIES, CURRENCY_LIST } from "@/src/shared/co
 import { markProfileComplete, type ProfileAccountType } from "@/src/shared/lib/profile-completion";
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
-import { getProfileOverrides, setProfileDocument } from "@/src/shared/utils/profile-storage";
+import { getProfileOverrides, setProfileDocument, clearProfileDocuments } from "@/src/shared/utils/profile-storage";
 import UploadDocumentModal from "@/src/shared/components/UploadDocumentModal";
 
 export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange?: () => void } = {}) {
@@ -45,6 +45,8 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [secondaryEmail, setSecondaryEmail] = useState(initialSecondaryEmail || "");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
+  const [documentFileName, setDocumentFileName] = useState<string>("");
+  const [documentSizeLabel, setDocumentSizeLabel] = useState<string>("");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
@@ -163,6 +165,9 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
       // Hide the unverified banner immediately after successful update
       setShowUnverifiedBanner(false);
+
+      // Refresh the document card below to reflect any document changes
+      onDocumentChange?.();
 
       // Stay on the profile page
       setTimeout(() => {
@@ -386,9 +391,17 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                 {documentUrl && (
                   <button
                     type="button"
-                    onClick={() => setDocumentUrl("")}
+                    onClick={async () => {
+                      setDocumentUrl("");
+                      // Clear from localStorage
+                      if (rawUserId) clearProfileDocuments(rawUserId);
+                      // Clear from DB
+                      await completeUserProfile({ idDocument: null, governmentId: null }).catch(() => undefined);
+                      // Refresh the document card below
+                      onDocumentChange?.();
+                    }}
                     className="inline-flex flex-1 md:flex-none items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all"
-                    title="Remove Document Selection"
+                    title="Remove Document"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     <span>Remove</span>
@@ -441,17 +454,18 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         open={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         existingUrl={documentUrl}
-        onUploadSuccess={(url) => {
+        onUploadSuccess={(url, filename, sizeLabel) => {
           setDocumentUrl(url);
+          setDocumentFileName(filename);
+          setDocumentSizeLabel(sizeLabel);
           // Replace the stored document entry so the card below always shows the latest
           if (rawUserId) {
-            const fileExt = url.startsWith("data:image/png") ? "png" : url.startsWith("data:image/jpeg") || url.startsWith("data:image/jpg") ? "jpg" : "img";
             setProfileDocument(rawUserId, {
               id: `doc-${Date.now()}`,
               type: "UPLOADED",
-              name: `identity-document.${fileExt}`,
+              name: filename || `identity-document`,
               mimeType: url.split(";")[0].split(":")[1] || "image/png",
-              sizeLabel: "",
+              sizeLabel: sizeLabel || "",
               uploadedAt: new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
               url,
             });

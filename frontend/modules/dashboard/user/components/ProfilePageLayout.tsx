@@ -101,7 +101,11 @@ export default function ProfilePageLayout() {
 
         {/* Document Cards - revision triggers re-read from storage */}
         <div className="border-t border-border">
-          <DocumentCards userId={rawUserId} revision={docRevision} />
+          <DocumentCards
+            userId={rawUserId}
+            revision={docRevision}
+            onRemove={() => setDocRevision((r) => r + 1)}
+          />
         </div>
       </div>
     </div>
