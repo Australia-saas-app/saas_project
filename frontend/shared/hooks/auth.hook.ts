@@ -89,8 +89,10 @@ const getDashboardRedirect = (role?: string, userId?: string) => {
     const normalized = role?.toUpperCase();
     if (normalized === "ADMIN" || normalized === "SUPER_ADMIN") return adminAppPath("/admin/dashboard");
 
-    // All other users go to the homepage upon login to see the header profile pill
-    return ROUTES.home;
+    const accountType = accountTypeFromRole(role);
+    if (accountType === "business") return "/business/dashboard";
+    if (accountType === "affiliate") return "/affiliate/dashboard";
+    return "/user/dashboard";
 };
 
 export const useUserLogin = (redirectUrl?: string | null) => {
