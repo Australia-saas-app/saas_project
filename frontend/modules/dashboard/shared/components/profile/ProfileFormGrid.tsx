@@ -91,7 +91,32 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     initialPhone,
     initialSecondaryEmail,
     initialCurrency,
+    nationality,
+    dateOfBirth,
+    nationalIdentity,
+    countryCode,
+    phone,
+    secondaryEmail,
+    currency,
   ]);
+
+  // Sync profile details and document to backend DB automatically on mount if local overrides exist
+  useEffect(() => {
+    if (!user || !documentUrl) return;
+    const u = user as any;
+    const dbAccountType = u?.accountType || (accountType === "affiliate" ? "AGENCY" : accountType.toUpperCase());
+    completeUserProfile({
+      accountType: dbAccountType,
+      fullName: fullName || u.fullName,
+      nationality: nationality || u.nationality,
+      dateOfBirth: dateOfBirth || u.dateOfBirth,
+      governmentId: nationalIdentity || u.governmentId,
+      idDocument: documentUrl || u.idDocument,
+      phone: phone ? `${countryCode}${phone}` : u.phone,
+      email: email || u.email,
+      currency: currency || u.currency,
+    }).catch(() => undefined);
+  }, [user, documentUrl, rawUserId]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();

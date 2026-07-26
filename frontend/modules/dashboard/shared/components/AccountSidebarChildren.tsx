@@ -43,7 +43,7 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
   const { isAffiliate, isBusiness } = usePermission()
   const { t } = useLocale()
   const logoutMutation = useLogout()
-  const { avatarUrl } = useProfileDisplay()
+  const { avatarUrl, isVerified } = useProfileDisplay()
 
   let dashboardPrefix = "/user"
   if (isAffiliate) {
@@ -53,7 +53,13 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
   }
 
   const userId = getUserIdFromAuthUser(user)
-  const isComplete = isProfileComplete(userId)
+  const userStatus = String((user as any)?.status ?? "").toLowerCase()
+  const isComplete =
+    isProfileComplete(userId) ||
+    isVerified ||
+    userStatus === "active" ||
+    userStatus === "verified" ||
+    userStatus === "approved"
 
   const menuItems = !isAffiliate && !isBusiness
     ? [

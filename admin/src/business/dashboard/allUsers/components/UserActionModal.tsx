@@ -226,20 +226,6 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
                     <span className="text-slate-400 font-semibold block mb-0.5">National Identity</span>
                     <span className="font-bold text-slate-800 dark:text-slate-200">{nationalIdentity}</span>
                   </div>
-
-                  {user.phone && (
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-400 font-semibold block mb-0.5">Phone</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{user.phone}</span>
-                    </div>
-                  )}
-
-                  {user.currency && (
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-400 font-semibold block mb-0.5">Currency</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{user.currency}</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Document Preview Section */}

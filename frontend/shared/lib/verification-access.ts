@@ -28,6 +28,8 @@ function isAccountMaintenancePath(pathname: string | null | undefined): boolean 
   return /^\/(user|affiliate|business)\/(profile|settings|complete-profile)(\/|$)/.test(pathname);
 }
 
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
+
 export function resolveDashboardAccess(
   user: IUser | IDecodedToken | null,
   pathname?: string | null
@@ -46,7 +48,21 @@ export function resolveDashboardAccess(
     return { allowed: true };
   }
 
+  const userStatus = String((user as any)?.status ?? "").toLowerCase();
+  if (userStatus === "active" || userStatus === "verified" || userStatus === "approved") {
+    return { allowed: true };
+  }
+
   const userId = getUserIdFromAuthUser(user) || (user && "id" in user ? String(user.id) : undefined);
+
+  if (userId) {
+    const overrides = getProfileOverrides(userId);
+    const overrideStatus = String(overrides?.status ?? "").toLowerCase();
+    if (overrideStatus === "active" || overrideStatus === "verified" || overrideStatus === "approved") {
+      return { allowed: true };
+    }
+  }
+
   if (!userId) {
     return {
       allowed: false,

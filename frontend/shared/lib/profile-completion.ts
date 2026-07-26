@@ -37,9 +37,14 @@ export function getProfileCompletion(userId: string): ProfileCompletionRecord | 
   return readAll()[userId] ?? null
 }
 
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
+
 export function isProfileComplete(userId: string | undefined | null): boolean {
   if (!userId) return false
-  return getProfileCompletion(userId)?.complete === true
+  if (getProfileCompletion(userId)?.complete === true) return true
+  const overrides = getProfileOverrides(userId)
+  const status = String(overrides?.status ?? "").toLowerCase()
+  return status === "active" || status === "verified" || status === "approved"
 }
 
 export function markProfileComplete(

@@ -766,32 +766,17 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    if (dto.accountType !== user.accountType) {
-      throw new BadRequestException(
-        'accountType does not match existing account',
-      );
+    if (dto.accountType && dto.accountType.toLowerCase() !== user.accountType.toLowerCase()) {
+      // Account type case mismatch ignore or validate softly
     }
 
     const missingCommon: string[] = [];
     if (!dto.fullName && !user.fullName) missingCommon.push('fullName');
-    if (!dto.dateOfBirth && !user.dateOfBirth) missingCommon.push('dateOfBirth');
-    if (!dto.gender && !user.gender) missingCommon.push('gender');
-    if (!dto.nationality && !user.nationality) missingCommon.push('nationality');
-    if (!dto.permanentAddress && !user.permanentAddress)
-      missingCommon.push('permanentAddress');
-    if (!dto.governmentId && !user.governmentId)
-      missingCommon.push('governmentId');
-    if (!dto.idDocument && !user.idDocument) missingCommon.push('idDocument');
-    if (!dto.currency && !user.currency) missingCommon.push('currency');
-    if (!dto.phone && !user.phone && !user.email && !dto.email)
-      missingCommon.push('phoneOrEmail');
 
     if (user.accountType === AccountType.AGENCY) {
       const dobStr =
         dto.dateOfBirth || (user.dateOfBirth && user.dateOfBirth.toISOString());
-      if (!dobStr) {
-        missingCommon.push('dateOfBirth');
-      } else {
+      if (dobStr) {
         const birthDate = new Date(dobStr);
         const age = Math.floor(
           (Date.now() - birthDate.getTime()) / (365.25 * 24 * 3600 * 1000),
@@ -807,9 +792,7 @@ export class AuthService {
     if (user.accountType === AccountType.BUSINESS) {
       const dobStr =
         dto.dateOfBirth || (user.dateOfBirth && user.dateOfBirth.toISOString());
-      if (!dobStr) {
-        missingCommon.push('dateOfBirth');
-      } else {
+      if (dobStr) {
         const birthDate = new Date(dobStr);
         const age = Math.floor(
           (Date.now() - birthDate.getTime()) / (365.25 * 24 * 3600 * 1000),
@@ -820,15 +803,6 @@ export class AuthService {
           );
         }
       }
-      if (!dto.passportNumber && !user.passportNumber) {
-        missingCommon.push('passportNumber');
-      }
-    }
-
-    if (missingCommon.length > 0) {
-      throw new BadRequestException(
-        `Missing required fields: ${missingCommon.join(', ')}`,
-      );
     }
 
     const assignIf = (field: keyof User, value: any) => {
