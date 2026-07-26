@@ -108,6 +108,15 @@ export default function Header() {
     return getInitials(String(source));
   }, [user]);
 
+  const roleLabel = useMemo(() => {
+    if (!user) return "User";
+    const r = String((user as any).accountType || ('role' in user ? user.role : ('roles' in user ? (user as any).roles?.[0] : ""))).toUpperCase();
+    if (r.includes("AGENCY") || r.includes("AFFILIATE")) return "Affiliate";
+    if (r.includes("BUSINESS") || r.includes("SELLER")) return "Business";
+    if (r.includes("ADMIN")) return "Admin";
+    return "User";
+  }, [user]);
+
   const goToAccount = () => {
     if (isAdmin) {
       window.location.assign(accountHref);
@@ -259,7 +268,7 @@ export default function Header() {
                         {('fullName' in user && user.fullName) || ('name' in user && user.name) || ('email' in user && user.email) || "User"}
                       </span>
                       <span className="text-[10px] text-muted-foreground capitalize leading-tight">
-                        {user.accountType === "agency" ? "Affiliate" : user.accountType || ('roles' in user && user.roles?.[0]) || "User"}
+                        {roleLabel}
                       </span>
                     </div>
                     <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary transition-transform ${profileOpen ? "rotate-180" : ""}`} />
