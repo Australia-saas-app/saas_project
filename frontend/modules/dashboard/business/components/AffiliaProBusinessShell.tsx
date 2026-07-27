@@ -86,8 +86,8 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
   }, [normalizedPath]);
 
   const sidebar = (
-    <aside className="flex h-full w-[260px] flex-col border-r border-gray-100 bg-white">
-      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-gray-100 px-4">
+    <aside className="flex h-full w-[260px] flex-col border-r border-border bg-card">
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border px-4">
         <div
           className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm"
           style={{ backgroundColor: PRIMARY }}
@@ -96,12 +96,12 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
           <LayoutGrid className="h-4.5 w-4.5 h-[18px] w-[18px]" />
         </div>
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-base font-bold tracking-tight text-gray-900">AffiliaPro</p>
-          <p className="truncate text-[11px] font-medium text-gray-400">Business Account</p>
+          <p className="truncate text-base font-bold tracking-tight text-foreground">AffiliaPro</p>
+          <p className="truncate text-[11px] font-medium text-muted-foreground">Business Account</p>
         </div>
         <button
           type="button"
-          className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-50 lg:hidden"
+          className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
           onClick={() => setMobileOpen(false)}
           aria-label="Close menu"
         >
@@ -113,7 +113,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
         {AFFILIAPRO_NAV_GROUPS.map((group) => (
           <div key={group.id} className={group.label ? "mt-4 first:mt-0" : "first:mt-0"}>
             {group.label && (
-              <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">
+              <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 {group.label}
               </p>
             )}
@@ -130,12 +130,12 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
                         showActive
-                          ? "bg-indigo-500 text-white shadow-sm shadow-indigo-500/20"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
                     >
                       <Icon
-                        className={`h-4 w-4 shrink-0 ${showActive ? "text-white" : "text-gray-400"}`}
+                        className={`h-4 w-4 shrink-0 ${showActive ? "text-white" : "text-muted-foreground"}`}
                       />
                       <span className="truncate">{item.label}</span>
                     </Link>
@@ -150,7 +150,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F8F9FC]">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <div className="hidden lg:block">{sidebar}</div>
 
@@ -159,7 +159,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-gray-900/40"
+            className="absolute inset-0 bg-black/50 backdrop-blur-xs"
             aria-label="Close menu overlay"
             onClick={() => setMobileOpen(false)}
           />
@@ -168,19 +168,19 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
       )}
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-gray-100 bg-white px-4 md:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-50 lg:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="hidden min-w-0 sm:block">
-              <p className="truncate text-sm font-semibold text-gray-900">Business Account</p>
-              <p className="truncate text-[11px] text-gray-400">AffiliaPro Partner Portal</p>
+              <p className="truncate text-sm font-semibold text-foreground">Business Account</p>
+              <p className="truncate text-[11px] text-muted-foreground">AffiliaPro Partner Portal</p>
             </div>
           </div>
 
@@ -200,7 +200,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
               <button
                 type="button"
                 onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-2.5 rounded-xl py-1.5 pr-2 pl-1.5 hover:bg-gray-50"
+                className="flex items-center gap-2.5 rounded-xl py-1.5 pr-2 pl-1.5 hover:bg-muted"
               >
                 <span
                   className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white"
@@ -209,8 +209,8 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
                   {initials}
                 </span>
                 <span className="hidden min-w-0 text-left md:block">
-                  <span className="block truncate text-sm font-semibold text-gray-900">{name}</span>
-                  <span className="block text-[11px] text-gray-400">Business Account</span>
+                  <span className="block truncate text-sm font-semibold text-foreground">{name}</span>
+                  <span className="block text-[11px] text-muted-foreground">Business Account</span>
                 </span>
               </button>
 
@@ -222,34 +222,34 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
                     aria-label="Close profile menu"
                     onClick={() => setProfileOpen(false)}
                   />
-                  <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                  <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg text-foreground">
                     <Link
                       href="/business/profile"
-                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
                       onClick={() => setProfileOpen(false)}
                     >
-                      <Settings className="h-4 w-4 text-gray-400" />
+                      <Settings className="h-4 w-4 text-muted-foreground" />
                       Business Profile
                     </Link>
                     <Link
                       href="/business/settings"
-                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
                       onClick={() => setProfileOpen(false)}
                     >
-                      <Settings className="h-4 w-4 text-gray-400" />
+                      <Settings className="h-4 w-4 text-muted-foreground" />
                       Settings
                     </Link>
                     <Link
                       href="/business/notices"
-                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
                       onClick={() => setProfileOpen(false)}
                     >
-                      <Bell className="h-4 w-4 text-gray-400" />
+                      <Bell className="h-4 w-4 text-muted-foreground" />
                       Notices
                     </Link>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-rose-600 hover:bg-rose-50"
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                       onClick={() => {
                         setProfileOpen(false);
                         logoutMutation.mutate();

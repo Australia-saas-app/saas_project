@@ -221,8 +221,8 @@ export default function BusinessServicesLayout() {
             <Briefcase className="h-4 w-4" />
             <span className="text-xs font-bold uppercase tracking-wide">Business</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">{t.business.services.title}</h1>
-          <p className="mt-1 text-sm text-gray-500">{t.business.services.subtitle}</p>
+          <h1 className="text-xl font-bold text-foreground">{t.business.services.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t.business.services.subtitle}</p>
         </div>
         <button
           type="button"
@@ -235,9 +235,9 @@ export default function BusinessServicesLayout() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {serviceStats.map((stat) => (
-          <div key={stat.label} className="rounded border border-gray-100 bg-white p-4 shadow-sm">
+          <div key={stat.label} className="rounded border border-border bg-card p-4 shadow-sm">
             <p className="mb-1 text-xs font-bold text-primary">{stat.label}</p>
-            <h3 className="text-xl font-bold text-gray-900">{stat.value}</h3>
+            <h3 className="text-xl font-bold text-foreground">{stat.value}</h3>
           </div>
         ))}
       </div>
@@ -253,11 +253,10 @@ export default function BusinessServicesLayout() {
                 setSelectedCategory(active ? null : cat.name);
                 setPage(1);
               }}
-              className={`rounded-lg border p-4 text-left shadow-sm transition-all ${
-                active
+              className={`rounded-lg border p-4 text-left shadow-sm transition-all ${active
                   ? "border-primary bg-primary text-white"
-                  : "border-gray-100 bg-white hover:border-primary/30"
-              }`}
+                  : "border-border bg-card hover:border-primary/30 text-foreground"
+                }`}
             >
               <div
                 className={`mb-3 h-1.5 w-10 rounded-full ${active ? "bg-white/80" : cat.color}`}
@@ -265,7 +264,7 @@ export default function BusinessServicesLayout() {
               <p className={`text-xs font-bold ${active ? "text-white/90" : "text-primary"}`}>
                 {cat.name}
               </p>
-              <p className={`mt-1 text-lg font-bold ${active ? "text-white" : "text-gray-900"}`}>
+              <p className={`mt-1 text-lg font-bold ${active ? "text-white" : "text-foreground"}`}>
                 {cat.count}
               </p>
             </button>
@@ -273,7 +272,7 @@ export default function BusinessServicesLayout() {
         })}
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {TABS.map((tab) => (
@@ -284,11 +283,10 @@ export default function BusinessServicesLayout() {
                   setActiveTab(tab);
                   setPage(1);
                 }}
-                className={`rounded px-4 py-2 text-xs font-bold transition-colors ${
-                  activeTab === tab
+                className={`rounded px-4 py-2 text-xs font-bold transition-colors ${activeTab === tab
                     ? "bg-primary text-white shadow-sm"
-                    : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
+                    : "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
               >
                 {tabLabels[tab]}
               </button>

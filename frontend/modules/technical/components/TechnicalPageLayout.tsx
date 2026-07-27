@@ -32,6 +32,8 @@ export default function TechnicalPageLayout() {
   const [isMobile, setIsMobile] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_TECHNICAL_FILTERS);
 
+  const [liveApprovedProjects, setLiveApprovedProjects] = useState<any[]>([]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 1024px)");
@@ -41,12 +43,54 @@ export default function TechnicalPageLayout() {
     };
     update();
     mq.addEventListener("change", update);
+
+    try {
+      const raw = localStorage.getItem("business_service_rows");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const approved = parsed
+            .filter(
+              (s: any) =>
+                (s.status?.toUpperCase() === "ACTIVE" || s.status?.toUpperCase() === "COMPLETED") &&
+                (s.category === "Technical" || s.title || s.subCategory)
+            )
+            .map((s: any, idx: number) => ({
+              id: 9000 + idx,
+              title: s.title || `${s.category || "Technical"} Service (${s.id})`,
+              category: s.subCategory || "Web Development",
+              categoryFilter: "web",
+              projectType: "new-build",
+              subcategory: "fullstack",
+              skills: s.skills && s.skills.length > 0 ? s.skills : ["React", "TypeScript", "Node.js"],
+              duration: s.deadline || "14 Days",
+              experience: "3+ Years",
+              price: Number(String(s.budget).replace(/[^0-9.]/g, "")) || 1500,
+              priceRange: s.budget || "$1,500.00",
+              modified: "Recently Approved",
+              languages: ["english"],
+              location: "Remote",
+              description:
+                s.summary ||
+                `Professional technical service listed by ${s.client}. Verified and approved by Admin.`,
+            }));
+          setLiveApprovedProjects(approved);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     return () => mq.removeEventListener("change", update);
   }, []);
 
+  const allProjects = useMemo(() => {
+    return [...liveApprovedProjects, ...MOCK_TECHNICAL_PROJECTS];
+  }, [liveApprovedProjects]);
+
   const filtered = useMemo(
-    () => filterTechnicalProjects(MOCK_TECHNICAL_PROJECTS, filters, query),
-    [filters, query]
+    () => filterTechnicalProjects(allProjects as any, filters, query),
+    [allProjects, filters, query]
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
