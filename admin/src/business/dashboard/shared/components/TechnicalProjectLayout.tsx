@@ -340,7 +340,7 @@ const TechnicalProjectLayout: React.FC = () => {
       {/* Beautiful Admin Inspection & Verification Modal */}
       {modalOpen && selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
-          <div className="relative w-full max-w-md sm:max-w-lg rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto">
+          <div className="relative w-full max-w-[420px] rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-blue-600 dark:text-blue-400">

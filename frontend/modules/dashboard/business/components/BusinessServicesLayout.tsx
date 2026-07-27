@@ -258,15 +258,15 @@ export default function BusinessServicesLayout() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Category Summary Cards */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {SERVICE_CATEGORIES.map((cat) => {
           const active = selectedCategory === cat.name;
-          const realCount =
-            services.filter(
-              (s) =>
-                s.category === cat.name ||
-                (cat.name === "Technical" && (s.category === "Technical" || s.subCategory))
-            ).length;
+          const realCount = services.filter(
+            (s) =>
+              s.category === cat.name ||
+              (cat.name === "Technical" && (s.category === "Technical" || s.subCategory))
+          ).length;
 
           return (
             <div
@@ -332,6 +332,24 @@ export default function BusinessServicesLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Category Dropdown Filter */}
+            <select
+              value={selectedCategory || "all"}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCategory(val === "all" ? null : val);
+                setPage(1);
+              }}
+              className="h-8 rounded border border-border bg-background px-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
+            >
+              <option value="all">All Categories</option>
+              {SERVICE_CATEGORIES.map((cat) => (
+                <option key={cat.name} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+
             <div className="relative">
               <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -386,8 +404,9 @@ export default function BusinessServicesLayout() {
         </div>
 
         {viewMode === "grid" ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {pageData.map((row) => (
+          <div className="max-h-[600px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {pageData.map((row) => (
               <div
                 key={row.id}
                 className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md"
@@ -458,7 +477,8 @@ export default function BusinessServicesLayout() {
                   </button>
                 </div>
               </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -480,9 +500,8 @@ export default function BusinessServicesLayout() {
                     <td className="p-3 font-semibold">{row.id}</td>
                     <td className="p-3">{row.category}</td>
                     <td className="p-3 text-muted-foreground">{row.client}</td>
-                    <td className="p-3 font-medium">{row.budget}</td>
                     <td className="p-3 text-muted-foreground">{row.deadline}</td>
-                    <td className="p-3">{renderServiceStatus(row.status)}</td>
+                    <td className="p-3 whitespace-nowrap">{renderServiceStatus(row.status)}</td>
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button
@@ -522,6 +541,7 @@ export default function BusinessServicesLayout() {
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         title={selectedService ? `Manage ${selectedService.id}` : "Service"}
+        size="sm"
         description={selectedService?.client}
         icon={<Briefcase className="h-5 w-5" />}
         badge={
@@ -699,7 +719,7 @@ export default function BusinessServicesLayout() {
       {/* Theme Styled Permanent Delete Confirmation Modal with Spinner */}
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-md rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in">
+          <div className="relative w-full max-w-[400px] rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in">
             <div className="flex items-center gap-3 text-rose-500">
               <div className="rounded-full bg-rose-500/10 p-2.5">
                 <AlertTriangle className="h-6 w-6 text-rose-600" />

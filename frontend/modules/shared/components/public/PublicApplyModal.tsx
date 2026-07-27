@@ -93,7 +93,7 @@ export function PublicApplyModal({
   }
 
   return (
-    <AppModal open={open} onClose={onClose} title={title} description={description} size="md">
+    <AppModal open={open} onClose={onClose} title={title} description={description} size="sm">
       {isLoading ? (
         <p className="text-sm text-gray-500">Checking your session…</p>
       ) : !isAuthenticated ? (

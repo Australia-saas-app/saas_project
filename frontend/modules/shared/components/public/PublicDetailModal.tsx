@@ -25,7 +25,7 @@ export function PublicDetailModal({
   footer,
 }: PublicDetailModalProps) {
   return (
-    <AppModal open={open} onClose={onClose} title={title} description={subtitle} size="md">
+    <AppModal open={open} onClose={onClose} title={title} description={subtitle} size="sm">
       <dl className="space-y-3">
         {fields.map((field) => (
           <div key={field.label} className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">

@@ -33,6 +33,7 @@ export default function TechnicalPageLayout() {
   const [filters, setFilters] = useState(DEFAULT_TECHNICAL_FILTERS);
 
   const [liveApprovedProjects, setLiveApprovedProjects] = useState<any[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -79,14 +80,16 @@ export default function TechnicalPageLayout() {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setDataLoaded(true);
     }
 
     return () => mq.removeEventListener("change", update);
   }, []);
 
   const allProjects = useMemo(() => {
-    return liveApprovedProjects.length > 0 ? liveApprovedProjects : MOCK_TECHNICAL_PROJECTS;
-  }, [liveApprovedProjects]);
+    return dataLoaded ? liveApprovedProjects : [];
+  }, [liveApprovedProjects, dataLoaded]);
 
   const filtered = useMemo(
     () => filterTechnicalProjects(allProjects as any, filters, query),
