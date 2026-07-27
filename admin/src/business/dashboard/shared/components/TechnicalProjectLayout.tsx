@@ -5,42 +5,22 @@ import PageHeader from '@/src/shared/ui/ui/PageHeader'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/ui/ui/select'
 import { Pagination } from "@/src/shared/ui/ui/pagination"
 import { SearchInput } from "@/src/shared/ui/form/search-input"
-import { MessageSquare, Eye, CheckCircle, X, ShieldCheck, DollarSign, Layers, Calendar, Check, Briefcase } from "lucide-react"
+import { MessageSquare, Eye, X, Layers } from "lucide-react"
 import { Table } from "@/src/shared/ui/table/Table"
 import { TableHeading } from "@/src/shared/ui/table/TableHeading"
 import { TableRow } from "@/src/shared/ui/table/TableRow"
 import { TableColumn } from "@/src/shared/ui/table/TableColumn"
 import { Button } from "@/src/shared/ui/ui/button"
 
-export interface TechnicalServiceRecord {
-  id: string
-  category: string
-  client: string
-  budget: string
-  deadline: string
-  status: "Active" | "Pending" | "Completed" | "On Hold" | "Rejected" | "ACTIVE" | "PENDING"
-  title?: string
-  summary?: string
-  subCategory?: string
-  skills?: string[]
-  deliverables?: string[]
-  coverUrl?: string
-}
-
-const STORAGE_KEY = "business_service_rows"
-
 const getStatusColor = (status: string) => {
-  const norm = status?.toUpperCase()
-  switch (norm) {
+  switch (status?.toUpperCase()) {
     case 'ACTIVE':
     case 'COMPLETE':
-    case 'COMPLETED':
-      return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+      return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
     case 'PENDING':
     case 'WAITING':
       return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'
     case 'REJECTED':
-    case 'ON HOLD':
       return 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800'
     default:
       return 'bg-slate-100 text-slate-700 border-slate-200'
@@ -48,23 +28,23 @@ const getStatusColor = (status: string) => {
 }
 
 const TechnicalProjectLayout: React.FC = () => {
-  const [services, setServices] = useState<TechnicalServiceRecord[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState("")
-  const [activeTab, setActiveTab] = useState<"ALL" | "PENDING" | "ACTIVE">("ALL")
-  const [selectedService, setSelectedService] = useState<TechnicalServiceRecord | null>(null)
+  const [services, setServices] = useState<any[]>([])
+  const [selectedService, setSelectedService] = useState<any | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Load real services from storage
   const loadServices = () => {
     if (typeof window === "undefined") return
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem("business_service_rows")
       if (raw) {
-        const parsed = JSON.parse(raw) as TechnicalServiceRecord[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setServices(parsed.filter((s) => s.category === "Technical" || !s.category || s.subCategory))
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          // filter only Technical services
+          const tech = parsed.filter((s: any) => s.category === "Technical" || s.category === "Technical Services" || s.subCategory)
+          setServices(tech)
           return
         }
       }
@@ -72,36 +52,40 @@ const TechnicalProjectLayout: React.FC = () => {
       console.error(e)
     }
 
-    // Seed default technical services if empty
-    const seed: TechnicalServiceRecord[] = [
+    // fallback demo rows (same structure as user created list)
+    const seed = [
       {
-        id: "SRV-1001",
-        category: "Technical",
-        client: "Nova Tech Solutions",
-        budget: "$2,500",
-        deadline: "14 Days",
-        status: "Pending",
-        title: "Full-Stack Next.js 14 & NestJS Enterprise Web Application",
-        summary: "Complete web app development using Next.js App Router, TypeScript, and NestJS microservices.",
-        subCategory: "Web Development",
-        skills: ["Next.js", "TypeScript", "NestJS", "PostgreSQL", "TailwindCSS"],
-        deliverables: ["Source Code Repository", "CI/CD Pipeline", "API Documentation", "Deployment Setup"],
-        coverUrl: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80",
+        id: "USR001",
+        subCategory: "Web dev",
+        totalAmount: "2500 USD",
+        paidAmount: "2500 USD",
+        dueAmount: "0 USD",
+        durationStart: "02 Mar 2026",
+        durationEnd: "03 Jan 2027",
+        profits: "2500 USD",
+        status: "PENDING",
+        title: "Enterprise Web App",
+        summary: "Modern React and NestJS web app development.",
+        skills: ["React", "NestJS", "TypeScript"],
+        deliverables: ["GitHub Repository", "Deployment docs"],
+        client: "Nova Tech Solutions"
       },
       {
-        id: "SRV-1002",
-        category: "Technical",
-        client: "Acme Cloud Inc",
-        budget: "$3,800",
-        deadline: "21 Days",
-        status: "Active",
-        title: "Kubernetes Cloud Infrastructure & DevOps Pipeline",
-        summary: "Automated AWS EKS cluster deployment with Helm charts and Prometheus monitoring.",
-        subCategory: "Cloud & DevOps",
-        skills: ["Docker", "Kubernetes", "AWS", "Terraform", "Prometheus"],
-        deliverables: ["Infrastructure as Code", "Prometheus Dashboard", "Security Audit Report"],
-        coverUrl: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?auto=format&fit=crop&w=800&q=80",
-      },
+        id: "USR002",
+        subCategory: "App dev",
+        totalAmount: "3800 USD",
+        paidAmount: "3800 USD",
+        dueAmount: "0 USD",
+        durationStart: "10 Mar 2026",
+        durationEnd: "15 Dec 2027",
+        profits: "3800 USD",
+        status: "ACTIVE",
+        title: "React Native Mobile App",
+        summary: "Cross-platform mobile application for Android and iOS.",
+        skills: ["React Native", "Firebase", "Redux"],
+        deliverables: ["App Store submission", "Play Store submission"],
+        client: "Global Business Corp"
+      }
     ]
     setServices(seed)
   }
@@ -113,15 +97,18 @@ const TechnicalProjectLayout: React.FC = () => {
   const handleApproveService = (id: string) => {
     if (typeof window === "undefined") return
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      const allRows: TechnicalServiceRecord[] = raw ? JSON.parse(raw) : services
-      const updated = allRows.map((s) => (s.id === id ? { ...s, status: "Active" as const } : s))
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-      setServices(updated.filter((s) => s.category === "Technical" || !s.category || s.subCategory))
-      if (selectedService?.id === id) {
-        setSelectedService({ ...selectedService, status: "Active" })
+      const raw = localStorage.getItem("business_service_rows")
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          const updated = parsed.map((s: any) =>
+            s.id === id ? { ...s, status: "Active" } : s
+          )
+          localStorage.setItem("business_service_rows", JSON.stringify(updated))
+          loadServices()
+          alert(`Technical service ${id} approved and published successfully.`)
+        }
       }
-      alert(`Service ${id} has been Approved & Published to the Marketplace!`)
     } catch (e) {
       console.error(e)
     }
@@ -130,13 +117,17 @@ const TechnicalProjectLayout: React.FC = () => {
   const handleRejectService = (id: string) => {
     if (typeof window === "undefined") return
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      const allRows: TechnicalServiceRecord[] = raw ? JSON.parse(raw) : services
-      const updated = allRows.map((s) => (s.id === id ? { ...s, status: "Rejected" as const } : s))
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-      setServices(updated.filter((s) => s.category === "Technical" || !s.category || s.subCategory))
-      if (selectedService?.id === id) {
-        setSelectedService({ ...selectedService, status: "Rejected" })
+      const raw = localStorage.getItem("business_service_rows")
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          const updated = parsed.map((s: any) =>
+            s.id === id ? { ...s, status: "Rejected" } : s
+          )
+          localStorage.setItem("business_service_rows", JSON.stringify(updated))
+          loadServices()
+          alert(`Technical service ${id} rejected.`)
+        }
       }
     } catch (e) {
       console.error(e)
@@ -146,18 +137,15 @@ const TechnicalProjectLayout: React.FC = () => {
   const filteredServices = useMemo(() => {
     const q = search.trim().toLowerCase()
     return services.filter((s) => {
-      const normStatus = s.status?.toUpperCase()
-      if (activeTab === "PENDING" && normStatus !== "PENDING") return false
-      if (activeTab === "ACTIVE" && normStatus !== "ACTIVE" && normStatus !== "COMPLETED") return false
       if (!q) return true
       return (
         s.id.toLowerCase().includes(q) ||
-        s.client.toLowerCase().includes(q) ||
-        (s.title && s.title.toLowerCase().includes(q)) ||
-        (s.subCategory && s.subCategory.toLowerCase().includes(q))
+        (s.subCategory && s.subCategory.toLowerCase().includes(q)) ||
+        (s.client && s.client.toLowerCase().includes(q)) ||
+        (s.title && s.title.toLowerCase().includes(q))
       )
     })
-  }, [services, activeTab, search])
+  }, [services, search])
 
   const totalResults = filteredServices.length
   const totalPages = Math.max(1, Math.ceil(totalResults / pageSize))
@@ -173,7 +161,7 @@ const TechnicalProjectLayout: React.FC = () => {
         
         {/* Header */}
         <div>
-          <PageHeader title="Technical Services & Listings Management" />
+          <PageHeader title="Technical" />
         </div>
 
         {/* Filters Toolbar */}
@@ -184,101 +172,156 @@ const TechnicalProjectLayout: React.FC = () => {
             <SearchInput 
               value={search}
               onChange={setSearch}
-              placeholder="Search technical services..." 
+              placeholder="Search projects..." 
               className="w-full"
             />
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <span>Total Listed Services: <strong className="text-slate-900 dark:text-white">{services.length}</strong></span>
+          {/* Right side: Dropdowns */}
+          <div className="flex flex-col sm:flex-row flex-wrap 2xl:flex-nowrap items-stretch sm:items-center gap-2.5 w-full 2xl:w-auto 2xl:ml-auto">
+            
+            <Select defaultValue="all">
+              <SelectTrigger className="w-full sm:w-[120px] h-10 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
+                <SelectValue placeholder="All Country" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                <SelectItem value="all" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Country</SelectItem>
+                <SelectItem value="japan" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Japan</SelectItem>
+                <SelectItem value="canada" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Canada</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-1.5">
+              <input type="date" className="h-10 px-2 w-[125px] bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer" />
+              <span className="text-slate-500 dark:text-slate-400 font-medium text-xs uppercase">To</span>
+              <input type="date" className="h-10 px-2 w-[125px] bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer" />
+            </div>
+
+            <Select defaultValue="all">
+              <SelectTrigger className="w-full sm:w-[130px] h-10 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
+                <SelectValue placeholder="All Category" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                <SelectItem value="all" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Category</SelectItem>
+                <SelectItem value="soft" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Soft dev</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select defaultValue="all">
+              <SelectTrigger className="w-full sm:w-[150px] h-10 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
+                <SelectValue placeholder="All Sub Category" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                <SelectItem value="all" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Sub Category</SelectItem>
+                <SelectItem value="web" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Web dev</SelectItem>
+                <SelectItem value="app" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">App dev</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select defaultValue="all">
+              <SelectTrigger className="w-full sm:w-[120px] h-10 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                <SelectItem value="all" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Status</SelectItem>
+                <SelectItem value="pending" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Pending</SelectItem>
+                <SelectItem value="payment" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Payment</SelectItem>
+                <SelectItem value="waiting" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Waiting</SelectItem>
+                <SelectItem value="delayed" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Delayed</SelectItem>
+                <SelectItem value="expired" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Expired</SelectItem>
+                <SelectItem value="accepted" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Accepted</SelectItem>
+                <SelectItem value="in-progress" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">In Progress</SelectItem>
+                <SelectItem value="on-hold" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">On Hold</SelectItem>
+                <SelectItem value="in-review" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">In Review</SelectItem>
+                <SelectItem value="completed" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Completed</SelectItem>
+                <SelectItem value="reported" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Reported</SelectItem>
+                <SelectItem value="refunded" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Refunded</SelectItem>
+                <SelectItem value="cancelled" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+
           </div>
         </div>
 
-        {/* Status Tabs */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => { setActiveTab("ALL"); setPage(1); }} className={tabClass(activeTab === "ALL")}>
-            All Services ({services.length})
-          </button>
-          <button onClick={() => { setActiveTab("PENDING"); setPage(1); }} className={tabClass(activeTab === "PENDING")}>
-            Pending Approval ({services.filter((s) => s.status?.toUpperCase() === "PENDING").length})
-          </button>
-          <button onClick={() => { setActiveTab("ACTIVE"); setPage(1); }} className={tabClass(activeTab === "ACTIVE")}>
-            Active / Approved ({services.filter((s) => s.status?.toUpperCase() === "ACTIVE" || s.status?.toUpperCase() === "COMPLETED").length})
-          </button>
+        {/* Tabs under the filter card */}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <button className={tabClass(true)}>Project</button>
+          <button className={tabClass(false)}>My Project</button>
+          <button className={tabClass(false)}>Refund Project</button>
+          <button className={tabClass(false)}>Report Project</button>
         </div>
 
         {/* Data Table */}
         <div className="mt-2 w-full overflow-x-auto">
-          <div className="min-w-[1000px]">
-            <Table>
-              <TableHeading>
-                <TableColumn isHeader align="center" className="font-bold">Service ID</TableColumn>
-                <TableColumn isHeader align="center" className="font-bold">Title & Subcategory</TableColumn>
-                <TableColumn isHeader align="center" className="font-bold">Business Provider</TableColumn>
-                <TableColumn isHeader align="center" className="font-bold">Budget</TableColumn>
-                <TableColumn isHeader align="center" className="font-bold">Target Timeline</TableColumn>
-                <TableColumn isHeader align="center" className="font-bold">Status</TableColumn>
-                <TableColumn isHeader align="center" className="font-bold">Actions (Inspect & Approve)</TableColumn>
-              </TableHeading>
-              <tbody>
-                {paginatedProjects.length === 0 ? (
-                  <TableRow>
-                    <TableColumn colSpan={7}>
-                      <div className="flex flex-col items-center justify-center gap-3 py-10">
-                        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">No technical services found</h3>
-                      </div>
-                    </TableColumn>
-                  </TableRow>
-                ) : (
-                  paginatedProjects.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableColumn align="center" className="font-semibold text-slate-700 dark:text-slate-200">{p.id}</TableColumn>
-                      <TableColumn align="center">
-                        <div className="flex flex-col items-center text-center">
-                          <span className="font-bold text-slate-900 dark:text-white max-w-[240px] truncate">{p.title || p.id}</span>
-                          <span className="text-xs text-blue-600 font-semibold">{p.subCategory || p.category}</span>
+            <div className="min-w-[1000px]">
+              <Table>
+                <TableHeading>
+                  <TableColumn isHeader align="center" className="font-bold">Order ID</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Sub Category</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Total Amount</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Paid Amount</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Due Amount</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Message</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Duration</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Profits</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Status</TableColumn>
+                  <TableColumn isHeader align="center" className="font-bold">Action</TableColumn>
+                </TableHeading>
+                <tbody>
+                  {paginatedProjects.length === 0 ? (
+                    <TableRow>
+                      <TableColumn colSpan={10}>
+                        <div className="flex flex-col items-center justify-center gap-3 py-10">
+                          <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">No projects found</h3>
                         </div>
                       </TableColumn>
-                      <TableColumn align="center" className="font-semibold text-slate-800 dark:text-slate-200">{p.client}</TableColumn>
-                      <TableColumn align="center" className="font-bold text-emerald-600 dark:text-emerald-400">{p.budget}</TableColumn>
-                      <TableColumn align="center" className="text-xs font-semibold text-slate-600 dark:text-slate-300">{p.deadline}</TableColumn>
-                      <TableColumn align="center">
-                        <span className={`px-2.5 py-1 text-[10px] sm:text-[11px] font-bold rounded-md border ${getStatusColor(p.status)}`}>
-                          {p.status}
-                        </span>
-                      </TableColumn>
-                      <TableColumn align="center">
-                        <div className="flex items-center justify-center gap-2">
+                    </TableRow>
+                  ) : (
+                    paginatedProjects.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableColumn align="center" className="font-semibold text-slate-700 dark:text-slate-200">{p.id}</TableColumn>
+                        <TableColumn align="center" className="text-slate-600 dark:text-slate-300 font-medium">{p.subCategory || "Web dev"}</TableColumn>
+                        <TableColumn align="center" className="font-semibold text-slate-800 dark:text-slate-200">{p.totalAmount || p.budget || "0 USD"}</TableColumn>
+                        <TableColumn align="center" className="font-semibold text-slate-800 dark:text-slate-200">{p.paidAmount || p.budget || "0 USD"}</TableColumn>
+                        <TableColumn align="center" className="font-semibold text-slate-800 dark:text-slate-200">{p.dueAmount || "0 USD"}</TableColumn>
+                        <TableColumn align="center">
+                          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[11px] font-bold text-slate-600 border-slate-300 hover:bg-slate-100 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800">
+                            message <MessageSquare size={13} className="text-slate-500" />
+                          </Button>
+                        </TableColumn>
+                        <TableColumn align="center">
+                          <div className="flex flex-col items-center justify-center gap-0.5 text-xs font-semibold">
+                            <span className="text-slate-600 dark:text-slate-400">{p.durationStart || "02 Mar 2026"}</span>
+                            <span className="text-green-600 dark:text-green-500">{p.durationEnd || p.deadline || "03 Jan 2027"}</span>
+                          </div>
+                        </TableColumn>
+                        <TableColumn align="center" className="font-semibold text-slate-800 dark:text-slate-200">
+                          {p.profits || p.budget || "0 USD"}
+                        </TableColumn>
+                        <TableColumn align="center">
+                          <span className={`px-2.5 py-1 text-[10px] sm:text-[11px] font-bold rounded-md border ${getStatusColor(p.status)}`}>
+                            {p.status || "PENDING"}
+                          </span>
+                        </TableColumn>
+                        <TableColumn align="center">
                           <Button
                             variant="ghost"
                             size="sm"
-                            title="Inspect & Approve Service"
                             onClick={() => {
                               setSelectedService(p)
                               setModalOpen(true)
                             }}
-                            className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                           >
                             <Eye size={18} />
                           </Button>
-                          {p.status?.toUpperCase() === "PENDING" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleApproveService(p.id)}
-                              className="h-8 px-2 text-xs font-bold text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
-                            >
-                              <CheckCircle size={14} className="mr-1" /> Approve
-                            </Button>
-                          )}
-                        </div>
-                      </TableColumn>
-                    </TableRow>
-                  ))
-                )}
-              </tbody>
-            </Table>
-          </div>
+                        </TableColumn>
+                      </TableRow>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </div>
         </div>
 
         {/* Pagination Footer */}
@@ -286,7 +329,7 @@ const TechnicalProjectLayout: React.FC = () => {
           <Pagination
             currentPage={page}
             totalPages={totalPages}
-            onPageChange={setPage}
+            onPageChange={(p) => setPage(p)}
             pageSize={pageSize}
             totalResults={totalResults}
             onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
@@ -294,21 +337,15 @@ const TechnicalProjectLayout: React.FC = () => {
         </div>
       </div>
 
-      {/* Admin Eye Icon Inspection & Verification Modal */}
+      {/* Beautiful Admin Inspection & Verification Modal */}
       {modalOpen && selectedService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 animate-in fade-in max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-              <div>
-                <div className="flex items-center gap-2 text-blue-600 text-xs font-bold uppercase tracking-wider mb-1">
-                  <ShieldCheck className="h-4 w-4" /> Technical Service Verification
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  {selectedService.title || selectedService.id}
-                </h2>
-                <p className="text-xs text-slate-500">Service ID: {selectedService.id} • Category: {selectedService.subCategory || "Technical"}</p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
+          <div className="relative w-full max-w-md sm:max-w-lg rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                Technical Service Inspection
+              </h2>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
@@ -318,58 +355,46 @@ const TechnicalProjectLayout: React.FC = () => {
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="space-y-4">
-              {/* Cover Banner */}
-              {selectedService.coverUrl && (
-                <div className="h-40 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-                  <img src={selectedService.coverUrl} alt="" className="h-full w-full object-cover" />
-                </div>
-              )}
+            {/* Info details */}
+            <div className="space-y-3.5 text-sm text-slate-800 dark:text-slate-200">
+              <div>
+                <span className="text-xs font-semibold text-slate-400 block">Service ID</span>
+                <span className="font-bold text-slate-900 dark:text-white">{selectedService.id}</span>
+              </div>
 
-              {/* Status & Business Provider */}
-              <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3.5 text-xs">
+              <div>
+                <span className="text-xs font-semibold text-slate-400 block">Title</span>
+                <span className="font-bold">{selectedService.title || "Standard Technical Service Offer"}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-slate-500 block">Business Provider:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{selectedService.client}</span>
+                  <span className="text-xs font-semibold text-slate-400 block">Sub Category</span>
+                  <span className="font-semibold">{selectedService.subCategory || selectedService.category || "Web Development"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">Verification Status:</span>
-                  <span className={`inline-block px-2 py-0.5 mt-0.5 rounded text-[10px] font-bold border ${getStatusColor(selectedService.status)}`}>
-                    {selectedService.status}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Pricing / Budget:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedService.budget}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Target Timeline:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{selectedService.deadline}</span>
+                  <span className="text-xs font-semibold text-slate-400 block">Total Budget</span>
+                  <span className="font-bold">{selectedService.budget || selectedService.totalAmount || "0 USD"}</span>
                 </div>
               </div>
 
-              {/* Summary */}
               {selectedService.summary && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-white mb-1">Service Description & Scope:</h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/30 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                  <span className="text-xs font-semibold text-slate-400 block">Description Summary</span>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 leading-relaxed">
                     {selectedService.summary}
                   </p>
                 </div>
               )}
 
-              {/* Tech Stack Pills */}
               {selectedService.skills && selectedService.skills.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-white mb-1.5 flex items-center gap-1.5">
-                    <Layers className="h-3.5 w-3.5 text-blue-500" /> Tech Stack Skills:
-                  </h4>
+                  <span className="text-xs font-semibold text-slate-400 block mb-1">Required Tech Stack Skills</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {selectedService.skills.map((skill) => (
+                    {selectedService.skills.map((skill: string) => (
                       <span
                         key={skill}
-                        className="rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1 text-xs font-bold"
+                        className="rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900 px-2.5 py-0.5 text-xs font-semibold"
                       >
                         {skill}
                       </span>
@@ -378,16 +403,13 @@ const TechnicalProjectLayout: React.FC = () => {
                 </div>
               )}
 
-              {/* Deliverables */}
               {selectedService.deliverables && selectedService.deliverables.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-white mb-1.5 flex items-center gap-1.5">
-                    <CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Promised Deliverables:
-                  </h4>
-                  <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/30 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
-                    {selectedService.deliverables.map((item, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-400 block mb-1">Promised Deliverables</span>
+                  <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                    {selectedService.deliverables.map((item: string, idx: number) => (
+                      <li key={idx} className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
                         <span>{item}</span>
                       </li>
                     ))}
@@ -396,12 +418,12 @@ const TechnicalProjectLayout: React.FC = () => {
               )}
             </div>
 
-            {/* Modal Action Controls */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+            {/* Footer action buttons */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-150 dark:border-slate-800 pt-3">
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 Close
               </button>
@@ -412,9 +434,9 @@ const TechnicalProjectLayout: React.FC = () => {
                     handleApproveService(selectedService.id)
                     setModalOpen(false)
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-all"
+                  className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-colors"
                 >
-                  <ShieldCheck className="h-4 w-4" /> Approve & Publish Service
+                  Verify & Publish
                 </button>
               )}
               {selectedService.status?.toUpperCase() !== "REJECTED" && (
@@ -424,9 +446,9 @@ const TechnicalProjectLayout: React.FC = () => {
                     handleRejectService(selectedService.id)
                     setModalOpen(false)
                   }}
-                  className="rounded-lg bg-rose-600 hover:bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs"
+                  className="rounded-lg bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-xs font-bold transition-colors"
                 >
-                  Reject Service
+                  Reject
                 </button>
               )}
             </div>

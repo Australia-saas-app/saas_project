@@ -23,6 +23,12 @@ export interface BusinessServiceRow {
   budget: string
   deadline: string
   status: ServiceStatus
+  title?: string
+  subCategory?: string
+  summary?: string
+  skills?: string[]
+  deliverables?: string[]
+  coverUrl?: string
 }
 
 const CLIENTS = [

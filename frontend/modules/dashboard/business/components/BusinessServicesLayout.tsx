@@ -3,7 +3,19 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Briefcase, MessageCircle, Search } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Briefcase,
+  MessageCircle,
+  Search,
+  Trash2,
+  Grid3x3,
+  List,
+  Loader2,
+  AlertTriangle,
+  Code,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   SERVICE_CATEGORIES,
@@ -16,6 +28,7 @@ import { sortByMoney } from "../../shared/utils/sort-rows";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import {
   addBusinessService,
+  deleteBusinessService,
   formatDeadlineDisplay,
   getBusinessServices,
   serviceStatsFromRows,
@@ -66,6 +79,9 @@ export default function BusinessServicesLayout() {
   const [sortDir, setSortDir] = useState<"Up" | "Down">("Down");
   const [page, setPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newService, setNewService] = useState({
     category: "Technical",
@@ -245,29 +261,50 @@ export default function BusinessServicesLayout() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {SERVICE_CATEGORIES.map((cat) => {
           const active = selectedCategory === cat.name;
+          const realCount =
+            services.filter(
+              (s) =>
+                s.category === cat.name ||
+                (cat.name === "Technical" && (s.category === "Technical" || s.subCategory))
+            ).length;
+
           return (
-            <button
+            <div
               key={cat.name}
-              type="button"
-              onClick={() => {
-                setSelectedCategory(active ? null : cat.name);
-                setPage(1);
-              }}
-              className={`rounded-lg border p-4 text-left shadow-sm transition-all ${active
+              className={`relative flex flex-col justify-between rounded-lg border p-4 shadow-sm transition-all ${
+                active
                   ? "border-primary bg-primary text-white"
                   : "border-border bg-card hover:border-primary/30 text-foreground"
-                }`}
+              }`}
             >
-              <div
-                className={`mb-3 h-1.5 w-10 rounded-full ${active ? "bg-white/80" : cat.color}`}
-              />
-              <p className={`text-xs font-bold ${active ? "text-white/90" : "text-primary"}`}>
-                {cat.name}
-              </p>
-              <p className={`mt-1 text-lg font-bold ${active ? "text-white" : "text-foreground"}`}>
-                {cat.count}
-              </p>
-            </button>
+              <div>
+                <div
+                  className={`mb-3 h-1.5 w-10 rounded-full ${active ? "bg-white/80" : cat.color}`}
+                />
+                <p className={`text-xs font-bold ${active ? "text-white/90" : "text-primary"}`}>
+                  {cat.name}
+                </p>
+                <p className={`mt-1 text-lg font-bold ${active ? "text-white" : "text-foreground"}`}>
+                  {realCount}
+                </p>
+              </div>
+
+              <div className="mt-3 flex items-center justify-end border-t border-border/40 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory(active ? null : cat.name);
+                    setViewMode("grid");
+                    setPage(1);
+                  }}
+                  className={`text-xs font-bold transition-all hover:underline ${
+                    active ? "text-white" : "text-primary"
+                  }`}
+                >
+                  View →
+                </button>
+              </div>
+            </div>
           );
         })}
       </div>
@@ -283,19 +320,20 @@ export default function BusinessServicesLayout() {
                   setActiveTab(tab);
                   setPage(1);
                 }}
-                className={`rounded px-4 py-2 text-xs font-bold transition-colors ${activeTab === tab
+                className={`rounded px-4 py-2 text-xs font-bold transition-colors ${
+                  activeTab === tab
                     ? "bg-primary text-white shadow-sm"
                     : "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
+                }`}
               >
                 {tabLabels[tab]}
               </button>
             ))}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 placeholder={t.business.services.searchPlaceholder}
@@ -304,13 +342,14 @@ export default function BusinessServicesLayout() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded border border-gray-200 bg-white py-1.5 pr-3 pl-8 text-xs focus:outline-none sm:w-52"
+                className="w-full rounded border border-border bg-background py-1.5 pr-3 pl-8 text-xs text-foreground focus:outline-none sm:w-52"
               />
             </div>
+            
             <button
               type="button"
               onClick={() => setSortDir(sortDir === "Up" ? "Down" : "Up")}
-              className="flex items-center gap-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600"
+              className="flex items-center gap-1 rounded border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground"
             >
               {sortDir}
               {sortDir === "Up" ? (
@@ -319,45 +358,156 @@ export default function BusinessServicesLayout() {
                 <ArrowDown className="h-3.5 w-3.5" />
               )}
             </button>
+
+            {/* View Mode Toggle */}
+            <div className="flex rounded-lg border border-border bg-muted/60 p-1">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`rounded p-1.5 transition-colors ${
+                  viewMode === "grid" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Grid View"
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`rounded p-1.5 transition-colors ${
+                  viewMode === "table" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Table View"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="bg-primary font-bold text-white uppercase">
-                <th className="p-3">Service ID</th>
-                <th className="p-3">Category</th>
-                <th className="p-3">Client</th>
-                <th className="p-3">Budget</th>
-                <th className="p-3">Deadline</th>
-                <th className="p-3">Status</th>
-                <th className="p-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {pageData.map((row) => (
-                <tr key={row.id} className="text-gray-700 hover:bg-gray-50">
-                  <td className="p-3 font-semibold">{row.id}</td>
-                  <td className="p-3">{row.category}</td>
-                  <td className="p-3 text-gray-500">{row.client}</td>
-                  <td className="p-3 font-medium">{row.budget}</td>
-                  <td className="p-3 text-gray-500">{row.deadline}</td>
-                  <td className="p-3">{renderServiceStatus(row.status)}</td>
-                  <td className="p-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => openManage(row)}
-                      className="rounded bg-primary px-3 py-1 text-[10px] font-bold text-white hover:bg-primary/90"
-                    >
-                      {t.business.services.manage}
-                    </button>
-                  </td>
+        {viewMode === "grid" ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pageData.map((row) => (
+              <div
+                key={row.id}
+                className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                        {row.id}
+                      </span>
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {row.subCategory || row.category}
+                      </span>
+                    </div>
+                    {renderServiceStatus(row.status)}
+                  </div>
+
+                  <div className="mt-3.5 space-y-2">
+                    <h3 className="text-sm font-bold text-foreground leading-snug">
+                      {row.title || `${row.category} Service Proposal`}
+                    </h3>
+                    {row.summary && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{row.summary}</p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-2.5 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block">Budget</span>
+                      <span className="font-bold text-foreground">{row.budget}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Deadline</span>
+                      <span className="font-bold text-foreground">{row.deadline}</span>
+                    </div>
+                  </div>
+
+                  {row.skills && row.skills.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {row.skills.map((sk: string) => (
+                        <span
+                          key={sk}
+                          className="rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 px-2.5 py-0.5 text-[11px] font-bold text-blue-600 dark:text-blue-400"
+                        >
+                          {sk}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => openManage(row)}
+                    className="rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-white transition-colors"
+                  >
+                    Manage
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetId(row.id)}
+                    className="rounded-lg p-2 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors"
+                    title={`Delete ${row.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="bg-primary font-bold text-white uppercase">
+                  <th className="p-3">Service ID</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3">Client</th>
+                  <th className="p-3">Budget</th>
+                  <th className="p-3">Deadline</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 text-center">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pageData.map((row) => (
+                  <tr key={row.id} className="text-foreground hover:bg-muted/50">
+                    <td className="p-3 font-semibold">{row.id}</td>
+                    <td className="p-3">{row.category}</td>
+                    <td className="p-3 text-muted-foreground">{row.client}</td>
+                    <td className="p-3 font-medium">{row.budget}</td>
+                    <td className="p-3 text-muted-foreground">{row.deadline}</td>
+                    <td className="p-3">{renderServiceStatus(row.status)}</td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openManage(row)}
+                          className="rounded bg-primary px-3 py-1 text-[10px] font-bold text-white hover:bg-primary/90"
+                        >
+                          {t.business.services.manage}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTargetId(row.id)}
+                          className="rounded p-1 text-muted-foreground hover:text-rose-600 transition-colors"
+                          title={`Delete ${row.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <DashboardTablePagination
           current={page}
@@ -545,6 +695,71 @@ export default function BusinessServicesLayout() {
           </div>
         </form>
       </AppModal>
+
+      {/* Theme Styled Permanent Delete Confirmation Modal with Spinner */}
+      {deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="relative w-full max-w-md rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="rounded-full bg-rose-500/10 p-2.5">
+                <AlertTriangle className="h-6 w-6 text-rose-600" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Delete Service Listing</h2>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to permanently delete service listing{" "}
+              <strong className="text-foreground">{deleteTargetId}</strong>? This action will remove it permanently from the store and marketplace.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 border-t border-border pt-4">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteTargetId(null)}
+                className="rounded-lg border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                No, Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  await new Promise((res) => setTimeout(res, 600));
+                  try {
+                    const raw = localStorage.getItem("business_service_rows");
+                    if (raw) {
+                      const parsed = JSON.parse(raw);
+                      if (Array.isArray(parsed)) {
+                        const updated = parsed.filter((s: any) => s.id !== deleteTargetId);
+                        localStorage.setItem("business_service_rows", JSON.stringify(updated));
+                      }
+                    }
+                  } catch (e) {
+                    console.error(e);
+                  }
+                  deleteBusinessService(deleteTargetId);
+                  setServices((prev) => prev.filter((s) => s.id !== deleteTargetId));
+                  setIsDeleting(false);
+                  toast.success(`Service ${deleteTargetId} deleted permanently.`);
+                  setDeleteTargetId(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  "Yes, Delete"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

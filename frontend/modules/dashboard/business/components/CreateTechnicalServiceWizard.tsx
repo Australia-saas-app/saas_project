@@ -19,7 +19,7 @@ import {
 import { toast } from "sonner";
 import { addBusinessService } from "@/src/shared/lib/business-services-store";
 
-const CATEGORIES = [
+const SUB_CATEGORIES = [
   "Web Development",
   "Mobile App Development",
   "Cloud & DevOps",
@@ -50,7 +50,8 @@ export default function CreateTechnicalServiceWizard() {
 
   // Form State
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Web Development");
+  const [category] = useState("Technical");
+  const [subCategory, setSubCategory] = useState("Web Development");
   const [summary, setSummary] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
 
@@ -188,7 +189,7 @@ export default function CreateTechnicalServiceWizard() {
                     active
                       ? "bg-primary text-white"
                       : done
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-blue-600 text-white"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -223,17 +224,28 @@ export default function CreateTechnicalServiceWizard() {
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-foreground">Technical Category</label>
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">Category</label>
                 <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  disabled
+                  value="Technical Services"
+                  className="w-full rounded-lg border border-border bg-muted/50 px-4 py-2.5 text-sm text-muted-foreground outline-none cursor-not-allowed"
+                >
+                  <option value="Technical Services">Technical Services</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">Sub Category</label>
+                <select
+                  value={subCategory}
+                  onChange={(e) => setSubCategory(e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
                 >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                  {SUB_CATEGORIES.map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
                     </option>
                   ))}
                 </select>
@@ -538,7 +550,7 @@ export default function CreateTechnicalServiceWizard() {
                   <ul className="space-y-1 text-xs text-muted-foreground">
                     {deliverables.map((d, i) => (
                       <li key={i} className="flex items-center gap-1.5">
-                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        <Check className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                         <span>{d}</span>
                       </li>
                     ))}
@@ -572,7 +584,7 @@ export default function CreateTechnicalServiceWizard() {
             <button
               type="button"
               onClick={handleSubmitService}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition-all"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all"
             >
               <Sparkles className="h-4 w-4" /> Submit Service Listing
             </button>

@@ -85,7 +85,7 @@ export default function TechnicalPageLayout() {
   }, []);
 
   const allProjects = useMemo(() => {
-    return [...liveApprovedProjects, ...MOCK_TECHNICAL_PROJECTS];
+    return liveApprovedProjects.length > 0 ? liveApprovedProjects : MOCK_TECHNICAL_PROJECTS;
   }, [liveApprovedProjects]);
 
   const filtered = useMemo(

@@ -15,10 +15,25 @@ function storageKey(): string {
 function readAll(): BusinessServiceRow[] {
   if (typeof window === "undefined") return []
   try {
-    const raw = localStorage.getItem(storageKey())
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as BusinessServiceRow[]
-    return Array.isArray(parsed) ? parsed : []
+    const rawScoped = localStorage.getItem(storageKey())
+    const rawGlobal = localStorage.getItem("business_service_rows")
+    const itemsMap = new Map<string, BusinessServiceRow>()
+    
+    if (rawGlobal) {
+      const parsed = JSON.parse(rawGlobal) as BusinessServiceRow[]
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => itemsMap.set(item.id, item))
+      }
+    }
+    
+    if (rawScoped) {
+      const parsed = JSON.parse(rawScoped) as BusinessServiceRow[]
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => itemsMap.set(item.id, item))
+      }
+    }
+
+    return Array.from(itemsMap.values())
   } catch {
     return []
   }
@@ -26,7 +41,9 @@ function readAll(): BusinessServiceRow[] {
 
 function writeAll(rows: BusinessServiceRow[]) {
   if (typeof window === "undefined") return
-  localStorage.setItem(storageKey(), JSON.stringify(rows))
+  const data = JSON.stringify(rows)
+  localStorage.setItem(storageKey(), data)
+  localStorage.setItem("business_service_rows", data)
 }
 
 function seedDemoIfNeeded(): BusinessServiceRow[] {
@@ -49,6 +66,10 @@ export function addBusinessService(row: BusinessServiceRow) {
 
 export function updateBusinessService(id: string, updates: Partial<BusinessServiceRow>) {
   writeAll(readAll().map((r) => (r.id === id ? { ...r, ...updates } : r)))
+}
+
+export function deleteBusinessService(id: string) {
+  writeAll(readAll().filter((r) => r.id !== id))
 }
 
 export function formatDeadlineDisplay(isoDate: string): string {
