@@ -21,7 +21,7 @@ services:
       - "8000:8000"
       - "8002:8001" # Admin API exposed on 8002 to avoid conflict with saas-admin on 8001
     volumes:
-      - ./kong/kong.yml:/kong/declarative/kong.yml
+      - ./kong:/kong/declarative
     restart: always
     networks:
       - saas_network
