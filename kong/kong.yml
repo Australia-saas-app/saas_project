@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: sso-service
-    url: http://saas-backend-sso:3001
+    url: http://saas-backend-sso:3001/sso
     routes:
       - name: sso-route
         paths:

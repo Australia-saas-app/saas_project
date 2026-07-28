@@ -88,6 +88,9 @@ services:
       - DB_USERNAME=admin
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
+      - SSO_ISSUER=${SSO_ISSUER:-Vero2Auth}
+      - SSO_PUBLIC_KEY=${SSO_PUBLIC_KEY}
+      - SSO_PRIVATE_KEY=${SSO_PRIVATE_KEY}
       - REDIS_HOST=saas-redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://saas-redis:6379
@@ -115,6 +118,9 @@ services:
       - DB_USERNAME=admin
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
+      - SSO_ISSUER=${SSO_ISSUER:-Vero2Auth}
+      - SSO_PUBLIC_KEY=${SSO_PUBLIC_KEY}
+      - SSO_PRIVATE_KEY=${SSO_PRIVATE_KEY}
     depends_on:
       - saas-postgres
       - saas-backend-sso
@@ -135,6 +141,9 @@ services:
       - DB_USERNAME=admin
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
+      - SSO_ISSUER=${SSO_ISSUER:-Vero2Auth}
+      - SSO_PUBLIC_KEY=${SSO_PUBLIC_KEY}
+      - SSO_PRIVATE_KEY=${SSO_PRIVATE_KEY}
     depends_on:
       - saas-postgres
       - saas-backend-sso
@@ -155,6 +164,9 @@ services:
       - DB_USERNAME=admin
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
+      - SSO_ISSUER=${SSO_ISSUER:-Vero2Auth}
+      - SSO_PUBLIC_KEY=${SSO_PUBLIC_KEY}
+      - SSO_PRIVATE_KEY=${SSO_PRIVATE_KEY}
     depends_on:
       - saas-postgres
       - saas-backend-sso
