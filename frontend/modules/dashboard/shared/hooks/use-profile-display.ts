@@ -9,6 +9,7 @@ import {
   type ProfileField,
 } from "@/src/shared/utils/profile-storage"
 import { getUserIdFromAuthUser, isDemoAuthUser, getDisplayUserId, getInitials } from "@/src/shared/lib/demo-user"
+import axiosInstance from "@/src/shared/lib/axiosInstance";
 
 function displayName(user: any) {
   if (!user) return "Account"
@@ -119,9 +120,27 @@ export function useProfileDisplay() {
     [fullName, nationality, dateOfBirth, nationalIdentity, phone, countryCode, secondaryEmail, email, currency]
   )
 
-  const updateProfile = (patch: ProfileDataPatch) => {
+  const updateProfile = async (patch: ProfileDataPatch) => {
     saveProfileOverrides(rawUserId, patch)
     setRevision((n) => n + 1)
+    try {
+      if (!isDemo) {
+        await axiosInstance.post('/api/sso/auth/user/complete-profile', {
+          ...patch,
+          // Extract specific fields the backend expects
+          fullName: patch.fullName,
+          dateOfBirth: patch.dateOfBirth,
+          nationality: patch.nationality,
+          governmentId: patch.nationalIdentity,
+          idDocument: patch.documentUrl,
+          profilePhoto: patch.avatarUrl,
+          currency: patch.currency,
+          phone: patch.phone,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to sync profile to backend", e);
+    }
   }
 
   const status = String(overrides.status ?? (user && "status" in user && user.status ? user.status : "pending")).toLowerCase();

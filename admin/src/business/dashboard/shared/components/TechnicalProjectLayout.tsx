@@ -11,6 +11,7 @@ import { TableHeading } from "@/src/shared/ui/table/TableHeading"
 import { TableRow } from "@/src/shared/ui/table/TableRow"
 import { TableColumn } from "@/src/shared/ui/table/TableColumn"
 import { Button } from "@/src/shared/ui/ui/button"
+import { apiClient } from "@/src/infra/api/apiClient"
 
 const getStatusColor = (status: string) => {
   switch (status?.toUpperCase()) {
@@ -35,74 +36,61 @@ const TechnicalProjectLayout: React.FC = () => {
   const [selectedService, setSelectedService] = useState<any | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
-  const loadServices = () => {
-    if (typeof window === "undefined") return
+  const loadServices = async () => {
     try {
-      const raw = localStorage.getItem("business_service_rows")
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          // filter only Technical services
-          const tech = parsed.filter((s: any) => s.category === "Technical" || s.category === "Technical Services" || s.subCategory)
-          setServices(tech)
-          return
-        }
-      }
+      const res = await apiClient.get<any>('/technology/services/admin/list');
+      const dataList = Array.isArray(res) ? res : (res?.data || []);
+      
+      const mapped = dataList.map((item: any) => {
+        let desc: any = {};
+        try { desc = JSON.parse(item.description); } catch(e) {}
+        
+        return {
+          id: item.serviceId,
+          category: item.categoryName || "Technical",
+          client: desc.client || "Listing",
+          budget: desc.budget || "$0",
+          deadline: desc.deadline || "TBD",
+          status: item.isVisible ? "Active" : "Pending",
+          title: item.title,
+          summary: desc.summary || "",
+          subCategory: desc.subCategory || item.tag || "",
+          skills: desc.skills || [],
+          deliverables: desc.deliverables || [],
+          coverUrl: item.photo || ""
+        };
+      });
+      setServices(mapped);
     } catch (e) {
       console.error(e)
+      setServices([])
     }
-
-    setServices([])
   }
 
   useEffect(() => {
     loadServices()
-    const handleStorage = () => loadServices()
-    window.addEventListener("storage", handleStorage)
-    window.addEventListener("focus", handleStorage)
-    return () => {
-      window.removeEventListener("storage", handleStorage)
-      window.removeEventListener("focus", handleStorage)
-    }
   }, [])
 
-  const handleApproveService = (id: string) => {
-    if (typeof window === "undefined") return
+  const handleApproveService = async (id: string) => {
     try {
-      const raw = localStorage.getItem("business_service_rows")
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          const updated = parsed.map((s: any) =>
-            s.id === id ? { ...s, status: "Active" } : s
-          )
-          localStorage.setItem("business_service_rows", JSON.stringify(updated))
-          loadServices()
-          alert(`Technical service ${id} approved and published successfully.`)
-        }
-      }
+      await apiClient.patch(`/technology/services/${id}/visibility`, { isVisible: true });
+      loadServices();
+      alert(`Technical service ${id} approved and published successfully.`);
     } catch (e) {
-      console.error(e)
+      console.error(e);
+      alert("Failed to approve service.");
     }
   }
 
-  const handleRejectService = (id: string) => {
-    if (typeof window === "undefined") return
+  const handleRejectService = async (id: string) => {
     try {
-      const raw = localStorage.getItem("business_service_rows")
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          const updated = parsed.map((s: any) =>
-            s.id === id ? { ...s, status: "Rejected" } : s
-          )
-          localStorage.setItem("business_service_rows", JSON.stringify(updated))
-          loadServices()
-          alert(`Technical service ${id} rejected.`)
-        }
-      }
+      await apiClient.patch(`/technology/services/${id}/visibility`, { isVisible: false });
+      // In a real system, you might also have a distinct 'Rejected' status in DB.
+      loadServices();
+      alert(`Technical service ${id} has been rejected.`);
     } catch (e) {
-      console.error(e)
+      console.error(e);
+      alert("Failed to reject service.");
     }
   }
 
@@ -312,7 +300,10 @@ const TechnicalProjectLayout: React.FC = () => {
       {/* Beautiful Admin Inspection & Verification Modal */}
       {modalOpen && selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
-          <div className="relative w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto">
+          <div 
+            style={{ maxWidth: '420px' }}
+            className="relative w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto"
+          >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-blue-600 dark:text-blue-400">

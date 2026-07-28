@@ -330,7 +330,7 @@ const AllBusinessTable: React.FC = () => {
 
                   {/* Status */}
                   <TableColumn>
-                    <span className={`px-2.5 py-1 text-[11px] font-bold tracking-wider rounded-sm border ${getStatusStyle(b.status)}`}>
+                    <span className={`whitespace-nowrap px-2.5 py-1 text-[11px] font-bold tracking-wider rounded-sm border ${getStatusStyle(b.status)}`}>
                       {b.status}
                     </span>
                   </TableColumn>

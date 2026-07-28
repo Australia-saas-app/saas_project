@@ -19,7 +19,7 @@ export default function DashboardVerificationGate({ children }: { children: Reac
     setAccess(resolveDashboardAccess(user, pathname));
   }, [user, isLoading, pathname]);
 
-  if (isLoading) {
+  if (isLoading || (!access.allowed && access.reason === "auth")) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />

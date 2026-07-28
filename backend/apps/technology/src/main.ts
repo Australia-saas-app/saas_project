@@ -10,8 +10,7 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
-  // Global prefix
-  app.setGlobalPrefix('api/technical');
+  // Removed global prefix so Kong strip_path works correctly
 
   // Global validation pipe
   app.useGlobalPipes(

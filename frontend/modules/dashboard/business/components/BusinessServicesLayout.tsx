@@ -27,13 +27,10 @@ import AppModal from "../../shared/components/AppModal";
 import { sortByMoney } from "../../shared/utils/sort-rows";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import {
-  addBusinessService,
-  deleteBusinessService,
   formatDeadlineDisplay,
-  getBusinessServices,
   serviceStatsFromRows,
-  updateBusinessService,
 } from "@/src/shared/lib/business-services-store";
+import axiosInstance from "@/src/shared/lib/axiosInstance";
 
 const PAGE_SIZE = 8;
 const TABS = ["allServices", "active", "pending", "completed"] as const;
@@ -90,18 +87,42 @@ export default function BusinessServicesLayout() {
     deadline: "",
   });
 
+  const load = async () => {
+    try {
+      const res = await axiosInstance.get('/api/technology/services');
+      // The backend wraps lists in res.data.data or res.data depending on pagination
+      const dataList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      
+      const mapped = dataList.map((item: any) => {
+        let desc: any = {};
+        try { desc = JSON.parse(item.description); } catch(e) {}
+        
+        return {
+          id: item.serviceId,
+          category: item.categoryName || "Technical",
+          client: desc.client || "Listing",
+          budget: desc.budget || "$0",
+          deadline: desc.deadline || "TBD",
+          status: item.isVisible ? "Active" : "Pending",
+          title: item.title,
+          summary: desc.summary || "",
+          subCategory: desc.subCategory || item.tag || "",
+          skills: desc.skills || [],
+          deliverables: desc.deliverables || [],
+          coverUrl: item.photo || ""
+        } as BusinessServiceRow;
+      });
+      setServices(mapped);
+    } catch (err: any) {
+      toast.error("Failed to fetch services");
+    }
+  };
+
   useEffect(() => {
-    const load = () => setServices(getBusinessServices());
     load();
-    window.addEventListener("storage", load);
-    window.addEventListener("focus", load);
-    return () => {
-      window.removeEventListener("storage", load);
-      window.removeEventListener("focus", load);
-    };
   }, []);
 
-  const refresh = () => setServices(getBusinessServices());
+  const refresh = () => load();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -175,15 +196,28 @@ export default function BusinessServicesLayout() {
     }
     const budget = editBudget.startsWith("$") ? editBudget : `$${editBudget}`;
     const deadline = editDeadline ? formatDeadlineDisplay(editDeadline) : selectedService.deadline;
-    updateBusinessService(selectedService.id, {
-      client: editClient.trim(),
-      budget,
-      deadline,
-      status: editStatus,
-    });
-    refresh();
-    setDetailOpen(false);
-    toast.success(`Service ${selectedService.id} updated.`);
+    try {
+      const descriptionData = JSON.stringify({
+        summary: selectedService.summary,
+        budget: editBudget,
+        deadline: editDeadline,
+        subCategory: selectedService.subCategory,
+        skills: selectedService.skills,
+        deliverables: selectedService.deliverables,
+        client: editClient
+      });
+
+      axiosInstance.patch(`/api/technology/services/${selectedService.id}`, {
+        description: descriptionData,
+        isVisible: editStatus === "Active"
+      }).then(() => {
+        toast.success("Service updated successfully.");
+        setDetailOpen(false);
+        refresh();
+      });
+    } catch (err: any) {
+      toast.error("Failed to update service");
+    }
   }
 
   function handleNewServiceClick() {
@@ -223,8 +257,8 @@ export default function BusinessServicesLayout() {
       status: "Pending",
     };
 
-    addBusinessService(row);
-    refresh();
+    // Placeholder for actual creation logic
+    setServices((prev) => [...prev, row]);
     setCreateOpen(false);
     setNewService({
       category: selectedCategory ?? "Technical",
@@ -726,7 +760,10 @@ export default function BusinessServicesLayout() {
       {/* Theme Styled Permanent Delete Confirmation Modal with Spinner */}
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-sm rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in">
+          <div 
+            style={{ maxWidth: '400px' }}
+            className="relative w-full max-w-sm rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in"
+          >
             <div className="flex items-center gap-3 text-rose-500">
               <div className="rounded-full bg-rose-500/10 p-2.5">
                 <AlertTriangle className="h-6 w-6 text-rose-600" />
@@ -754,50 +791,16 @@ export default function BusinessServicesLayout() {
                 disabled={isDeleting}
                 onClick={async () => {
                   setIsDeleting(true);
-                  await new Promise((res) => setTimeout(res, 600));
-
-                  useEffect(() => {
-                    const loadData = () => {
-                      try {
-                        const raw = localStorage.getItem("business_service_rows");
-                        if (raw) {
-                          const parsed = JSON.parse(raw);
-                          if (Array.isArray(parsed)) {
-                            setServices(parsed);
-                          }
-                        }
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    };
-                    
-                    loadData();
-                    window.addEventListener("storage", loadData);
-                    window.addEventListener("focus", loadData);
-
-                    return () => {
-                      window.removeEventListener("storage", loadData);
-                      window.removeEventListener("focus", loadData);
-                    };
-                  }, []);
-
                   try {
-                    const raw = localStorage.getItem("business_service_rows");
-                    if (raw) {
-                      const parsed = JSON.parse(raw);
-                      if (Array.isArray(parsed)) {
-                        const updated = parsed.filter((s: any) => s.id !== deleteTargetId);
-                        localStorage.setItem("business_service_rows", JSON.stringify(updated));
-                      }
-                    }
-                  } catch (e) {
-                    console.error(e);
+                    await axiosInstance.delete(`/api/technology/services/${deleteTargetId}`);
+                    toast.success("Service deleted successfully.");
+                    setDeleteTargetId(null);
+                    refresh();
+                  } catch (err: any) {
+                    toast.error("Failed to delete service");
+                  } finally {
+                    setIsDeleting(false);
                   }
-                  deleteBusinessService(deleteTargetId);
-                  setServices((prev) => prev.filter((s) => s.id !== deleteTargetId));
-                  setIsDeleting(false);
-                  toast.success(`Service ${deleteTargetId} deleted permanently.`);
-                  setDeleteTargetId(null);
                 }}
                 className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-50"
               >

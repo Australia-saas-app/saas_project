@@ -288,8 +288,8 @@ const AllUserTable: React.FC = () => {
                                         {u.profit || 0} {u.currency || 'USD'}
                                     </TableColumn>
                                     <TableColumn>
-                                        <span className={`px-2.5 py-1 text-[11px] font-bold tracking-wider rounded-sm ${getStatusColor(u.status || '')}`}>
-                                            {(u.status || 'UNKNOWN').toUpperCase()}
+                                        <span className={`whitespace-nowrap px-2.5 py-1 text-[11px] font-bold tracking-wider rounded-sm border ${getStatusColor(u.status || '')}`}>
+                                            {(u.status || 'PENDING').toUpperCase()}
                                         </span>
                                     </TableColumn>
                                     <TableColumn align="center">

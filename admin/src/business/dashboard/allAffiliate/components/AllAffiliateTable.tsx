@@ -349,7 +349,7 @@ const AllAffiliateTable: React.FC = () => {
 
                   {/* Status */}
                   <TableColumn>
-                    <span className={`px-2.5 py-1 text-[11px] tracking-wider font-bold rounded-sm border ${getStatusStyle(a.status)}`}>
+                    <span className={`whitespace-nowrap px-2.5 py-1 text-[11px] tracking-wider font-bold rounded-sm border ${getStatusStyle(a.status)}`}>
                       {a.status}
                     </span>
                   </TableColumn>

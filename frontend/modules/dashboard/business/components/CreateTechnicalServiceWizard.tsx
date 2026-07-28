@@ -17,6 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import axiosInstance from "@/src/lib/axiosInstance";
 import { addBusinessService } from "@/src/shared/lib/business-services-store";
 
 const SUB_CATEGORIES = [
@@ -114,26 +115,34 @@ export default function CreateTechnicalServiceWizard() {
     setStep((s) => Math.min(s + 1, 4) as any);
   };
 
-  const handleSubmitService = () => {
-    const id = `SRV-${String(Date.now()).slice(-4)}`;
-    const newServiceRow = {
-      id,
-      category: "Technical",
-      client: "Tech Listing Proposal",
-      budget: pricingType === "Fixed" ? `$${budget}` : `$${budget}/hr`,
-      deadline: `${deliveryDays} Days`,
-      status: "Pending" as const,
-      title,
-      summary,
-      subCategory: subCategory,
-      skills,
-      deliverables,
-      coverUrl: coverUrl || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80",
-    };
+  const handleSubmitService = async () => {
+    try {
+      // Mapping frontend rich fields to the backend CreateServiceDto
+      const descriptionData = JSON.stringify({
+        summary,
+        budget: pricingType === "Fixed" ? `$${budget}` : `$${budget}/hr`,
+        deadline: `${deliveryDays} Days`,
+        subCategory,
+        skills,
+        deliverables,
+        client: "Tech Listing Proposal"
+      });
 
-    addBusinessService(newServiceRow as any);
-    toast.success(`Technical Service "${title}" created and submitted for Admin Verification!`);
-    router.push("/business/services");
+      const payload = {
+        title,
+        photo: coverUrl || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80",
+        tag: subCategory || "Technical",
+        category: "Technical",
+        description: descriptionData,
+        isVisible: false // default pending
+      };
+
+      await axiosInstance.post('/api/technology/services', payload);
+      toast.success(`Technical Service "${title}" created and submitted for Admin Verification!`);
+      router.push("/business/services");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create technical service");
+    }
   };
 
   return (

@@ -7,7 +7,7 @@ import {
   PieChart, LineChart, Settings, Link as LinkIcon, ScrollText, 
   Crown, MoreVertical, Hexagon, LogOut, Database, Briefcase
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -15,13 +15,44 @@ import { useAppDispatch, useAppSelector } from "@/src/core/store/hooks"
 import { logout } from "@/src/core/store/slices/authSlice"
 import { motion, AnimatePresence } from "framer-motion"
 import { hasPermission, Permission, UserRole } from "@/src/core/authentication/utils/rbac"
+import { ShieldCheck } from "lucide-react"
 
 const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggle: () => void }) => {
   const pathname = usePathname()
   const router = useRouter()
   const dispatch = useAppDispatch()
   const user = useAppSelector((state) => state.auth.user)
+  const token = useAppSelector((state) => state.auth.token)
   const role = user?.role as UserRole | undefined
+
+  const [kycCount, setKycCount] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    const fetchKycCount = async () => {
+      if (!token) return
+      try {
+        const response = await fetch('/admin/api/sso/auth/admin/users?status=PENDING', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!response.ok) return
+        const resData = await response.json()
+        if (!active) return
+        const pendingUsers = resData.data?.users || resData.data || []
+        // Optional: you can filter out those without ID Document if needed, but PENDING usually means unverified
+        const count = pendingUsers.filter((u: any) => u.status === 'PENDING').length
+        setKycCount(count)
+      } catch (error) {
+        console.error("Failed to fetch KYC count", error)
+      }
+    }
+    fetchKycCount()
+    const interval = setInterval(fetchKycCount, 30000) // update every 30s
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [token])
 
   const handleLogout = () => {
     dispatch(logout())
@@ -45,7 +76,6 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
       items: [
         { label: "Wallet",       href: `/wallet`, icon: CreditCard },
         { label: "Currency",     href: `/currency`, icon: Database },
-        { label: "KYC Review",   href: `/kyc-queue`, icon: FileText, permission: "approve_kyc" as Permission },
         { label: "Admin",        href: `/admin`, icon: Crown },
       ]
     },
@@ -168,6 +198,27 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
             )}
           </div>
         </Link>
+        <Link href="/kyc-queue" title={!isOpen ? "KYC Queue" : undefined}>
+          <div className={`relative flex items-center ${isOpen ? 'px-4' : 'justify-center px-0'} py-3 rounded-2xl transition-all duration-300 ${
+            (isActive('/kyc-queue')) 
+              ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700' 
+              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-gray-100'
+          }`}>
+            <div className="relative shrink-0 flex">
+              <ShieldCheck size={20} />
+              {kycCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full shadow-sm min-w-[16px] text-center">
+                  {kycCount}
+                </span>
+              )}
+            </div>
+            {isOpen && (
+              <span className="font-bold text-[14px] ml-3 whitespace-nowrap animate-in fade-in zoom-in duration-200 flex items-center gap-2">
+                KYC Queue
+              </span>
+            )}
+          </div>
+        </Link>
       </div>
 
       {/* Navigation Items */}
@@ -180,7 +231,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
               </p>
             )}
             <nav className="space-y-0.5">
-              {group.items.filter(item => item.permission ? hasPermission(role, item.permission) : true).map((item, index) => {
+              {group.items.filter((item: any) => item.permission ? hasPermission(role, item.permission) : true).map((item, index) => {
                 const active = isActive(item.href)
                 return (
                   <Link key={item.label} href={item.href} title={!isOpen ? item.label : undefined}>

@@ -97,6 +97,14 @@ class ApiClient {
     });
   }
 
+  patch<T>(endpoint: string, body: any, options?: FetchOptions) {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: "PATCH",
+      body: body instanceof FormData ? body : JSON.stringify(body),
+    });
+  }
+
   delete<T>(endpoint: string, options?: FetchOptions) {
     return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }

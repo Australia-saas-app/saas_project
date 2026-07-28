@@ -12,6 +12,13 @@ const SIZE_CLASS: Record<AppModalSize, string> = {
   xl: "max-w-xl",
 };
 
+const SIZE_STYLES: Record<AppModalSize, React.CSSProperties> = {
+  sm: { maxWidth: "420px" },
+  md: { maxWidth: "500px" },
+  lg: { maxWidth: "600px" },
+  xl: { maxWidth: "800px" },
+};
+
 export interface AppModalProps {
   open: boolean;
   onClose: () => void;
@@ -70,6 +77,7 @@ export default function AppModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        style={SIZE_STYLES[size]}
         className={[
           "relative flex max-h-[min(85vh,640px)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5",
           SIZE_CLASS[size],

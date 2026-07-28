@@ -140,16 +140,24 @@ export default function RoleProfileCard({
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    addProfileDocument(rawUserId, {
-                      id: `doc-${Date.now()}`,
-                      type: "UPLOADED",
-                      name: file.name,
-                      sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-                      uploadedAt: new Date().toLocaleDateString(),
-                      previewText: `Uploaded: ${file.name}`,
-                    });
-                    toast.success(`${file.name} uploaded successfully.`);
-                    e.target.value = "";
+
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const result = typeof reader.result === "string" ? reader.result : "";
+                      addProfileDocument(rawUserId, {
+                        id: `doc-${Date.now()}`,
+                        type: "UPLOADED",
+                        name: file.name,
+                        sizeLabel: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+                        uploadedAt: new Date().toLocaleDateString(),
+                        previewText: `Uploaded: ${file.name}`,
+                        url: result
+                      });
+                      updateProfile({ documentUrl: result });
+                      toast.success(`${file.name} uploaded successfully.`);
+                      e.target.value = "";
+                    };
+                    reader.readAsDataURL(file);
                   }}
                 />
                 <DocumentUploadButton onClick={() => docUploadRef.current?.click()} />
@@ -177,6 +185,9 @@ export default function RoleProfileCard({
             userId={rawUserId}
             onUpload={(doc) => {
               addProfileDocument(rawUserId, doc);
+              if (doc.url) {
+                updateProfile({ documentUrl: doc.url });
+              }
               toast.success(`${doc.name} added to your documents.`);
             }}
           />
