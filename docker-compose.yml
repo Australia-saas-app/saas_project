@@ -96,7 +96,7 @@ services:
       - SMTP_PASSWORD=kkzdajqzqvwkybgq
       - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
     env_file:
-      - ./backend/config/.env.keys
+      - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
       - saas-redis
@@ -118,7 +118,7 @@ services:
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
     env_file:
-      - ./backend/config/.env.keys
+      - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
       - saas-backend-sso
@@ -140,7 +140,7 @@ services:
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
     env_file:
-      - ./backend/config/.env.keys
+      - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
       - saas-backend-sso
@@ -162,7 +162,7 @@ services:
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
     env_file:
-      - ./backend/config/.env.keys
+      - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
       - saas-backend-sso
