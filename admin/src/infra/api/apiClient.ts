@@ -22,7 +22,7 @@ class ApiClient {
     }
 
     // Attach Authorization token if available (can be pulled from cookies or local storage)
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
