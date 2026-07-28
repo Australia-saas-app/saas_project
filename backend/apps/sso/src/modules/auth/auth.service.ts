@@ -915,7 +915,7 @@ export class AuthService {
       }
 
       if (query.status) {
-        qb.andWhere('user.status = :status', { status: query.status });
+        qb.andWhere('user.status = :status', { status: query.status.toLowerCase() });
       }
 
       if (query.currency) {

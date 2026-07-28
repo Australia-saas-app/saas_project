@@ -3,7 +3,7 @@ import KycQueuePage from "@/src/business/dashboard/kyc-queue/components/KycQueue
 
 export default function KycQueueRoute() {
   return (
-    <Protect permissions={["approve_kyc"]} fallback={<div className="p-8 text-white">You do not have permission to view this page.</div>}>
+    <Protect permissions={["approve_kyc"]} fallback={<div className="p-8 text-slate-500">You do not have permission to view this page.</div>}>
       <KycQueuePage />
     </Protect>
   );

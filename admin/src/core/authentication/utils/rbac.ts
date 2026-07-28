@@ -27,7 +27,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
 export const hasPermission = (role: UserRole | undefined, permission: Permission): boolean => {
   if (!role) return false;
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+  const normalizedRole = role.toLowerCase() as UserRole;
+  return ROLE_PERMISSIONS[normalizedRole]?.includes(permission) ?? false;
 };
 
 export const hasAnyPermission = (role: UserRole | undefined, permissions: Permission[]): boolean => {

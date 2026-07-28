@@ -179,7 +179,7 @@ export default function KycQueuePage() {
                 <TableColumn isHeader align="center">Actions</TableColumn>
               </TableHeading>
 
-              <TableBody isEmpty={pageItems.length === 0} colSpan={6}>
+              <TableBody isEmpty={pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
                 {pageItems.map((row) => (
                   <TableRow key={row.userId || row.id}>
                     <TableColumn>
