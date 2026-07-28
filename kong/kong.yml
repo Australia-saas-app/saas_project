@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: sso-service
-    url: http://sso-service:3001
+    url: http://saas-backend-sso:3001
     routes:
       - name: sso-route
         paths:
@@ -11,7 +11,7 @@ services:
         strip_path: true
 
   - name: admin-service
-    url: http://admin-service:3002
+    url: http://saas-backend-admin:3002
     routes:
       - name: admin-route
         paths:
@@ -19,7 +19,7 @@ services:
         strip_path: true
 
   - name: platform-service
-    url: http://platform-service:3006
+    url: http://saas-backend-platform:3006
     routes:
       - name: platform-route
         paths:
@@ -27,7 +27,7 @@ services:
         strip_path: true
 
   - name: file-storage-service
-    url: http://file-storage-service:3007
+    url: http://saas-backend-file-storage:3007
     routes:
       - name: file-storage-route
         paths:
@@ -35,7 +35,7 @@ services:
         strip_path: true
 
   - name: chat-service
-    url: http://chat-service:3008
+    url: http://saas-backend-chat:3008
     routes:
       - name: chat-route
         paths:
@@ -43,7 +43,7 @@ services:
         strip_path: true
 
   - name: technology-service
-    url: http://technology-service:3010
+    url: http://saas-backend-technology:3010
     routes:
       - name: technology-route
         paths:
@@ -51,7 +51,7 @@ services:
         strip_path: true
 
   - name: user-service
-    url: http://user-service:3013
+    url: http://saas-backend-user:3013
     routes:
       - name: user-route
         paths:

@@ -1,4 +1,4 @@
-export type UserRole = "customer" | "rider" | "business" | "admin" | "sub_admin";
+export type UserRole = "customer" | "rider" | "business" | "admin" | "sub_admin" | "super_admin";
 
 export type Permission = 
   // User permissions
@@ -23,6 +23,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "view_profile", "edit_profile", "manage_inventory", "view_analytics", 
     "manage_bookings", "approve_kyc", "manage_users", "view_system_logs", "manage_roles"
   ], // Admin has all
+  super_admin: [
+    "view_profile", "edit_profile", "manage_inventory", "view_analytics", 
+    "manage_bookings", "approve_kyc", "manage_users", "view_system_logs", "manage_roles"
+  ], // Super Admin has all
 };
 
 export const hasPermission = (role: UserRole | undefined, permission: Permission): boolean => {

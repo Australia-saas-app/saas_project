@@ -142,6 +142,26 @@ services:
     networks:
       - saas_network
 
+  saas-backend-technology:
+    build:
+      context: ./backend/apps/technology
+      dockerfile: Dockerfile
+    container_name: saas-backend-technology
+    environment:
+      - NODE_ENV=production
+      - PORT=3010
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=admin
+      - DB_PASSWORD=adminpassword
+      - DB_NAME=saas_db
+    depends_on:
+      - saas-postgres
+      - saas-backend-sso
+    restart: always
+    networks:
+      - saas_network
+
   # ==========================================
   # 5. DATABASE & INFRASTRUCTURE
   # ==========================================
