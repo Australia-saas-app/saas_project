@@ -91,7 +91,14 @@ export default function BusinessServicesLayout() {
   });
 
   useEffect(() => {
-    setServices(getBusinessServices());
+    const load = () => setServices(getBusinessServices());
+    load();
+    window.addEventListener("storage", load);
+    window.addEventListener("focus", load);
+    return () => {
+      window.removeEventListener("storage", load);
+      window.removeEventListener("focus", load);
+    };
   }, []);
 
   const refresh = () => setServices(getBusinessServices());
@@ -719,7 +726,7 @@ export default function BusinessServicesLayout() {
       {/* Theme Styled Permanent Delete Confirmation Modal with Spinner */}
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-[400px] rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in">
+          <div className="relative w-full max-w-sm rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in">
             <div className="flex items-center gap-3 text-rose-500">
               <div className="rounded-full bg-rose-500/10 p-2.5">
                 <AlertTriangle className="h-6 w-6 text-rose-600" />
@@ -748,6 +755,32 @@ export default function BusinessServicesLayout() {
                 onClick={async () => {
                   setIsDeleting(true);
                   await new Promise((res) => setTimeout(res, 600));
+
+                  useEffect(() => {
+                    const loadData = () => {
+                      try {
+                        const raw = localStorage.getItem("business_service_rows");
+                        if (raw) {
+                          const parsed = JSON.parse(raw);
+                          if (Array.isArray(parsed)) {
+                            setServices(parsed);
+                          }
+                        }
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    };
+                    
+                    loadData();
+                    window.addEventListener("storage", loadData);
+                    window.addEventListener("focus", loadData);
+
+                    return () => {
+                      window.removeEventListener("storage", loadData);
+                      window.removeEventListener("focus", loadData);
+                    };
+                  }, []);
+
                   try {
                     const raw = localStorage.getItem("business_service_rows");
                     if (raw) {

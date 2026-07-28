@@ -52,46 +52,18 @@ const TechnicalProjectLayout: React.FC = () => {
       console.error(e)
     }
 
-    // fallback demo rows (same structure as user created list)
-    const seed = [
-      {
-        id: "USR001",
-        subCategory: "Web dev",
-        totalAmount: "2500 USD",
-        paidAmount: "2500 USD",
-        dueAmount: "0 USD",
-        durationStart: "02 Mar 2026",
-        durationEnd: "03 Jan 2027",
-        profits: "2500 USD",
-        status: "PENDING",
-        title: "Enterprise Web App",
-        summary: "Modern React and NestJS web app development.",
-        skills: ["React", "NestJS", "TypeScript"],
-        deliverables: ["GitHub Repository", "Deployment docs"],
-        client: "Nova Tech Solutions"
-      },
-      {
-        id: "USR002",
-        subCategory: "App dev",
-        totalAmount: "3800 USD",
-        paidAmount: "3800 USD",
-        dueAmount: "0 USD",
-        durationStart: "10 Mar 2026",
-        durationEnd: "15 Dec 2027",
-        profits: "3800 USD",
-        status: "ACTIVE",
-        title: "React Native Mobile App",
-        summary: "Cross-platform mobile application for Android and iOS.",
-        skills: ["React Native", "Firebase", "Redux"],
-        deliverables: ["App Store submission", "Play Store submission"],
-        client: "Global Business Corp"
-      }
-    ]
-    setServices(seed)
+    setServices([])
   }
 
   useEffect(() => {
     loadServices()
+    const handleStorage = () => loadServices()
+    window.addEventListener("storage", handleStorage)
+    window.addEventListener("focus", handleStorage)
+    return () => {
+      window.removeEventListener("storage", handleStorage)
+      window.removeEventListener("focus", handleStorage)
+    }
   }, [])
 
   const handleApproveService = (id: string) => {
@@ -340,7 +312,7 @@ const TechnicalProjectLayout: React.FC = () => {
       {/* Beautiful Admin Inspection & Verification Modal */}
       {modalOpen && selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4">
-          <div className="relative w-full max-w-[420px] rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto">
+          <div className="relative w-full max-w-sm rounded-xl bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in max-h-[75vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-blue-600 dark:text-blue-400">

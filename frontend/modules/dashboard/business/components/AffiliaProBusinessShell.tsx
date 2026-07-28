@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, CircleHelp, LayoutGrid, LogOut, Menu, Settings, X } from "lucide-react";
 import DashboardVerificationGate from "@/src/shared/components/DashboardVerificationGate";
+import LogoutConfirmModal from "@/src/shared/components/LogoutConfirmModal";
 import { useUser } from "@/src/context/user.provider";
 import { useLogout } from "@/src/hooks/auth.hook";
 import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
@@ -43,6 +44,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
   const logoutMutation = useLogout();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
   const name = displayNameFromUser(user);
   const initials = initialsFromName(name);
@@ -252,11 +254,11 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
                       className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                       onClick={() => {
                         setProfileOpen(false);
-                        logoutMutation.mutate();
+                        setConfirmLogoutOpen(true);
                       }}
                     >
                       <LogOut className="h-4 w-4" />
-                      Logout
+                      {logoutMutation.isPending ? "Signing out..." : "Logout"}
                     </button>
                   </div>
                 </>
@@ -271,6 +273,11 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
           </div>
         </main>
       </div>
+
+      <LogoutConfirmModal 
+        open={confirmLogoutOpen} 
+        onClose={() => setConfirmLogoutOpen(false)} 
+      />
     </div>
   );
 }

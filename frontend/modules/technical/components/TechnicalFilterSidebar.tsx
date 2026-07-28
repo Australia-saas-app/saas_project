@@ -161,7 +161,7 @@ export default function TechnicalFilterSidebar({
                 value={filters.projectType}
                 onValueChange={(value) => update({ projectType: value })}
               >
-                <SelectTrigger className="h-10 w-full border-border bg-[#f8fafc] text-sm">
+                <SelectTrigger className="h-10 w-full border-border bg-background text-sm focus:ring-1 focus:ring-primary">
                   <SelectValue placeholder={t.technical.filters.projectType} />
                 </SelectTrigger>
                 <SelectContent>
@@ -179,7 +179,7 @@ export default function TechnicalFilterSidebar({
                 value={filters.category}
                 onValueChange={(value) => update({ category: value })}
               >
-                <SelectTrigger className="h-10 w-full border-border bg-[#f8fafc] text-sm">
+                <SelectTrigger className="h-10 w-full border-border bg-background text-sm focus:ring-1 focus:ring-primary">
                   <SelectValue placeholder={t.technical.filters.category} />
                 </SelectTrigger>
                 <SelectContent>
@@ -197,7 +197,7 @@ export default function TechnicalFilterSidebar({
                 value={filters.subcategory}
                 onValueChange={(value) => update({ subcategory: value })}
               >
-                <SelectTrigger className="h-10 w-full border-border bg-[#f8fafc] text-sm">
+                <SelectTrigger className="h-10 w-full border-border bg-background text-sm focus:ring-1 focus:ring-primary">
                   <SelectValue placeholder={t.technical.filters.subcategory} />
                 </SelectTrigger>
                 <SelectContent>
@@ -258,7 +258,7 @@ export default function TechnicalFilterSidebar({
                   onChange={(e) =>
                     update({ minPrice: Math.min(Number(e.target.value) || 0, filters.maxPrice) })
                   }
-                  className="h-10 w-full rounded-md border border-border bg-[#f8fafc] px-3 text-sm"
+                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                   placeholder={t.technical.filters.min}
                 />
                 <span className="text-xs text-muted-foreground/70">to</span>
@@ -270,7 +270,7 @@ export default function TechnicalFilterSidebar({
                   onChange={(e) =>
                     update({ maxPrice: Math.max(Number(e.target.value) || 0, filters.minPrice) })
                   }
-                  className="h-10 w-full rounded-md border border-border bg-[#f8fafc] px-3 text-sm"
+                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                   placeholder={t.technical.filters.max}
                 />
               </div>
