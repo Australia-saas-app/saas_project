@@ -12,6 +12,7 @@ interface BackendUser {
   role?: string;
   accountType?: string;
   status?: string;
+  kycStatus?: string;
   createdAt?: string;
   avatarUrl?: string;
   profilePhoto?: string;
@@ -62,10 +63,11 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
     onClose();
   };
 
-  const badgeText = currentStatus === "PENDING" ? "Unverified" : "Verified";
-  const badgeColors = currentStatus === "PENDING" 
-    ? "bg-amber-100 text-amber-700 border-amber-200" 
-    : "bg-emerald-100 text-emerald-700 border-emerald-200";
+  const currentKycStatus = (user.kycStatus || "NONE").toUpperCase();
+  const badgeText = currentKycStatus === "APPROVED" ? "Verified" : "Unverified";
+  const badgeColors = currentKycStatus === "APPROVED" 
+    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+    : "bg-amber-100 text-amber-700 border-amber-200";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">

@@ -766,7 +766,8 @@ export class AuthService {
           await runner.query(query, params);
           await runner.query(`RELEASE SAVEPOINT ${sp}`);
           return true;
-        } catch (e) {
+        } catch (e: any) {
+          console.error(`safeDelete failed for query: ${query} params: ${params}`, e?.message || e);
           await runner.query(`ROLLBACK TO SAVEPOINT ${sp}`);
           return false;
         }
@@ -785,7 +786,10 @@ export class AuthService {
       }
 
       // Permanent hard delete of user entity from database
-      await safeDelete(`DELETE FROM "users" WHERE "id" = $1`, [user.id]);
+      const userDeleted = await safeDelete(`DELETE FROM "users" WHERE "id" = $1`, [user.id]);
+      if (!userDeleted) {
+        throw new Error('Failed to delete user row due to foreign key constraints');
+      }
       
       await runner.commitTransaction();
     } catch (err: any) {

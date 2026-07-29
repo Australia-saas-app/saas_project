@@ -45,6 +45,19 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [secondaryEmail, setSecondaryEmail] = useState(initialSecondaryEmail || "");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
+
+  const parsedDocs = React.useMemo(() => {
+    try {
+      if (documentUrl.startsWith("[") && documentUrl.endsWith("]")) {
+        const parsed = JSON.parse(documentUrl);
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+          return { front: parsed[0], back: parsed[1], isDual: true };
+        }
+      }
+    } catch {}
+    return { front: documentUrl, back: "", isDual: false };
+  }, [documentUrl]);
+
   const [documentFileName, setDocumentFileName] = useState<string>("");
   const [documentSizeLabel, setDocumentSizeLabel] = useState<string>("");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -375,7 +388,10 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                   }`}
                 >
                   {documentUrl ? (
-                    <img src={documentUrl} alt="Thumbnail" className="h-full w-full object-cover rounded-xl" />
+                    <div className="flex w-full h-full">
+                      <img src={parsedDocs.front} alt="Front Thumbnail" className={`h-full ${parsedDocs.isDual ? 'w-1/2 border-r border-border' : 'w-full'} object-cover`} />
+                      {parsedDocs.isDual && <img src={parsedDocs.back} alt="Back Thumbnail" className="h-full w-1/2 object-cover" />}
+                    </div>
                   ) : (
                     <FileText className="h-5 w-5" />
                   )}
@@ -512,11 +528,18 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             <h4 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Identity Document / Passport Preview
             </h4>
-            <img
-              src={documentUrl}
-              alt="Document Full View"
-              className="max-h-[75vh] w-full object-contain rounded-xl border border-border bg-black/5"
-            />
+            <div className="w-full max-h-[75vh] overflow-y-auto space-y-4 rounded-xl border border-border bg-black/5 p-4">
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-bold uppercase text-muted-foreground mb-2">Front ID</span>
+                <img src={parsedDocs.front} alt="Front Document Full View" className="w-full object-contain rounded-lg" />
+              </div>
+              {parsedDocs.isDual && (
+                <div className="flex flex-col items-center pt-4 border-t border-border">
+                  <span className="text-xs font-bold uppercase text-muted-foreground mb-2">Back ID</span>
+                  <img src={parsedDocs.back} alt="Back Document Full View" className="w-full object-contain rounded-lg" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

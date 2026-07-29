@@ -32,10 +32,17 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
           }
         } else {
           setFrontUrl(existingUrl);
+          setBackUrl("");
         }
       } catch {
         setFrontUrl(existingUrl);
+        setBackUrl("");
       }
+    } else {
+      setFrontUrl("");
+      setBackUrl("");
+      setFrontFile(null);
+      setBackFile(null);
     }
   }, [existingUrl, open]);
 

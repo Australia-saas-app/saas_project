@@ -20,8 +20,18 @@ export default function ProfilePageLayout() {
       return;
     }
 
-    if (!fullName || !phone || !dateOfBirth || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
-      toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
+    const missingFields: string[] = [];
+    if (!fullName) missingFields.push("Full Name");
+    if (!phone) missingFields.push("Phone");
+    if (!dateOfBirth) missingFields.push("Date of Birth");
+    if (!nationality) missingFields.push("Nationality");
+    if (!nationalIdentity) missingFields.push("National Identity");
+    if (!documentFrontUrl) missingFields.push("Front ID Document");
+    if (!documentBackUrl) missingFields.push("Back ID Document");
+    if (!avatarUrl) missingFields.push("Profile Photo");
+
+    if (missingFields.length > 0) {
+      toast.error(`Please complete the following fields before applying for KYC: ${missingFields.join(', ')}`);
       return;
     }
 

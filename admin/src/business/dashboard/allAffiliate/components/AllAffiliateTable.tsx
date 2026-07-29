@@ -105,7 +105,8 @@ const AllAffiliateTable: React.FC = () => {
           commissionRate: `${u.commission || 0}%`,
           earningsAmount: `${u.earnings || 0} ${u.currency || 'USD'}`,
           level: u.level || 1,
-          status: (u.status || 'ACTIVE').toUpperCase()
+          status: (u.status || 'ACTIVE').toUpperCase(),
+          kycStatus: u.kycStatus
         }))
 
         const q = debouncedQuery.toLowerCase()

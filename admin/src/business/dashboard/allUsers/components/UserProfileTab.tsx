@@ -131,11 +131,11 @@ export const UserProfileTab: React.FC<AffiliateProfileTabProps> = ({
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Badge className={statusVariant(status)}>{status}</Badge>
-                {/* {isVerified && (
+                {isVerified && (
                   <Badge className="bg-green-50 text-green-600 border border-green-200">
                     ✓ Verified Account
                   </Badge>
-                )} */}
+                )}
                 <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)}>
                   Edit
                 </Button>

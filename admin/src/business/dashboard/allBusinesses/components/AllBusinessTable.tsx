@@ -103,7 +103,8 @@ const AllBusinessTable: React.FC = () => {
           dueAmount: `${u.dueAmount || 0} ${u.currency || 'USD'}`,
           percentageRate: `${u.percentageRate || 0}%`,
           paidAmount: `${u.paidAmount || 0} ${u.currency || 'USD'}`,
-          status: (u.status || 'ACTIVE').toUpperCase()
+          status: (u.status || 'ACTIVE').toUpperCase(),
+          kycStatus: u.kycStatus
         }))
 
         const q = debouncedQuery.toLowerCase()

@@ -108,6 +108,7 @@ const AllUserTable: React.FC = () => {
                     phone: u.phone,
                     currency: u.currency,
                     status: u.status,
+                    kycStatus: u.kycStatus,
                     createdAt: u.createdAt,
                     nationality: u.nationality,
                     dateOfBirth: u.dateOfBirth,

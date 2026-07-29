@@ -12,6 +12,7 @@ type BackendUser = {
   email?: string
   phone?: string | null
   currency?: string
+  kycStatus?: string
   profilePhoto?: string | null
   dateOfBirth?: string | null
   nationality?: string | null
@@ -61,7 +62,7 @@ export default function UserDetailsPage() {
       profileImage={user.profilePhoto || undefined}
       scanFaceImage={undefined}
       passportImage={undefined}
-      isVerified={true}
+      isVerified={user.kycStatus === 'APPROVED' || user.kycStatus === 'approved'}
     />
   )
 }
