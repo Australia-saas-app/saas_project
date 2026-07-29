@@ -759,23 +759,26 @@ export class AuthService {
       ];
 
       for (const table of tablesWithUserId) {
-        const tableExistsResult = await runner.query(
-          `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)`,
+        const columnExistsResult = await runner.query(
+          `SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = $1 AND column_name = 'userId'
+          )`,
           [table]
         );
-        if (tableExistsResult[0].exists) {
+        if (columnExistsResult[0].exists) {
           try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.userId]); } catch (e) {}
           try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.id]); } catch (e) {}
         }
       }
 
-      const withdrawalExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'withdrawal_requests')`);
+      const withdrawalExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'withdrawal_requests' AND column_name = 'businessUserId')`);
       if (withdrawalExists[0].exists) {
         try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.userId]); } catch (e) {}
         try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]); } catch (e) {}
       }
 
-      const referralsExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'referrals')`);
+      const referralsExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'referrals' AND column_name = 'referredUserId')`);
       if (referralsExists[0].exists) {
         try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]); } catch (e) {}
         try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]); } catch (e) {}
