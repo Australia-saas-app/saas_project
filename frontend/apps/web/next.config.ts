@@ -76,15 +76,17 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
 
-  // Production-only: keeps `next dev` free of the "Experiments (use with caution)" banner.
-  ...(isDev
-    ? {}
-    : {
-        experimental: {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+    ...(isDev
+      ? {}
+      : {
           optimizeCss: true,
           optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
-        },
-      }),
+        }),
+  },
 
   /**
    * Security headers applied to every response.

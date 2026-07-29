@@ -458,13 +458,23 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     
-    // Update the user cookie with the new payload fields so refreshUser sees them immediately
+    // Update the user cookie with light payload fields so refreshUser sees them immediately
     if (data?.success) {
       const userCookie = cookieStore.get("user")?.value;
       if (userCookie) {
         try {
           const userObj = JSON.parse(userCookie);
-          const updatedUser = { ...userObj, ...payload };
+          const cleanPayload: Record<string, any> = {};
+          for (const [k, v] of Object.entries(payload)) {
+            // Do not store base64 strings or heavy values in HTTP cookies
+            if (typeof v === "string" && v.length > 500) continue;
+            cleanPayload[k] = v;
+          }
+          const updatedUser = { ...userObj, ...cleanPayload };
+          delete updatedUser.profilePhoto;
+          delete updatedUser.idDocument;
+          delete updatedUser.avatarUrl;
+          delete updatedUser.documentUrl;
           cookieStore.set("user", JSON.stringify(updatedUser), getCookieOptions(false));
         } catch {}
       }
@@ -473,5 +483,18 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
     return data;
   } catch (error: unknown) {
     return { success: false, message: parseApiError(error, "Failed to update profile") };
+  }
+};
+
+export const applyForKyc = async (userId: string) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  try {
+    const { data } = await axiosInstance.post(`/sso/auth/users/${userId}/kyc/apply`, {}, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return data;
+  } catch (error: unknown) {
+    return { success: false, message: parseApiError(error, "Failed to submit application") };
   }
 };

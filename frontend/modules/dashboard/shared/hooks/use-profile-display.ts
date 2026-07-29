@@ -136,18 +136,18 @@ export function useProfileDisplay() {
     }
     try {
       if (!isDemo) {
-        const profileResult = await completeUserProfile({
-          ...patch,
-          // Extract specific fields the backend expects
-          fullName: patch.fullName,
-          dateOfBirth: patch.dateOfBirth,
-          nationality: patch.nationality,
-          governmentId: patch.nationalIdentity,
-          idDocument: patch.documentUrl,
-          profilePhoto: patch.avatarUrl,
-          currency: patch.currency,
-          phone: patch.phone,
-        });
+        const payload: Record<string, any> = {};
+        if (patch.fullName) payload.fullName = patch.fullName;
+        if (patch.dateOfBirth) payload.dateOfBirth = patch.dateOfBirth;
+        if (patch.nationality) payload.nationality = patch.nationality;
+        if (patch.nationalIdentity) payload.governmentId = patch.nationalIdentity;
+        if (patch.documentUrl) payload.idDocument = patch.documentUrl;
+        if (patch.avatarUrl) payload.profilePhoto = patch.avatarUrl;
+        if (patch.currency) payload.currency = patch.currency;
+        if (patch.phone) payload.phone = patch.phone;
+        if (patch.accountType) payload.accountType = String(patch.accountType).toLowerCase();
+
+        const profileResult = await completeUserProfile(payload);
         
         if (profileResult && !profileResult.success) {
           throw new Error(profileResult.message || "Failed to sync profile to backend");

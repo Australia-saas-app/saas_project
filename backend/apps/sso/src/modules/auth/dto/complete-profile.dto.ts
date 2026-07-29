@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsEnum, IsDateString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { AccountType } from '../../../entities/user.entity';
 
 class PermanentAddressDto {
@@ -16,8 +16,10 @@ class AgencyServiceAreaDto {
 }
 
 export class CompleteProfileDto {
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase() : value)
   @IsEnum(AccountType)
-  accountType: AccountType;
+  accountType?: AccountType;
 
   // Common
   @IsOptional() @IsString() profilePhoto?: string;

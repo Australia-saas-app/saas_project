@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { X, CheckCircle, ShieldAlert, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import axiosInstance from "@/src/shared/lib/axiosInstance";
+import { applyForKyc } from "@/src/shared/server/AuthService";
 
 interface KycApplicationModalProps {
   isOpen: boolean;
@@ -31,12 +31,16 @@ export default function KycApplicationModal({
   const handleApply = async () => {
     setIsApplying(true);
     try {
-      await axiosInstance.post(`/sso/auth/users/${user.rawUserId}/kyc/apply`);
-      toast.success("KYC Application submitted successfully!");
-      onSuccess();
-      onClose();
+      const res = await applyForKyc(user.rawUserId);
+      if (res && res.success !== false) {
+        toast.success("KYC Application submitted successfully!");
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(res?.message || "Failed to submit application");
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to submit application");
+      toast.error(error?.message || "Failed to submit application");
     } finally {
       setIsApplying(false);
     }

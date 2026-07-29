@@ -171,7 +171,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       markProfileComplete(rawUserId, accountType, patchData);
 
       // 3. Post to backend DB endpoint if authenticated
-      const dbAccountType = user?.accountType || (accountType === "affiliate" ? "AGENCY" : accountType.toUpperCase());
+      const dbAccountType = String(user?.accountType || (accountType === "affiliate" ? "agency" : accountType)).toLowerCase();
       const profileResult = await completeUserProfile({
         accountType: dbAccountType,
         fullName,
@@ -182,6 +182,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         phone: `${countryCode}${phone}`,
         email,
         currency,
+        profilePhoto: (user as any)?.avatarUrl || (user as any)?.profilePhoto,
       });
       
       if (profileResult && !profileResult.success) {
