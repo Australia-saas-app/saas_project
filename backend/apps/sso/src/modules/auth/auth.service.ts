@@ -758,34 +758,35 @@ export class AuthService {
         'activity_logs', 'audit_trails', 'chat_topics', 'security_deposits', 'affiliate_incomes'
       ];
 
-      for (const table of tablesWithUserId) {
-        const columnExistsResult = await runner.query(
-          `SELECT EXISTS (
-            SELECT FROM information_schema.columns 
-            WHERE table_name = $1 AND column_name = 'userId'
-          )`,
-          [table]
-        );
-        if (columnExistsResult[0].exists) {
-          try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.userId]); } catch (e) {}
-          try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.id]); } catch (e) {}
+      // Helper to safely execute a query without aborting the main transaction on error
+      const safeDelete = async (query: string, params: any[]) => {
+        const sp = `sp_${Math.random().toString(36).substring(2, 10)}`;
+        await runner.query(`SAVEPOINT ${sp}`);
+        try {
+          await runner.query(query, params);
+          await runner.query(`RELEASE SAVEPOINT ${sp}`);
+          return true;
+        } catch (e) {
+          await runner.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+          return false;
         }
-      }
+      };
 
-      const withdrawalExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'withdrawal_requests' AND column_name = 'businessUserId')`);
-      if (withdrawalExists[0].exists) {
-        try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.userId]); } catch (e) {}
-        try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]); } catch (e) {}
-      }
-
-      const referralsExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'referrals' AND column_name = 'referredUserId')`);
-      if (referralsExists[0].exists) {
-        try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]); } catch (e) {}
-        try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]); } catch (e) {}
+      // Loop multiple times to resolve foreign key dependencies (child deleted before parent)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        for (const table of tablesWithUserId) {
+          await safeDelete(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.userId]);
+          await safeDelete(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.id]);
+        }
+        await safeDelete(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.userId]);
+        await safeDelete(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]);
+        await safeDelete(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]);
+        await safeDelete(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]);
       }
 
       // Permanent hard delete of user entity from database
-      await runner.manager.delete(user.constructor, { id: user.id });
+      await safeDelete(`DELETE FROM "users" WHERE "id" = $1`, [user.id]);
+      
       await runner.commitTransaction();
     } catch (err: any) {
       await runner.rollbackTransaction();
