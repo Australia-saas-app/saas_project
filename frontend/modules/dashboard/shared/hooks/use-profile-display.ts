@@ -9,7 +9,7 @@ import {
   type ProfileField,
 } from "@/src/shared/utils/profile-storage"
 import { getUserIdFromAuthUser, isDemoAuthUser, getDisplayUserId, getInitials } from "@/src/shared/lib/demo-user"
-import axiosInstance from "@/src/shared/lib/axiosInstance";
+import { completeUserProfile } from "@/src/shared/server/AuthService";
 
 export const PROFILE_UPDATED_EVENT = "vero:profile_updated";
 
@@ -136,7 +136,7 @@ export function useProfileDisplay() {
     }
     try {
       if (!isDemo) {
-        await axiosInstance.post('/api/sso/auth/user/complete-profile', {
+        const profileResult = await completeUserProfile({
           ...patch,
           // Extract specific fields the backend expects
           fullName: patch.fullName,
@@ -148,6 +148,10 @@ export function useProfileDisplay() {
           currency: patch.currency,
           phone: patch.phone,
         });
+        
+        if (profileResult && !profileResult.success) {
+          throw new Error(profileResult.message || "Failed to sync profile to backend");
+        }
       }
     } catch (e) {
       console.error("Failed to sync profile to backend", e);

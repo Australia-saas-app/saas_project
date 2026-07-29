@@ -172,7 +172,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
       // 3. Post to backend DB endpoint if authenticated
       const dbAccountType = user?.accountType || (accountType === "affiliate" ? "AGENCY" : accountType.toUpperCase());
-      await completeUserProfile({
+      const profileResult = await completeUserProfile({
         accountType: dbAccountType,
         fullName,
         nationality,
@@ -182,7 +182,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         phone: `${countryCode}${phone}`,
         email,
         currency,
-      }).catch(() => undefined);
+      });
+      
+      if (profileResult && !profileResult.success) {
+        throw new Error(profileResult.message || "Failed to update profile on backend");
+      }
 
       // 4. Refresh global user context
       if (refreshUser) {

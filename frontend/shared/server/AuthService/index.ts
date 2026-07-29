@@ -451,8 +451,25 @@ export const resetUserPassword = async (payload: { email?: string; phone?: strin
 };
 
 export const completeUserProfile = async (payload: Record<string, any>) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
   try {
-    const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", payload);
+    const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", payload, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    
+    // Update the user cookie with the new payload fields so refreshUser sees them immediately
+    if (data?.success) {
+      const userCookie = cookieStore.get("user")?.value;
+      if (userCookie) {
+        try {
+          const userObj = JSON.parse(userCookie);
+          const updatedUser = { ...userObj, ...payload };
+          cookieStore.set("user", JSON.stringify(updatedUser), getCookieOptions(false));
+        } catch {}
+      }
+    }
+    
     return data;
   } catch (error: unknown) {
     return { success: false, message: parseApiError(error, "Failed to update profile") };
