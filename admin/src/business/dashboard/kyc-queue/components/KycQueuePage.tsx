@@ -32,7 +32,8 @@ export default function KycQueuePage() {
     queryKey: ["kyc-users"],
     queryFn: async () => {
       if (!token) return [];
-      const response = await fetch('/admin/api/sso/auth/admin/users', {
+      // Fetch a large page so we see all KYC applicants, not just the first 10
+      const response = await fetch('/admin/api/sso/auth/admin/users?limit=1000', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Network error');
@@ -41,6 +42,14 @@ export default function KycQueuePage() {
     },
     enabled: !!token,
   });
+
+  // Auto-refetch when an admin approves / rejects a KYC application
+  useEffect(() => {
+    const handleKycUpdate = () => refetch();
+    window.addEventListener("vero:kyc_updated", handleKycUpdate);
+    return () => window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+  }, [refetch]);
+
 
   // Calculate counts for tabs
   const kycCounts = {
@@ -87,11 +96,13 @@ export default function KycQueuePage() {
     if (q && !matchesQuery) return false;
 
     // Status filter
-    if (status === "Unverified" && (u.kycStatus !== 'pending' && u.kycStatus !== 'submitted')) return false;
-    if (status === "Verified" && u.kycStatus !== 'approved') return false;
+    const uStatus = String(u.kycStatus || 'none').toLowerCase();
+    if ((status === "Pending" || status === "Unverified") && (uStatus !== 'pending' && uStatus !== 'submitted')) return false;
+    if ((status === "Approved" || status === "Verified") && uStatus !== 'approved') return false;
+    if (status === "Rejected" && uStatus !== 'rejected') return false;
 
-    // We only want to show users in the KYC queue if they have applied for KYC or are already verified/rejected
-    if (!u.kycStatus || u.kycStatus === 'none') return false;
+    // We only want to show users in the KYC queue if they have applied for KYC or are already approved/rejected/pending
+    if (!u.kycStatus || uStatus === 'none') return false;
 
     return true;
   }).sort((a, b) => {
@@ -161,8 +172,9 @@ export default function KycQueuePage() {
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-[100]">
                 <SelectItem value="All Statuses" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Statuses</SelectItem>
-                <SelectItem value="Unverified" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Unverified</SelectItem>
-                <SelectItem value="Verified" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Verified</SelectItem>
+                <SelectItem value="Pending" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Pending</SelectItem>
+                <SelectItem value="Approved" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Approved</SelectItem>
+                <SelectItem value="Rejected" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Rejected</SelectItem>
               </SelectContent>
             </Select>
           </div>

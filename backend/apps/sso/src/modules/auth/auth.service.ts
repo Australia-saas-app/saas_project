@@ -984,7 +984,7 @@ export class AuthService {
   async getUsers(query: any) {
     try {
       const page = query.page && query.page > 0 ? query.page : 1;
-      const limit = query.limit && query.limit > 0 ? Math.min(query.limit, 100) : 10;
+      const limit = query.limit && query.limit > 0 ? Math.min(query.limit, 5000) : 10;
       const skip = (page - 1) * limit;
 
       const qb = this.userRepository.createQueryBuilder('user');

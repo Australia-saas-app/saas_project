@@ -34,7 +34,8 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     const fetchKycCount = async () => {
       if (!token) return
       try {
-        const response = await fetch('/admin/api/sso/auth/admin/users', {
+        // Use limit=1000 to count all pending KYC applications, not just first 10
+        const response = await fetch('/admin/api/sso/auth/admin/users?limit=1000', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) return
@@ -52,9 +53,12 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     }
     fetchKycCount()
     const interval = setInterval(fetchKycCount, 30000) // update every 30s
+    // Also instantly update when an admin approves / rejects an application
+    window.addEventListener("vero:kyc_updated", fetchKycCount)
     return () => {
       active = false
       clearInterval(interval)
+      window.removeEventListener("vero:kyc_updated", fetchKycCount)
     }
   }, [token])
 

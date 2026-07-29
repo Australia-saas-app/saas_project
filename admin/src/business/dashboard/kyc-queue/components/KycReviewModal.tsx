@@ -227,7 +227,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           {(kycStatus === 'pending' || kycStatus === 'submitted') && (
             <>
               <button 
-                onClick={() => handleUpdateStatus('REJECTED')}
+                onClick={() => handleUpdateStatus('rejected')}
                 disabled={isUpdating}
                 className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
               >
@@ -235,7 +235,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               </button>
               
               <button 
-                onClick={() => handleUpdateStatus('APPROVED')}
+                onClick={() => handleUpdateStatus('approved')}
                 disabled={isUpdating}
                 className="flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[120px]"
               >

@@ -115,9 +115,10 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
   // Sync profile details and document to backend DB automatically on mount if local overrides exist
   useEffect(() => {
-    if (!user || !documentUrl) return;
+    if (!user || (!documentUrl && !(user as any)?.profilePhoto)) return;
     const u = user as any;
     const dbAccountType = u?.accountType || (accountType === "affiliate" ? "AGENCY" : accountType.toUpperCase());
+    const photo = u?.avatarUrl || u?.profilePhoto;
     completeUserProfile({
       accountType: dbAccountType,
       fullName: fullName || u.fullName,
@@ -125,6 +126,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       dateOfBirth: dateOfBirth || u.dateOfBirth,
       governmentId: nationalIdentity || u.governmentId,
       idDocument: documentUrl || u.idDocument,
+      ...(photo ? { profilePhoto: photo } : {}),
       phone: phone ? `${countryCode}${phone}` : u.phone,
       email: email || u.email,
       currency: currency || u.currency,
@@ -172,6 +174,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
       // 3. Post to backend DB endpoint if authenticated
       const dbAccountType = String(user?.accountType || (accountType === "affiliate" ? "agency" : accountType)).toLowerCase();
+      const photoVal = (user as any)?.avatarUrl || (user as any)?.profilePhoto;
       const profileResult = await completeUserProfile({
         accountType: dbAccountType,
         fullName,
@@ -182,7 +185,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         phone: `${countryCode}${phone}`,
         email,
         currency,
-        profilePhoto: (user as any)?.avatarUrl || (user as any)?.profilePhoto,
+        ...(photoVal ? { profilePhoto: photoVal } : {}),
       });
       
       if (profileResult && !profileResult.success) {

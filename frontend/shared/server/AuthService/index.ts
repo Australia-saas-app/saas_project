@@ -89,7 +89,17 @@ async function persistSessionTokens(payload: unknown, rememberMe: boolean = fals
     cookieStore.set("refreshToken", data.refreshToken, getRefreshCookieOptions(rememberMe));
   }
   if (data?.user) {
-    cookieStore.set("user", JSON.stringify(data.user), getCookieOptions(rememberMe));
+    // Strip large / binary fields that would bloat the cookie and trigger
+    // ERR_RESPONSE_HEADERS_TOO_BIG. Profile photos and document URLs can be
+    // base64 strings of hundreds of KB — cookies must stay under ~4 KB.
+    const {
+      profilePhoto: _photo,
+      idDocument: _doc,
+      avatarUrl: _avatar,
+      documentUrl: _docUrl,
+      ...safeUser
+    } = data.user as any;
+    cookieStore.set("user", JSON.stringify(safeUser), getCookieOptions(rememberMe));
   }
 }
 
@@ -454,18 +464,30 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   try {
-    const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", payload, {
+    const safePayload: Record<string, any> = {};
+
+    for (const [k, v] of Object.entries(payload)) {
+      // Skip client-side-only helper fields not part of backend user entity
+      if (k === "avatarUrl" || k === "documentUrl" || k === "resubmitted" ||
+          k === "accountLabel" || k === "secondaryEmail" || k === "countryCode") continue;
+      if (v !== undefined && v !== null) {
+        safePayload[k] = v;
+      }
+    }
+
+    const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", safePayload, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     
-    // Update the user cookie with light payload fields so refreshUser sees them immediately
+    // Update the user cookie with light payload fields so refreshUser sees them immediately.
+    // CRITICAL: Strip profilePhoto and idDocument from cookieStore to prevent HTTP header size overflow.
     if (data?.success) {
       const userCookie = cookieStore.get("user")?.value;
       if (userCookie) {
         try {
           const userObj = JSON.parse(userCookie);
           const cleanPayload: Record<string, any> = {};
-          for (const [k, v] of Object.entries(payload)) {
+          for (const [k, v] of Object.entries(safePayload)) {
             // Do not store base64 strings or heavy values in HTTP cookies
             if (typeof v === "string" && v.length > 500) continue;
             cleanPayload[k] = v;
