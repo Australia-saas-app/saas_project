@@ -63,13 +63,13 @@ export default function KycQueuePage() {
     switch(kycStatus?.toLowerCase()) {
       case "pending":
       case "submitted":
-        return <Badge className="bg-amber-100 text-amber-800 uppercase text-[10px]">Unverified</Badge>;
+        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 uppercase text-[10px]">Pending</Badge>;
       case "approved":
-        return <Badge className="bg-green-100 text-green-800 uppercase text-[10px]">Verified</Badge>;
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 uppercase text-[10px]">Approved</Badge>;
       case "rejected":
-        return <Badge className="bg-red-100 text-red-800 uppercase text-[10px]">Rejected</Badge>;
+        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 uppercase text-[10px]">Rejected</Badge>;
       default:
-        return <Badge className="uppercase text-[10px] bg-slate-100 text-slate-800">None</Badge>;
+        return <Badge className="uppercase text-[10px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400">None</Badge>;
     }
   };
 

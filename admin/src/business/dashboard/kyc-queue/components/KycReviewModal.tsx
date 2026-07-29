@@ -113,6 +113,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">National Identity Number</span>
                 <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.governmentId || user.nationalIdentity || "N/A"}</p>
               </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Date of Birth</span>
+                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.dateOfBirth || "N/A"}</p>
+              </div>
             </div>
 
             {/* Right side info & Photo */}
@@ -129,9 +133,9 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application ID</span>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>
                 <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
-                  {user.displayUserId ? `KYC-${user.displayUserId}` : (user.userId ? `KYC-${user.userId}` : `KYC-${user.id}`)}
+                  {user.userId ? `KYC-${user.userId}` : (user.id ? `KYC-${user.id}` : "N/A")}
                 </p>
               </div>
               <div className="text-right">
