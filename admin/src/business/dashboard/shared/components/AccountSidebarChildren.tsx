@@ -34,15 +34,17 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     const fetchKycCount = async () => {
       if (!token) return
       try {
-        const response = await fetch('/admin/api/sso/auth/admin/users?status=PENDING', {
+        const response = await fetch('/admin/api/sso/auth/admin/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) return
         const resData = await response.json()
         if (!active) return
-        const pendingUsers = resData.data?.users || resData.data || []
-        // Optional: you can filter out those without ID Document if needed, but PENDING usually means unverified
-        const count = pendingUsers.filter((u: any) => u.status === 'PENDING').length
+        const allUsers = resData.data?.users || resData.data || []
+        const count = allUsers.filter((u: any) => {
+          const k = String(u.kycStatus || '').toLowerCase()
+          return k === 'pending' || k === 'submitted'
+        }).length
         setKycCount(count)
       } catch (error) {
         console.error("Failed to fetch KYC count", error)
@@ -209,16 +211,23 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
           }`}>
             <div className="relative shrink-0 flex">
               <ShieldCheck size={20} />
-              {kycCount > 0 && (
+              {!isOpen && kycCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full shadow-sm min-w-[16px] text-center">
                   {kycCount}
                 </span>
               )}
             </div>
             {isOpen && (
-              <span className="font-bold text-[14px] ml-3 whitespace-nowrap animate-in fade-in zoom-in duration-200 flex items-center gap-2">
-                KYC Queue
-              </span>
+              <div className="flex items-center justify-between flex-1 ml-3 overflow-hidden">
+                <span className="font-bold text-[14px] whitespace-nowrap animate-in fade-in zoom-in duration-200">
+                  KYC Queue
+                </span>
+                {kycCount > 0 && (
+                  <span className="bg-red-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm shrink-0">
+                    {kycCount}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </Link>

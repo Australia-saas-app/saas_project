@@ -152,26 +152,26 @@ export default function KycApplicationModal({
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-slate-500 uppercase">Front ID</p>
-                    <div className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-50 aspect-video">
-                      <img src={user.documentFrontUrl} alt="Front ID Document" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video">
+                      <img src={user.documentFrontUrl} alt="Front ID Document" className="absolute inset-0 w-full h-full object-contain p-1" />
                     </div>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-slate-500 uppercase">Back ID</p>
-                    <div className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-50 aspect-video">
-                      <img src={user.documentBackUrl} alt="Back ID Document" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video">
+                      <img src={user.documentBackUrl} alt="Back ID Document" className="absolute inset-0 w-full h-full object-contain p-1" />
                     </div>
                   </div>
                 </div>
              ) : user.documentUrl ? (
-                <div className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-50 aspect-video max-w-sm">
+                <div className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video max-w-sm">
                   {user.documentUrl.toLowerCase().endsWith(".pdf") ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
                       <FileText className="h-12 w-12 mb-2" />
                       <span className="text-sm font-medium">PDF Document</span>
                     </div>
                   ) : (
-                    <img src={user.documentUrl} alt="ID Document" className="absolute inset-0 w-full h-full object-cover" />
+                    <img src={user.documentUrl} alt="ID Document" className="absolute inset-0 w-full h-full object-contain p-1" />
                   )}
                 </div>
              ) : (

@@ -38,6 +38,9 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
       if (!response.ok) throw new Error('Failed to update KYC status');
       
       toast.success(`Application ${kycStatus} successfully.`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("vero:kyc_updated"));
+      }
       onSuccess();
     } catch (error) {
       toast.error('Failed to update KYC status');
@@ -55,7 +58,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-6">
+      <div 
+        style={{ maxWidth: '850px', width: '92%', margin: '0 auto' }} 
+        className="relative bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden rounded-2xl my-6"
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -123,8 +129,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">User ID</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">{user.userId || user.id}</p>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application ID</span>
+                <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  {user.displayUserId ? `KYC-${user.displayUserId}` : (user.userId ? `KYC-${user.userId}` : `KYC-${user.id}`)}
+                </p>
               </div>
               <div className="text-right">
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application Date</span>
@@ -149,34 +157,34 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   );
                 }
 
-                let front = "";
-                let back = "";
-                try {
-                  if (docUrl.startsWith("[") && docUrl.endsWith("]")) {
-                    const parsed = JSON.parse(docUrl);
-                    if (Array.isArray(parsed) && parsed.length >= 2) {
-                      front = parsed[0];
-                      back = parsed[1];
-                    }
-                  }
-                } catch(e) {}
+                 let front = user.documentFrontUrl || "";
+                 let back = user.documentBackUrl || "";
+                 try {
+                   if (!front && !back && docUrl && docUrl.startsWith("[") && docUrl.endsWith("]")) {
+                     const parsed = JSON.parse(docUrl);
+                     if (Array.isArray(parsed) && parsed.length >= 2) {
+                       front = parsed[0];
+                       back = parsed[1];
+                     }
+                   }
+                 } catch(e) {}
 
                 if (front && back) {
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Front ID</p>
-                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40">
+                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full">
                           <a href={front} target="_blank" rel="noreferrer">
-                            <img src={front} alt="Front ID Document" className="w-full h-full object-contain" />
+                            <img src={front} alt="Front ID Document" className="w-full h-full object-contain p-1" />
                           </a>
                         </div>
                       </div>
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Back ID</p>
-                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40">
+                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full">
                           <a href={back} target="_blank" rel="noreferrer">
-                            <img src={back} alt="Back ID Document" className="w-full h-full object-contain" />
+                            <img src={back} alt="Back ID Document" className="w-full h-full object-contain p-1" />
                           </a>
                         </div>
                       </div>
@@ -185,7 +193,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 }
 
                 return (
-                  <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40 max-w-sm">
+                  <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full max-w-md">
                     {docUrl.toLowerCase().endsWith(".pdf") ? (
                       <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12">
                         <FileText className="h-12 w-12 mb-2" />
@@ -193,7 +201,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                       </div>
                     ) : (
                       <a href={docUrl} target="_blank" rel="noreferrer">
-                        <img src={docUrl} alt="ID Document" className="w-full h-full object-contain p-2" />
+                        <img src={docUrl} alt="ID Document" className="w-full h-full object-contain p-1" />
                       </a>
                     )}
                   </div>

@@ -421,6 +421,12 @@ export class TokenService {
         phone: options.user.phone,
         status: options.user.status,
         kycStatus: options.user.kycStatus,
+        profilePhoto: options.user.profilePhoto,
+        idDocument: options.user.idDocument,
+        nationality: options.user.nationality,
+        dateOfBirth: options.user.dateOfBirth,
+        governmentId: options.user.governmentId,
+        currency: options.user.currency,
       },
       session: {
         id: options.session.id,

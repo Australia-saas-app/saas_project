@@ -834,7 +834,13 @@ export class AuthService {
         email: user.email,
         phone: user.phone,
         status: user.status,
+        kycStatus: user.kycStatus,
         currency: user.currency,
+        profilePhoto: user.profilePhoto,
+        idDocument: user.idDocument,
+        nationality: user.nationality,
+        dateOfBirth: user.dateOfBirth,
+        governmentId: user.governmentId,
       },
     };
   }
@@ -913,7 +919,9 @@ export class AuthService {
       } as any;
     }
 
-    user.status = UserStatus.PENDING;
+    if (!user.status) {
+      user.status = UserStatus.ACTIVE;
+    }
     await this.userRepository.save(user);
 
     return {

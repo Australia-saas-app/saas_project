@@ -176,7 +176,7 @@ export default function KycQueuePage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
             <Table>
               <TableHeading>
-                <TableColumn isHeader>User ID</TableColumn>
+                <TableColumn isHeader>Application ID</TableColumn>
                 <TableColumn isHeader>Full Name</TableColumn>
                 <TableColumn isHeader>Email</TableColumn>
                 <TableColumn isHeader>Role</TableColumn>
@@ -188,8 +188,8 @@ export default function KycQueuePage() {
                 {pageItems.map((row) => (
                   <TableRow key={row.userId || row.id}>
                     <TableColumn>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {row.userId || row.id}
+                      <span className="font-mono font-medium text-gray-900 dark:text-gray-100 text-xs">
+                        {row.displayUserId ? `KYC-${row.displayUserId}` : (row.userId ? `KYC-${row.userId}` : `KYC-${row.id}`)}
                       </span>
                     </TableColumn>
                     <TableColumn>
