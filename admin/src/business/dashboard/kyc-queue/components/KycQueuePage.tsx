@@ -51,7 +51,7 @@ export default function KycQueuePage() {
 
   if (users) {
     users.forEach(u => {
-      if (u.status === 'PENDING') {
+      if (u.kycStatus === 'pending' || u.kycStatus === 'submitted') {
         if (u.accountType === 'user') kycCounts.user++;
         if (u.accountType === 'agency' || u.accountType === 'affiliate') kycCounts.affiliate++;
         if (u.accountType === 'business') kycCounts.business++;
@@ -59,15 +59,17 @@ export default function KycQueuePage() {
     });
   }
 
-  const getStatusBadge = (status: string) => {
-    switch(status?.toUpperCase()) {
-      case "PENDING":
+  const getStatusBadge = (kycStatus: string) => {
+    switch(kycStatus?.toLowerCase()) {
+      case "pending":
+      case "submitted":
         return <Badge className="bg-amber-100 text-amber-800 uppercase text-[10px]">Unverified</Badge>;
-      case "ACTIVE":
-      case "APPROVED":
+      case "approved":
         return <Badge className="bg-green-100 text-green-800 uppercase text-[10px]">Verified</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-100 text-red-800 uppercase text-[10px]">Rejected</Badge>;
       default:
-        return <Badge className="uppercase text-[10px]">{status}</Badge>;
+        return <Badge className="uppercase text-[10px] bg-slate-100 text-slate-800">None</Badge>;
     }
   };
 
@@ -85,16 +87,19 @@ export default function KycQueuePage() {
     if (q && !matchesQuery) return false;
 
     // Status filter
-    if (status === "Unverified" && u.status !== 'PENDING') return false;
-    if (status === "Verified" && u.status !== 'ACTIVE') return false;
+    if (status === "Unverified" && (u.kycStatus !== 'pending' && u.kycStatus !== 'submitted')) return false;
+    if (status === "Verified" && u.kycStatus !== 'approved') return false;
 
-    // By default, if 'All Statuses', only show PENDING and ACTIVE that might have KYC
-    // But since it's a KYC queue, mostly we care about PENDING
+    // We only want to show users in the KYC queue if they have applied for KYC or are already verified/rejected
+    if (!u.kycStatus || u.kycStatus === 'none') return false;
+
     return true;
   }).sort((a, b) => {
     // Pending first
-    if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
-    if (b.status === 'PENDING' && a.status !== 'PENDING') return 1;
+    const aIsPending = a.kycStatus === 'pending' || a.kycStatus === 'submitted';
+    const bIsPending = b.kycStatus === 'pending' || b.kycStatus === 'submitted';
+    if (aIsPending && !bIsPending) return -1;
+    if (bIsPending && !aIsPending) return 1;
     return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
 
@@ -209,7 +214,7 @@ export default function KycQueuePage() {
                     </TableColumn>
                     <TableColumn align="center">
                       <div className="flex justify-center">
-                        {getStatusBadge(row.status)}
+                        {getStatusBadge(row.kycStatus)}
                       </div>
                     </TableColumn>
                     <TableColumn align="center">

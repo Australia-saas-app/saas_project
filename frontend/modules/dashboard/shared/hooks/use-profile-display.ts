@@ -144,8 +144,31 @@ export function useProfileDisplay() {
   }
 
   const status = String(overrides.status ?? (user && "status" in user && user.status ? user.status : "pending")).toLowerCase();
-  const isVerified = status === "active" || status === "verified" || status === "approved";
+  const kycStatus = String(overrides.kycStatus ?? (user && "kycStatus" in user && user.kycStatus ? user.kycStatus : "none")).toLowerCase();
+  
+  // Account status is active if it's active or verified
+  const isActive = status === "active" || status === "verified" || status === "approved";
+  
+  // KYC is verified if it's approved
+  const isKycVerified = kycStatus === "approved" || status === "verified"; // Fallback for old accounts
+  
   const documentUrl = overrides.documentUrl || (user && "idDocument" in user ? String(user.idDocument) : "");
+  
+  let documentFrontUrl = "";
+  let documentBackUrl = "";
+  try {
+    if (documentUrl.startsWith("[") && documentUrl.endsWith("]")) {
+      const parsed = JSON.parse(documentUrl);
+      if (Array.isArray(parsed)) {
+        documentFrontUrl = parsed[0] || "";
+        documentBackUrl = parsed[1] || "";
+      }
+    } else {
+      documentFrontUrl = documentUrl;
+    }
+  } catch(e) {
+    documentFrontUrl = documentUrl;
+  }
 
   return {
     rawUserId,
@@ -165,11 +188,17 @@ export function useProfileDisplay() {
     initials,
     hasCustomAvatar,
     status,
-    isVerified,
+    kycStatus,
+    isActive,
+    isKycVerified,
+    isVerified: isKycVerified, // backwards compatibility
     documentUrl,
+    documentFrontUrl,
+    documentBackUrl,
     fields,
     overrides,
     updateProfile,
     isDemo,
   }
 }
+

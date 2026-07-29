@@ -9,7 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, DeepPartial } from 'typeorm';
+import { Repository, FindOptionsWhere, DeepPartial, DataSource } from 'typeorm';
 import { QueryFailedError } from 'typeorm/error/QueryFailedError';
 import { Request } from 'express';
 import * as bcrypt from 'bcrypt';
@@ -20,6 +20,7 @@ import {
   AccountType,
   User,
   UserStatus,
+  KycStatus,
   TwoFactorMethod,
 } from '../../entities/user.entity';
 import { Admin } from '../../entities/admin.entity';
@@ -49,6 +50,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(REDIS_CLIENT)
     private readonly redisClient: RedisClientType,
+    private readonly dataSource: DataSource,
   ) { }
 
   private normalizeEmail(email?: string) {
@@ -227,7 +229,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    let initialStatus = UserStatus.PENDING;
+    let initialStatus = UserStatus.ACTIVE;
     let emailVerified = !normalizedEmail;
     let phoneVerified = !normalizedPhone;
 
@@ -244,8 +246,17 @@ export class AuthService {
     let prefix = 'USR-';
     if (accountType === AccountType.AGENCY) prefix = 'AFF-';
     if (accountType === AccountType.BUSINESS) prefix = 'BSN-';
-    const userCount = await this.userRepository.count({ where: { accountType } });
-    const nextNum = userCount + 1;
+    const lastUser = await this.userRepository.findOne({
+      where: { accountType },
+      order: { createdAt: 'DESC' },
+    });
+    let nextNum = 1;
+    if (lastUser && lastUser.userId) {
+      const match = lastUser.userId.match(/\d+$/);
+      if (match) {
+        nextNum = parseInt(match[0], 10) + 1;
+      }
+    }
     const customUserId = `${prefix}${nextNum < 10 ? `0${nextNum}` : nextNum}`;
 
     const user = this.userRepository.create({
@@ -732,8 +743,41 @@ export class AuthService {
       await this.redisClient.del(`otp:${user.phone}:forgot-password`).catch(() => undefined);
     }
 
-    // Permanent hard delete of user entity from database
-    await this.userRepository.delete({ id: user.id });
+    const runner = this.dataSource.createQueryRunner();
+    await runner.connect();
+    await runner.startTransaction();
+
+    try {
+      const tablesWithUserId = [
+        'user_profiles', 'user_contacts', 'user_activities', 'user_preferences',
+        'project_proposals', 'project_participants', 'activities', 'notifications',
+        'payment_cards', 'conversations', 'user_notifications', 'user_notification_preferences',
+        'notification_logs', 'currency_conversion_logs', 'messages', 'affiliates',
+        'affiliate_profiles', 'orders', 'audits', 'wallets', 'transactions', 'user_sessions',
+        'user_consents', 'mfa_secrets', 'oauth_tokens', 'oauth_authorization_codes', 'system_events',
+        'activity_logs', 'audit_trails', 'chat_topics', 'security_deposits', 'affiliate_incomes'
+      ];
+
+      for (const table of tablesWithUserId) {
+        try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.userId]); } catch (e) {}
+        try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.id]); } catch (e) {}
+      }
+
+      try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.userId]); } catch (e) {}
+      try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]); } catch (e) {}
+
+      try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]); } catch (e) {}
+      try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]); } catch (e) {}
+
+      // Permanent hard delete of user entity from database
+      await runner.manager.delete(user.constructor, { id: user.id });
+      await runner.commitTransaction();
+    } catch (err) {
+      await runner.rollbackTransaction();
+      throw err;
+    } finally {
+      await runner.release();
+    }
 
     return { message: 'User account and all associated data permanently deleted successfully' };
   }
@@ -1072,6 +1116,58 @@ export class AuthService {
         changedBy: adminEmail,
         changedAt: historyEntry.changedAt,
         statusHistory: history,
+      },
+    };
+  }
+
+  async updateKycStatus(userId: string, kycStatus: string, reason: string, adminEmail: string | undefined) {
+    const user = await this.findUserByAnyId(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.kycStatus === kycStatus) {
+      throw new BadRequestException(`User KYC is already in ${kycStatus} status`);
+    }
+
+    user.kycStatus = kycStatus as KycStatus;
+    await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: `User KYC status updated to ${kycStatus} successfully`,
+      data: {
+        userId: user.userId,
+        kycStatus: user.kycStatus,
+        reason,
+        changedBy: adminEmail,
+      },
+    };
+  }
+
+  async applyForKyc(userId: string) {
+    const user = await this.findUserByAnyId(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.kycStatus === KycStatus.PENDING || user.kycStatus === KycStatus.SUBMITTED) {
+      throw new BadRequestException('KYC Application already submitted and is pending review.');
+    }
+
+    if (user.kycStatus === KycStatus.APPROVED) {
+      throw new BadRequestException('KYC Application is already approved.');
+    }
+
+    user.kycStatus = KycStatus.PENDING;
+    await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: 'KYC Application submitted successfully',
+      data: {
+        userId: user.userId,
+        kycStatus: user.kycStatus,
       },
     };
   }

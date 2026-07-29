@@ -1,16 +1,32 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CheckCircle, Clock, Pencil } from "lucide-react";
+import { CheckCircle, Clock, Pencil, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
+import KycApplicationModal from "../../shared/components/profile/KycApplicationModal";
 import { useProfileDisplay } from "../../shared/hooks/use-profile-display";
 
 export default function ProfilePageLayout() {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isVerified, status } = useProfileDisplay();
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+
+  const handleApplyKycClick = () => {
+    if (kycStatus === "pending" || kycStatus === "submitted" || isKycVerified) {
+      setIsKycModalOpen(true);
+      return;
+    }
+
+    if (!fullName || !phone || !dateOfBirth || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
+      toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
+      return;
+    }
+
+    setIsKycModalOpen(true);
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -34,6 +50,19 @@ export default function ProfilePageLayout() {
   return (
     <div className="w-full space-y-6">
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        {kycStatus === 'rejected' && (
+          <div className="mx-6 mt-6 mb-0 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
+              <div>
+                <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Account Unverified by Admin</h4>
+                <p className="mt-1 text-sm text-red-600/90 dark:text-red-300/90">
+                  Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Top Header Section */}
         <div className="flex flex-col items-start justify-between gap-4 border-b border-border p-6 md:flex-row md:items-center">
           <div className="flex items-center gap-4">
@@ -64,13 +93,13 @@ export default function ProfilePageLayout() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-bold tracking-tight text-foreground">{fullName}</h2>
-                <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
-                  isVerified
+                <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold capitalize ${
+                  isActive
                     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                     : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                 }`}>
-                  <span className={`h-2 w-2 rounded-full ${isVerified ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
-                  {isVerified ? "Active" : "Pending"}
+                  <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+                  {isActive ? "Active" : "Pending"}
                 </span>
               </div>
               <p className="text-xs font-medium text-muted-foreground">
@@ -81,18 +110,32 @@ export default function ProfilePageLayout() {
           </div>
 
           {/* Top Right Header Actions */}
-          <div className="flex items-center gap-3">
-            {isVerified ? (
-              <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                <CheckCircle className="h-4 w-4" />
-                Verified Account
-              </span>
-            ) : (
-              <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400">
-                <Clock className="h-4 w-4" />
-                Pending Verification
-              </span>
-            )}
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex items-center gap-3">
+              {isKycVerified ? (
+                <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle className="h-4 w-4" />
+                  Verified Account
+                </span>
+              ) : kycStatus === "pending" || kycStatus === "submitted" ? (
+                <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                  <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Pending Verification
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Unverified Account
+                </span>
+              )}
+            </div>
+            
+            <button 
+              type="button"
+              onClick={handleApplyKycClick}
+              className="mt-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+            >
+              {isKycVerified ? "View Application" : kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : "Apply KYC"}
+            </button>
           </div>
         </div>
 
@@ -108,6 +151,26 @@ export default function ProfilePageLayout() {
           />
         </div>
       </div>
+      <KycApplicationModal 
+        isOpen={isKycModalOpen} 
+        onClose={() => setIsKycModalOpen(false)}
+        kycStatus={kycStatus}
+        isKycVerified={isKycVerified}
+        onSuccess={() => window.location.reload()}
+        user={{
+          rawUserId,
+          displayUserId: rawUserId,
+          fullName,
+          email,
+          nationality,
+          dateOfBirth,
+          nationalIdentity,
+          avatarUrl,
+          documentUrl,
+          documentFrontUrl,
+          documentBackUrl
+        }}
+      />
     </div>
   );
 }

@@ -25,6 +25,7 @@ import { VerifyContactOtpDto } from './dto/verify-contact-otp.dto';
 import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -170,6 +171,32 @@ export class AuthController {
       throw new ForbiddenException('Admin access required');
     }
     return this.authService.updateUserStatus(userId, body.status, body.reason || 'Status changed', (req.user as any).email);
+  }
+
+  @Patch('admin/users/:userId/kyc-status')
+  @UseGuards(JwtAuthGuard)
+  updateKycStatus(
+    @Param('userId') userId: string,
+    @Body() body: UpdateKycStatusDto,
+    @Request() req: any,
+  ) {
+    if (req.user?.role !== 'super_admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email);
+  }
+
+  @Post('users/:userId/kyc/apply')
+  @UseGuards(JwtAuthGuard)
+  applyForKyc(
+    @Param('userId') userId: string,
+    @Request() req: any,
+  ) {
+    // Ensure users can only apply for their own KYC unless they are an admin
+    if (req.user?.id !== userId && req.user?.role !== 'super_admin') {
+       throw new ForbiddenException('You can only apply for your own KYC');
+    }
+    return this.authService.applyForKyc(userId);
   }
 
   @Patch('change-password')

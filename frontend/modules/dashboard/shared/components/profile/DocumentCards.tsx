@@ -24,7 +24,35 @@ export default function DocumentCards({ userId, onUpload, onRemove, revision }: 
   // Re-read documents whenever userId or revision changes
   useEffect(() => {
     if (!userId) return;
-    setDocuments(getProfileDocuments(userId));
+    const docs = getProfileDocuments(userId);
+    const parsedDocs: StoredDocument[] = [];
+    
+    docs.forEach(doc => {
+      const fileUrl = doc.url || doc.dataUrl || doc.contentUrl;
+      if (typeof fileUrl === 'string' && fileUrl.startsWith('[') && fileUrl.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(fileUrl);
+          if (Array.isArray(parsed) && parsed.length >= 2) {
+            parsedDocs.push({
+              ...doc,
+              id: `${doc.id}-front`,
+              name: 'Front ID Document',
+              url: parsed[0]
+            });
+            parsedDocs.push({
+              ...doc,
+              id: `${doc.id}-back`,
+              name: 'Back ID Document',
+              url: parsed[1]
+            });
+            return;
+          }
+        } catch(e) {}
+      }
+      parsedDocs.push(doc);
+    });
+    
+    setDocuments(parsedDocs);
   }, [userId, revision]);
 
   const handleDownload = (doc: StoredDocument) => {

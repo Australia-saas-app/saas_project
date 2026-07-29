@@ -18,6 +18,8 @@ import {
 import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
+import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
+import { useProfileDisplay } from "../../shared/hooks/use-profile-display"
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
@@ -79,6 +81,9 @@ function VerifiedBadge() {
 export default function AffiliaProAffiliateProfilePage() {
   const { user } = useUser()
   const { isDemo } = useIsDemoAccount()
+  const { rawUserId, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, avatarUrl, updateProfile, dateOfBirth } = useProfileDisplay()
+
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false)
 
   const email = user?.email || (isDemo ? "john.doe@email.com" : "")
   const defaultFirst =
@@ -125,13 +130,78 @@ export default function AffiliaProAffiliateProfilePage() {
     toast.success(`${label} saved`)
   }
 
+  const handleApplyKycClick = () => {
+    if (kycStatus === "pending" || kycStatus === "submitted" || isKycVerified) {
+      setIsKycModalOpen(true);
+      return;
+    }
+
+    if (!firstName || !phone || !dob || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
+      toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
+      return;
+    }
+
+    setIsKycModalOpen(true);
+  };
+
   return (
     <div className="space-y-5 pb-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Profile Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage your personal information and account settings.
-        </p>
+      {kycStatus === 'rejected' && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Account Unverified by Admin</h4>
+              <p className="mt-1 text-sm text-red-600/90 dark:text-red-300/90">
+                Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Profile Settings</h1>
+            <span className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+              isActive
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+              {isActive ? "Active" : "Pending"}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Manage your personal information and account settings.
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          {isKycVerified ? (
+            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              <BadgeCheck className="h-4 w-4" />
+              Verified Account
+            </span>
+          ) : kycStatus === "pending" || kycStatus === "submitted" ? (
+            <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+              <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              Pending Verification
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+              Unverified Account
+            </span>
+          )}
+          
+          <button 
+            type="button"
+            onClick={handleApplyKycClick}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+          >
+            {isKycVerified ? "View Application" : kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : "Apply KYC"}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -602,6 +672,25 @@ export default function AffiliaProAffiliateProfilePage() {
           </Link>
         </aside>
       </div>
+      <KycApplicationModal 
+        isOpen={isKycModalOpen} 
+        onClose={() => setIsKycModalOpen(false)}
+        kycStatus={kycStatus}
+        isKycVerified={isKycVerified}
+        onSuccess={() => window.location.reload()}
+        user={{
+          rawUserId,
+          displayUserId: rawUserId,
+          fullName,
+          email,
+          nationality,
+          nationalIdentity,
+          avatarUrl,
+          documentUrl,
+          documentFrontUrl,
+          documentBackUrl
+        }}
+      />
     </div>
   )
 }

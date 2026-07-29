@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef } from "react";
-import { CheckCircle, Pencil } from "lucide-react";
+import { useRef, useState } from "react";
+import { CheckCircle, Pencil, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "./ProfileFormGrid";
+import KycApplicationModal from "./KycApplicationModal";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
 import { addProfileDocument } from "@/src/shared/utils/profile-storage";
@@ -33,10 +34,26 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isVerified } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } =
     useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+
+  const handleApplyKycClick = () => {
+    if (kycStatus === "pending" || kycStatus === "submitted" || isKycVerified) {
+      setIsKycModalOpen(true);
+      return;
+    }
+
+    // Validate if profile is complete
+    if (!fullName || !phone || !dateOfBirth || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
+      toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
+      return;
+    }
+
+    setIsKycModalOpen(true);
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,6 +76,19 @@ export default function RoleProfileCard({
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      {kycStatus === 'rejected' && (
+        <div className="mx-6 mt-6 mb-0 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Account Unverified by Admin</h4>
+              <p className="mt-1 text-sm text-red-600/90 dark:text-red-300/90">
+                Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col border-b border-border p-6 pb-6 md:p-8">
         <div className="mb-6 flex flex-col justify-between gap-6 lg:flex-row">
           <div className="flex items-start gap-5">
@@ -88,15 +118,15 @@ export default function RoleProfileCard({
               <div className="flex flex-wrap items-center gap-3">
                 <h3 className="text-xl font-bold text-foreground">{fullName}</h3>
                 <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
-                  isVerified
+                  isActive
                     ? "border-emerald-500/20 bg-emerald-500/10"
                     : "border-amber-500/20 bg-amber-500/10"
                 }`}>
-                  <div className={`h-2 w-2 rounded-full ${isVerified ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
-                  <span className={`text-[11px] font-bold ${
-                    isVerified ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                  <div className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+                  <span className={`text-[11px] font-bold capitalize ${
+                    isActive ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
                   }`}>
-                    {isVerified ? "Active" : "Pending"}
+                    {isActive ? "Active" : "Pending"}
                   </span>
                 </div>
               </div>
@@ -124,11 +154,30 @@ export default function RoleProfileCard({
 
           {/* Top Right Header Actions (Top edit button REMOVED) */}
           <div className="flex flex-col items-start justify-between gap-4 lg:items-end">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                <CheckCircle className="h-4 w-4" />
-                Verified Account
-              </div>
+            <div className="flex flex-col items-end gap-3">
+              {isKycVerified ? (
+                <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle className="h-4 w-4" />
+                  Verified Account
+                </div>
+              ) : kycStatus === "pending" || kycStatus === "submitted" ? (
+                <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+                  <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Pending Verification
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 rounded-lg border border-slate-500/20 bg-slate-500/10 px-4 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Unverified Account
+                </div>
+              )}
+              
+              <button 
+                type="button"
+                onClick={handleApplyKycClick}
+                className="mt-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+              >
+                {isKycVerified ? "View Application" : kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : "Apply KYC"}
+              </button>
             </div>
             {showDocumentButton && (
               <>
@@ -193,6 +242,28 @@ export default function RoleProfileCard({
           />
         </div>
       )}
+
+      <KycApplicationModal 
+        isOpen={isKycModalOpen} 
+        onClose={() => setIsKycModalOpen(false)}
+        kycStatus={kycStatus}
+        isKycVerified={isKycVerified}
+        onSuccess={() => {
+           window.location.reload();
+        }}
+        user={{
+          rawUserId,
+          displayUserId: rawUserId,
+          fullName,
+          email,
+          nationality,
+          nationalIdentity,
+          avatarUrl,
+          documentUrl,
+          documentFrontUrl,
+          documentBackUrl
+        }}
+      />
     </div>
   );
 }
