@@ -59,6 +59,8 @@ export default function Header() {
     setIsLoggingOut(false);
     setLogoutModalOpen(false);
     if (typeof window !== "undefined") {
+      localStorage.removeItem("user_profile_overrides_v2");
+      localStorage.removeItem("user_profile_documents_v2");
       window.location.href = "/";
     } else {
       router.push("/");

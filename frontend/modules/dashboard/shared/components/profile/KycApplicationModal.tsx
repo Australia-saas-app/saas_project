@@ -46,8 +46,8 @@ export default function KycApplicationModal({
   const stampText = isKycVerified ? "VERIFIED" : kycStatus === "rejected" ? "REJECTED" : "PENDING";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-6">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-10 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden mb-10 mt-4 rounded-xl">
         
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -101,6 +101,10 @@ export default function KycApplicationModal({
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">National Identity Number</span>
                 <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.nationalIdentity || "N/A"}</p>
               </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Date of Birth</span>
+                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.dateOfBirth || "N/A"}</p>
+              </div>
             </div>
 
             {/* Right side info & Photo */}
@@ -117,8 +121,10 @@ export default function KycApplicationModal({
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">User ID</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">{user.displayUserId || "N/A"}</p>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>
+                <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  {user.displayUserId ? `KYC-${user.displayUserId}` : "N/A"}
+                </p>
               </div>
               <div className="text-right">
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application Date</span>
@@ -136,26 +142,26 @@ export default function KycApplicationModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-slate-500 uppercase">Front ID</p>
-                    <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 aspect-video">
-                      <img src={user.documentFrontUrl} alt="Front ID Document" className="w-full h-full object-cover" />
+                    <div className="relative group rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40">
+                      <img src={user.documentFrontUrl} alt="Front ID Document" className="w-full h-full object-contain p-2" />
                     </div>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-semibold text-slate-500 uppercase">Back ID</p>
-                    <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 aspect-video">
-                      <img src={user.documentBackUrl} alt="Back ID Document" className="w-full h-full object-cover" />
+                    <div className="relative group rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40">
+                      <img src={user.documentBackUrl} alt="Back ID Document" className="w-full h-full object-contain p-2" />
                     </div>
                   </div>
                 </div>
              ) : user.documentUrl ? (
-                <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 aspect-video max-w-sm">
+                <div className="relative group rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40 max-w-sm">
                   {user.documentUrl.toLowerCase().endsWith(".pdf") ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
                       <FileText className="h-12 w-12 mb-2" />
                       <span className="text-sm font-medium">PDF Document</span>
                     </div>
                   ) : (
-                    <img src={user.documentUrl} alt="ID Document" className="w-full h-full object-cover" />
+                    <img src={user.documentUrl} alt="ID Document" className="w-full h-full object-contain p-2" />
                   )}
                 </div>
              ) : (
@@ -163,7 +169,7 @@ export default function KycApplicationModal({
                   <ShieldAlert className="h-4 w-4" />
                   No ID Document attached
                 </div>
-             )}
+              )}
           </div>
         </div>
 
@@ -173,7 +179,7 @@ export default function KycApplicationModal({
             <button 
               onClick={onClose}
               disabled={isApplying}
-              className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              className="px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg transition-colors border border-transparent dark:border-slate-600"
             >
               Cancel
             </button>

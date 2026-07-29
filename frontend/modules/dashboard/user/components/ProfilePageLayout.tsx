@@ -9,7 +9,7 @@ import KycApplicationModal from "../../shared/components/profile/KycApplicationM
 import { useProfileDisplay } from "../../shared/hooks/use-profile-display";
 
 export default function ProfilePageLayout() {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
+  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -142,10 +142,23 @@ export default function ProfilePageLayout() {
             <button 
               type="button"
               onClick={handleApplyKycClick}
-              className="mt-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+              className="mt-1 w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
             >
               {isKycVerified ? "View Application" : kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : "Apply KYC"}
             </button>
+
+            {(kycStatus === 'pending' || kycStatus === 'submitted' || isKycVerified || kycStatus === 'rejected') && (
+              <div className={`mt-1 w-full sm:w-auto px-4 py-2 rounded-md flex items-center justify-center gap-2 border ${
+                isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400' 
+                : kycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400'
+                : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
+              }`}>
+                <span className="font-bold text-[11px] uppercase tracking-wider">Status:</span>
+                <span className="font-black text-xs uppercase tracking-wider">
+                  {isKycVerified ? 'Approved' : kycStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -169,7 +182,7 @@ export default function ProfilePageLayout() {
         onSuccess={() => window.location.reload()}
         user={{
           rawUserId,
-          displayUserId: rawUserId,
+          displayUserId,
           fullName,
           email,
           nationality,

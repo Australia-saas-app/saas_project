@@ -755,7 +755,11 @@ export class AuthService {
         'notification_logs', 'currency_conversion_logs', 'messages', 'affiliates',
         'affiliate_profiles', 'orders', 'audits', 'wallets', 'transactions', 'user_sessions',
         'user_consents', 'mfa_secrets', 'oauth_tokens', 'oauth_authorization_codes', 'system_events',
-        'activity_logs', 'audit_trails', 'chat_topics', 'security_deposits', 'affiliate_incomes'
+        'activity_logs', 'audit_trails', 'chat_topics', 'security_deposits', 'affiliate_incomes',
+        'employees', 'blogs', 'files', 'folders', 'file_shares', 'file_versions', 'real_estate_properties',
+        'contacts', 'branches', 'notification_schedules', 'notification_channels', 'technical_services',
+        'technical_categories', 'projects', 'project_messages', 'project_tasks', 'blog_tags', 'blog_categories',
+        'order_status_history', 'construction_categories', 'construction_services'
       ];
 
       // Helper to safely execute a query without aborting the main transaction on error
@@ -783,6 +787,16 @@ export class AuthService {
         await safeDelete(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]);
         await safeDelete(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]);
         await safeDelete(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]);
+        
+        // Handle microservice-specific owner ID formats
+        await safeDelete(`DELETE FROM "files" WHERE "ownerId" = $1`, [user.userId]);
+        await safeDelete(`DELETE FROM "files" WHERE "ownerId" = $1`, [user.id]);
+        await safeDelete(`DELETE FROM "folders" WHERE "ownerId" = $1`, [user.userId]);
+        await safeDelete(`DELETE FROM "folders" WHERE "ownerId" = $1`, [user.id]);
+        await safeDelete(`DELETE FROM "blogs" WHERE "authorId" = $1`, [user.userId]);
+        await safeDelete(`DELETE FROM "blogs" WHERE "authorId" = $1`, [user.id]);
+        await safeDelete(`DELETE FROM "employees" WHERE "managerId" = $1`, [user.userId]);
+        await safeDelete(`DELETE FROM "employees" WHERE "managerId" = $1`, [user.id]);
       }
 
       // Permanent hard delete of user entity from database

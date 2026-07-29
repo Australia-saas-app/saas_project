@@ -73,6 +73,10 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
       } catch {
         await logout().catch(() => undefined);
         setUser(null);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("user_profile_overrides_v2");
+          localStorage.removeItem("user_profile_documents_v2");
+        }
         toast.warning("Your session has expired. Please sign in again.");
       }
     }, delay);
@@ -84,6 +88,10 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
   const handleIdle = useCallback(async () => {
     await logout().catch(() => undefined);
     setUser(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("user_profile_overrides_v2");
+      localStorage.removeItem("user_profile_documents_v2");
+    }
     toast.warning("You were signed out due to inactivity.");
   }, []);
 

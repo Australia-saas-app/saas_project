@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { useAppDispatch } from "@/src/core/store/hooks"
 import { logout } from "@/src/core/store/slices/authSlice"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 
 interface TopBarProps {
   onMenuClick?: () => void
@@ -24,6 +25,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   
   const dispatch = useAppDispatch()
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -45,6 +47,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
     setIsLoggingOut(true)
     setTimeout(() => {
       setIsLogoutModalOpen(false)
+      queryClient.clear()
       dispatch(logout())
       router.replace("/login")
       setIsLoggingOut(false)

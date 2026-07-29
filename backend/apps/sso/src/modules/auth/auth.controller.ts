@@ -193,7 +193,7 @@ export class AuthController {
     @Request() req: any,
   ) {
     // Ensure users can only apply for their own KYC unless they are an admin
-    if (req.user?.id !== userId && req.user?.role !== 'super_admin') {
+    if (req.user?.userId !== userId && req.user?.role !== 'super_admin') {
        throw new ForbiddenException('You can only apply for your own KYC');
     }
     return this.authService.applyForKyc(userId);

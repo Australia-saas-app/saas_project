@@ -25,9 +25,9 @@ export function getInitials(name?: string | null): string {
 
 export function getUserIdFromAuthUser(user: IUser | IDecodedToken | null): string | undefined {
   if (!user) return undefined
+  if ("id" in user && user.id) return String(user.id)
   if ("userId" in user && user.userId) return String(user.userId)
   if ("publicId" in user && user.publicId) return String(user.publicId)
-  if ("id" in user && user.id) return String(user.id)
   return undefined
 }
 

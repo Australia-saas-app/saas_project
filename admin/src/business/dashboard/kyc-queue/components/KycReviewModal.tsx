@@ -166,7 +166,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Front ID</p>
-                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 aspect-video">
+                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40">
                           <a href={front} target="_blank" rel="noreferrer">
                             <img src={front} alt="Front ID Document" className="w-full h-full object-contain" />
                           </a>
@@ -174,7 +174,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                       </div>
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Back ID</p>
-                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 aspect-video">
+                        <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40">
                           <a href={back} target="_blank" rel="noreferrer">
                             <img src={back} alt="Back ID Document" className="w-full h-full object-contain" />
                           </a>
@@ -185,7 +185,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 }
 
                 return (
-                  <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 max-w-lg">
+                  <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/50 h-32 md:h-40 max-w-sm">
                     {docUrl.toLowerCase().endsWith(".pdf") ? (
                       <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12">
                         <FileText className="h-12 w-12 mb-2" />
@@ -193,7 +193,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                       </div>
                     ) : (
                       <a href={docUrl} target="_blank" rel="noreferrer">
-                        <img src={docUrl} alt="ID Document" className="w-full object-contain max-h-[400px]" />
+                        <img src={docUrl} alt="ID Document" className="w-full h-full object-contain p-2" />
                       </a>
                     )}
                   </div>

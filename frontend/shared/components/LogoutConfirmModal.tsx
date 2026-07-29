@@ -30,6 +30,8 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
     setIsLoggingOut(false);
     onClose();
     if (typeof window !== "undefined") {
+      localStorage.removeItem("user_profile_overrides_v2");
+      localStorage.removeItem("user_profile_documents_v2");
       window.location.href = targetPath;
     }
   };

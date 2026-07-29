@@ -389,8 +389,8 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                 >
                   {documentUrl ? (
                     <div className="flex w-full h-full">
-                      <img src={parsedDocs.front} alt="Front Thumbnail" className={`h-full ${parsedDocs.isDual ? 'w-1/2 border-r border-border' : 'w-full'} object-cover`} />
-                      {parsedDocs.isDual && <img src={parsedDocs.back} alt="Back Thumbnail" className="h-full w-1/2 object-cover" />}
+                      <img src={parsedDocs.front} alt="Front Thumbnail" className={`h-full ${parsedDocs.isDual ? 'w-1/2 border-r border-border' : 'w-full'} object-contain bg-black/5 dark:bg-white/5`} />
+                      {parsedDocs.isDual && <img src={parsedDocs.back} alt="Back Thumbnail" className="h-full w-1/2 object-contain bg-black/5 dark:bg-white/5" />}
                     </div>
                   ) : (
                     <FileText className="h-5 w-5" />
@@ -434,9 +434,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                     type="button"
                     onClick={async () => {
                       setDocumentUrl("");
-                      // Clear from localStorage
+                      // Clear from localStorage overrides
+                      updateProfile({ documentUrl: "" });
+                      // Clear from document cards storage
                       if (rawUserId) clearProfileDocuments(rawUserId);
-                      // Clear from DB
+                      // Clear from DB immediately
                       await completeUserProfile({ idDocument: null, governmentId: null }).catch(() => undefined);
                       // Refresh the document card below
                       onDocumentChange?.();

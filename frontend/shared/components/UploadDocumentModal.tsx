@@ -128,7 +128,7 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
               <img
                 src={url}
                 alt={`${title} preview`}
-                className="h-24 w-auto object-contain rounded-lg border border-border bg-black/5"
+                className="w-full h-32 object-contain rounded-lg border border-border bg-black/5 dark:bg-white/5"
               />
               <span className="text-xs text-primary font-semibold group-hover:underline flex items-center gap-1">
                 <ImageIcon className="h-3.5 w-3.5" /> Change

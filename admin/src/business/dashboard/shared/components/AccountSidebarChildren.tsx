@@ -13,6 +13,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useAppDispatch, useAppSelector } from "@/src/core/store/hooks"
 import { logout } from "@/src/core/store/slices/authSlice"
+import { useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { hasPermission, Permission, UserRole } from "@/src/core/authentication/utils/rbac"
 import { ShieldCheck } from "lucide-react"
@@ -21,6 +22,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
   const pathname = usePathname()
   const router = useRouter()
   const dispatch = useAppDispatch()
+  const queryClient = useQueryClient()
   const user = useAppSelector((state) => state.auth.user)
   const token = useAppSelector((state) => state.auth.token)
   const role = user?.role as UserRole | undefined
@@ -55,6 +57,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
   }, [token])
 
   const handleLogout = () => {
+    queryClient.clear()
     dispatch(logout())
     router.replace("/login")
   }
