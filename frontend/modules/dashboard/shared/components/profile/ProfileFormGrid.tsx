@@ -134,25 +134,15 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nationality || !nationality.trim()) {
-      toast.error("Please select your Nationality.");
-      return;
-    }
-    if (!dateOfBirth || !dateOfBirth.trim()) {
-      toast.error("Please enter your Date of Birth.");
-      return;
-    }
-    if (!nationalIdentity || !nationalIdentity.trim()) {
-      toast.error("Please enter your National Identity number.");
-      return;
-    }
-    if (!phone || !phone.trim()) {
-      toast.error("Please enter your Phone Number.");
-      return;
-    }
+    const missingFields: string[] = [];
+    if (!nationality?.trim()) missingFields.push("Nationality");
+    if (!dateOfBirth?.trim()) missingFields.push("Date of Birth");
+    if (!nationalIdentity?.trim()) missingFields.push("National Identity Number");
+    if (!phone?.trim()) missingFields.push("Phone Number");
+    if (!documentUrl?.trim()) missingFields.push("ID Document");
 
-    if (!documentUrl || !documentUrl.trim()) {
-      toast.error("Please upload your ID Card or Passport document.");
+    if (missingFields.length > 0) {
+      toast.error(`Please complete the following fields before updating: ${missingFields.join(", ")}`);
       return;
     }
 
@@ -378,25 +368,25 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
               <span className="text-red-500 font-bold">*</span>
             </label>
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 min-w-0 w-full">
                 <div 
                   onClick={() => documentUrl && setPreviewModalOpen(true)}
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden transition-all ${
+                  className={`flex h-20 w-32 shrink-0 items-center justify-center rounded-xl overflow-hidden transition-all ${
                     documentUrl 
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 cursor-pointer hover:scale-105 border border-emerald-500/20" 
-                      : "bg-muted text-muted-foreground"
+                      ? "bg-muted cursor-pointer hover:scale-[1.02] border border-border" 
+                      : "bg-muted text-muted-foreground border border-border"
                   }`}
                 >
                   {documentUrl ? (
                     <div className="flex w-full h-full">
-                      <img src={parsedDocs.front} alt="Front Thumbnail" className={`h-full ${parsedDocs.isDual ? 'w-1/2 border-r border-border' : 'w-full'} object-contain bg-black/5 dark:bg-white/5`} />
-                      {parsedDocs.isDual && <img src={parsedDocs.back} alt="Back Thumbnail" className="h-full w-1/2 object-contain bg-black/5 dark:bg-white/5" />}
+                      <img src={parsedDocs.front} alt="Front Thumbnail" className={`h-full ${parsedDocs.isDual ? 'w-1/2 border-r border-border' : 'w-full'} object-cover`} />
+                      {parsedDocs.isDual && <img src={parsedDocs.back} alt="Back Thumbnail" className="h-full w-1/2 object-cover" />}
                     </div>
                   ) : (
-                    <FileText className="h-5 w-5" />
+                    <FileText className="h-6 w-6" />
                   )}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground flex items-center gap-2 truncate">
                     {documentUrl ? (
                       <>
@@ -465,15 +455,13 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
         {/* Bottom Update Button Section */}
         <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
-          {!isFormValid && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-              * Please fill all mandatory fields and upload your ID document to enable Update Profile.
-            </p>
-          )}
+          <div className="text-xs text-muted-foreground font-medium">
+            * Please ensure all fields are correct before updating.
+          </div>
           <div className="w-full sm:w-auto flex justify-end">
             <button
               type="submit"
-              disabled={!isFormValid || isSubmitting}
+              disabled={isSubmitting}
               className="w-full sm:w-auto rounded-lg bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? (

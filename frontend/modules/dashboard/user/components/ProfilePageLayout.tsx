@@ -7,9 +7,11 @@ import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal";
 import { useProfileDisplay } from "../../shared/hooks/use-profile-display";
+import { useUser } from "@/src/shared/context/user.provider";
 
 export default function ProfilePageLayout() {
-  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
+  const { refreshUser } = useUser() || {};
+  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -28,7 +30,7 @@ export default function ProfilePageLayout() {
     if (!nationalIdentity) missingFields.push("National Identity");
     if (!documentFrontUrl) missingFields.push("Front ID Document");
     if (!documentBackUrl) missingFields.push("Back ID Document");
-    if (!avatarUrl) missingFields.push("Profile Photo");
+    if (!hasCustomAvatar) missingFields.push("Profile Photo");
 
     if (missingFields.length > 0) {
       toast.error(`Please complete the following fields before applying for KYC: ${missingFields.join(', ')}`);
@@ -48,9 +50,12 @@ export default function ProfilePageLayout() {
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const result = reader.result as string;
-      updateProfile({ avatarUrl: result });
+      await updateProfile({ avatarUrl: result });
+      if (refreshUser) {
+        await refreshUser().catch(() => {});
+      }
       toast.success("Profile picture updated.");
     };
     reader.readAsDataURL(file);

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useUser } from "@/src/context/user.provider"
 import {
   getProfileOverrides,
@@ -10,6 +10,8 @@ import {
 } from "@/src/shared/utils/profile-storage"
 import { getUserIdFromAuthUser, isDemoAuthUser, getDisplayUserId, getInitials } from "@/src/shared/lib/demo-user"
 import axiosInstance from "@/src/shared/lib/axiosInstance";
+
+export const PROFILE_UPDATED_EVENT = "vero:profile_updated";
 
 function displayName(user: any) {
   if (!user) return "Account"
@@ -26,6 +28,12 @@ export function useProfileDisplay() {
   const rawUserId = getUserIdFromAuthUser(user) ?? "guest"
   const isDemo = isDemoAuthUser(user)
   const [revision, setRevision] = useState(0)
+
+  useEffect(() => {
+    const handleProfileUpdate = () => setRevision(n => n + 1);
+    window.addEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdate);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdate);
+  }, []);
 
   const overrides = useMemo(() => getProfileOverrides(rawUserId), [rawUserId, revision])
 
@@ -123,6 +131,9 @@ export function useProfileDisplay() {
   const updateProfile = async (patch: ProfileDataPatch) => {
     saveProfileOverrides(rawUserId, patch)
     setRevision((n) => n + 1)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
+    }
     try {
       if (!isDemo) {
         await axiosInstance.post('/api/sso/auth/user/complete-profile', {
