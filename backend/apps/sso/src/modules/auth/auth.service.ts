@@ -759,22 +759,35 @@ export class AuthService {
       ];
 
       for (const table of tablesWithUserId) {
-        try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.userId]); } catch (e) {}
-        try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.id]); } catch (e) {}
+        const tableExistsResult = await runner.query(
+          `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)`,
+          [table]
+        );
+        if (tableExistsResult[0].exists) {
+          try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.userId]); } catch (e) {}
+          try { await runner.query(`DELETE FROM "${table}" WHERE "userId" = $1`, [user.id]); } catch (e) {}
+        }
       }
 
-      try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.userId]); } catch (e) {}
-      try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]); } catch (e) {}
+      const withdrawalExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'withdrawal_requests')`);
+      if (withdrawalExists[0].exists) {
+        try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.userId]); } catch (e) {}
+        try { await runner.query(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]); } catch (e) {}
+      }
 
-      try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]); } catch (e) {}
-      try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]); } catch (e) {}
+      const referralsExists = await runner.query(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'referrals')`);
+      if (referralsExists[0].exists) {
+        try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]); } catch (e) {}
+        try { await runner.query(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]); } catch (e) {}
+      }
 
       // Permanent hard delete of user entity from database
       await runner.manager.delete(user.constructor, { id: user.id });
       await runner.commitTransaction();
-    } catch (err) {
+    } catch (err: any) {
       await runner.rollbackTransaction();
-      throw err;
+      console.error('DELETE USER ERROR:', err);
+      throw new BadRequestException('Delete user failed: ' + err.message);
     } finally {
       await runner.release();
     }
