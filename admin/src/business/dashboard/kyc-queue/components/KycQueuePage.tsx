@@ -24,6 +24,7 @@ export default function KycQueuePage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
   const [activeTab, setActiveTab] = useState<"user" | "affiliate" | "business">("user");
+  const [localOverrides, setLocalOverrides] = useState<Record<string, string>>({});
   
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -32,8 +33,8 @@ export default function KycQueuePage() {
     queryKey: ["kyc-users"],
     queryFn: async () => {
       if (!token) return [];
-      // Fetch a large page so we see all KYC applicants, not just the first 10
-      const response = await fetch('/admin/api/sso/auth/admin/users?limit=1000', {
+      // Fetch all users without limit so we see every KYC applicant
+      const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Network error');
@@ -43,11 +44,50 @@ export default function KycQueuePage() {
     enabled: !!token,
   });
 
-  // Auto-refetch when an admin approves / rejects a KYC application
+  // Auto-refetch and apply optimistic updates when an admin approves / rejects a KYC application
   useEffect(() => {
-    const handleKycUpdate = () => refetch();
+    const handleKycUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.userId && detail?.kycStatus) {
+        // Optimistic update — patch the row immediately without waiting for refetch
+        setLocalOverrides(prev => ({ ...prev, [detail.userId]: detail.kycStatus }));
+        // Also update selectedApp if it's the same user
+        setSelectedApp((prev: any) => {
+          if (!prev) return prev;
+          const id = prev.userId || prev.id;
+          if (id === detail.userId) return { ...prev, kycStatus: detail.kycStatus };
+          return prev;
+        });
+      }
+      refetch();
+    };
     window.addEventListener("vero:kyc_updated", handleKycUpdate);
     return () => window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+  }, [refetch]);
+
+  // Remove deleted users instantly from the KYC queue
+  useEffect(() => {
+    const handleUserDeleted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.userId) return;
+      const uid = detail.userId;
+      // Close the review modal if it was showing the deleted user
+      setSelectedApp((prev: any) => {
+        if (!prev) return prev;
+        const id = prev.userId || prev.id;
+        return id === uid ? null : prev;
+      });
+      // Remove from localOverrides
+      setLocalOverrides(prev => {
+        const next = { ...prev };
+        delete next[uid];
+        return next;
+      });
+      // Refetch to sync with server
+      refetch();
+    };
+    window.addEventListener("vero:user_deleted", handleUserDeleted);
+    return () => window.removeEventListener("vero:user_deleted", handleUserDeleted);
   }, [refetch]);
 
 
@@ -82,7 +122,11 @@ export default function KycQueuePage() {
     }
   };
 
-  const filtered = (users || []).filter(u => {
+  const filtered = (users || []).map(u => {
+    const uid = u.userId || u.id;
+    if (localOverrides[uid]) return { ...u, kycStatus: localOverrides[uid] };
+    return u;
+  }).filter(u => {
     // Tab filter
     if (activeTab === 'user' && u.accountType !== 'user') return false;
     if (activeTab === 'affiliate' && u.accountType !== 'agency' && u.accountType !== 'affiliate') return false;
@@ -226,7 +270,7 @@ export default function KycQueuePage() {
                     </TableColumn>
                     <TableColumn align="center">
                       <div className="flex justify-center">
-                        {getStatusBadge(row.kycStatus)}
+                        {getStatusBadge(localOverrides[row.userId || row.id] || row.kycStatus)}
                       </div>
                     </TableColumn>
                     <TableColumn align="center">

@@ -34,8 +34,8 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     const fetchKycCount = async () => {
       if (!token) return
       try {
-        // Use limit=1000 to count all pending KYC applications, not just first 10
-        const response = await fetch('/admin/api/sso/auth/admin/users?limit=1000', {
+        // Use limit=all to count all pending KYC applications without pagination limit
+        const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) return
@@ -53,18 +53,38 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     }
     fetchKycCount()
     const interval = setInterval(fetchKycCount, 30000) // update every 30s
-    // Also instantly update when an admin approves / rejects an application
-    window.addEventListener("vero:kyc_updated", fetchKycCount)
+    // Instantly update badge when an admin approves / rejects an application
+    const handleKycUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      // Optimistic decrement — approved/rejected removes from queue
+      if (detail?.kycStatus && (detail.kycStatus === 'approved' || detail.kycStatus === 'rejected')) {
+        setKycCount(prev => Math.max(0, prev - 1));
+      }
+      // Then refetch the real count from the backend
+      fetchKycCount();
+    };
+    // If a user is deleted, their KYC application is gone too — decrement the badge
+    const handleUserDeleted = () => {
+      setKycCount(prev => Math.max(0, prev - 1));
+      fetchKycCount();
+    };
+    window.addEventListener("vero:kyc_updated", handleKycUpdate)
+    window.addEventListener("vero:user_deleted", handleUserDeleted)
     return () => {
       active = false
       clearInterval(interval)
-      window.removeEventListener("vero:kyc_updated", fetchKycCount)
+      window.removeEventListener("vero:kyc_updated", handleKycUpdate)
+      window.removeEventListener("vero:user_deleted", handleUserDeleted)
     }
   }, [token])
 
   const handleLogout = () => {
     queryClient.clear()
     dispatch(logout())
+    // Clear the session flag so the dashboard loader shows on next login
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("admin_dashboard_loaded")
+    }
     router.replace("/login")
   }
 

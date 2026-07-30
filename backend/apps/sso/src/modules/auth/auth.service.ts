@@ -983,9 +983,10 @@ export class AuthService {
 
   async getUsers(query: any) {
     try {
-      const page = query.page && query.page > 0 ? query.page : 1;
-      const limit = query.limit && query.limit > 0 ? Math.min(query.limit, 5000) : 10;
-      const skip = (page - 1) * limit;
+      const isUnlimited = query.limit === 'unlimited' || query.limit === 'all' || query.limit === '0' || Number(query.limit) === 0;
+      const page = query.page && query.page > 0 ? Number(query.page) : 1;
+      const limit = isUnlimited ? 0 : (query.limit && Number(query.limit) > 0 ? Number(query.limit) : 10);
+      const skip = isUnlimited ? 0 : (page - 1) * limit;
 
       const qb = this.userRepository.createQueryBuilder('user');
 
@@ -1018,11 +1019,11 @@ export class AuthService {
       }
 
       const total = await qb.getCount();
-      const users = await qb
-        .orderBy('user.createdAt', 'DESC')
-        .skip(skip)
-        .take(limit)
-        .getMany();
+      qb.orderBy('user.createdAt', 'DESC');
+      if (!isUnlimited) {
+        qb.skip(skip).take(limit);
+      }
+      const users = await qb.getMany();
 
       const sanitizedUsers = users.map((user) => {
         const { password, ...rest } = user as any;

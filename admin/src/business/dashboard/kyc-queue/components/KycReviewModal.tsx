@@ -13,18 +13,21 @@ interface KycReviewModalProps {
 }
 
 export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewModalProps) {
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<'approved' | 'rejected' | null>(null);
+  const [localKycStatus, setLocalKycStatus] = useState<string | null>(null);
   const token = useAppSelector((state) => state.auth.token);
 
   useEffect(() => {
-    // Reset state if needed when opening/closing
-  }, [isOpen]);
+    // Reset local overrides when a new user is opened
+    setLocalKycStatus(null);
+    setLoadingAction(null);
+  }, [user?.userId, user?.id]);
 
   if (!isOpen || !user) return null;
 
   const handleUpdateStatus = async (kycStatus: string) => {
-    if (!token) return;
-    setIsUpdating(true);
+    if (!token || loadingAction) return;
+    setLoadingAction(kycStatus as 'approved' | 'rejected');
     try {
       const response = await fetch(`/admin/api/sso/auth/admin/users/${user.userId || user.id}/kyc-status`, {
         method: 'PATCH',
@@ -37,21 +40,29 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
       
       if (!response.ok) throw new Error('Failed to update KYC status');
       
-      toast.success(`Application ${kycStatus} successfully.`);
+      // Instant local stamp update — no need to wait for server refresh
+      setLocalKycStatus(kycStatus);
+      toast.success(`Application ${kycStatus === 'approved' ? 'approved' : 'rejected'} successfully.`);
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("vero:kyc_updated"));
+        window.dispatchEvent(new CustomEvent("vero:kyc_updated", {
+          detail: {
+            userId: user.userId || user.id,
+            kycStatus,
+          }
+        }));
       }
       onSuccess();
     } catch (error) {
       toast.error('Failed to update KYC status');
       console.error(error);
     } finally {
-      setIsUpdating(false);
+      setLoadingAction(null);
     }
   };
 
-  const kycStatus = user.kycStatus?.toLowerCase() || 'pending';
+  const kycStatus = localKycStatus ?? (user.kycStatus?.toLowerCase() || 'pending');
   const isKycVerified = kycStatus === 'approved';
+  const isAnyLoading = loadingAction !== null;
   
   const stampColor = isKycVerified ? "text-green-600 border-green-600" : kycStatus === "rejected" ? "text-red-600 border-red-600" : "text-amber-600 border-amber-600";
   const stampText = isKycVerified ? "VERIFIED" : kycStatus === "rejected" ? "REJECTED" : "PENDING";
@@ -218,7 +229,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
         <div className="flex items-center justify-end gap-3 px-8 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
           <button 
             onClick={onClose}
-            disabled={isUpdating}
+            disabled={isAnyLoading}
             className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             Cancel
@@ -228,18 +239,18 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             <>
               <button 
                 onClick={() => handleUpdateStatus('rejected')}
-                disabled={isUpdating}
-                className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                disabled={isAnyLoading}
+                className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[100px] flex items-center justify-center gap-2"
               >
-                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Reject"}
+                {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
               </button>
               
               <button 
                 onClick={() => handleUpdateStatus('approved')}
-                disabled={isUpdating}
-                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[120px]"
+                disabled={isAnyLoading}
+                className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[120px] flex items-center justify-center gap-2"
               >
-                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+                {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
               </button>
             </>
           )}

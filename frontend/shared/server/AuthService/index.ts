@@ -359,17 +359,57 @@ export const getCurrentUser = async () => {
     const json = Buffer.from(payload, "base64").toString("utf8");
     const parsed = JSON.parse(json) as IDecodedToken;
 
-    // Merge full name and email from the "user" cookie
+    // Merge fields from the lightweight "user" cookie (name, email, etc.)
     const userCookie = cookieStore.get("user")?.value;
+    let merged: any = { ...parsed };
     if (userCookie) {
       try {
         const userObj = JSON.parse(userCookie);
-        return { ...parsed, ...userObj };
+        merged = { ...merged, ...userObj };
       } catch { }
     }
 
-    // Note: do NOT log token payload – it may contain PII
-    return parsed;
+    // Fetch fresh DB data (profilePhoto, idDocument, kycStatus, nationality, etc.)
+    // The cookie strips heavy fields so we MUST call /me to get them on every page load.
+    try {
+      const { data } = await axiosInstance.get("/sso/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000,
+      });
+      if (data?.success && data?.data) {
+        const {
+          profilePhoto,
+          idDocument,
+          kycStatus,
+          nationality,
+          dateOfBirth,
+          governmentId,
+          status,
+          fullName,
+          email,
+          phone,
+          currency,
+          accountType,
+        } = data.data;
+        // Merge only DB-sourced fields; don't overwrite JWT claims
+        if (profilePhoto !== undefined) merged.profilePhoto = profilePhoto;
+        if (idDocument !== undefined) merged.idDocument = idDocument;
+        if (kycStatus !== undefined) merged.kycStatus = kycStatus;
+        if (nationality !== undefined) merged.nationality = nationality;
+        if (dateOfBirth !== undefined) merged.dateOfBirth = dateOfBirth;
+        if (governmentId !== undefined) merged.governmentId = governmentId;
+        if (status !== undefined) merged.status = status;
+        if (fullName !== undefined && !merged.fullName) merged.fullName = fullName;
+        if (email !== undefined && !merged.email) merged.email = email;
+        if (phone !== undefined) merged.phone = phone;
+        if (currency !== undefined) merged.currency = currency;
+        if (accountType !== undefined) merged.accountType = accountType;
+      }
+    } catch {
+      // /me call failed (network/timeout) — fall back to cookie data only
+    }
+
+    return merged;
   } catch {
     try {
       cookieStore.delete("accessToken");

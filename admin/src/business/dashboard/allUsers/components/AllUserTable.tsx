@@ -202,10 +202,13 @@ const AllUserTable: React.FC = () => {
                 throw new Error(errorData.message || "Failed to delete");
             }
             
-            // Update local state
+            // Remove from local state
             setItems(prev => prev.filter(u => u.userId !== userId));
             setTotalResults(prev => prev - 1);
-            toast.success("User deleted successfully");
+            toast.success("User account permanently deleted.");
+
+            // Notify other pages (KYC queue, affiliate table, etc.) to remove this user
+            window.dispatchEvent(new CustomEvent("vero:user_deleted", { detail: { userId } }));
         } catch (e: any) {
             toast.error(e.message || "Failed to delete user");
         }

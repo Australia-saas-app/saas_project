@@ -7,6 +7,7 @@ import AccountSidebarChildren from "./AccountSidebarChildren"
 import { useAppSelector } from "@/src/core/store/hooks"
 import { useRouter } from "next/navigation"
 import { LoadingScreen } from "@/src/business/account/components/loading-screen"
+import { AdminDashboardLoader } from "./dashboard-loader"
 
 export default function DashboardLayout({
   children,
@@ -17,11 +18,20 @@ export default function DashboardLayout({
   const [mounted, setMounted] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [wasAuthenticated, setWasAuthenticated] = useState(false)
+  const [showLoader, setShowLoader] = useState(false)
   const { isAuthenticated, token, loading } = useAppSelector((state) => state.auth)
   const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
+    // Show the dashboard loader only on first admin login per session
+    if (typeof window !== "undefined") {
+      const key = "admin_dashboard_loaded"
+      if (!sessionStorage.getItem(key)) {
+        setShowLoader(true)
+        sessionStorage.setItem(key, "1")
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -60,7 +70,7 @@ export default function DashboardLayout({
     )
   }
 
-  return (
+  const dashboardContent = (
     <div className="flex h-screen bg-white dark:bg-slate-950 overflow-hidden">
       {/* Sidebar - Full Height */}
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)}>
@@ -79,4 +89,10 @@ export default function DashboardLayout({
       </div>
     </div>
   )
+
+  if (showLoader) {
+    return <AdminDashboardLoader>{dashboardContent}</AdminDashboardLoader>
+  }
+
+  return dashboardContent
 }

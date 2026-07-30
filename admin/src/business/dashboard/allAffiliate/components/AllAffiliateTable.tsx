@@ -171,7 +171,9 @@ const AllAffiliateTable: React.FC = () => {
       if (!res.ok) throw new Error("Failed to delete");
       setItems(prev => prev.filter(u => u.userId !== userId));
       setTotalResults(prev => prev - 1);
-      toast.success("Affiliate deleted successfully");
+      toast.success("Affiliate account permanently deleted.");
+      // Notify KYC queue and other pages to remove this user
+      window.dispatchEvent(new CustomEvent("vero:user_deleted", { detail: { userId } }));
     } catch (e: any) {
       toast.error(e.message || "Failed to delete user");
     }
