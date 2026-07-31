@@ -922,6 +922,10 @@ export class AuthService {
     if (!user.status) {
       user.status = UserStatus.ACTIVE;
     }
+    // Automatically set kycStatus to PENDING if user has uploaded an idDocument and kycStatus is NONE or REJECTED
+    if ((dto.idDocument || user.idDocument) && (user.kycStatus === KycStatus.NONE || user.kycStatus === KycStatus.REJECTED || !user.kycStatus)) {
+      user.kycStatus = KycStatus.PENDING;
+    }
     await this.userRepository.save(user);
 
     return {
@@ -930,6 +934,7 @@ export class AuthService {
       data: {
         userId: user.userId,
         status: user.status,
+        kycStatus: user.kycStatus,
       },
     };
   }

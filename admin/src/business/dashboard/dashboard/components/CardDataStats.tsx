@@ -1,9 +1,11 @@
 "use client";
 import React from "react";
+
 type CardItem = {
   name: string;
   icon?: any;
   number?: number;
+  isLoading?: boolean;
 };
 
 const CardDataStats: React.FC<{ item: CardItem; index: number }> = ({
@@ -34,12 +36,17 @@ const CardDataStats: React.FC<{ item: CardItem; index: number }> = ({
       </div>
 
       <div className="mt-4 relative z-10">
-        <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
-          {fmt(item.number)}
-        </p>
+        {item.isLoading ? (
+          <div className="h-9 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-md mt-1" />
+        ) : (
+          <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+            {fmt(item.number)}
+          </p>
+        )}
       </div>
     </div>
   );
 };
 
 export default CardDataStats;
+

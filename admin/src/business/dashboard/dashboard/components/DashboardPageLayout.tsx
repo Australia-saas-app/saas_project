@@ -93,7 +93,7 @@ const DashboardPageLayout: React.FC = () => {
   const token = useAppSelector(state => state.auth.token);
 
   // React Query caches this for staleTime (30s) — no flash of "0" on dashboard revisit
-  const { data: statsData } = useQuery<any>({
+  const { data: statsData, isLoading: isStatsLoading } = useQuery<any>({
     queryKey: ["admin-dashboard-stats", token],
     queryFn: async () => {
       const response = await fetch('/admin/api/sso/auth/admin/users?limit=1', {
@@ -110,15 +110,20 @@ const DashboardPageLayout: React.FC = () => {
       };
     },
     enabled: !!token,
-    placeholderData: { totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 },
   });
 
+  const isLoadingStats = isStatsLoading && !statsData;
   const stats = statsData || { totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 };
 
-  // keep `visibleCount` state for potential "See more" UI; no handler needed currently
-  if (!mounted) {
-    // Render a placeholder with the same min-height to avoid layout shift
-    return <div className="min-h-screen" />;
+  if (!mounted || (isStatsLoading && !statsData)) {
+    return (
+      <div className="min-h-[70vh] bg-white dark:bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium font-inter">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -148,10 +153,10 @@ const DashboardPageLayout: React.FC = () => {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <CardDataStats item={{ name: "Total Accounts", number: stats.totalUsers, icon: Users }} index={0} />
-        <CardDataStats item={{ name: "Users", number: stats.userCount, icon: Smartphone }} index={1} />
-        <CardDataStats item={{ name: "Businesses", number: stats.businessCount, icon: Globe }} index={2} />
-        <CardDataStats item={{ name: "Affiliates", number: stats.affiliateCount, icon: Share2 }} index={3} />
+        <CardDataStats item={{ name: "Total Accounts", number: stats.totalUsers, icon: Users, isLoading: isLoadingStats }} index={0} />
+        <CardDataStats item={{ name: "Users", number: stats.userCount, icon: Smartphone, isLoading: isLoadingStats }} index={1} />
+        <CardDataStats item={{ name: "Businesses", number: stats.businessCount, icon: Globe, isLoading: isLoadingStats }} index={2} />
+        <CardDataStats item={{ name: "Affiliates", number: stats.affiliateCount, icon: Share2, isLoading: isLoadingStats }} index={3} />
       </div>
 
       {/* Row 2: Visitor Analytics */}
