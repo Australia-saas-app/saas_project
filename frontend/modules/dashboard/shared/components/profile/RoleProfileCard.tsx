@@ -44,21 +44,50 @@ export default function RoleProfileCard({
 
   const { refreshUser } = useUser();
 
-  // Listen for instant status updates from admin KYC actions
+  // Listen for instant status updates from admin KYC actions across tabs/windows
   useEffect(() => {
+    const applyNewKycStatus = (targetUserId?: string, newStatusStr?: string) => {
+      if (!newStatusStr) return;
+      if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
+      const newStatus = newStatusStr.toLowerCase();
+      setLocalKycStatus(newStatus);
+      if (rawUserId) saveProfileOverrides(rawUserId, { kycStatus: newStatus });
+      if (refreshUser) refreshUser().catch(() => {});
+    };
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.kycStatus) {
-        const newStatus = detail.kycStatus.toLowerCase();
-        setLocalKycStatus(newStatus);
-        // Persist in localStorage overrides so page navigation keeps the change
-        if (rawUserId) saveProfileOverrides(rawUserId, { kycStatus: newStatus });
-        // Refresh user context from server
-        if (refreshUser) refreshUser().catch(() => {});
-      }
+      applyNewKycStatus(detail?.userId, detail?.kycStatus);
     };
     window.addEventListener("vero:kyc_updated", handler);
-    return () => window.removeEventListener("vero:kyc_updated", handler);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:kyc_updated") {
+            applyNewKycStatus(event.data.userId, event.data.kycStatus);
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_kyc_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          applyNewKycStatus(parsed.userId, parsed.kycStatus);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("vero:kyc_updated", handler);
+      window.removeEventListener("storage", handleStorage);
+      if (bc) bc.close();
+    };
   }, [rawUserId, refreshUser]);
 
   const effectiveKycStatus = localKycStatus ?? kycStatus;

@@ -35,6 +35,23 @@ export default function KycApplicationModal({
       const res = await applyForKyc(user.rawUserId);
       if (res && res.success !== false) {
         toast.success("KYC Application submitted successfully!");
+
+        // Broadcast to admin side and other tabs
+        if (typeof window !== "undefined") {
+          const uid = user.rawUserId;
+          window.dispatchEvent(new CustomEvent("vero:kyc_updated", { detail: { userId: uid, kycStatus: "pending" } }));
+          try {
+            if ("BroadcastChannel" in window) {
+              const bc = new BroadcastChannel("vero_channel");
+              bc.postMessage({ type: "vero:kyc_updated", userId: uid, kycStatus: "pending" });
+              bc.close();
+            }
+          } catch {}
+          try {
+            localStorage.setItem("vero_kyc_sync", JSON.stringify({ userId: uid, kycStatus: "pending", t: Date.now() }));
+          } catch {}
+        }
+
         onSuccess();
         onClose();
       } else {

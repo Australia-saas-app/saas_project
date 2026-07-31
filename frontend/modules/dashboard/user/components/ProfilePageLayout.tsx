@@ -17,18 +17,49 @@ export default function ProfilePageLayout() {
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [localKycStatus, setLocalKycStatus] = useState<string | null>(null);
 
-  // Listen for instant status updates from admin KYC actions
+  // Listen for instant status updates from admin KYC actions across tabs/windows
   useEffect(() => {
+    const applyNewKycStatus = (targetUserId?: string, newStatusStr?: string) => {
+      if (!newStatusStr) return;
+      if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
+      setLocalKycStatus(newStatusStr.toLowerCase());
+      if (refreshUser) refreshUser().catch(() => {});
+    };
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.userId && detail?.kycStatus) {
-        setLocalKycStatus(detail.kycStatus.toLowerCase());
-        if (refreshUser) refreshUser().catch(() => {});
-      }
+      applyNewKycStatus(detail?.userId, detail?.kycStatus);
     };
     window.addEventListener("vero:kyc_updated", handler);
-    return () => window.removeEventListener("vero:kyc_updated", handler);
-  }, [refreshUser]);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:kyc_updated") {
+            applyNewKycStatus(event.data.userId, event.data.kycStatus);
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_kyc_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          applyNewKycStatus(parsed.userId, parsed.kycStatus);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("vero:kyc_updated", handler);
+      window.removeEventListener("storage", handleStorage);
+      if (bc) bc.close();
+    };
+  }, [rawUserId, refreshUser]);
 
   const effectiveKycStatus = localKycStatus ?? kycStatus;
   const effectiveIsKycVerified = effectiveKycStatus === 'approved';

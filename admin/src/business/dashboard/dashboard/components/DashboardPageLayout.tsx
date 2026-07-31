@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useAppSelector } from "@/src/core/store/hooks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 // Chart registration will be run client-side inside useEffect to avoid SSR side-effects
 
 import { Inter } from "next/font/google";
@@ -111,6 +111,42 @@ const DashboardPageLayout: React.FC = () => {
     },
     enabled: !!token,
   });
+
+  const queryClient = useQueryClient();
+
+  // Invalidate dashboard stats cache on real-time cross-tab events
+  useEffect(() => {
+    const handleSync = () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-dashboard-stats"] });
+    };
+
+    window.addEventListener("vero:kyc_updated", handleSync);
+    window.addEventListener("vero:user_status_updated", handleSync);
+    window.addEventListener("vero:user_deleted", handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = () => handleSync();
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_kyc_sync" || e.key === "vero_user_sync") {
+        handleSync();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("vero:kyc_updated", handleSync);
+      window.removeEventListener("vero:user_status_updated", handleSync);
+      window.removeEventListener("vero:user_deleted", handleSync);
+      window.removeEventListener("storage", handleStorage);
+      if (bc) bc.close();
+    };
+  }, [queryClient]);
 
   const isLoadingStats = isStatsLoading && !statsData;
   const stats = statsData || { totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 };

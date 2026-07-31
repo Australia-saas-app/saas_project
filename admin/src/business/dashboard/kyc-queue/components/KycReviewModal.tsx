@@ -44,12 +44,32 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
       setLocalKycStatus(kycStatus);
       toast.success(`Application ${kycStatus === 'approved' ? 'approved' : 'rejected'} successfully.`);
       if (typeof window !== "undefined") {
+        const uid = user.userId || user.id;
+        // 1. Local DOM CustomEvent
         window.dispatchEvent(new CustomEvent("vero:kyc_updated", {
           detail: {
-            userId: user.userId || user.id,
+            userId: uid,
             kycStatus,
           }
         }));
+
+        // 2. Cross-tab BroadcastChannel
+        try {
+          if ("BroadcastChannel" in window) {
+            const bc = new BroadcastChannel("vero_channel");
+            bc.postMessage({ type: "vero:kyc_updated", userId: uid, kycStatus });
+            bc.close();
+          }
+        } catch {}
+
+        // 3. Cross-tab Storage Event
+        try {
+          localStorage.setItem("vero_kyc_sync", JSON.stringify({
+            userId: uid,
+            kycStatus,
+            t: Date.now()
+          }));
+        } catch {}
       }
       onSuccess();
     } catch (error) {

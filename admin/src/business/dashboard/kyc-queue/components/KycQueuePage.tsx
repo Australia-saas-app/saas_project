@@ -45,25 +45,54 @@ export default function KycQueuePage() {
     refetchOnWindowFocus: false, // don't re-fetch just because user switches tabs
   });
 
-  // Auto-refetch and apply optimistic updates when an admin approves / rejects a KYC application
+  // Auto-refetch and apply optimistic updates when an admin approves / rejects a KYC application or a user submits
   useEffect(() => {
-    const handleKycUpdate = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.userId && detail?.kycStatus) {
-        // Optimistic update — patch the row immediately without waiting for refetch
-        setLocalOverrides(prev => ({ ...prev, [detail.userId]: detail.kycStatus }));
-        // Also update selectedApp if it's the same user
+    const processUpdate = (uid?: string, newKycStatus?: string) => {
+      if (uid && newKycStatus) {
+        setLocalOverrides(prev => ({ ...prev, [uid]: newKycStatus }));
         setSelectedApp((prev: any) => {
           if (!prev) return prev;
           const id = prev.userId || prev.id;
-          if (id === detail.userId) return { ...prev, kycStatus: detail.kycStatus };
+          if (id === uid) return { ...prev, kycStatus: newKycStatus };
           return prev;
         });
       }
       refetch();
     };
+
+    const handleKycUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      processUpdate(detail?.userId, detail?.kycStatus);
+    };
     window.addEventListener("vero:kyc_updated", handleKycUpdate);
-    return () => window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:kyc_updated") {
+            processUpdate(event.data.userId, event.data.kycStatus);
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_kyc_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          processUpdate(parsed.userId, parsed.kycStatus);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+      window.removeEventListener("storage", handleStorage);
+      if (bc) bc.close();
+    };
   }, [refetch]);
 
   // Remove deleted users instantly from the KYC queue

@@ -36,22 +36,66 @@ export function useProfileDisplay() {
   }, []);
 
   // When admin changes KYC status, instantly persist the new value in overrides
-  // and refresh the user context from the DB so all components update
+  // and refresh the user context from the DB so all components update across tabs
   useEffect(() => {
-    const handleKycUpdate = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.kycStatus) return;
-      const uid = detail.userId;
-      // Only update if this event is for the current user (or no userId specified)
-      if (uid && rawUserId && uid !== rawUserId) return;
-      // Persist updated kycStatus in localStorage override immediately
-      saveProfileOverrides(rawUserId, { kycStatus: detail.kycStatus.toLowerCase() });
+    const processKycChange = (targetUserId?: string, newKycStatus?: string) => {
+      if (!newKycStatus) return;
+      if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
+
+      const lowerStatus = newKycStatus.toLowerCase();
+      saveProfileOverrides(rawUserId, { kycStatus: lowerStatus });
       setRevision(n => n + 1); // trigger re-read of overrides
-      // Also refresh user context from the server to update kycStatus in user object
       if (refreshUser) refreshUser().catch(() => {});
     };
+
+    // 1. Local DOM CustomEvent
+    const handleKycUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      processKycChange(detail?.userId, detail?.kycStatus);
+    };
     window.addEventListener("vero:kyc_updated", handleKycUpdate);
-    return () => window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+
+    // 2. Cross-tab BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:kyc_updated") {
+            processKycChange(event.data.userId, event.data.kycStatus);
+          }
+        };
+      }
+    } catch {}
+
+    // 3. Cross-tab Storage Event
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_kyc_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          processKycChange(parsed.userId, parsed.kycStatus);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    // 4. Tab Focus & 5-Second Background Polling for DB sync
+    const handleFocus = () => {
+      if (refreshUser) refreshUser().catch(() => {});
+    };
+    window.addEventListener("focus", handleFocus);
+
+    const pollInterval = setInterval(() => {
+      if (refreshUser) refreshUser().catch(() => {});
+    }, 5000);
+
+    return () => {
+      window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(pollInterval);
+      if (bc) bc.close();
+    };
   }, [rawUserId, refreshUser]);
 
   const overrides = useMemo(() => getProfileOverrides(rawUserId), [rawUserId, revision])
