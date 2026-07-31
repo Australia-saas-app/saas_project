@@ -179,6 +179,20 @@ const AllUserTable: React.FC = () => {
 
     const handleStatusUpdate = async (userId: string, newStatus: string) => {
         try {
+            // Optimistically update React Query cache in-memory immediately (NO table refetch spinner!)
+            queryClient.setQueriesData({ queryKey: ["admin-users"] }, (oldData: any) => {
+                if (!oldData) return oldData;
+                if (Array.isArray(oldData)) {
+                    return oldData.map(u => (u.userId === userId || u.id === userId) ? { ...u, status: newStatus } : u);
+                }
+                if (oldData.data && Array.isArray(oldData.data)) {
+                    return { ...oldData, data: oldData.data.map((u: any) => (u.userId === userId || u.id === userId) ? { ...u, status: newStatus } : u) };
+                }
+                return oldData;
+            });
+
+            setSelectedUser(prev => prev?.userId === userId ? { ...prev, status: newStatus } : prev);
+
             const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
                 method: 'PATCH',
                 headers: { 
@@ -191,12 +205,21 @@ const AllUserTable: React.FC = () => {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || "Failed to update");
             }
-            // Optimistically update modal
-            setSelectedUser(prev => prev?.userId === userId ? { ...prev, status: newStatus } : prev);
-            // Invalidate React Query cache so table data refetches with the new status
-            queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-            // Notify other parts of the app (KYC queue, user side, etc.)
-            window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: newStatus } }));
+
+            // Real-time broadcast to user profile and all web tabs
+            const lowerStatus = newStatus.toLowerCase();
+            window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: lowerStatus } }));
+            try {
+              if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+                const bc = new BroadcastChannel("vero_channel");
+                bc.postMessage({ type: "vero:user_status_updated", userId, status: lowerStatus });
+                bc.close();
+              }
+            } catch {}
+            try {
+              localStorage.setItem("vero_profile_sync", JSON.stringify({ userId, status: lowerStatus, t: Date.now() }));
+            } catch {}
+
             toast.success("User status updated successfully");
         } catch (e: any) {
             toast.error(e.message || "Failed to update status");

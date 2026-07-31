@@ -134,6 +134,12 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             const govtId = snap.governmentId || user.governmentId || user.nationalIdentity;
             const dob = snap.dateOfBirth || user.dateOfBirth;
             const address = snap.permanentAddress || user.permanentAddress;
+            const accountType = (() => {
+              const rawType = String(snap.accountType || user.accountType || user.role || "user").toLowerCase();
+              if (rawType.includes("agency") || rawType.includes("affiliate")) return "Affiliate";
+              if (rawType.includes("business")) return "Business";
+              return "User";
+            })();
             const appliedDate = snap.appliedAt ? new Date(snap.appliedAt).toLocaleDateString() : (user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A");
 
             return (
@@ -148,6 +154,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Email Address</span>
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{email || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Account Type</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{accountType}</p>
                     </div>
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Nationality</span>
@@ -197,7 +207,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
                 {/* Permanent Address Snapshot */}
                 <div className="mb-6 relative z-10">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3">Permanent Address (Submitted Snapshot)</h4>
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3">Permanent Address</h4>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                     <div>
                       <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">Country</span>

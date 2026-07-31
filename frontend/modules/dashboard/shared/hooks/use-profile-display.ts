@@ -52,7 +52,7 @@ export function useProfileDisplay() {
     return () => window.removeEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdate);
   }, []);
 
-  // When admin changes KYC status, instantly persist the new value in overrides
+  // When admin changes KYC status or account status, instantly persist the new value in overrides
   // and refresh the user context from the DB so all components update across tabs
   useEffect(() => {
     const processKycChange = (targetUserId?: string, newKycStatus?: string) => {
@@ -69,12 +69,27 @@ export function useProfileDisplay() {
       if (refreshUser) refreshUser().catch(() => {});
     };
 
-    // 1. Local DOM CustomEvent
+    const processStatusChange = (targetUserId?: string, newStatus?: string) => {
+      if (!newStatus) return;
+      if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
+
+      const lowerStatus = newStatus.toLowerCase();
+      saveProfileOverrides(rawUserId, { status: lowerStatus });
+      setRevision(n => n + 1);
+      if (refreshUser) refreshUser().catch(() => {});
+    };
+
+    // 1. Local DOM CustomEvents
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       processKycChange(detail?.userId, detail?.kycStatus);
     };
+    const handleStatusUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      processStatusChange(detail?.userId, detail?.status);
+    };
     window.addEventListener("vero:kyc_updated", handleKycUpdate);
+    window.addEventListener("vero:user_status_updated", handleStatusUpdate);
 
     // 2. Cross-tab BroadcastChannel
     let bc: BroadcastChannel | null = null;
@@ -84,6 +99,8 @@ export function useProfileDisplay() {
         bc.onmessage = (event) => {
           if (event.data?.type === "vero:kyc_updated") {
             processKycChange(event.data.userId, event.data.kycStatus);
+          } else if (event.data?.type === "vero:user_status_updated") {
+            processStatusChange(event.data.userId, event.data.status);
           } else if (event.data?.type === "vero:profile_updated") {
             setRevision((n) => n + 1);
             if (refreshUser) refreshUser().catch(() => {});
@@ -99,7 +116,17 @@ export function useProfileDisplay() {
           const parsed = JSON.parse(e.newValue);
           processKycChange(parsed.userId, parsed.kycStatus);
         } catch {}
-      } else if (e.key === "vero_profile_sync" || e.key === "user_profile_overrides_v2") {
+      } else if (e.key === "vero_profile_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.status) processStatusChange(parsed.userId, parsed.status);
+          setRevision((n) => n + 1);
+          if (refreshUser) refreshUser().catch(() => {});
+        } catch {
+          setRevision((n) => n + 1);
+          if (refreshUser) refreshUser().catch(() => {});
+        }
+      } else if (e.key === "user_profile_overrides_v2") {
         setRevision((n) => n + 1);
         if (refreshUser) refreshUser().catch(() => {});
       }
@@ -118,6 +145,7 @@ export function useProfileDisplay() {
 
     return () => {
       window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+      window.removeEventListener("vero:user_status_updated", handleStatusUpdate);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", handleFocus);
       clearInterval(pollInterval);

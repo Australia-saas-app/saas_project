@@ -138,6 +138,22 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     if (initialDocumentUrl !== undefined) setDocumentUrl(initialDocumentUrl);
   }, [rawUserId]);
 
+  // Sync documentUrl live whenever PROFILE_UPDATED_EVENT or storage changes occur
+  useEffect(() => {
+    const syncDoc = () => {
+      const o = getProfileOverrides(rawUserId);
+      if (o.documentUrl !== undefined) {
+        setDocumentUrl(o.documentUrl);
+      }
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, syncDoc);
+    window.addEventListener("storage", syncDoc);
+    return () => {
+      window.removeEventListener(PROFILE_UPDATED_EVENT, syncDoc);
+      window.removeEventListener("storage", syncDoc);
+    };
+  }, [rawUserId]);
+
 
 
   const handleUpdate = async (e: React.FormEvent) => {

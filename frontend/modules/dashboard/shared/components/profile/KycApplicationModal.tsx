@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, ShieldAlert, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { applyForKyc } from "@/src/shared/server/AuthService";
-import { saveProfileOverrides } from "@/src/shared/utils/profile-storage";
+import { saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
 
 interface KycApplicationModalProps {
   isOpen: boolean;
@@ -212,7 +212,29 @@ export default function KycApplicationModal({
             const displayGovtIdType = snap.governmentIdType || user.governmentIdType || "NID";
             const displayGovtId = snap.governmentId || user.nationalIdentity;
             const displayDob = snap.dateOfBirth || user.dateOfBirth;
-            const displayPermAddress = snap.permanentAddress || user.permanentAddress;
+            const displayPermAddress = (() => {
+              let addr = snap.permanentAddress || user.permanentAddress;
+              if (!addr && typeof window !== "undefined") {
+                try {
+                  const o = getProfileOverrides(user.rawUserId || user.userId || user.id);
+                  addr = o.permanentAddress;
+                } catch {}
+              }
+              if (typeof addr === "string") {
+                try {
+                  return JSON.parse(addr);
+                } catch {
+                  return { address: addr };
+                }
+              }
+              return addr || {};
+            })();
+            const displayAccountType = (() => {
+              const rawType = String(snap.accountType || user.accountType || user.accountLabel || user.role || "user").toLowerCase();
+              if (rawType.includes("agency") || rawType.includes("affiliate")) return "Affiliate";
+              if (rawType.includes("business")) return "Business";
+              return "User";
+            })();
             const displayAppliedAt = snap.appliedAt ? new Date(snap.appliedAt).toLocaleDateString() : new Date().toLocaleDateString();
 
             return (
@@ -223,6 +245,7 @@ export default function KycApplicationModal({
                     {[
                       { label: "Full Name", value: displayFullName },
                       { label: "Email Address", value: displayEmail },
+                      { label: "Account Type", value: displayAccountType },
                       { label: "Nationality", value: displayNationality },
                       { label: "Government ID Type", value: displayGovtIdType },
                       { label: "Government ID", value: displayGovtId },
@@ -284,7 +307,7 @@ export default function KycApplicationModal({
 
                 {/* Permanent Address Section */}
                 <div className="mb-6 relative z-10">
-                  <h4 className="font-bold text-base text-foreground mb-3 uppercase tracking-wide text-xs">Permanent Address (Application Snapshot)</h4>
+                  <h4 className="font-bold text-base text-foreground mb-3 uppercase tracking-wide text-xs">Permanent Address</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl border border-border bg-muted/20">
                     <div>
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Country</span>
