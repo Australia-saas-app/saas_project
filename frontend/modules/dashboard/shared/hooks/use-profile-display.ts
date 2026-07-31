@@ -262,7 +262,11 @@ export function useProfileDisplay() {
   }
 
   const status = String((user && "status" in user && user.status) ? user.status : (overrides.status ?? "pending")).toLowerCase();
-  const kycStatus = String((user && "kycStatus" in user && user.kycStatus) ? user.kycStatus : (overrides.kycStatus ?? "none")).toLowerCase();
+  const kycStatus = String(
+    overrides.kycStatus === "pending"
+      ? "pending"
+      : (user && "kycStatus" in user && user.kycStatus ? user.kycStatus : (overrides.kycStatus ?? "none"))
+  ).toLowerCase();
   
   // Account status is active if it's active or verified
   const isActive = status === "active" || status === "verified" || status === "approved";

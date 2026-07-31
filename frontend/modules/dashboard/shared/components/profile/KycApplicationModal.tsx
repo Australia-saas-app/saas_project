@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { X, ShieldAlert, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { applyForKyc } from "@/src/shared/server/AuthService";
+import { saveProfileOverrides } from "@/src/shared/utils/profile-storage";
 
 interface KycApplicationModalProps {
   isOpen: boolean;
@@ -36,9 +37,11 @@ export default function KycApplicationModal({
       if (res && res.success !== false) {
         toast.success("KYC Application submitted successfully!");
 
+        const uid = user.rawUserId;
+        saveProfileOverrides(uid, { kycStatus: "pending", resubmitted: true, unverifiedByAdmin: false });
+
         // Broadcast to admin side and other tabs
         if (typeof window !== "undefined") {
-          const uid = user.rawUserId;
           window.dispatchEvent(new CustomEvent("vero:kyc_updated", { detail: { userId: uid, kycStatus: "pending" } }));
           try {
             if ("BroadcastChannel" in window) {

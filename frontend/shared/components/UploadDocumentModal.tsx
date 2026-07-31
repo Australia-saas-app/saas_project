@@ -3,15 +3,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Upload, X, Check, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import SelectDropdown from "@/src/shared/components/SelectDropdown";
 
 interface UploadDocumentModalProps {
   open: boolean;
   onClose: () => void;
-  onUploadSuccess: (url: string, filename: string, sizeLabel: string) => void;
+  onUploadSuccess: (url: string, filename: string, sizeLabel: string, docType?: string) => void;
   existingUrl?: string;
+  initialDocType?: string;
 }
 
-export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUrl }: UploadDocumentModalProps) {
+export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUrl, initialDocType }: UploadDocumentModalProps) {
+  const [docType, setDocType] = useState<string>(initialDocType || "NID");
   const [frontUrl, setFrontUrl] = useState<string>("");
   const [backUrl, setBackUrl] = useState<string>("");
   const [frontFile, setFrontFile] = useState<File | null>(null);
@@ -22,6 +25,9 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
   const backInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (initialDocType) {
+      setDocType(initialDocType);
+    }
     if (existingUrl) {
       try {
         if (existingUrl.startsWith("[") && existingUrl.endsWith("]")) {
@@ -44,7 +50,7 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
       setFrontFile(null);
       setBackFile(null);
     }
-  }, [existingUrl, open]);
+  }, [existingUrl, initialDocType, open]);
 
   if (!open) return null;
 
@@ -92,7 +98,7 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
       const sizeBack = backFile ? backFile.size : 0;
       const sizeLabel = sizeFront || sizeBack ? `${((sizeFront + sizeBack) / 1024 / 1024).toFixed(1)} MB` : "";
       
-      onUploadSuccess(combinedUrl, filename, sizeLabel);
+      onUploadSuccess(combinedUrl, filename, sizeLabel, docType);
       toast.success("Documents Uploaded Successfully");
       setIsUploading(false);
       onClose();
@@ -168,6 +174,24 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
           </button>
         </div>
 
+        {/* Document Type Dropdown */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <span>Select Document Type</span>
+            <span className="text-red-500 font-bold">*</span>
+          </label>
+          <SelectDropdown
+            value={docType}
+            onChange={setDocType}
+            placeholder="Select Document Type..."
+            options={[
+              { label: "NID (National ID)", value: "NID" },
+              { label: "Passport", value: "Passport" },
+              { label: "Driving License", value: "Driving License" },
+            ]}
+          />
+        </div>
+
         {/* Drop / Preview Area */}
         <div className="flex gap-4">
           {renderUploadBox("front")}
@@ -186,7 +210,7 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
           <button
             type="button"
             onClick={handleUpload}
-            disabled={!frontUrl || !backUrl || isUploading}
+            disabled={!docType || !frontUrl || !backUrl || isUploading}
             className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isUploading ? (

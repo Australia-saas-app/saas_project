@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon, Trash2, Eye, X } from "lucide-react";
+import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon, Trash2, Eye, X, Loader2 } from "lucide-react";
 import SelectDropdown from "@/src/shared/components/SelectDropdown";
 import { useUser } from "@/src/context/user.provider";
 import { useProfileDisplay } from "../../hooks/use-profile-display";
@@ -117,39 +117,26 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     permAddress?.trim()
   );
 
+  // Sync initial values only when rawUserId changes (on initial mount / user change), NOT when field is emptied
+  const prevUserIdRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (initialNationality && !nationality) setNationality(initialNationality);
-    if (initialDateOfBirth && !dateOfBirth) setDateOfBirth(initialDateOfBirth);
-    if (initialNationalIdentity && !nationalIdentity) setNationalIdentity(initialNationalIdentity);
-    if (initialGovernmentIdType && !governmentIdType) setGovernmentIdType(initialGovernmentIdType);
-    if (initialPermanentAddress?.country && !permCountry) setPermCountry(initialPermanentAddress.country);
-    if (initialPermanentAddress?.city && !permCity) setPermCity(initialPermanentAddress.city);
-    if (initialPermanentAddress?.state && !permState) setPermState(initialPermanentAddress.state);
-    if (initialPermanentAddress?.zipCode && !permZipCode) setPermZipCode(initialPermanentAddress.zipCode);
-    if (initialPermanentAddress?.address && !permAddress) setPermAddress(initialPermanentAddress.address);
-    if (initialCountryCode && !countryCode) setCountryCode(initialCountryCode);
-    if (initialPhone && !phone) {
-      // Strip country code before setting so the input shows just the local number
-      const cc = initialCountryCode || countryCode || "+92";
-      setPhone(stripCountryCode(initialPhone, cc));
-    }
-    if (initialSecondaryEmail && !secondaryEmail) setSecondaryEmail(initialSecondaryEmail);
-    if (initialCurrency && !currency) setCurrency(initialCurrency);
-    if (initialDocumentUrl !== undefined && initialDocumentUrl !== documentUrl) {
-      setDocumentUrl(initialDocumentUrl);
-    }
-  }, [
-    initialNationality,
-    initialDateOfBirth,
-    initialNationalIdentity,
-    initialGovernmentIdType,
-    initialPermanentAddress,
-    initialCountryCode,
-    initialPhone,
-    initialSecondaryEmail,
-    initialCurrency,
-    initialDocumentUrl,
-  ]);
+    if (prevUserIdRef.current === rawUserId) return;
+    prevUserIdRef.current = rawUserId;
+    if (initialNationality) setNationality(initialNationality);
+    if (initialDateOfBirth) setDateOfBirth(initialDateOfBirth);
+    if (initialNationalIdentity) setNationalIdentity(initialNationalIdentity);
+    if (initialGovernmentIdType) setGovernmentIdType(initialGovernmentIdType);
+    if (initialPermanentAddress?.country) setPermCountry(initialPermanentAddress.country);
+    if (initialPermanentAddress?.city) setPermCity(initialPermanentAddress.city);
+    if (initialPermanentAddress?.state) setPermState(initialPermanentAddress.state);
+    if (initialPermanentAddress?.zipCode) setPermZipCode(initialPermanentAddress.zipCode);
+    if (initialPermanentAddress?.address) setPermAddress(initialPermanentAddress.address);
+    if (initialCountryCode) setCountryCode(initialCountryCode);
+    if (initialPhone) setPhone(stripCountryCode(initialPhone, initialCountryCode));
+    if (initialSecondaryEmail) setSecondaryEmail(initialSecondaryEmail);
+    if (initialCurrency) setCurrency(initialCurrency);
+    if (initialDocumentUrl !== undefined) setDocumentUrl(initialDocumentUrl);
+  }, [rawUserId]);
 
 
 
@@ -492,27 +479,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
           </div>
 
           {/* 9. Mandatory Document Upload Row */}
-          <div className="flex flex-col gap-3 min-w-0 md:col-span-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                <span>Identity Document Upload</span>
-                <span className="text-red-500 font-bold">*</span>
-              </label>
-
-              {/* Select Document Type Dropdown */}
-              <div className="w-full sm:w-64">
-                <SelectDropdown
-                  value={governmentIdType}
-                  onChange={setGovernmentIdType}
-                  placeholder="Select Document Type..."
-                  options={[
-                    { label: "NID (National ID)", value: "NID" },
-                    { label: "Passport", value: "Passport" },
-                    { label: "Driving License", value: "Driving License" },
-                  ]}
-                />
-              </div>
-            </div>
+          <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Identity Document Upload</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
 
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 min-w-0 w-full">
@@ -548,7 +519,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {documentUrl ? "Click thumbnail or name to view full preview image" : `Select Document Type above & upload your ${governmentIdType || "ID Document"} (PNG, JPG, JPEG)`}
+                    {documentUrl ? "Click thumbnail or name to view full preview image" : "Click Upload Document below to select type and upload files (PNG, JPG, JPEG)"}
                   </p>
                 </div>
               </div>
@@ -601,8 +572,16 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
         {/* Bottom Update Button Section */}
         <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground font-medium">
-            * Please ensure all fields are correct before updating.
+          <div className="flex flex-col gap-1">
+            <div className="text-xs text-muted-foreground font-medium">
+              * Please ensure all fields are correct before updating.
+            </div>
+            <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+              <span>Government ID Type:</span>
+              <span className="font-bold text-primary px-2 py-0.5 rounded bg-primary/10 border border-primary/20">
+                {governmentIdType || "NID"}
+              </span>
+            </div>
           </div>
           <div className="w-full sm:w-auto flex justify-end">
             <button
@@ -612,13 +591,12 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             >
               {isSubmitting ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                  <span>Updating Profile...</span>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating...
                 </>
               ) : (
                 <>
-                  <Check className="h-4 w-4" />
-                  <span>Update Profile</span>
+                  <Check className="h-4 w-4" /> Update Profile
                 </>
               )}
             </button>
@@ -631,15 +609,21 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         open={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         existingUrl={documentUrl}
-        onUploadSuccess={(url, filename, sizeLabel) => {
+        initialDocType={governmentIdType || "NID"}
+        onUploadSuccess={(url, filename, sizeLabel, selectedType) => {
           setDocumentUrl(url);
+          if (selectedType) {
+            setGovernmentIdType(selectedType);
+            updateProfile({ documentUrl: url, governmentIdType: selectedType });
+          } else {
+            updateProfile({ documentUrl: url });
+          }
           setDocumentFileName(filename);
           setDocumentSizeLabel(sizeLabel);
-          // Replace the stored document entry so the card below always shows the latest
           if (rawUserId) {
             setProfileDocument(rawUserId, {
               id: `doc-${Date.now()}`,
-              type: "UPLOADED",
+              type: selectedType || governmentIdType || "NID",
               name: filename || `identity-document`,
               mimeType: url.split(";")[0].split(":")[1] || "image/png",
               sizeLabel: sizeLabel || "",
