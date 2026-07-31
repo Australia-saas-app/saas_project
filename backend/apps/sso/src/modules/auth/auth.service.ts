@@ -701,6 +701,8 @@ export class AuthService {
       message: 'Password verified successfully',
       data: {
         userId: user.userId,
+        twoFactorEnabled: user.twoFactorEnabled,
+        twoFactorMethod: user.twoFactorMethod,
       },
     };
   }
@@ -1184,6 +1186,9 @@ export class AuthService {
     }
 
     user.kycStatus = kycStatus as KycStatus;
+    if (kycStatus === 'approved') {
+      user.status = UserStatus.ACTIVE;
+    }
     await this.userRepository.save(user);
 
     return {

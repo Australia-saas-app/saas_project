@@ -21,7 +21,7 @@ import { AuthShell } from "./auth-shell";
 import { AccountTypeTabs } from "./account-type-tabs";
 import { UserStatusModal, type UserStatus } from "./UserStatusModal";
 import { OtpInput } from "./OtpInput";
-import { getSecuritySettings } from "@/src/shared/lib/security-settings-store";
+import { getSecuritySettings, saveSecuritySettings } from "@/src/shared/lib/security-settings-store";
 import { verifyAccountPassword } from "@/src/server/AuthService";
 
 const loginSchema = z.object({
@@ -110,29 +110,37 @@ export function LoginPage({
   const onSubmit = async (data: LoginFormValues) => {
     loginMutation.reset();
     setOtpError(null);
+    setIsVerifyingCreds(true);
 
-    const security = getSecuritySettings();
+    try {
+      // 1. Verify email & password against backend DB
+      const res = await verifyAccountPassword(data.email, data.password);
+      if (!res.success) {
+        toast.error(res.message || "Invalid credentials. Please check your email and password.");
+        setIsVerifyingCreds(false);
+        return;
+      }
 
-    // If 2FA is enabled in Account Security
-    if (security.twoFactorEnabled) {
-      setIsVerifyingCreds(true);
-      try {
-        // First verify if email and password are correct
-        await verifyAccountPassword(data.email, data.password);
-        // Password is correct -> trigger 2FA OTP step!
+      // 2. Check 2FA setting from backend DB response OR local storage
+      const localSec = getSecuritySettings(data.email);
+      const is2faEnabled = res.twoFactorEnabled || localSec.twoFactorEnabled;
+
+      if (is2faEnabled) {
+        saveSecuritySettings({ twoFactorEnabled: true, twoFactorMethod: res.twoFactorMethod || localSec.twoFactorMethod || "email" }, data.email);
         setPendingLoginData(data);
         sendOtp(data.email);
         setIs2faStep(true);
-      } catch (err: any) {
-        toast.error(err?.message || "Invalid credentials. Please check your email and password.");
-      } finally {
         setIsVerifyingCreds(false);
+        return;
       }
-      return;
-    }
 
-    // Simple login when 2FA is disabled
-    loginMutation.mutate({ ...data, accountType });
+      // 3. Simple login when 2FA is disabled
+      setIsVerifyingCreds(false);
+      loginMutation.mutate({ ...data, accountType });
+    } catch (err: any) {
+      toast.error(err?.message || "Invalid credentials. Please check your email and password.");
+      setIsVerifyingCreds(false);
+    }
   };
 
   const handleVerify2fa = (e: React.FormEvent) => {

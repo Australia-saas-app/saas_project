@@ -278,7 +278,12 @@ export const verifyAccountPassword = async (email: string, password: string) => 
     if (!data?.success) {
       return { success: false, message: data?.message || "Current password is incorrect" };
     }
-    return { success: true, message: "Password verified" };
+    return {
+      success: true,
+      message: "Password verified",
+      twoFactorEnabled: data?.data?.twoFactorEnabled ?? false,
+      twoFactorMethod: data?.data?.twoFactorMethod ?? "",
+    };
   } catch (error: any) {
     const msg = error?.response?.data?.message || "Current password is incorrect";
     return { success: false, message: msg };

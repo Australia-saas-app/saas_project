@@ -354,6 +354,8 @@ export function useProfileDisplay() {
         if (patch.currency) payload.currency = patch.currency;
         if (patch.phone) payload.phone = patch.phone;
         if (patch.accountType) payload.accountType = String(patch.accountType).toLowerCase();
+        if ((patch as any).twoFactorEnabled !== undefined) payload.twoFactorEnabled = (patch as any).twoFactorEnabled;
+        if ((patch as any).twoFactorMethod !== undefined) payload.twoFactorMethod = (patch as any).twoFactorMethod;
 
         const profileResult = await completeUserProfile(payload);
         
