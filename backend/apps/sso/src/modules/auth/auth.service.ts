@@ -844,6 +844,8 @@ export class AuthService {
         governmentIdType: user.governmentIdType,
         permanentAddress: user.permanentAddress,
         kycApplicationData: user.kycApplicationData,
+        twoFactorEnabled: user.twoFactorEnabled,
+        twoFactorMethod: user.twoFactorMethod,
       },
     };
   }
@@ -911,6 +913,8 @@ export class AuthService {
     assignIf('email', dto.email);
     assignIf('currency', dto.currency);
     assignIf('passportNumber', dto.passportNumber);
+    assignIf('twoFactorEnabled', dto.twoFactorEnabled);
+    assignIf('twoFactorMethod', dto.twoFactorMethod);
     if (dto.dateOfBirth) {
       user.dateOfBirth = new Date(dto.dateOfBirth);
     }

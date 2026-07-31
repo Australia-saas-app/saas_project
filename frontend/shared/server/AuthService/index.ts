@@ -397,6 +397,8 @@ export const getCurrentUser = async () => {
           phone,
           currency,
           accountType,
+          twoFactorEnabled,
+          twoFactorMethod,
         } = data.data;
         // Merge only DB-sourced fields; don't overwrite JWT claims
         if (profilePhoto !== undefined) merged.profilePhoto = profilePhoto;
@@ -414,6 +416,8 @@ export const getCurrentUser = async () => {
         if (phone !== undefined) merged.phone = phone;
         if (currency !== undefined) merged.currency = currency;
         if (accountType !== undefined) merged.accountType = accountType;
+        if (twoFactorEnabled !== undefined) merged.twoFactorEnabled = twoFactorEnabled;
+        if (twoFactorMethod !== undefined) merged.twoFactorMethod = twoFactorMethod;
       }
     } catch {
       // /me call failed (network/timeout) — fall back to cookie data only

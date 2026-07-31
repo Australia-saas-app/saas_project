@@ -29,12 +29,20 @@ export default function AccountSecurityLayout() {
     setMethod(settings.twoFactorMethod || verifyOptions[0] || "");
   }, [email, verifyOptions]);
 
+  const { updateProfile } = useProfileDisplay();
+
   const persist = async (nextEnabled: boolean) => {
     setSaving(true);
     saveSecuritySettings({
       twoFactorEnabled: nextEnabled,
       twoFactorMethod: method,
     }, email);
+    try {
+      await updateProfile({
+        twoFactorEnabled: nextEnabled,
+        twoFactorMethod: method,
+      } as any);
+    } catch {}
     setEnabled(nextEnabled);
     setSaving(false);
     setModalAction(null);
