@@ -133,7 +133,17 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             const govtIdType = snap.governmentIdType || user.governmentIdType || "NID";
             const govtId = snap.governmentId || user.governmentId || user.nationalIdentity;
             const dob = snap.dateOfBirth || user.dateOfBirth;
-            const address = snap.permanentAddress || user.permanentAddress;
+            const address = (() => {
+              let addr = snap.permanentAddress || user.permanentAddress;
+              if (typeof addr === "string") {
+                try {
+                  return JSON.parse(addr);
+                } catch {
+                  return { address: addr };
+                }
+              }
+              return addr || {};
+            })();
             const accountType = (() => {
               const rawType = String(snap.accountType || user.accountType || user.role || "user").toLowerCase();
               if (rawType.includes("agency") || rawType.includes("affiliate")) return "Affiliate";

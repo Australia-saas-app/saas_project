@@ -11,7 +11,7 @@ import { useUser } from "@/src/shared/context/user.provider";
 
 export default function ProfilePageLayout() {
   const { refreshUser } = useUser() || {};
-  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
+  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity, permanentAddress } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
