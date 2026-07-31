@@ -44,35 +44,34 @@ export default function AccountSecurityLayout() {
   };
 
   return (
-    <div className="flex justify-center px-4 py-6">
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-card p-6 sm:p-8 text-center shadow-sm">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center">
-            <Shield className="h-14 w-14 stroke-[1.5] text-gray-900" strokeWidth={1.25} />
-          </div>
+    <div className="flex justify-center px-2 py-4">
+      <div className="w-full rounded-2xl bg-card p-6 shadow-sm sm:p-7 text-center" style={{ maxWidth: "480px" }}>
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center">
+          <Shield className="h-14 w-14 stroke-[1.5] text-foreground" strokeWidth={1.25} />
+        </div>
 
-          <h3 className="text-lg font-bold text-gray-900">Two-Factor Authentication</h3>
-          <p className="mx-auto mt-2 mb-6 max-w-xs text-sm text-gray-500">
-            Choose where to receive one-time codes when signing in.
-          </p>
+        <h3 className="text-lg font-bold text-foreground">Two-Factor Authentication</h3>
+        <p className="mx-auto mt-2 mb-6 max-w-xs text-xs text-muted-foreground">
+          Choose where to receive one-time codes when signing in.
+        </p>
 
-          <div className="relative mb-8 text-left">
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              disabled={verifyOptions[0]?.startsWith("Add email")}
-              className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white px-4 pr-10 text-sm text-gray-800 outline-none focus:border-primary disabled:bg-gray-50"
-            >
-              {verifyOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-500" />
-          </div>
+        <div className="relative mb-8 text-left">
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            disabled={verifyOptions[0]?.startsWith("Add email")}
+            className="h-11 w-full appearance-none rounded-lg border border-input bg-background px-4 pr-10 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
+          >
+            {verifyOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
 
-          <div className="flex items-center justify-between gap-4 border-t border-gray-100 pt-5">
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
             <span className="text-sm font-medium text-gray-600">
               {enabled ? "2FA is on" : "2FA is off"}
             </span>
@@ -97,7 +96,6 @@ export default function AccountSecurityLayout() {
               >
                 ON
               </button>
-            </div>
           </div>
         </div>
       </div>

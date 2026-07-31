@@ -79,17 +79,17 @@ export default function ChangePasswordLayout() {
   }
 
   return (
-    <div className="flex justify-center px-4 py-6">
-      <div className="w-full max-w-lg rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-card p-6 shadow-sm md:p-8">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground">Change Password</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-muted-foreground">
+    <div className="flex justify-center px-2 py-4">
+      <div className="w-full rounded-2xl bg-card p-6 shadow-sm md:p-7" style={{ maxWidth: "480px" }}>
+        <h3 className="text-lg font-bold text-foreground">Change Password</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
           Use at least 8 characters with a mix of letters and numbers.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           {/* 1. Current Password */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Current password
             </label>
             <div className="relative">
@@ -98,12 +98,12 @@ export default function ChangePasswordLayout() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-10"
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowCurrent(!showCurrent)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 tabIndex={-1}
               >
                 {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -113,7 +113,7 @@ export default function ChangePasswordLayout() {
 
           {/* 2. New Password */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               New password
             </label>
             <div className="relative">
@@ -122,12 +122,12 @@ export default function ChangePasswordLayout() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-10"
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 tabIndex={-1}
               >
                 {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -159,7 +159,7 @@ export default function ChangePasswordLayout() {
 
           {/* 3. Confirm Password */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Confirm new password
             </label>
             <div className="relative">
@@ -168,12 +168,12 @@ export default function ChangePasswordLayout() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm new password"
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-10"
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirm(!showConfirm)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 tabIndex={-1}
               >
                 {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

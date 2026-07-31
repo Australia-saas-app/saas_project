@@ -95,8 +95,8 @@ export default function AccountDeleteLayout() {
   }
 
   return (
-    <div className="flex justify-center px-4 py-6">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-card shadow-sm">
+    <div className="flex justify-center px-2 py-4">
+      <div className="w-full overflow-hidden rounded-2xl bg-card shadow-sm" style={{ maxWidth: "480px" }}>
         {/* Header */}
         <div className="border-b border-red-100 dark:border-red-950/40 bg-gradient-to-r from-red-50 to-white dark:from-red-950/20 dark:to-card px-6 py-5">
           <div className="flex items-center gap-3">
@@ -104,21 +104,21 @@ export default function AccountDeleteLayout() {
               <ShieldAlert className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground">Delete Account</h3>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-muted-foreground">
+              <h3 className="text-lg font-bold text-foreground">Delete Account</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Permanently delete your profile and account data.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-5 p-6 md:p-8">
+        <div className="space-y-5 p-6 md:p-7">
           <div className="rounded-xl border border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-3.5 text-xs font-medium text-amber-900 dark:text-amber-200 leading-relaxed">
             ⚠️ Permanently removes your profile, KYC documents, wallet activity, and account data.
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Confirm your password
             </label>
             <div className="relative">
@@ -126,13 +126,13 @@ export default function AccountDeleteLayout() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 transition-all pr-10"
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all pr-10"
                 placeholder="Enter current password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

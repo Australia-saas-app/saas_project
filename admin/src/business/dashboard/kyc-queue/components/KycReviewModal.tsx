@@ -158,6 +158,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   {/* Left side info */}
                   <div className="flex-1 space-y-4">
                     <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Account ID</span>
+                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-base">{user.userId || user.publicId || user.id || "N/A"}</p>
+                    </div>
+                    <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Full Name</span>
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{fullName || "N/A"}</p>
                     </div>

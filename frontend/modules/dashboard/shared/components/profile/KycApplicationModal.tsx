@@ -281,6 +281,15 @@ export default function KycApplicationModal({
 
                     <div className="sm:text-right">
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                        Account ID
+                      </span>
+                      <p className="font-mono font-bold text-foreground text-sm">
+                        {user.displayUserId || user.rawUserId || user.id || "N/A"}
+                      </p>
+                    </div>
+
+                    <div className="sm:text-right">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
                         KYC Application ID
                       </span>
                       <p className="font-mono font-bold text-foreground text-sm">
