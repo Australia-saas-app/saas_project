@@ -386,6 +386,7 @@ export const getCurrentUser = async () => {
           governmentId,
           governmentIdType,
           permanentAddress,
+          kycApplicationData,
           status,
           fullName,
           email,
@@ -402,6 +403,7 @@ export const getCurrentUser = async () => {
         if (governmentId !== undefined) merged.governmentId = governmentId;
         if (governmentIdType !== undefined) merged.governmentIdType = governmentIdType;
         if (permanentAddress !== undefined) merged.permanentAddress = permanentAddress;
+        if (kycApplicationData !== undefined) merged.kycApplicationData = kycApplicationData;
         if (status !== undefined) merged.status = status;
         if (fullName !== undefined && !merged.fullName) merged.fullName = fullName;
         if (email !== undefined && !merged.email) merged.email = email;

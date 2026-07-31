@@ -151,28 +151,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     initialDocumentUrl,
   ]);
 
-  // Sync profile details to backend on mount if local overrides exist.
-  // IMPORTANT: phone is stored as localNumber-only in state; always concat with countryCode before sending.
-  useEffect(() => {
-    if (!user || (!documentUrl && !(user as any)?.profilePhoto)) return;
-    const u = user as any;
-    const dbAccountType = u?.accountType || (accountType === "affiliate" ? "AGENCY" : accountType.toUpperCase());
-    const photo = u?.avatarUrl || u?.profilePhoto;
-    // Only auto-sync if we have a phone value and it's not the raw DB value with country code already
-    const phoneDigits = stripCountryCode(phone, countryCode);
-    completeUserProfile({
-      accountType: dbAccountType,
-      fullName: fullName || u.fullName,
-      nationality: nationality || u.nationality,
-      dateOfBirth: dateOfBirth || u.dateOfBirth,
-      governmentId: nationalIdentity || u.governmentId,
-      idDocument: documentUrl || u.idDocument,
-      ...(photo ? { profilePhoto: photo } : {}),
-      phone: phoneDigits ? `${countryCode}${phoneDigits}` : u.phone,
-      email: email || u.email,
-      currency: currency || u.currency,
-    }).catch(() => undefined);
-  }, [user, documentUrl, rawUserId]);
+
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,25 +311,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             />
           </div>
 
-          {/* 4a. Select ID Type */}
-          <div className="flex flex-col gap-2 min-w-0">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-              <span>Select ID Type</span>
-              <span className="text-red-500 font-bold">*</span>
-            </label>
-            <SelectDropdown
-              value={governmentIdType}
-              onChange={setGovernmentIdType}
-              placeholder="Select ID Type..."
-              options={[
-                { label: "NID (National ID)", value: "NID" },
-                { label: "Passport", value: "Passport" },
-                { label: "Driving License", value: "Driving License" },
-              ]}
-            />
-          </div>
-
-          {/* 4b. Government ID (Mandatory Input) */}
+          {/* 4. Government ID (Mandatory Input Field for ID Number) */}
           <div className="flex flex-col gap-2 min-w-0">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <span>Government ID</span>
@@ -358,7 +319,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             </label>
             <input
               type="text"
-              placeholder="NID/Passport/Driving License"
+              placeholder="NID / Passport / Driving License"
               value={nationalIdentity}
               onChange={(e) => setNationalIdentity(e.target.value)}
               required
@@ -531,11 +492,28 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
           </div>
 
           {/* 9. Mandatory Document Upload Row */}
-          <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-              <span>Identity Document / Passport</span>
-              <span className="text-red-500 font-bold">*</span>
-            </label>
+          <div className="flex flex-col gap-3 min-w-0 md:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <span>Identity Document Upload</span>
+                <span className="text-red-500 font-bold">*</span>
+              </label>
+
+              {/* Select Document Type Dropdown */}
+              <div className="w-full sm:w-64">
+                <SelectDropdown
+                  value={governmentIdType}
+                  onChange={setGovernmentIdType}
+                  placeholder="Select Document Type..."
+                  options={[
+                    { label: "NID (National ID)", value: "NID" },
+                    { label: "Passport", value: "Passport" },
+                    { label: "Driving License", value: "Driving License" },
+                  ]}
+                />
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 min-w-0 w-full">
                 <div
@@ -559,18 +537,18 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                     {documentUrl ? (
                       <>
                         <span className="cursor-pointer hover:underline" onClick={() => setPreviewModalOpen(true)}>
-                          ID Card / Passport Attached
+                          {governmentIdType ? `${governmentIdType} Attached` : "Document Attached"}
                         </span>
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-full">
                           Uploaded
                         </span>
                       </>
                     ) : (
-                      "No Document Uploaded"
+                      `No ${governmentIdType || "Document"} Uploaded`
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {documentUrl ? "Click thumbnail or name to view full preview image" : "Upload your ID Card or Passport (PNG, JPG, JPEG)"}
+                    {documentUrl ? "Click thumbnail or name to view full preview image" : `Select Document Type above & upload your ${governmentIdType || "ID Document"} (PNG, JPG, JPEG)`}
                   </p>
                 </div>
               </div>

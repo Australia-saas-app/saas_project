@@ -183,6 +183,25 @@ export class User {
   kycStatus: KycStatus;
 
   @Column({ type: 'jsonb', nullable: true })
+  kycApplicationData: {
+    fullName?: string;
+    email?: string;
+    nationality?: string;
+    governmentId?: string;
+    governmentIdType?: string;
+    dateOfBirth?: string;
+    permanentAddress?: {
+      country?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      address?: string;
+    };
+    idDocument?: string;
+    appliedAt?: string;
+  } | null;
+
+  @Column({ type: 'jsonb', nullable: true })
   statusHistory: {
     status: UserStatus;
     reason?: string;

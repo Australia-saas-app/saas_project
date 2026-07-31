@@ -63,6 +63,9 @@ export function useProfileDisplay() {
         bc.onmessage = (event) => {
           if (event.data?.type === "vero:kyc_updated") {
             processKycChange(event.data.userId, event.data.kycStatus);
+          } else if (event.data?.type === "vero:profile_updated") {
+            setRevision((n) => n + 1);
+            if (refreshUser) refreshUser().catch(() => {});
           }
         };
       }
@@ -75,6 +78,9 @@ export function useProfileDisplay() {
           const parsed = JSON.parse(e.newValue);
           processKycChange(parsed.userId, parsed.kycStatus);
         } catch {}
+      } else if (e.key === "vero_profile_sync" || e.key === "user_profile_overrides_v2") {
+        setRevision((n) => n + 1);
+        if (refreshUser) refreshUser().catch(() => {});
       }
     };
     window.addEventListener("storage", handleStorage);
@@ -214,6 +220,20 @@ export function useProfileDisplay() {
     setRevision((n) => n + 1)
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
+      
+      // Broadcast across tabs via BroadcastChannel
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:profile_updated", userId: rawUserId });
+          bc.close();
+        }
+      } catch {}
+
+      // Broadcast across tabs via Storage Event
+      try {
+        localStorage.setItem("vero_profile_sync", JSON.stringify({ userId: rawUserId, timestamp: Date.now() }));
+      } catch {}
     }
     try {
       if (!isDemo) {
@@ -241,8 +261,8 @@ export function useProfileDisplay() {
     }
   }
 
-  const status = String(overrides.status ?? (user && "status" in user && user.status ? user.status : "pending")).toLowerCase();
-  const kycStatus = String(overrides.kycStatus ?? (user && "kycStatus" in user && user.kycStatus ? user.kycStatus : "none")).toLowerCase();
+  const status = String((user && "status" in user && user.status) ? user.status : (overrides.status ?? "pending")).toLowerCase();
+  const kycStatus = String((user && "kycStatus" in user && user.kycStatus) ? user.kycStatus : (overrides.kycStatus ?? "none")).toLowerCase();
   
   // Account status is active if it's active or verified
   const isActive = status === "active" || status === "verified" || status === "approved";
@@ -284,6 +304,7 @@ export function useProfileDisplay() {
     nationalIdentity,
     governmentIdType,
     permanentAddress,
+    kycApplicationData: (user as any)?.kycApplicationData || null,
     currency,
     joiningDate,
     avatarUrl,

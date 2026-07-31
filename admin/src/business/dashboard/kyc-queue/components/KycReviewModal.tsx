@@ -124,57 +124,106 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
           <div className="h-px bg-slate-200 dark:bg-slate-800 w-full mb-8" />
 
-          {/* User Data (Half page style) */}
-          <div className="flex items-start gap-8 relative z-10">
-            {/* Left side info */}
-            <div className="flex-1 space-y-4">
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Full Name</span>
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.fullName || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Email Address</span>
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.email || user.phone || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Nationality</span>
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.nationality || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">National Identity Number</span>
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.governmentId || user.nationalIdentity || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Date of Birth</span>
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{user.dateOfBirth || "N/A"}</p>
-              </div>
-            </div>
+          {/* Details grid */}
+          {(() => {
+            const snap = user.kycApplicationData || {};
+            const fullName = snap.fullName || user.fullName;
+            const email = snap.email || user.email || user.phone;
+            const nationality = snap.nationality || user.nationality;
+            const govtIdType = snap.governmentIdType || user.governmentIdType || "NID";
+            const govtId = snap.governmentId || user.governmentId || user.nationalIdentity;
+            const dob = snap.dateOfBirth || user.dateOfBirth;
+            const address = snap.permanentAddress || user.permanentAddress;
+            const appliedDate = snap.appliedAt ? new Date(snap.appliedAt).toLocaleDateString() : (user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A");
 
-            {/* Right side info & Photo */}
-            <div className="flex-1 space-y-4">
-              <div className="flex justify-end mb-4">
-                <div className="h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
-                  {user.profilePhoto || user.avatarUrl ? (
-                    <img src={user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-slate-300 dark:text-slate-600 font-bold text-2xl">
-                      {(user.fullName || "U").charAt(0).toUpperCase()}
+            return (
+              <>
+                <div className="flex items-start gap-8 relative z-10">
+                  {/* Left side info */}
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Full Name</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{fullName || "N/A"}</p>
                     </div>
-                  )}
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Email Address</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{email || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Nationality</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{nationality || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Government ID Type</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{govtIdType}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Government ID</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{govtId || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Date of Birth</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{dob || "N/A"}</p>
+                    </div>
+                  </div>
+
+                  {/* Right side info & Photo */}
+                  <div className="flex-1 space-y-4">
+                    <div className="flex justify-end mb-4">
+                      <div className="h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
+                        {user.profilePhoto || user.avatarUrl ? (
+                          <img src={user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-slate-300 dark:text-slate-600 font-bold text-2xl">
+                            {(fullName || "U").charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>
+                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
+                        {user.userId ? `KYC-${user.userId}` : (user.id ? `KYC-${user.id}` : "N/A")}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application Date</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{appliedDate}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>
-                <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
-                  {user.userId ? `KYC-${user.userId}` : (user.id ? `KYC-${user.id}` : "N/A")}
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application Date</span>
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}</p>
-              </div>
-            </div>
-          </div>
+
+                <div className="h-px bg-slate-200 dark:bg-slate-800 w-full my-6" />
+
+                {/* Permanent Address Snapshot */}
+                <div className="mb-6 relative z-10">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3">Permanent Address (Submitted Snapshot)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">Country</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{address?.country || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">City</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{address?.city || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">State</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{address?.state || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">Zip Code</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{address?.zipCode || "N/A"}</p>
+                    </div>
+                    <div className="md:col-span-4 mt-2 border-t border-slate-200 dark:border-slate-800 pt-2">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">Address</span>
+                      <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{address?.address || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           <div className="h-px bg-slate-200 dark:bg-slate-800 w-full my-8" />
 

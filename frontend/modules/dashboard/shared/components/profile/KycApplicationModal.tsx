@@ -201,97 +201,113 @@ export default function KycApplicationModal({
           <div className="h-px bg-border w-full mb-8" />
 
           {/* Details grid */}
-          <div className="flex flex-col sm:flex-row items-start gap-6 sm:gap-8 relative z-10">
-            {/* Left col */}
-            <div className="flex-1 space-y-4 w-full">
-              {[
-                { label: "Full Name", value: user.fullName },
-                { label: "Email Address", value: user.email },
-                { label: "Nationality", value: user.nationality },
-                { label: "Government ID Type", value: user.governmentIdType || "NID" },
-                { label: "Government ID", value: user.nationalIdentity },
-                { label: "Date of Birth", value: user.dateOfBirth },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
-                    {label}
-                  </span>
-                  <p className="font-bold text-foreground text-sm sm:text-base">{value || "N/A"}</p>
-                </div>
-              ))}
-            </div>
+          {(() => {
+            const snap = user.kycApplicationData || {};
+            const displayFullName = snap.fullName || user.fullName;
+            const displayEmail = snap.email || user.email;
+            const displayNationality = snap.nationality || user.nationality;
+            const displayGovtIdType = snap.governmentIdType || user.governmentIdType || "NID";
+            const displayGovtId = snap.governmentId || user.nationalIdentity;
+            const displayDob = snap.dateOfBirth || user.dateOfBirth;
+            const displayPermAddress = snap.permanentAddress || user.permanentAddress;
+            const displayAppliedAt = snap.appliedAt ? new Date(snap.appliedAt).toLocaleDateString() : new Date().toLocaleDateString();
 
-            {/* Right col */}
-            <div className="flex-1 space-y-4 w-full">
-              {/* Profile photo */}
-              <div className="flex sm:justify-end mb-4">
-                <div className="h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
-                  {user.avatarUrl ? (
-                    <img
-                      src={user.avatarUrl}
-                      alt="Profile"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-muted-foreground font-bold text-2xl">
-                      {(user.fullName || "U").charAt(0).toUpperCase()}
+            return (
+              <>
+                <div className="flex flex-col sm:flex-row items-start gap-6 sm:gap-8 relative z-10">
+                  {/* Left col */}
+                  <div className="flex-1 space-y-4 w-full">
+                    {[
+                      { label: "Full Name", value: displayFullName },
+                      { label: "Email Address", value: displayEmail },
+                      { label: "Nationality", value: displayNationality },
+                      { label: "Government ID Type", value: displayGovtIdType },
+                      { label: "Government ID", value: displayGovtId },
+                      { label: "Date of Birth", value: displayDob },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                          {label}
+                        </span>
+                        <p className="font-bold text-foreground text-sm sm:text-base">{value || "N/A"}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Right col */}
+                  <div className="flex-1 space-y-4 w-full">
+                    {/* Profile photo */}
+                    <div className="flex sm:justify-end mb-4">
+                      <div className="h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
+                        {user.avatarUrl ? (
+                          <img
+                            src={user.avatarUrl}
+                            alt="Profile"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-muted-foreground font-bold text-2xl">
+                            {(displayFullName || "U").charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    <div className="sm:text-right">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                        KYC Application ID
+                      </span>
+                      <p className="font-mono font-bold text-foreground text-sm">
+                        {user.displayUserId
+                          ? `KYC-${user.displayUserId}`
+                          : user.rawUserId
+                          ? `KYC-${user.rawUserId}`
+                          : "N/A"}
+                      </p>
+                    </div>
+
+                    <div className="sm:text-right">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                        Application Date
+                      </span>
+                      <p className="font-bold text-foreground text-sm">
+                        {displayAppliedAt}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="sm:text-right">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
-                  KYC Application ID
-                </span>
-                <p className="font-mono font-bold text-foreground text-sm">
-                  {user.displayUserId
-                    ? `KYC-${user.displayUserId}`
-                    : user.rawUserId
-                    ? `KYC-${user.rawUserId}`
-                    : "N/A"}
-                </p>
-              </div>
+                <div className="h-px bg-border w-full my-6" />
 
-              <div className="sm:text-right">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
-                  Application Date
-                </span>
-                <p className="font-bold text-foreground text-sm">
-                  {new Date().toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="h-px bg-border w-full my-6" />
-
-          {/* Permanent Address Section */}
-          <div className="mb-6 relative z-10">
-            <h4 className="font-bold text-base text-foreground mb-3 uppercase tracking-wide text-xs">Permanent Address</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl border border-border bg-muted/20">
-              <div>
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Country</span>
-                <p className="font-bold text-foreground text-xs sm:text-sm">{user.permanentAddress?.country || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">City</span>
-                <p className="font-bold text-foreground text-xs sm:text-sm">{user.permanentAddress?.city || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">State</span>
-                <p className="font-bold text-foreground text-xs sm:text-sm">{user.permanentAddress?.state || "N/A"}</p>
-              </div>
-              <div>
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Zip Code</span>
-                <p className="font-bold text-foreground text-xs sm:text-sm">{user.permanentAddress?.zipCode || "N/A"}</p>
-              </div>
-              <div className="sm:col-span-2 md:col-span-4 mt-2 border-t border-border/50 pt-2">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Address</span>
-                <p className="font-medium text-foreground text-xs sm:text-sm leading-relaxed">{user.permanentAddress?.address || "N/A"}</p>
-              </div>
-            </div>
-          </div>
+                {/* Permanent Address Section */}
+                <div className="mb-6 relative z-10">
+                  <h4 className="font-bold text-base text-foreground mb-3 uppercase tracking-wide text-xs">Permanent Address (Application Snapshot)</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl border border-border bg-muted/20">
+                    <div>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Country</span>
+                      <p className="font-bold text-foreground text-xs sm:text-sm">{displayPermAddress?.country || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">City</span>
+                      <p className="font-bold text-foreground text-xs sm:text-sm">{displayPermAddress?.city || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">State</span>
+                      <p className="font-bold text-foreground text-xs sm:text-sm">{displayPermAddress?.state || "N/A"}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Zip Code</span>
+                      <p className="font-bold text-foreground text-xs sm:text-sm">{displayPermAddress?.zipCode || "N/A"}</p>
+                    </div>
+                    <div className="sm:col-span-2 md:col-span-4 mt-2 border-t border-border/50 pt-2">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">Address</span>
+                      <p className="font-medium text-foreground text-xs sm:text-sm leading-relaxed">{displayPermAddress?.address || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           <div className="h-px bg-border w-full my-6" />
 

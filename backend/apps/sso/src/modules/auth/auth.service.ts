@@ -843,6 +843,7 @@ export class AuthService {
         governmentId: user.governmentId,
         governmentIdType: user.governmentIdType,
         permanentAddress: user.permanentAddress,
+        kycApplicationData: user.kycApplicationData,
       },
     };
   }
@@ -1211,6 +1212,17 @@ export class AuthService {
       throw new BadRequestException('KYC Application is already approved.');
     }
 
+    user.kycApplicationData = {
+      fullName: user.fullName,
+      email: user.email,
+      nationality: user.nationality,
+      governmentId: user.governmentId,
+      governmentIdType: user.governmentIdType || 'NID',
+      dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
+      permanentAddress: user.permanentAddress || { country: '', city: '', state: '', zipCode: '', address: '' },
+      idDocument: user.idDocument,
+      appliedAt: new Date().toISOString(),
+    };
     user.kycStatus = KycStatus.PENDING;
     await this.userRepository.save(user);
 
@@ -1220,6 +1232,7 @@ export class AuthService {
       data: {
         userId: user.userId,
         kycStatus: user.kycStatus,
+        kycApplicationData: user.kycApplicationData,
       },
     };
   }
