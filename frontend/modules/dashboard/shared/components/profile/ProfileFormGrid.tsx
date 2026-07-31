@@ -541,14 +541,17 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                     type="button"
                     onClick={async () => {
                       setDocumentUrl("");
-                      // Clear from localStorage overrides
                       updateProfile({ documentUrl: "" });
-                      // Clear from document cards storage
-                      if (rawUserId) clearProfileDocuments(rawUserId);
-                      // Clear from DB immediately
-                      await completeUserProfile({ idDocument: null, governmentId: null }).catch(() => undefined);
-                      // Refresh the document card below
+                      if (rawUserId) {
+                        clearProfileDocuments(rawUserId);
+                        saveProfileOverrides(rawUserId, { documentUrl: "" });
+                      }
+                      await completeUserProfile({ idDocument: "", governmentId: "" }).catch(() => undefined);
+                      if (typeof window !== "undefined") {
+                        window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
+                      }
                       onDocumentChange?.();
+                      toast.success("Document removed successfully");
                     }}
                     className="inline-flex flex-1 md:flex-none items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all"
                     title="Remove Document"

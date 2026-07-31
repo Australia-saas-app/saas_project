@@ -894,8 +894,8 @@ export class AuthService {
     }
 
     const assignIf = (field: keyof User, value: any) => {
-      if (value !== undefined && value !== null) {
-        (user as any)[field] = value as any;
+      if (value !== undefined) {
+        (user as any)[field] = (value === null || value === '') ? null : value;
       }
     };
 
@@ -925,10 +925,6 @@ export class AuthService {
 
     if (!user.status) {
       user.status = UserStatus.ACTIVE;
-    }
-    // Automatically set kycStatus to PENDING if user has uploaded an idDocument and kycStatus is NONE or REJECTED
-    if ((dto.idDocument || user.idDocument) && (user.kycStatus === KycStatus.NONE || user.kycStatus === KycStatus.REJECTED || !user.kycStatus)) {
-      user.kycStatus = KycStatus.PENDING;
     }
     await this.userRepository.save(user);
 
