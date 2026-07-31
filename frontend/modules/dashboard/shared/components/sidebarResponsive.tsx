@@ -19,6 +19,17 @@ export function SidebarResponsive({
   onMouseLeave,
   children,
 }: SidebarProps) {
+  React.useEffect(() => {
+    if (isMobile && isExpanded) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobile, isExpanded]);
+
   if (isMobile) {
     return (
       <>

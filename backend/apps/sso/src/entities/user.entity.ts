@@ -162,6 +162,9 @@ export class User {
   @Column({ type: 'varchar', length: 100, nullable: true })
   governmentId: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  governmentIdType: string;
+
   @Column({ type: 'text', nullable: true })
   idDocument: string;
 

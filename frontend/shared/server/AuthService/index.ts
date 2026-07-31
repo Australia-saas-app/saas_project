@@ -384,6 +384,8 @@ export const getCurrentUser = async () => {
           nationality,
           dateOfBirth,
           governmentId,
+          governmentIdType,
+          permanentAddress,
           status,
           fullName,
           email,
@@ -398,6 +400,8 @@ export const getCurrentUser = async () => {
         if (nationality !== undefined) merged.nationality = nationality;
         if (dateOfBirth !== undefined) merged.dateOfBirth = dateOfBirth;
         if (governmentId !== undefined) merged.governmentId = governmentId;
+        if (governmentIdType !== undefined) merged.governmentIdType = governmentIdType;
+        if (permanentAddress !== undefined) merged.permanentAddress = permanentAddress;
         if (status !== undefined) merged.status = status;
         if (fullName !== undefined && !merged.fullName) merged.fullName = fullName;
         if (email !== undefined && !merged.email) merged.email = email;

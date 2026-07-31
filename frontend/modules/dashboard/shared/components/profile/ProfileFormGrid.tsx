@@ -27,6 +27,8 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     nationality: initialNationality,
     dateOfBirth: initialDateOfBirth,
     nationalIdentity: initialNationalIdentity,
+    governmentIdType: initialGovernmentIdType,
+    permanentAddress: initialPermanentAddress,
     currency: initialCurrency,
     documentUrl: initialDocumentUrl,
     isVerified,
@@ -40,6 +42,15 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [nationality, setNationality] = useState(initialNationality || "");
   const [dateOfBirth, setDateOfBirth] = useState(initialDateOfBirth || "");
   const [nationalIdentity, setNationalIdentity] = useState(initialNationalIdentity || "");
+  const [governmentIdType, setGovernmentIdType] = useState(initialGovernmentIdType || "NID");
+  
+  // Permanent Address States
+  const [permCountry, setPermCountry] = useState(initialPermanentAddress?.country || "");
+  const [permCity, setPermCity] = useState(initialPermanentAddress?.city || "");
+  const [permState, setPermState] = useState(initialPermanentAddress?.state || "");
+  const [permZipCode, setPermZipCode] = useState(initialPermanentAddress?.zipCode || "");
+  const [permAddress, setPermAddress] = useState(initialPermanentAddress?.address || "");
+
   // Strip country code prefix from a phone number if it already starts with it.
   // This prevents the "+92+923001234567" duplication on each save.
   const stripCountryCode = (rawPhone: string, code: string): string => {
@@ -67,7 +78,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
           return { front: parsed[0], back: parsed[1], isDual: true };
         }
       }
-    } catch {}
+    } catch { }
     return { front: documentUrl, back: "", isDual: false };
   }, [documentUrl]);
 
@@ -88,8 +99,8 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     if (!rawUserId) return;
     const o = getProfileOverrides(rawUserId);
     const locallyUnverified = Boolean(o.unverifiedByAdmin && !o.resubmitted);
-    setShowUnverifiedBanner(isPendingStatus || locallyUnverified);
-  }, [rawUserId, userStatus, isPendingStatus]);
+    setShowUnverifiedBanner(userStatus === "pending" || userStatus === "unverified" || locallyUnverified);
+  }, [rawUserId, userStatus]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -97,14 +108,25 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     nationality?.trim() &&
     dateOfBirth?.trim() &&
     nationalIdentity?.trim() &&
+    governmentIdType?.trim() &&
     phone?.trim() &&
-    documentUrl?.trim()
+    documentUrl?.trim() &&
+    permCountry?.trim() &&
+    permCity?.trim() &&
+    permState?.trim() &&
+    permAddress?.trim()
   );
 
   useEffect(() => {
     if (initialNationality && !nationality) setNationality(initialNationality);
     if (initialDateOfBirth && !dateOfBirth) setDateOfBirth(initialDateOfBirth);
     if (initialNationalIdentity && !nationalIdentity) setNationalIdentity(initialNationalIdentity);
+    if (initialGovernmentIdType && !governmentIdType) setGovernmentIdType(initialGovernmentIdType);
+    if (initialPermanentAddress?.country && !permCountry) setPermCountry(initialPermanentAddress.country);
+    if (initialPermanentAddress?.city && !permCity) setPermCity(initialPermanentAddress.city);
+    if (initialPermanentAddress?.state && !permState) setPermState(initialPermanentAddress.state);
+    if (initialPermanentAddress?.zipCode && !permZipCode) setPermZipCode(initialPermanentAddress.zipCode);
+    if (initialPermanentAddress?.address && !permAddress) setPermAddress(initialPermanentAddress.address);
     if (initialCountryCode && !countryCode) setCountryCode(initialCountryCode);
     if (initialPhone && !phone) {
       // Strip country code before setting so the input shows just the local number
@@ -113,21 +135,20 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     }
     if (initialSecondaryEmail && !secondaryEmail) setSecondaryEmail(initialSecondaryEmail);
     if (initialCurrency && !currency) setCurrency(initialCurrency);
+    if (initialDocumentUrl !== undefined && initialDocumentUrl !== documentUrl) {
+      setDocumentUrl(initialDocumentUrl);
+    }
   }, [
     initialNationality,
     initialDateOfBirth,
     initialNationalIdentity,
+    initialGovernmentIdType,
+    initialPermanentAddress,
     initialCountryCode,
     initialPhone,
     initialSecondaryEmail,
     initialCurrency,
-    nationality,
-    dateOfBirth,
-    nationalIdentity,
-    countryCode,
-    phone,
-    secondaryEmail,
-    currency,
+    initialDocumentUrl,
   ]);
 
   // Sync profile details to backend on mount if local overrides exist.
@@ -159,18 +180,30 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     const missingFields: string[] = [];
     if (!nationality?.trim()) missingFields.push("Nationality");
     if (!dateOfBirth?.trim()) missingFields.push("Date of Birth");
-    if (!nationalIdentity?.trim()) missingFields.push("National Identity Number");
+    if (!nationalIdentity?.trim()) missingFields.push("Government ID");
     if (!phone?.trim()) missingFields.push("Phone Number");
+    if (!permCountry?.trim()) missingFields.push("Country");
+    if (!permCity?.trim()) missingFields.push("City");
+    if (!permState?.trim()) missingFields.push("State");
+    if (!permAddress?.trim()) missingFields.push("Street Address");
     if (!documentUrl?.trim()) missingFields.push("ID Document");
 
     if (missingFields.length > 0) {
-      toast.error(`Please complete the following fields before updating: ${missingFields.join(", ")}`);
+      toast.error(`Please complete the following required fields before updating: ${missingFields.join(", ")}`);
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      const permAddressObj = {
+        country: permCountry,
+        city: permCity,
+        state: permState,
+        zipCode: permZipCode || "N/A",
+        address: permAddress,
+      };
+
       const patchData = {
         fullName,
         accountLabel: fullName,
@@ -181,16 +214,18 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         nationality,
         dateOfBirth,
         nationalIdentity,
+        governmentIdType,
+        permanentAddress: permAddressObj,
         currency,
         documentUrl,
         resubmitted: true,
       };
 
       // 1. Save locally & persist profile overrides for immediate UI reflection
-      updateProfile(patchData);
+      updateProfile(patchData as any);
 
       // 2. Mark profile as complete in local storage & session
-      markProfileComplete(rawUserId, accountType, patchData);
+      markProfileComplete(rawUserId, accountType, patchData as any);
 
       // 3. Post to backend DB endpoint if authenticated
       const dbAccountType = String(user?.accountType || (accountType === "affiliate" ? "agency" : accountType)).toLowerCase();
@@ -201,13 +236,15 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         nationality,
         dateOfBirth,
         governmentId: nationalIdentity,
+        governmentIdType,
+        permanentAddress: permAddressObj,
         idDocument: documentUrl,
         phone: `${countryCode}${phone}`,
         email,
         currency,
         ...(photoVal ? { profilePhoto: photoVal } : {}),
       });
-      
+
       if (profileResult && !profileResult.success) {
         throw new Error(profileResult.message || "Failed to update profile on backend");
       }
@@ -244,7 +281,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
             <div className="text-xs sm:text-sm font-medium leading-relaxed">
               <span className="font-bold block text-sm">⚠️ Account Unverified by Admin</span>
-              Your account has been marked as <span className="font-bold text-amber-700 dark:text-amber-300">Pending</span> by an administrator. Please review your personal information and re-upload a clear document if needed, then save your profile.
+              Your account has been marked as <span className="font-bold text-amber-700 dark:text-amber-300">Unverified</span> by an administrator. Please review your personal information and re-upload a clear document if needed, then save your profile.
             </div>
           </div>
         )}
@@ -295,15 +332,33 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             />
           </div>
 
-          {/* 4. National Identity (Mandatory Input) */}
+          {/* 4a. Select ID Type */}
           <div className="flex flex-col gap-2 min-w-0">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-              <span>National Identity</span>
+              <span>Select ID Type</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
+            <SelectDropdown
+              value={governmentIdType}
+              onChange={setGovernmentIdType}
+              placeholder="Select ID Type..."
+              options={[
+                { label: "NID (National ID)", value: "NID" },
+                { label: "Passport", value: "Passport" },
+                { label: "Driving License", value: "Driving License" },
+              ]}
+            />
+          </div>
+
+          {/* 4b. Government ID (Mandatory Input) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Government ID</span>
               <span className="text-red-500 font-bold">*</span>
             </label>
             <input
               type="text"
-              placeholder="Govt ID / CNIC / SSN / Passport"
+              placeholder="NID/Passport/Driving License"
               value={nationalIdentity}
               onChange={(e) => setNationalIdentity(e.target.value)}
               required
@@ -389,6 +444,92 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             />
           </div>
 
+          {/* 9. Permanent Address Section */}
+          <div className="md:col-span-2 pt-4 border-t border-border mt-2">
+            <h3 className="text-sm font-bold text-foreground uppercase tracking-wider mb-4">
+              Permanent Address
+            </h3>
+
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
+              {/* Country */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span>Country</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <SelectDropdown
+                  value={permCountry}
+                  onChange={setPermCountry}
+                  placeholder="Select Country..."
+                  options={ALL_COUNTRIES.map((c) => ({ label: c.name, value: c.name }))}
+                />
+              </div>
+
+              {/* City */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span>City</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="City"
+                  value={permCity}
+                  onChange={(e) => setPermCity(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+                />
+              </div>
+
+              {/* State */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span>State / Province</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="State / Province"
+                  value={permState}
+                  onChange={(e) => setPermState(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+                />
+              </div>
+
+              {/* Zip Code (Optional) */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <span>Zip Code</span>
+                  <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Zip / Postal Code"
+                  value={permZipCode}
+                  onChange={(e) => setPermZipCode(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
+                />
+              </div>
+
+              {/* Address Box (Textarea) */}
+              <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span>Street Address Box</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Enter full permanent street address..."
+                  value={permAddress}
+                  onChange={(e) => setPermAddress(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-input bg-background p-3 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* 9. Mandatory Document Upload Row */}
           <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -397,13 +538,12 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             </label>
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 min-w-0 w-full">
-                <div 
+                <div
                   onClick={() => documentUrl && setPreviewModalOpen(true)}
-                  className={`flex h-20 w-32 shrink-0 items-center justify-center rounded-xl overflow-hidden transition-all ${
-                    documentUrl 
-                      ? "bg-muted cursor-pointer hover:scale-[1.02] border border-border" 
+                  className={`flex h-20 w-32 shrink-0 items-center justify-center rounded-xl overflow-hidden transition-all ${documentUrl
+                      ? "bg-muted cursor-pointer hover:scale-[1.02] border border-border"
                       : "bg-muted text-muted-foreground border border-border"
-                  }`}
+                    }`}
                 >
                   {documentUrl ? (
                     <div className="flex w-full h-full">

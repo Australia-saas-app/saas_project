@@ -9,7 +9,7 @@ import { TableHeading } from "@/src/shared/ui/table/TableHeading";
 import { TableRow } from "@/src/shared/ui/table/TableRow";
 import { Badge } from "@/src/shared/ui/ui/badge";
 import { toast } from "sonner";
-import { Eye } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { SearchInput } from "@/src/shared/ui/form/search-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/ui/ui/select";
 import { Pagination } from "@/src/shared/ui/ui/pagination";
@@ -256,24 +256,29 @@ export default function KycQueuePage() {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12 text-slate-500">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-            <Table>
-              <TableHeading>
-                <TableColumn isHeader>Application ID</TableColumn>
-                <TableColumn isHeader>Full Name</TableColumn>
-                <TableColumn isHeader>Email</TableColumn>
-                <TableColumn isHeader>Role</TableColumn>
-                <TableColumn isHeader align="center">Status</TableColumn>
-                <TableColumn isHeader align="center">Actions</TableColumn>
-              </TableHeading>
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+          <Table>
+            <TableHeading>
+              <TableColumn isHeader>Application ID</TableColumn>
+              <TableColumn isHeader>Full Name</TableColumn>
+              <TableColumn isHeader>Email</TableColumn>
+              <TableColumn isHeader>Role</TableColumn>
+              <TableColumn isHeader align="center">Status</TableColumn>
+              <TableColumn isHeader align="center">Actions</TableColumn>
+            </TableHeading>
 
-              <TableBody isEmpty={pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
-                {pageItems.map((row) => (
+            <TableBody isEmpty={!isLoading && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
+              {isLoading ? (
+                <TableRow>
+                  <TableColumn colSpan={6}>
+                    <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                      <span className="text-gray-500 font-medium">Fetching KYC applications...</span>
+                    </div>
+                  </TableColumn>
+                </TableRow>
+              ) : (
+                pageItems.map((row) => (
                   <TableRow key={row.userId || row.id}>
                     <TableColumn>
                       <span className="font-mono font-medium text-gray-900 dark:text-gray-100 text-xs">
@@ -316,11 +321,11 @@ export default function KycQueuePage() {
                       </div>
                     </TableColumn>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
         {!isLoading && (
           <div className="mt-2 w-full">

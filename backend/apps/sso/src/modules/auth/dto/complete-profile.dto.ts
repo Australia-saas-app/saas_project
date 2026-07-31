@@ -29,6 +29,7 @@ export class CompleteProfileDto {
   @IsOptional() @IsString() nationality?: string;
   @IsOptional() @ValidateNested() @Type(() => PermanentAddressDto) permanentAddress?: PermanentAddressDto;
   @IsOptional() @IsString() governmentId?: string;
+  @IsOptional() @IsString() governmentIdType?: string;
   @IsOptional() @IsString() idDocument?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() email?: string;

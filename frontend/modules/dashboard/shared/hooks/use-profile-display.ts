@@ -148,6 +148,24 @@ export function useProfileDisplay() {
         ? String(user.governmentId)
         : "")
 
+  const governmentIdType =
+    (overrides as any).governmentIdType ??
+    (user && "governmentIdType" in user && (user as any).governmentIdType
+      ? String((user as any).governmentIdType)
+      : "NID")
+
+  const permanentAddress = useMemo(() => {
+    const oAddr = (overrides as any).permanentAddress;
+    const uAddr = user && "permanentAddress" in user ? (user as any).permanentAddress : null;
+    return {
+      country: oAddr?.country ?? uAddr?.country ?? "",
+      city: oAddr?.city ?? uAddr?.city ?? "",
+      state: oAddr?.state ?? uAddr?.state ?? "",
+      zipCode: oAddr?.zipCode ?? uAddr?.zipCode ?? "",
+      address: oAddr?.address ?? uAddr?.address ?? "",
+    };
+  }, [overrides, user]);
+
   const currency =
     overrides.currency ??
     (user && "currency" in user && user.currency
@@ -182,13 +200,13 @@ export function useProfileDisplay() {
       { label: "Full Name", value: fullName },
       { label: "Nationality", value: nationality || "—" },
       { label: "Date of Birth", value: dateOfBirth || "—" },
-      { label: "National Identity", value: nationalIdentity || "—" },
+      { label: "Government ID", value: nationalIdentity ? `${governmentIdType}: ${nationalIdentity}` : "—" },
       { label: "Phone Number", value: phone ? `${countryCode} ${phone}` : "—" },
       { label: "Secondary Email", value: secondaryEmail || "—" },
       { label: "Email Address", value: email || "—" },
       { label: "Preferred Currency", value: currency },
     ],
-    [fullName, nationality, dateOfBirth, nationalIdentity, phone, countryCode, secondaryEmail, email, currency]
+    [fullName, nationality, dateOfBirth, nationalIdentity, governmentIdType, phone, countryCode, secondaryEmail, email, currency]
   )
 
   const updateProfile = async (patch: ProfileDataPatch) => {
@@ -204,6 +222,8 @@ export function useProfileDisplay() {
         if (patch.dateOfBirth) payload.dateOfBirth = patch.dateOfBirth;
         if (patch.nationality) payload.nationality = patch.nationality;
         if (patch.nationalIdentity) payload.governmentId = patch.nationalIdentity;
+        if ((patch as any).governmentIdType) payload.governmentIdType = (patch as any).governmentIdType;
+        if ((patch as any).permanentAddress) payload.permanentAddress = (patch as any).permanentAddress;
         if (patch.documentUrl) payload.idDocument = patch.documentUrl;
         if (patch.avatarUrl) payload.profilePhoto = patch.avatarUrl;
         if (patch.currency) payload.currency = patch.currency;
@@ -230,7 +250,9 @@ export function useProfileDisplay() {
   // KYC is verified if it's approved
   const isKycVerified = kycStatus === "approved" || status === "verified"; // Fallback for old accounts
   
-  const documentUrl = overrides.documentUrl || (user && "idDocument" in user ? String(user.idDocument) : "");
+  const documentUrl = overrides.documentUrl !== undefined
+    ? overrides.documentUrl
+    : (user && "idDocument" in user && user.idDocument ? String(user.idDocument) : "");
   
   let documentFrontUrl = "";
   let documentBackUrl = "";
@@ -260,6 +282,8 @@ export function useProfileDisplay() {
     nationality,
     dateOfBirth,
     nationalIdentity,
+    governmentIdType,
+    permanentAddress,
     currency,
     joiningDate,
     avatarUrl,

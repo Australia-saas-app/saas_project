@@ -841,6 +841,8 @@ export class AuthService {
         nationality: user.nationality,
         dateOfBirth: user.dateOfBirth,
         governmentId: user.governmentId,
+        governmentIdType: user.governmentIdType,
+        permanentAddress: user.permanentAddress,
       },
     };
   }
@@ -902,6 +904,7 @@ export class AuthService {
     assignIf('nationality', dto.nationality);
     assignIf('permanentAddress', dto.permanentAddress);
     assignIf('governmentId', dto.governmentId);
+    assignIf('governmentIdType', dto.governmentIdType);
     assignIf('idDocument', dto.idDocument);
     assignIf('phone', dto.phone);
     assignIf('email', dto.email);
