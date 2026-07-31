@@ -219,8 +219,6 @@ const AllUserTable: React.FC = () => {
             try {
               localStorage.setItem("vero_profile_sync", JSON.stringify({ userId, status: lowerStatus, t: Date.now() }));
             } catch {}
-
-            toast.success("User status updated successfully");
         } catch (e: any) {
             toast.error(e.message || "Failed to update status");
         }

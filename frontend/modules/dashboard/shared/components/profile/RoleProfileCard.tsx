@@ -8,7 +8,7 @@ import KycApplicationModal from "./KycApplicationModal";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
 import { addProfileDocument, saveProfileOverrides } from "@/src/shared/utils/profile-storage";
-import { useProfileDisplay } from "../../hooks/use-profile-display";
+import { useProfileDisplay, getStatusBadgeStyle } from "../../hooks/use-profile-display";
 import { useUser } from "@/src/context/user.provider";
 
 export interface ProfileStat {
@@ -35,7 +35,7 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } =
     useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
@@ -170,18 +170,15 @@ export default function RoleProfileCard({
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-3">
                 <h3 className="text-xl font-bold text-foreground">{fullName}</h3>
-                <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
-                  isActive
-                    ? "border-emerald-500/20 bg-emerald-500/10"
-                    : "border-amber-500/20 bg-amber-500/10"
-                }`}>
-                  <div className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
-                  <span className={`text-[11px] font-bold capitalize ${
-                    isActive ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                  }`}>
-                    {isActive ? "Active" : "Pending"}
-                  </span>
-                </div>
+                {(() => {
+                  const style = getStatusBadgeStyle(status || "active");
+                  return (
+                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold capitalize ${style.pill}`}>
+                      <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+                      {style.label}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="text-xs font-medium text-muted-foreground">
                 Joining date — <span className="text-foreground/80">{joiningDate}</span>

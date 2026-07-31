@@ -6,12 +6,12 @@ import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal";
-import { useProfileDisplay } from "../../shared/hooks/use-profile-display";
+import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display";
 import { useUser } from "@/src/shared/context/user.provider";
 
 export default function ProfilePageLayout() {
   const { refreshUser } = useUser() || {};
-  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
+  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -156,10 +156,15 @@ export default function ProfilePageLayout() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-bold tracking-tight text-foreground">{fullName}</h2>
-                <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 capitalize">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Active
-                </span>
+                {(() => {
+                  const style = getStatusBadgeStyle(status || "active");
+                  return (
+                    <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold capitalize ${style.pill}`}>
+                      <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+                      {style.label}
+                    </span>
+                  );
+                })()}
               </div>
               <p className="text-xs font-medium text-muted-foreground">
                 Joining date — <span className="text-foreground/80">{joiningDate}</span>

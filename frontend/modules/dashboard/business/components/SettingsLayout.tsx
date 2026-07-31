@@ -34,15 +34,15 @@ const SettingsLayout = () => {
         <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">Manage your account security and preferences.</p>
       </div>
-      <div className="mb-6 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap gap-2.5">
         {SettingsTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => handleTabClick(tab)}
-            className={`rounded-md px-5 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-lg px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === tab.id
-                ? "bg-[#5D7293] text-white shadow-sm"
+                ? "bg-[#5D7293] text-white shadow-sm font-semibold"
                 : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
             }`}
           >

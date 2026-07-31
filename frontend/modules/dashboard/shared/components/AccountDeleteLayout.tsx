@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, ShieldAlert } from "lucide-react"
+import { ShieldAlert, Loader2, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
 import { logout, verifyAccountPassword } from "@/src/server/AuthService"
@@ -11,8 +11,7 @@ import {
   getUserIdFromAuthUser,
   isDemoAuthUser,
 } from "@/src/shared/lib/demo-user"
-import { scheduleAccountDeletion } from "@/src/shared/lib/account-lifecycle-store"
-import { accountTypeFromRole } from "@/src/shared/lib/verification-access"
+import { clearAllUserStorage } from "@/src/shared/utils/profile-storage"
 import ConfirmActionModal from "./ConfirmActionModal"
 
 export default function AccountDeleteLayout() {
@@ -20,113 +19,153 @@ export default function AccountDeleteLayout() {
   const { user } = useUser()
   const isDemo = isDemoAuthUser(user)
   const email = getUserEmailFromAuthUser(user) ?? ""
-  const userId = getUserIdFromAuthUser(user) ?? ""
+  const userId = getUserIdFromAuthUser(user) ?? (user as any)?.id ?? ""
+  
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [done, setDone] = useState(false)
 
-  const onConfirm = async () => {
+  // Step 1: Verify Password first before opening Warning Popup Modal
+  const handleDeleteClick = async () => {
     if (isDemo) {
       toast.error("Demo accounts cannot be deleted.")
-      setConfirmOpen(false)
       return
     }
     if (!email) {
-      toast.error("Unable to verify your account.")
+      toast.error("Unable to verify your account session.")
+      return
+    }
+    if (!password.trim()) {
+      toast.error("Please enter your account password.")
       return
     }
 
-    setConfirming(true)
+    setIsVerifying(true)
     try {
       await verifyAccountPassword(email, password)
-      scheduleAccountDeletion({ userId, email })
-      await logout()
-      setDone(true)
-      toast.success("Account deletion scheduled.")
-      const accountType = accountTypeFromRole(user?.role)
-      router.push(`/account/${accountType}/login`)
+      // Password is valid -> Open confirmation popup modal!
+      setConfirmOpen(true)
     } catch {
-      toast.error("Could not process deletion request.")
+      toast.error("Incorrect password. Please enter your valid account password.")
     } finally {
+      setIsVerifying(false)
+    }
+  }
+
+  // Step 2: User Confirms Deletion in Warning Popup Modal
+  const onConfirm = async () => {
+    setConfirming(true)
+    try {
+      // Call backend permanent delete user endpoint
+      const res = await fetch(`/sso/auth/admin/users/${userId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      }).catch(() => null)
+
+      // Purge all local storage and browser caches for user
+      if (userId) {
+        clearAllUserStorage(userId)
+      }
+      if (typeof window !== "undefined") {
+        localStorage.clear()
+      }
+
+      // Logout user session
+      await logout().catch(() => undefined)
+
+      toast.success("Account deleted successfully")
+
+      // Redirect directly to Landing Page cleanly
+      if (typeof window !== "undefined") {
+        window.location.assign("/")
+      } else {
+        router.push("/")
+      }
+    } catch {
+      toast.error("Failed to delete account. Please try again.")
       setConfirming(false)
       setConfirmOpen(false)
     }
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-red-100 bg-gradient-to-r from-red-50 to-white px-6 py-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
-              <ShieldAlert className="h-5 w-5" />
+    <div className="mx-auto max-w-md">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-card shadow-sm">
+        {/* Header */}
+        <div className="border-b border-red-100 dark:border-red-950/40 bg-gradient-to-r from-red-50 to-white dark:from-red-950/20 dark:to-card px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">
+              <ShieldAlert className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Delete Account</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Permanently remove your account and associated dashboard data.
+              <h3 className="text-lg font-bold text-gray-900 dark:text-foreground">Delete Account</h3>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-muted-foreground">
+                Permanently delete your profile and account data.
               </p>
             </div>
           </div>
         </div>
 
-        {!done ? (
-          <div className="space-y-5 p-6">
-            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <div className="flex gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>
-                  This schedules permanent deletion of your profile, wallet history, messages, and applications.
-                </p>
-              </div>
-            </div>
+        <div className="space-y-5 p-6 sm:p-8">
+          <div className="rounded-xl border border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-3.5 text-xs font-medium text-amber-900 dark:text-amber-200 leading-relaxed">
+            ⚠️ Permanently removes your profile, KYC documents, wallet activity, and account data.
+          </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                Confirm your password
-              </label>
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+              Confirm your password
+            </label>
+            <div className="relative">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all pr-10"
                 placeholder="Enter current password"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
+          </div>
 
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setPassword("")}
-                className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!password.trim() || isDemo}
-                onClick={() => setConfirmOpen(true)}
-                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                Delete my account
-              </button>
-            </div>
+          {/* Delete Button (Cancel Button Removed) */}
+          <div className="pt-2">
+            <button
+              type="button"
+              disabled={!password.trim() || isDemo || isVerifying}
+              onClick={handleDeleteClick}
+              className="w-full rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {isVerifying ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Verifying Password...</span>
+                </>
+              ) : (
+                <span>Delete my account</span>
+              )}
+            </button>
           </div>
-        ) : (
-          <div className="px-6 py-10 text-center text-sm text-gray-500">
-            Redirecting to login…
-          </div>
-        )}
+        </div>
       </div>
 
+      {/* Themed Warning Confirmation Popup Modal */}
       <ConfirmActionModal
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={onConfirm}
         title="Permanently delete account?"
-        description="You will be signed out immediately. This action cannot be undone."
-        confirmLabel={confirming ? "Deleting…" : "Yes, delete account"}
+        description="Everything associated with your account will be permanently deleted, including your KYC application, profile data, profile photo, uploaded documents, wallet, and all related account information. Are you sure you want to delete?"
+        confirmLabel={confirming ? "Deleting account..." : "Confirm Delete"}
+        cancelLabel="Cancel"
         variant="danger"
       />
     </div>

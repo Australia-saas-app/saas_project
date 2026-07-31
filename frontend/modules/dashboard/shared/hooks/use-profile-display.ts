@@ -15,6 +15,62 @@ import { completeUserProfile } from "@/src/shared/server/AuthService";
 
 export const PROFILE_UPDATED_EVENT = "vero:profile_updated";
 
+export const getStatusBadgeStyle = (statusStr: string) => {
+  switch (statusStr?.toLowerCase()) {
+    case 'active':
+    case 'approved':
+    case 'verified':
+      return {
+        label: 'Active',
+        pill: 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        dot: 'bg-emerald-500',
+      };
+    case 'pending':
+    case 'unverified':
+    case 'submitted':
+      return {
+        label: 'Pending',
+        pill: 'border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+        dot: 'bg-amber-500',
+      };
+    case 'suspend':
+    case 'suspended':
+    case 'deactivated':
+      return {
+        label: 'Suspended',
+        pill: 'border border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400',
+        dot: 'bg-red-500',
+      };
+    case 'block':
+    case 'blocked':
+    case 'banned':
+      return {
+        label: 'Blocked',
+        pill: 'border border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+        dot: 'bg-rose-500',
+      };
+    case 'dormant':
+      return {
+        label: 'Dormant',
+        pill: 'border border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-400',
+        dot: 'bg-purple-500',
+      };
+    case 'closed':
+    case 'inactive':
+      return {
+        label: 'Closed',
+        pill: 'border border-zinc-500/20 bg-zinc-500/10 text-zinc-600 dark:text-zinc-400',
+        dot: 'bg-zinc-500',
+      };
+    default:
+      return {
+        label: statusStr ? statusStr.charAt(0).toUpperCase() + statusStr.slice(1) : 'Active',
+        pill: 'border border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-400',
+        dot: 'bg-slate-500',
+      };
+  }
+};
+
 function displayName(user: any) {
   if (!user) return "Account"
   if ("fullName" in user && user.fullName) return String(user.fullName)
