@@ -1,8 +1,9 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React from "react"
 import { Inter } from "next/font/google"
 import { useAppSelector } from "@/src/core/store/hooks"
+import { useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 
 const inter = Inter({
@@ -42,25 +43,20 @@ const StatCard: React.FC<StatCardProps> = ({ title, items }) => (
 
 const SystemOverview: React.FC = () => {
   const { token } = useAppSelector((state) => state.auth)
-  const [stats, setStats] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch('/admin/api/sso/auth/admin/stats', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const data = await res.json()
-        if (data.success) setStats(data.data)
-      } catch (err) {
-        console.error("Failed to fetch stats", err)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    if (token) fetchStats()
-  }, [token])
+  // React Query caches this for staleTime (30s) — no flash of "0" on revisit
+  const { data: stats, isLoading } = useQuery<any>({
+    queryKey: ["admin-stats", token],
+    queryFn: async () => {
+      const res = await fetch('/admin/api/sso/auth/admin/stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error("Failed to fetch stats")
+      return data.data
+    },
+    enabled: !!token,
+  })
 
   const formatNumber = (numStr: string | number) => {
     const num = parseInt(String(numStr), 10);

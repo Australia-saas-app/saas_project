@@ -74,8 +74,13 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
         await logout().catch(() => undefined);
         setUser(null);
         if (typeof window !== "undefined") {
-          localStorage.removeItem("user_profile_overrides_v2");
-          localStorage.removeItem("user_profile_documents_v2");
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch {
+            localStorage.removeItem("user_profile_overrides_v2");
+            localStorage.removeItem("user_profile_documents_v2");
+          }
         }
         toast.warning("Your session has expired. Please sign in again.");
       }
@@ -89,8 +94,13 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
     await logout().catch(() => undefined);
     setUser(null);
     if (typeof window !== "undefined") {
-      localStorage.removeItem("user_profile_overrides_v2");
-      localStorage.removeItem("user_profile_documents_v2");
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {
+        localStorage.removeItem("user_profile_overrides_v2");
+        localStorage.removeItem("user_profile_documents_v2");
+      }
     }
     toast.warning("You were signed out due to inactivity.");
   }, []);

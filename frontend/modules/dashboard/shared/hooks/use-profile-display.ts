@@ -24,7 +24,7 @@ function displayName(user: any) {
 }
 
 export function useProfileDisplay() {
-  const { user } = useUser()
+  const { user, refreshUser } = useUser()
   const rawUserId = getUserIdFromAuthUser(user) ?? "guest"
   const isDemo = isDemoAuthUser(user)
   const [revision, setRevision] = useState(0)
@@ -34,6 +34,25 @@ export function useProfileDisplay() {
     window.addEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdate);
     return () => window.removeEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdate);
   }, []);
+
+  // When admin changes KYC status, instantly persist the new value in overrides
+  // and refresh the user context from the DB so all components update
+  useEffect(() => {
+    const handleKycUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.kycStatus) return;
+      const uid = detail.userId;
+      // Only update if this event is for the current user (or no userId specified)
+      if (uid && rawUserId && uid !== rawUserId) return;
+      // Persist updated kycStatus in localStorage override immediately
+      saveProfileOverrides(rawUserId, { kycStatus: detail.kycStatus.toLowerCase() });
+      setRevision(n => n + 1); // trigger re-read of overrides
+      // Also refresh user context from the server to update kycStatus in user object
+      if (refreshUser) refreshUser().catch(() => {});
+    };
+    window.addEventListener("vero:kyc_updated", handleKycUpdate);
+    return () => window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+  }, [rawUserId, refreshUser]);
 
   const overrides = useMemo(() => getProfileOverrides(rawUserId), [rawUserId, revision])
 

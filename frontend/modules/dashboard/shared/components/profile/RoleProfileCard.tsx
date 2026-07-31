@@ -7,8 +7,9 @@ import ProfileFormGrid from "./ProfileFormGrid";
 import KycApplicationModal from "./KycApplicationModal";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
-import { addProfileDocument } from "@/src/shared/utils/profile-storage";
+import { addProfileDocument, saveProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { useProfileDisplay } from "../../hooks/use-profile-display";
+import { useUser } from "@/src/context/user.provider";
 
 export interface ProfileStat {
   label: string;
@@ -41,15 +42,24 @@ export default function RoleProfileCard({
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [localKycStatus, setLocalKycStatus] = useState<string | null>(null);
 
+  const { refreshUser } = useUser();
+
   // Listen for instant status updates from admin KYC actions
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.kycStatus) setLocalKycStatus(detail.kycStatus.toLowerCase());
+      if (detail?.kycStatus) {
+        const newStatus = detail.kycStatus.toLowerCase();
+        setLocalKycStatus(newStatus);
+        // Persist in localStorage overrides so page navigation keeps the change
+        if (rawUserId) saveProfileOverrides(rawUserId, { kycStatus: newStatus });
+        // Refresh user context from server
+        if (refreshUser) refreshUser().catch(() => {});
+      }
     };
     window.addEventListener("vero:kyc_updated", handler);
     return () => window.removeEventListener("vero:kyc_updated", handler);
-  }, []);
+  }, [rawUserId, refreshUser]);
 
   const effectiveKycStatus = localKycStatus ?? kycStatus;
   const effectiveIsKycVerified = effectiveKycStatus === 'approved';
@@ -246,6 +256,7 @@ export default function RoleProfileCard({
         <div className="border-t border-border">
           <DocumentCards
             userId={rawUserId}
+            dbDocumentUrl={documentUrl}
             onUpload={(doc) => {
               addProfileDocument(rawUserId, doc);
               if (doc.url) {

@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useMemo } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import UsersToolbar from "./UsersToolbar"
 import { Pagination } from "@/src/shared/ui/ui/pagination"
 import { useRouter } from "next/navigation"
@@ -67,19 +68,16 @@ const AllUserTable: React.FC = () => {
     const [startDate, setStartDate] = useState("")
     const [endDate, setEndDate] = useState("")
     const [page, setPage] = useState(1)
-    const [isFetching, setIsFetching] = useState(false)
     const [pageSize, setPageSize] = useState(10)
-    const [items, setItems] = useState<BackendUser[]>([])
-    const [totalPages, setTotalPages] = useState(1)
-    const [totalResults, setTotalResults] = useState(0)
     const [debouncedQuery, setDebouncedQuery] = useState(query)
-    
+
     // Modal State
     const [selectedUser, setSelectedUser] = useState<BackendUser | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    
+
     const router = useRouter()
     const token = useAppSelector(state => state.auth.token)
+    const queryClient = useQueryClient()
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -88,79 +86,66 @@ const AllUserTable: React.FC = () => {
         return () => clearTimeout(handler)
     }, [query])
 
-    useEffect(() => {
-        let active = true
-        const fetchUsers = async () => {
-            setIsFetching(true)
-            try {
-                const response = await fetch('/admin/api/sso/auth/admin/users?accountType=user', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
-                if (!response.ok) throw new Error('Network response was not ok')
-                const resData = await response.json()
-                
-                if (!active) return
+    // React Query fetches and caches all users (30s stale, 5min GC — set in QueryClient config)
+    const { data: rawUsers = [], isFetching } = useQuery<any[]>({
+        queryKey: ["admin-users", "user", token],
+        queryFn: async () => {
+            const response = await fetch('/admin/api/sso/auth/admin/users?accountType=user', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (!response.ok) throw new Error('Network response was not ok')
+            const resData = await response.json()
+            return resData.data?.users || resData.data || []
+        },
+        enabled: !!token,
+    })
 
-                let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
-                    userId: u.userId || u.id,
-                    fullName: u.fullName || u.email,
-                    email: u.email,
-                    phone: u.phone,
-                    currency: u.currency,
-                    status: u.status,
-                    kycStatus: u.kycStatus,
-                    createdAt: u.createdAt,
-                    nationality: u.nationality,
-                    dateOfBirth: u.dateOfBirth,
-                    governmentId: u.governmentId || u.nationalIdentity,
-                    nationalIdentity: u.nationalIdentity || u.governmentId,
-                    idDocument: u.idDocument || u.documentUrl,
-                    documentUrl: u.idDocument || u.documentUrl,
-                    avatarUrl: u.profilePhoto || u.avatarUrl,
-                    profilePhoto: u.profilePhoto || u.avatarUrl,
-                    totalProject: u.totalProject || 0,
-                    totalAmount: u.totalAmount || 0,
-                    paidAmount: u.paidAmount || 0,
-                    dueAmount: u.dueAmount || 0,
-                    refundAmount: u.refundAmount || 0,
-                    profit: u.profit || 0
-                }))
+    // Map + filter entirely in memory — no extra network call on filter/page change
+    const { items, totalResults, totalPages } = useMemo(() => {
+        let filtered: BackendUser[] = rawUsers.map((u: any) => ({
+            userId: u.userId || u.id,
+            fullName: u.fullName || u.email,
+            email: u.email,
+            phone: u.phone,
+            currency: u.currency,
+            status: u.status,
+            kycStatus: u.kycStatus,
+            createdAt: u.createdAt,
+            nationality: u.nationality,
+            dateOfBirth: u.dateOfBirth,
+            governmentId: u.governmentId || u.nationalIdentity,
+            nationalIdentity: u.nationalIdentity || u.governmentId,
+            idDocument: u.idDocument || u.documentUrl,
+            documentUrl: u.idDocument || u.documentUrl,
+            avatarUrl: u.profilePhoto || u.avatarUrl,
+            profilePhoto: u.profilePhoto || u.avatarUrl,
+            totalProject: u.totalProject || 0,
+            totalAmount: u.totalAmount || 0,
+            paidAmount: u.paidAmount || 0,
+            dueAmount: u.dueAmount || 0,
+            refundAmount: u.refundAmount || 0,
+            profit: u.profit || 0,
+        }))
 
-                // Apply Filters
-                if (debouncedQuery) {
-                    const q = debouncedQuery.toLowerCase()
-                    filtered = filtered.filter((u: BackendUser) => 
-                        u.fullName?.toLowerCase().includes(q) || 
-                        u.email?.toLowerCase().includes(q)
-                    )
-                }
-
-                if (status && status !== "All Statuses") {
-                    filtered = filtered.filter((u: BackendUser) => u.status?.toLowerCase() === status.toLowerCase())
-                }
-
-                if (currency && currency !== "All Currencies") {
-                    filtered = filtered.filter((u: BackendUser) => u.currency === currency)
-                }
-
-                setTotalResults(filtered.length)
-                setTotalPages(Math.max(1, Math.ceil(filtered.length / pageSize)))
-                
-                // Apply Pagination
-                const startIdx = (page - 1) * pageSize
-                const paginated = filtered.slice(startIdx, startIdx + pageSize)
-                
-                setItems(paginated)
-            } catch (error) {
-                console.error("Failed to fetch users", error)
-                if (active) setItems([])
-            } finally {
-                if (active) setIsFetching(false)
-            }
+        if (debouncedQuery) {
+            const q = debouncedQuery.toLowerCase()
+            filtered = filtered.filter(u =>
+                u.fullName?.toLowerCase().includes(q) ||
+                u.email?.toLowerCase().includes(q)
+            )
         }
-        fetchUsers()
-        return () => { active = false }
-    }, [page, pageSize, status, debouncedQuery, currency, startDate, endDate, token])
+        if (status && status !== "All Statuses") {
+            filtered = filtered.filter(u => u.status?.toLowerCase() === status.toLowerCase())
+        }
+        if (currency && currency !== "All Currencies") {
+            filtered = filtered.filter(u => u.currency === currency)
+        }
+
+        const total = filtered.length
+        const pages = Math.max(1, Math.ceil(total / pageSize))
+        const startIdx = (page - 1) * pageSize
+        return { items: filtered.slice(startIdx, startIdx + pageSize), totalResults: total, totalPages: pages }
+    }, [rawUsers, debouncedQuery, status, currency, page, pageSize])
 
     const handleView = (user: BackendUser) => {
         setSelectedUser(user)
@@ -181,10 +166,12 @@ const AllUserTable: React.FC = () => {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || "Failed to update");
             }
-            
-            // Update local state
-            setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
+            // Optimistically update modal
             setSelectedUser(prev => prev?.userId === userId ? { ...prev, status: newStatus } : prev);
+            // Invalidate React Query cache so table data refetches with the new status
+            queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+            // Notify other parts of the app (KYC queue, user side, etc.)
+            window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: newStatus } }));
             toast.success("User status updated successfully");
         } catch (e: any) {
             toast.error(e.message || "Failed to update status");
@@ -201,13 +188,10 @@ const AllUserTable: React.FC = () => {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || "Failed to delete");
             }
-            
-            // Remove from local state
-            setItems(prev => prev.filter(u => u.userId !== userId));
-            setTotalResults(prev => prev - 1);
+            // Invalidate React Query cache — table will refetch on next render
+            queryClient.invalidateQueries({ queryKey: ["admin-users"] });
             toast.success("User account permanently deleted.");
-
-            // Notify other pages (KYC queue, affiliate table, etc.) to remove this user
+            // Notify KYC queue, affiliate/business tables, etc.
             window.dispatchEvent(new CustomEvent("vero:user_deleted", { detail: { userId } }));
         } catch (e: any) {
             toast.error(e.message || "Failed to delete user");

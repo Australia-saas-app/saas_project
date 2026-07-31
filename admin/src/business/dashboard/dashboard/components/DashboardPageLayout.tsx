@@ -20,8 +20,9 @@ import {
   Sparkles,
   Database
 } from "lucide-react";
-import React, { useEffect,  useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAppSelector } from "@/src/core/store/hooks";
+import { useQuery } from "@tanstack/react-query";
 // Chart registration will be run client-side inside useEffect to avoid SSR side-effects
 
 import { Inter } from "next/font/google";
@@ -89,29 +90,30 @@ const DashboardPageLayout: React.FC = () => {
     setMounted(true);
   }, []);
 
-  const [stats, setStats] = useState<any>({ totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 });
   const token = useAppSelector(state => state.auth.token);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch('/admin/api/sso/auth/admin/users?limit=1', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const resData = await response.json();
-          const types = resData.data?.analytics?.accountTypes || {};
-          setStats({
-            totalUsers: resData.data?.analytics?.all || 0,
-            userCount: types.user ? Number(types.user) : 0,
-            businessCount: types.business ? Number(types.business) : 0,
-            affiliateCount: types.agency ? Number(types.agency) : 0,
-          });
-        }
-      } catch (e) {}
-    };
-    if (token) fetchStats();
-  }, [token]);
+  // React Query caches this for staleTime (30s) — no flash of "0" on dashboard revisit
+  const { data: statsData } = useQuery<any>({
+    queryKey: ["admin-dashboard-stats", token],
+    queryFn: async () => {
+      const response = await fetch('/admin/api/sso/auth/admin/users?limit=1', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      const resData = await response.json();
+      const types = resData.data?.analytics?.accountTypes || {};
+      return {
+        totalUsers: resData.data?.analytics?.all || 0,
+        userCount: types.user ? Number(types.user) : 0,
+        businessCount: types.business ? Number(types.business) : 0,
+        affiliateCount: types.agency ? Number(types.agency) : 0,
+      };
+    },
+    enabled: !!token,
+    placeholderData: { totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 },
+  });
+
+  const stats = statsData || { totalUsers: 0, userCount: 0, businessCount: 0, affiliateCount: 0 };
 
   // keep `visibleCount` state for potential "See more" UI; no handler needed currently
   if (!mounted) {

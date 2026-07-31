@@ -33,7 +33,6 @@ export default function KycQueuePage() {
     queryKey: ["kyc-users"],
     queryFn: async () => {
       if (!token) return [];
-      // Fetch all users without limit so we see every KYC applicant
       const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -42,6 +41,8 @@ export default function KycQueuePage() {
       return resData.data?.users || resData.data || [];
     },
     enabled: !!token,
+    staleTime: 60 * 1000,      // cache for 60s — avoids spinner on every page visit
+    refetchOnWindowFocus: false, // don't re-fetch just because user switches tabs
   });
 
   // Auto-refetch and apply optimistic updates when an admin approves / rejects a KYC application
@@ -91,7 +92,7 @@ export default function KycQueuePage() {
   }, [refetch]);
 
 
-  // Calculate counts for tabs
+  // Calculate counts for tabs — use localOverrides so badge decrements instantly on approve/reject
   const kycCounts = {
     user: 0,
     affiliate: 0,
@@ -100,7 +101,9 @@ export default function KycQueuePage() {
 
   if (users) {
     users.forEach(u => {
-      if (u.kycStatus === 'pending' || u.kycStatus === 'submitted') {
+      const uid = u.userId || u.id;
+      const effectiveStatus = localOverrides[uid] || u.kycStatus;
+      if (effectiveStatus === 'pending' || effectiveStatus === 'submitted') {
         if (u.accountType === 'user') kycCounts.user++;
         if (u.accountType === 'agency' || u.accountType === 'affiliate') kycCounts.affiliate++;
         if (u.accountType === 'business') kycCounts.business++;

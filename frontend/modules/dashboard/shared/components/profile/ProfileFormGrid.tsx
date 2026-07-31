@@ -40,8 +40,21 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [nationality, setNationality] = useState(initialNationality || "");
   const [dateOfBirth, setDateOfBirth] = useState(initialDateOfBirth || "");
   const [nationalIdentity, setNationalIdentity] = useState(initialNationalIdentity || "");
-  const [countryCode, setCountryCode] = useState(initialCountryCode || "+92");
-  const [phone, setPhone] = useState(initialPhone || "");
+  // Strip country code prefix from a phone number if it already starts with it.
+  // This prevents the "+92+923001234567" duplication on each save.
+  const stripCountryCode = (rawPhone: string, code: string): string => {
+    if (!rawPhone) return "";
+    const stripped = rawPhone.trim();
+    if (code && stripped.startsWith(code)) return stripped.slice(code.length);
+    // Also handle case where phone starts with a different +XX code — keep as-is
+    return stripped;
+  };
+
+  const initCC = initialCountryCode || "+92";
+  const initPhone = stripCountryCode(initialPhone || "", initCC);
+
+  const [countryCode, setCountryCode] = useState(initCC);
+  const [phone, setPhone] = useState(initPhone);
   const [secondaryEmail, setSecondaryEmail] = useState(initialSecondaryEmail || "");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
@@ -93,7 +106,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     if (initialDateOfBirth && !dateOfBirth) setDateOfBirth(initialDateOfBirth);
     if (initialNationalIdentity && !nationalIdentity) setNationalIdentity(initialNationalIdentity);
     if (initialCountryCode && !countryCode) setCountryCode(initialCountryCode);
-    if (initialPhone && !phone) setPhone(initialPhone);
+    if (initialPhone && !phone) {
+      // Strip country code before setting so the input shows just the local number
+      const cc = initialCountryCode || countryCode || "+92";
+      setPhone(stripCountryCode(initialPhone, cc));
+    }
     if (initialSecondaryEmail && !secondaryEmail) setSecondaryEmail(initialSecondaryEmail);
     if (initialCurrency && !currency) setCurrency(initialCurrency);
   }, [
@@ -113,12 +130,15 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     currency,
   ]);
 
-  // Sync profile details and document to backend DB automatically on mount if local overrides exist
+  // Sync profile details to backend on mount if local overrides exist.
+  // IMPORTANT: phone is stored as localNumber-only in state; always concat with countryCode before sending.
   useEffect(() => {
     if (!user || (!documentUrl && !(user as any)?.profilePhoto)) return;
     const u = user as any;
     const dbAccountType = u?.accountType || (accountType === "affiliate" ? "AGENCY" : accountType.toUpperCase());
     const photo = u?.avatarUrl || u?.profilePhoto;
+    // Only auto-sync if we have a phone value and it's not the raw DB value with country code already
+    const phoneDigits = stripCountryCode(phone, countryCode);
     completeUserProfile({
       accountType: dbAccountType,
       fullName: fullName || u.fullName,
@@ -127,7 +147,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       governmentId: nationalIdentity || u.governmentId,
       idDocument: documentUrl || u.idDocument,
       ...(photo ? { profilePhoto: photo } : {}),
-      phone: phone ? `${countryCode}${phone}` : u.phone,
+      phone: phoneDigits ? `${countryCode}${phoneDigits}` : u.phone,
       email: email || u.email,
       currency: currency || u.currency,
     }).catch(() => undefined);

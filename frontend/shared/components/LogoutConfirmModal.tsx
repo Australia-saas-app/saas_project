@@ -23,15 +23,34 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
     try {
       await logout();
       setUser(null);
-      toast.success("Logged out");
     } catch (error) {
       console.error("Logout error:", error);
     }
     setIsLoggingOut(false);
     onClose();
+
+    // ── Security: wipe ALL client-side storage on logout ──────────────────
+    // No cached profile, KYC, session or auth data should remain in the browser.
     if (typeof window !== "undefined") {
-      localStorage.removeItem("user_profile_overrides_v2");
-      localStorage.removeItem("user_profile_documents_v2");
+      try {
+        // Clear every localStorage entry (profile overrides, documents, scope, etc.)
+        localStorage.clear();
+        // Clear sessionStorage as well (any temp session values)
+        sessionStorage.clear();
+      } catch {
+        // Fallback: remove known keys individually if clear() is blocked
+        const knownKeys = [
+          "user_profile_overrides_v2",
+          "user_profile_documents_v2",
+          "user_storage_scope",
+          "profile_complete",
+          "profile_account_type",
+        ];
+        knownKeys.forEach(k => {
+          try { localStorage.removeItem(k); } catch { /* ignore */ }
+        });
+      }
+      // Hard redirect — full page reload clears all in-memory React/query state
       window.location.href = targetPath;
     }
   };

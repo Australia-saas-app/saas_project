@@ -182,6 +182,7 @@ export default function ProfilePageLayout() {
         <div className="border-t border-border">
           <DocumentCards
             userId={rawUserId}
+            dbDocumentUrl={documentUrl}
             revision={docRevision}
             onRemove={() => setDocRevision((r) => r + 1)}
           />
