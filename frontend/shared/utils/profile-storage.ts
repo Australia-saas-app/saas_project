@@ -86,6 +86,27 @@ export const setProfileDocument = (userId: string, doc: StoredDocument) => {
   setStorageMap(DOCUMENTS_STORAGE_KEY, all);
 };
 
+/** Remove ALL profile overrides for a user (used when user is deleted or reset). */
+export const clearProfileOverrides = (userId: string) => {
+  if (!userId) return;
+  const all = getStorageMap<ProfileDataPatch>(OVERRIDES_STORAGE_KEY);
+  delete all[userId];
+  setStorageMap(OVERRIDES_STORAGE_KEY, all);
+};
+
+/** Completely purge all local storage overrides and document cache for a user. */
+export const clearAllUserStorage = (userId: string) => {
+  if (!userId) return;
+  clearProfileOverrides(userId);
+  clearProfileDocuments(userId);
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("vero_kyc_sync");
+      localStorage.removeItem("vero_profile_sync");
+    } catch {}
+  }
+};
+
 /** Remove ALL documents for a user (used when user deletes their document). */
 export const clearProfileDocuments = (userId: string) => {
   if (!userId) return;

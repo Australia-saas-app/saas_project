@@ -5,6 +5,8 @@ import { useUser } from "@/src/context/user.provider"
 import {
   getProfileOverrides,
   saveProfileOverrides,
+  clearAllUserStorage,
+  clearProfileOverrides,
   type ProfileDataPatch,
   type ProfileField,
 } from "@/src/shared/utils/profile-storage"
@@ -29,6 +31,21 @@ export function useProfileDisplay() {
   const isDemo = isDemoAuthUser(user)
   const [revision, setRevision] = useState(0)
 
+  // Auto-purge stale local overrides when DB user has no KYC application
+  useEffect(() => {
+    if (!rawUserId || !user) return;
+    const dbKyc = (user as any).kycStatus ? String((user as any).kycStatus).toLowerCase() : "none";
+    const hasApplication = Boolean((user as any).kycApplicationData);
+    
+    if (!hasApplication && (dbKyc === "none" || dbKyc === "unverified" || !dbKyc)) {
+      const o = getProfileOverrides(rawUserId);
+      if (o.kycStatus === "pending" || o.kycStatus === "submitted") {
+        clearAllUserStorage(rawUserId);
+        setRevision(n => n + 1);
+      }
+    }
+  }, [rawUserId, user]);
+
   useEffect(() => {
     const handleProfileUpdate = () => setRevision(n => n + 1);
     window.addEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdate);
@@ -43,7 +60,11 @@ export function useProfileDisplay() {
       if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
 
       const lowerStatus = newKycStatus.toLowerCase();
-      saveProfileOverrides(rawUserId, { kycStatus: lowerStatus });
+      if (lowerStatus === "none" || lowerStatus === "deleted") {
+        clearAllUserStorage(targetUserId || rawUserId);
+      } else {
+        saveProfileOverrides(rawUserId, { kycStatus: lowerStatus });
+      }
       setRevision(n => n + 1); // trigger re-read of overrides
       if (refreshUser) refreshUser().catch(() => {});
     };
@@ -262,10 +283,14 @@ export function useProfileDisplay() {
   }
 
   const status = String((user && "status" in user && user.status) ? user.status : (overrides.status ?? "pending")).toLowerCase();
+  
+  const hasKycSnap = Boolean((user as any)?.kycApplicationData);
+  const dbKycStatus = (user && "kycStatus" in user && user.kycStatus) ? String(user.kycStatus).toLowerCase() : "none";
+
   const kycStatus = String(
-    overrides.kycStatus === "pending"
-      ? "pending"
-      : (user && "kycStatus" in user && user.kycStatus ? user.kycStatus : (overrides.kycStatus ?? "none"))
+    hasKycSnap || dbKycStatus === "approved" || dbKycStatus === "rejected" || dbKycStatus === "pending"
+      ? dbKycStatus
+      : (overrides.kycStatus === "pending" && hasKycSnap ? "pending" : "none")
   ).toLowerCase();
   
   // Account status is active if it's active or verified

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   downloadFile,
   getProfileDocuments,
+  getProfileOverrides,
   setProfileDocument,
   saveProfileOverrides,
   clearProfileDocuments,
@@ -86,6 +87,13 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
   useEffect(() => {
     if (!userId) return;
 
+    // If documentUrl was explicitly set to empty string by user deletion, show no documents
+    const overrides = getProfileOverrides(userId);
+    if (overrides.documentUrl === "") {
+      setDocuments([]);
+      return;
+    }
+
     const allDocs: StoredDocument[] = [];
 
     // 1. DB-sourced documents
@@ -157,15 +165,11 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
     if (!userId || deletingId) return;
 
     setDeletingId(doc.id);
+    setDocuments(prev => prev.filter(d => d.id !== doc.id));
 
     try {
       const currentUrl = dbDocumentUrl || "";
       const updatedDocUrl = computeUrlAfterDelete(currentUrl, doc.id);
-
-      // Save to DB via completeUserProfile
-      await completeUserProfile({
-        idDocument: updatedDocUrl,
-      });
 
       // Save local overrides
       saveProfileOverrides(userId, { documentUrl: updatedDocUrl });
@@ -173,7 +177,13 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
       // If all documents deleted, clear local documents storage
       if (!updatedDocUrl) {
         clearProfileDocuments(userId);
+        setDocuments([]);
       }
+
+      // Save to DB via completeUserProfile
+      await completeUserProfile({
+        idDocument: updatedDocUrl || null,
+      }).catch(() => undefined);
 
       // Trigger global event so previews everywhere update instantly
       if (typeof window !== "undefined") {

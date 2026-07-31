@@ -14,6 +14,31 @@ import { UserActionModal } from "./UserActionModal"
 import { useAppSelector } from "@/src/core/store/hooks"
 import { toast } from "sonner"
 
+function clearAllUserStorage(userId: string) {
+    if (typeof window === "undefined" || !userId) return;
+    try {
+        const OVERRIDES_STORAGE_KEY = "user_profile_overrides_v2";
+        const DOCUMENTS_STORAGE_KEY = "user_profile_documents_v2";
+        
+        const rawO = localStorage.getItem(OVERRIDES_STORAGE_KEY);
+        if (rawO) {
+            const allO = JSON.parse(rawO);
+            delete allO[userId];
+            localStorage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify(allO));
+        }
+        
+        const rawD = localStorage.getItem(DOCUMENTS_STORAGE_KEY);
+        if (rawD) {
+            const allD = JSON.parse(rawD);
+            delete allD[userId];
+            localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(allD));
+        }
+
+        localStorage.removeItem("vero_kyc_sync");
+        localStorage.removeItem("vero_profile_sync");
+    } catch {}
+}
+
 type BackendUser = {
     userId: string
     accountType?: string
@@ -188,11 +213,22 @@ const AllUserTable: React.FC = () => {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || "Failed to delete");
             }
-            // Invalidate React Query cache — table will refetch on next render
+            // Invalidate React Query caches for both admin users and kyc queue
             queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+            queryClient.invalidateQueries({ queryKey: ["admin", "kyc-queue"] });
             toast.success("User account permanently deleted.");
-            // Notify KYC queue, affiliate/business tables, etc.
+            
+            // Clear local storage overrides & broadcast deletion to all windows/tabs
+            clearAllUserStorage(userId);
             window.dispatchEvent(new CustomEvent("vero:user_deleted", { detail: { userId } }));
+            window.dispatchEvent(new CustomEvent("vero:kyc_updated", { detail: { userId, kycStatus: "none" } }));
+            try {
+              if ("BroadcastChannel" in window) {
+                const bc = new BroadcastChannel("vero_channel");
+                bc.postMessage({ type: "vero:kyc_updated", userId, kycStatus: "none" });
+                bc.close();
+              }
+            } catch {}
         } catch (e: any) {
             toast.error(e.message || "Failed to delete user");
         }
