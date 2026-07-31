@@ -6,12 +6,12 @@ import { toast } from "sonner";
 import { Check, ChevronDown, User, ShieldCheck, FileText, Upload, AlertCircle, ImageIcon, Trash2, Eye, X, Loader2 } from "lucide-react";
 import SelectDropdown from "@/src/shared/components/SelectDropdown";
 import { useUser } from "@/src/context/user.provider";
-import { useProfileDisplay } from "../../hooks/use-profile-display";
+import { useProfileDisplay, PROFILE_UPDATED_EVENT } from "../../hooks/use-profile-display";
 import { ALL_COUNTRIES, ALL_NATIONALITIES, CURRENCY_LIST } from "@/src/shared/constants/countries";
 import { markProfileComplete, type ProfileAccountType } from "@/src/shared/lib/profile-completion";
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
-import { getProfileOverrides, setProfileDocument, clearProfileDocuments } from "@/src/shared/utils/profile-storage";
+import { getProfileOverrides, saveProfileOverrides, setProfileDocument, clearProfileDocuments } from "@/src/shared/utils/profile-storage";
 import UploadDocumentModal from "@/src/shared/components/UploadDocumentModal";
 
 export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange?: () => void } = {}) {
