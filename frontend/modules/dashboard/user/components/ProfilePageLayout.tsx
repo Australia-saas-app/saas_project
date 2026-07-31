@@ -242,6 +242,7 @@ export default function ProfilePageLayout() {
           nationality,
           dateOfBirth,
           nationalIdentity,
+          permanentAddress,
           avatarUrl,
           documentUrl,
           documentFrontUrl,

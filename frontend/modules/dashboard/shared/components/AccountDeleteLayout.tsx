@@ -44,7 +44,11 @@ export default function AccountDeleteLayout() {
 
     setIsVerifying(true)
     try {
-      await verifyAccountPassword(email, password)
+      const res = await verifyAccountPassword(email, password)
+      if (!res.success) {
+        toast.error(res.message || "Incorrect password. Please enter your valid account password.")
+        return
+      }
       // Password is valid -> Open confirmation popup modal!
       setConfirmOpen(true)
     } catch {
@@ -91,16 +95,16 @@ export default function AccountDeleteLayout() {
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-card shadow-sm">
+    <div className="flex justify-center px-4 py-6">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-card shadow-sm">
         {/* Header */}
         <div className="border-b border-red-100 dark:border-red-950/40 bg-gradient-to-r from-red-50 to-white dark:from-red-950/20 dark:to-card px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">
-              <ShieldAlert className="h-6 w-6" />
+              <ShieldAlert className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-foreground">Delete Account</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground">Delete Account</h3>
               <p className="mt-0.5 text-xs text-gray-500 dark:text-muted-foreground">
                 Permanently delete your profile and account data.
               </p>
@@ -108,13 +112,13 @@ export default function AccountDeleteLayout() {
           </div>
         </div>
 
-        <div className="space-y-5 p-6 sm:p-8">
+        <div className="space-y-5 p-6 md:p-8">
           <div className="rounded-xl border border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-3.5 text-xs font-medium text-amber-900 dark:text-amber-200 leading-relaxed">
             ⚠️ Permanently removes your profile, KYC documents, wallet activity, and account data.
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Confirm your password
             </label>
             <div className="relative">
@@ -122,7 +126,7 @@ export default function AccountDeleteLayout() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 transition-all pr-10"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 transition-all pr-10"
                 placeholder="Enter current password"
               />
               <button
@@ -136,13 +140,13 @@ export default function AccountDeleteLayout() {
             </div>
           </div>
 
-          {/* Delete Button (Cancel Button Removed) */}
-          <div className="pt-2">
+          {/* Delete Button in Right Corner (Cancel Button Removed) */}
+          <div className="flex justify-end pt-2">
             <button
               type="button"
               disabled={!password.trim() || isDemo || isVerifying}
               onClick={handleDeleteClick}
-              className="w-full rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
               {isVerifying ? (
                 <>

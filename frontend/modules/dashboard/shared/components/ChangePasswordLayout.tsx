@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Lock } from "lucide-react"
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
 import { changeRegisteredPassword } from "@/src/server/AuthService"
@@ -62,13 +62,17 @@ export default function ChangePasswordLayout() {
         currentPassword,
         newPassword,
       })
+      if (!result.success) {
+        toast.error(result.message || "Current password is incorrect.")
+        return
+      }
       toast.success(result.message ?? "Password updated successfully.")
       // Clear fields upon successful password update
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (error: any) {
-      toast.error(error?.message || "Failed to change password. Please check your current password.")
+      toast.error(error?.message || "Current password is incorrect.")
     } finally {
       setSaving(false)
     }
@@ -76,24 +80,17 @@ export default function ChangePasswordLayout() {
 
   return (
     <div className="flex justify-center px-4 py-6">
-      <div className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-card p-6 shadow-sm sm:p-8">
-        <div className="mb-6 flex items-center gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Lock className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-foreground">Change Password</h3>
-            <p className="text-xs text-gray-500 dark:text-muted-foreground mt-0.5">
-              Update your account password securely.
-            </p>
-          </div>
-        </div>
+      <div className="w-full max-w-lg rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-card p-6 shadow-sm md:p-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground">Change Password</h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-muted-foreground">
+          Use at least 8 characters with a mix of letters and numbers.
+        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           {/* 1. Current Password */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
-              Current Password
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Current password
             </label>
             <div className="relative">
               <input
@@ -101,7 +98,7 @@ export default function ChangePasswordLayout() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
-                className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-10"
               />
               <button
                 type="button"
@@ -116,8 +113,8 @@ export default function ChangePasswordLayout() {
 
           {/* 2. New Password */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
-              New Password
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              New password
             </label>
             <div className="relative">
               <input
@@ -125,7 +122,7 @@ export default function ChangePasswordLayout() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
-                className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-10"
               />
               <button
                 type="button"
@@ -136,26 +133,21 @@ export default function ChangePasswordLayout() {
                 {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-          </div>
 
-          {/* Password Requirements Green Ticks */}
-          <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 p-3.5">
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-              Password Requirements:
-            </p>
-            <div className="grid grid-cols-2 gap-2">
+            {/* Password Requirements as simple inline row */}
+            <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
               {passwordRequirements.map((req, i) => (
                 <div key={i} className="flex items-center gap-1.5 text-xs">
                   {req.met ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-500 shrink-0" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                    <XCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   )}
                   <span
                     className={
                       req.met
-                        ? "font-semibold text-emerald-600 dark:text-emerald-500"
-                        : "text-slate-500 dark:text-slate-400"
+                        ? "font-medium text-emerald-600 dark:text-emerald-500"
+                        : "text-muted-foreground"
                     }
                   >
                     {req.label}
@@ -167,16 +159,16 @@ export default function ChangePasswordLayout() {
 
           {/* 3. Confirm Password */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
-              Confirm New Password
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Confirm new password
             </label>
             <div className="relative">
               <input
                 type={showConfirm ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
-                className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
+                placeholder="Confirm new password"
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-background px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-10"
               />
               <button
                 type="button"
@@ -189,15 +181,15 @@ export default function ChangePasswordLayout() {
             </div>
           </div>
 
-          {/* Submit Button (Cancel Removed) */}
-          <div className="pt-2">
+          {/* Submit Button in Right Corner (No Cancel) */}
+          <div className="flex justify-end pt-2">
             <button
               type="submit"
               disabled={saving || !allReqsMet}
-              className="w-full rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span>{saving ? "Changing Password..." : "Change Password"}</span>
+              <span>{saving ? "Changing password..." : "Change password"}</span>
             </button>
           </div>
         </form>

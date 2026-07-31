@@ -250,10 +250,10 @@ export const changeRegisteredPassword = async (input: {
   newPassword: string;
 }) => {
   if (input.newPassword !== input.newPassword.trim()) {
-    throw new Error("Password cannot contain leading or trailing spaces");
+    return { success: false, message: "Password cannot contain leading or trailing spaces" };
   }
   if (input.newPassword.length < 8) {
-    throw new Error("New password must be at least 8 characters");
+    return { success: false, message: "New password must be at least 8 characters" };
   }
 
   try {
@@ -263,8 +263,9 @@ export const changeRegisteredPassword = async (input: {
       newPassword: input.newPassword,
     });
     return { success: true, message: data.message || "Password updated successfully" };
-  } catch (error: unknown) {
-    throw new Error(parseApiError(error, "Failed to change password"));
+  } catch (error: any) {
+    const msg = error?.response?.data?.message || parseApiError(error, "Current password is incorrect");
+    return { success: false, message: msg };
   }
 };
 
@@ -274,10 +275,13 @@ export const verifyAccountPassword = async (email: string, password: string) => 
       email,
       password,
     });
-    if (!data?.success) throw new Error("Password is incorrect");
-    return { success: true };
-  } catch (error: unknown) {
-    throw new Error(parseApiError(error, "Password is incorrect"));
+    if (!data?.success) {
+      return { success: false, message: data?.message || "Current password is incorrect" };
+    }
+    return { success: true, message: "Password verified" };
+  } catch (error: any) {
+    const msg = error?.response?.data?.message || "Current password is incorrect";
+    return { success: false, message: msg };
   }
 };
 

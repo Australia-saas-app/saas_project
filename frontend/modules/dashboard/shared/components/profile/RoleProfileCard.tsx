@@ -309,6 +309,7 @@ export default function RoleProfileCard({
           email,
           nationality,
           nationalIdentity,
+          permanentAddress,
           avatarUrl,
           documentUrl,
           documentFrontUrl,

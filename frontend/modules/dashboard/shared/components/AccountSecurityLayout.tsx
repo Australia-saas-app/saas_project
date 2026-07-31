@@ -24,17 +24,17 @@ export default function AccountSecurityLayout() {
   }, [email, phone]);
 
   useEffect(() => {
-    const settings = getSecuritySettings();
+    const settings = getSecuritySettings(email);
     setEnabled(settings.twoFactorEnabled);
     setMethod(settings.twoFactorMethod || verifyOptions[0] || "");
-  }, [verifyOptions]);
+  }, [email, verifyOptions]);
 
   const persist = async (nextEnabled: boolean) => {
     setSaving(true);
     saveSecuritySettings({
       twoFactorEnabled: nextEnabled,
       twoFactorMethod: method,
-    });
+    }, email);
     setEnabled(nextEnabled);
     setSaving(false);
     setModalAction(null);
@@ -46,7 +46,7 @@ export default function AccountSecurityLayout() {
   return (
     <div className="flex justify-center px-4 py-6">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-card p-6 sm:p-8 text-center shadow-sm">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center">
             <Shield className="h-14 w-14 stroke-[1.5] text-gray-900" strokeWidth={1.25} />
           </div>
