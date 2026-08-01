@@ -580,15 +580,23 @@ export const applyForKyc = async (userId: string) => {
   }
 };
 
-export const deleteUserAccount = async (userId: string) => {
+export const deleteUserAccount = async (userId?: string) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   try {
-    const { data } = await axiosInstance.delete(`/sso/auth/admin/users/${userId}`, {
+    const endpoint = userId && userId !== "self" ? `/sso/auth/admin/users/${userId}` : `/sso/auth/user/account`;
+    const { data } = await axiosInstance.delete(endpoint, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     return data;
   } catch (error: unknown) {
-    return { success: false, message: parseApiError(error, "Failed to delete user account") };
+    try {
+      const { data } = await axiosInstance.delete("/sso/auth/user/account", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return data;
+    } catch {
+      return { success: false, message: parseApiError(error, "Failed to delete user account") };
+    }
   }
 };

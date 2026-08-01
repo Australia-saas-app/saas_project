@@ -12,6 +12,7 @@ import {
 } from "@/src/shared/utils/profile-storage"
 import { getUserIdFromAuthUser, isDemoAuthUser, getDisplayUserId, getInitials } from "@/src/shared/lib/demo-user"
 import { completeUserProfile } from "@/src/shared/server/AuthService";
+import { getSecuritySettings } from "@/src/shared/lib/security-settings-store";
 
 export const PROFILE_UPDATED_EVENT = "vero:profile_updated";
 
@@ -87,18 +88,12 @@ export function useProfileDisplay() {
   const isDemo = isDemoAuthUser(user)
   const [revision, setRevision] = useState(0)
 
-  // Auto-purge stale local overrides when DB user has no KYC application
+  // Ensure local overrides remain in sync when DB updates
   useEffect(() => {
     if (!rawUserId || !user) return;
     const dbKyc = (user as any).kycStatus ? String((user as any).kycStatus).toLowerCase() : "none";
-    const hasApplication = Boolean((user as any).kycApplicationData);
-    
-    if (!hasApplication && (dbKyc === "none" || dbKyc === "unverified" || !dbKyc)) {
-      const o = getProfileOverrides(rawUserId);
-      if (o.kycStatus === "pending" || o.kycStatus === "submitted") {
-        clearAllUserStorage(rawUserId);
-        setRevision(n => n + 1);
-      }
+    if (dbKyc !== "none" && dbKyc !== "unverified" && dbKyc !== "") {
+      saveProfileOverrides(rawUserId, { kycStatus: dbKyc });
     }
   }, [rawUserId, user]);
 
@@ -377,14 +372,27 @@ export function useProfileDisplay() {
 
   const status = String((user && "status" in user && user.status) ? user.status : (overrides.status ?? "pending")).toLowerCase();
   
-  const hasKycSnap = Boolean((user as any)?.kycApplicationData);
   const dbKycStatus = (user && "kycStatus" in user && user.kycStatus) ? String(user.kycStatus).toLowerCase() : "none";
+  const overrideKyc = (overrides.kycStatus ? String(overrides.kycStatus).toLowerCase() : "");
 
-  const kycStatus = String(
-    hasKycSnap || dbKycStatus === "approved" || dbKycStatus === "rejected" || dbKycStatus === "pending"
-      ? dbKycStatus
-      : (overrides.kycStatus === "pending" && hasKycSnap ? "pending" : "none")
+  const kycStatus = (
+    overrideKyc && overrideKyc !== "none"
+      ? overrideKyc
+      : (dbKycStatus !== "none" ? dbKycStatus : "none")
   ).toLowerCase();
+
+  const twoFactorEnabled =
+    (overrides as any).twoFactorEnabled !== undefined
+      ? Boolean((overrides as any).twoFactorEnabled)
+      : ((user as any)?.twoFactorEnabled !== undefined
+          ? Boolean((user as any).twoFactorEnabled)
+          : getSecuritySettings(email).twoFactorEnabled);
+
+  const twoFactorMethod =
+    (overrides as any).twoFactorMethod ??
+    ((user as any)?.twoFactorMethod
+      ? String((user as any).twoFactorMethod)
+      : getSecuritySettings(email).twoFactorMethod);
   
   // Account status is active if it's active or verified
   const isActive = status === "active" || status === "verified" || status === "approved";
@@ -435,6 +443,8 @@ export function useProfileDisplay() {
     hasCustomAvatar,
     status,
     kycStatus,
+    twoFactorEnabled,
+    twoFactorMethod,
     isActive,
     isKycVerified,
     isVerified: isKycVerified, // backwards compatibility

@@ -36,10 +36,24 @@ export class AuthController {
   @Delete('admin/users/:userId')
   @UseGuards(JwtAuthGuard)
   deleteUser(@Param('userId') userId: string, @Request() req: any) {
-    if (req.user?.role !== 'super_admin') {
-      throw new ForbiddenException('Admin access required');
+    const authUserId = req.user?.userId || req.user?.id || req.user?.sub;
+    if (
+      userId !== authUserId &&
+      req.user?.role !== 'super_admin'
+    ) {
+      throw new ForbiddenException('Admin access or account owner required');
     }
     return this.authService.deleteUser(userId);
+  }
+
+  @Delete('user/account')
+  @UseGuards(JwtAuthGuard)
+  deleteSelfAccount(@Request() req: any) {
+    const authUserId = req.user?.userId || req.user?.id || req.user?.sub;
+    if (!authUserId) {
+      throw new ForbiddenException('Invalid session');
+    }
+    return this.authService.deleteUser(authUserId);
   }
 
   @Post('user/register')
@@ -192,17 +206,18 @@ export class AuthController {
     @Param('userId') userId: string,
     @Request() req: any,
   ) {
-    // Ensure users can only apply for their own KYC unless they are an admin
-    const requesterId = req.user?.id || req.user?.userId || req.user?.sub;
+    const authUserId = req.user?.userId || req.user?.id || req.user?.sub;
+    const targetId = (!userId || userId === 'guest' || userId === 'self') ? authUserId : userId;
+
     if (
-      userId !== req.user?.userId &&
-      userId !== req.user?.id &&
-      userId !== req.user?.sub &&
+      targetId !== req.user?.userId &&
+      targetId !== req.user?.id &&
+      targetId !== req.user?.sub &&
       req.user?.role !== 'super_admin'
     ) {
        throw new ForbiddenException('You can only apply for your own KYC');
     }
-    return this.authService.applyForKyc(userId);
+    return this.authService.applyForKyc(targetId || authUserId);
   }
 
   @Patch('change-password')

@@ -33,12 +33,16 @@ export default function KycApplicationModal({
   const handleApply = async () => {
     setIsApplying(true);
     try {
-      const res = await applyForKyc(user.rawUserId);
+      const targetUid = user.userId || user.id || user.rawUserId || "self";
+      const res = await applyForKyc(targetUid);
       if (res && res.success !== false) {
         toast.success("KYC Application submitted successfully!");
 
-        const uid = user.rawUserId;
+        const uid = user.rawUserId || targetUid;
         saveProfileOverrides(uid, { kycStatus: "pending", resubmitted: true, unverifiedByAdmin: false });
+        if (user.updateProfile) {
+          await user.updateProfile({ kycStatus: "pending" }).catch(() => {});
+        }
 
         // Broadcast to admin side and other tabs
         if (typeof window !== "undefined") {

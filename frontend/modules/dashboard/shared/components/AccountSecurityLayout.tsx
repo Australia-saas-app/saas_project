@@ -26,27 +26,33 @@ export default function AccountSecurityLayout() {
   useEffect(() => {
     const settings = getSecuritySettings(email);
     const db2fa = (user as any)?.twoFactorEnabled;
-    const is2faOn = db2fa !== undefined ? Boolean(db2fa) : settings.twoFactorEnabled;
+    const dbMethod = (user as any)?.twoFactorMethod;
+    const is2faOn = db2fa === true ? true : (db2fa === false ? false : settings.twoFactorEnabled);
     setEnabled(is2faOn);
-    setMethod(settings.twoFactorMethod || verifyOptions[0] || "");
-    if (email && db2fa !== undefined) {
-      saveSecuritySettings({ twoFactorEnabled: is2faOn, twoFactorMethod: settings.twoFactorMethod || verifyOptions[0] || "" }, email);
+
+    if (dbMethod === "email" && email) {
+      setMethod(email);
+    } else if (dbMethod === "phone" && phone) {
+      setMethod(phone);
+    } else if (!method || !verifyOptions.includes(method)) {
+      setMethod(settings.twoFactorMethod || verifyOptions[0] || "");
     }
-  }, [email, verifyOptions, user]);
+  }, [email, phone, user, verifyOptions]);
 
   const persist = async (nextEnabled: boolean) => {
     setSaving(true);
+    setEnabled(nextEnabled);
+    const selectedMethod = method || verifyOptions[0] || "";
     saveSecuritySettings({
       twoFactorEnabled: nextEnabled,
-      twoFactorMethod: method,
+      twoFactorMethod: selectedMethod,
     }, email);
     try {
       await updateProfile({
         twoFactorEnabled: nextEnabled,
-        twoFactorMethod: method,
+        twoFactorMethod: selectedMethod,
       } as any);
     } catch {}
-    setEnabled(nextEnabled);
     setSaving(false);
     setModalAction(null);
     toast.success(

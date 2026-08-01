@@ -916,7 +916,20 @@ export class AuthService {
     assignIf('currency', dto.currency);
     assignIf('passportNumber', dto.passportNumber);
     assignIf('twoFactorEnabled', dto.twoFactorEnabled);
-    assignIf('twoFactorMethod', dto.twoFactorMethod);
+    
+    if (dto.twoFactorMethod !== undefined) {
+      if (!dto.twoFactorMethod) {
+        user.twoFactorMethod = null as unknown as TwoFactorMethod;
+      } else {
+        const val = String(dto.twoFactorMethod).toLowerCase();
+        if (val.includes('@') || val === 'email') {
+          user.twoFactorMethod = TwoFactorMethod.EMAIL;
+        } else {
+          user.twoFactorMethod = TwoFactorMethod.PHONE;
+        }
+      }
+    }
+
     if (dto.dateOfBirth) {
       user.dateOfBirth = new Date(dto.dateOfBirth);
     }
@@ -941,6 +954,8 @@ export class AuthService {
         userId: user.userId,
         status: user.status,
         kycStatus: user.kycStatus,
+        twoFactorEnabled: user.twoFactorEnabled,
+        twoFactorMethod: user.twoFactorMethod,
       },
     };
   }
