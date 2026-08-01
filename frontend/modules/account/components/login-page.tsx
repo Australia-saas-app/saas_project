@@ -126,29 +126,43 @@ export function LoginPage({
     const cleanEmail = (data.email || "").trim().toLowerCase();
     const normalizedData = { ...data, email: cleanEmail };
 
-    const localSec = getSecuritySettings(normalizedData.email);
-    if (localSec.twoFactorEnabled) {
-      setPendingLoginData(normalizedData);
-      sendOtp(normalizedData.email);
-      setIs2faStep(true);
-      setIsVerifyingCreds(false);
-      return;
-    }
-
-    setIsVerifyingCreds(false);
-    loginMutation.mutate(
-      { ...normalizedData, accountType },
-      {
-        onError: (err: any) => {
-          const errMsg = err?.message || "";
-          if (errMsg.includes("mfa_required") || errMsg.includes("OTP required")) {
-            setPendingLoginData(normalizedData);
-            sendOtp(normalizedData.email);
-            setIs2faStep(true);
-          }
-        },
+    try {
+      // 1. Check credentials & backend DB 2FA setting
+      const res = await verifyAccountPassword(normalizedData.email, normalizedData.password);
+      if (!res.success) {
+        toast.error(res.message || "Invalid credentials. Please check your email and password.");
+        setIsVerifyingCreds(false);
+        return;
       }
-    );
+
+      // 2. Check 2FA setting directly from Database (DB)
+      if (res.twoFactorEnabled) {
+        setPendingLoginData(normalizedData);
+        sendOtp(normalizedData.email);
+        setIs2faStep(true);
+        setIsVerifyingCreds(false);
+        return;
+      }
+
+      // 3. Perform login when 2FA is disabled
+      setIsVerifyingCreds(false);
+      loginMutation.mutate(
+        { ...normalizedData, accountType },
+        {
+          onError: (err: any) => {
+            const errMsg = err?.message || "";
+            if (errMsg.includes("mfa_required") || errMsg.includes("OTP required")) {
+              setPendingLoginData(normalizedData);
+              sendOtp(normalizedData.email);
+              setIs2faStep(true);
+            }
+          },
+        }
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Invalid credentials. Please check your email and password.");
+      setIsVerifyingCreds(false);
+    }
   };
 
   const handleVerify2fa = async (e: React.FormEvent) => {

@@ -71,27 +71,18 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
     if (!exp) return;
 
     const msUntilExpiry = exp * 1000 - Date.now();
-    // Refresh 60s early; if already (almost) expired, act immediately.
-    const delay = Math.max(msUntilExpiry - 60_000, 0);
+    // Only schedule refresh if token has more than 60 seconds remaining
+    if (msUntilExpiry <= 60_000) return;
+
+    const delay = msUntilExpiry - 60_000;
 
     const timer = setTimeout(async () => {
       try {
         await getNewAccessToken();
         const userData = await getCurrentUser();
-        setUser(userData);
+        if (userData) setUser(userData);
       } catch {
-        await logout().catch(() => undefined);
-        setUser(null);
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.clear();
-            sessionStorage.clear();
-          } catch {
-            localStorage.removeItem("user_profile_overrides_v2");
-            localStorage.removeItem("user_profile_documents_v2");
-          }
-        }
-        toast.warning("Your session has expired. Please sign in again.");
+        // Silent catch: do not force signout on minor refresh errors
       }
     }, delay);
 

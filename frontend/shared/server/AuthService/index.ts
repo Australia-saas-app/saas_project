@@ -334,6 +334,9 @@ export const loginUser = async (userData: FieldValues) => {
   } catch (error: unknown) {
     console.error("loginUser Error:", error);
     const axiosError = error as any;
+    if (axiosError?.response?.data?.error === "mfa_required" || axiosError?.response?.data?.requiresOtp) {
+      return { success: false, message: "mfa_required", requiresOtp: true };
+    }
     if (axiosError?.response?.status === 403) {
       const errCode = axiosError.response.data?.error;
       if (["pending", "suspended", "dormant", "blocked", "closed"].includes(errCode)) {
