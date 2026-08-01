@@ -123,35 +123,32 @@ export function LoginPage({
     loginMutation.reset();
     setIsVerifyingCreds(true);
 
-    try {
-      // 1. Verify email & password against backend DB
-      const res = await verifyAccountPassword(data.email, data.password);
-      if (!res.success) {
-        toast.error(res.message || "Invalid credentials. Please check your email and password.");
-        setIsVerifyingCreds(false);
-        return;
-      }
+    const cleanEmail = (data.email || "").trim().toLowerCase();
+    const normalizedData = { ...data, email: cleanEmail };
 
-      // 2. Check 2FA setting from backend DB response OR local storage
-      const localSec = getSecuritySettings(data.email);
-      const is2faEnabled = res.twoFactorEnabled || localSec.twoFactorEnabled;
-
-      if (is2faEnabled) {
-        saveSecuritySettings({ twoFactorEnabled: true, twoFactorMethod: res.twoFactorMethod || localSec.twoFactorMethod || "email" }, data.email);
-        setPendingLoginData(data);
-        sendOtp(data.email);
-        setIs2faStep(true);
-        setIsVerifyingCreds(false);
-        return;
-      }
-
-      // 3. Simple login when 2FA is disabled
+    const localSec = getSecuritySettings(normalizedData.email);
+    if (localSec.twoFactorEnabled) {
+      setPendingLoginData(normalizedData);
+      sendOtp(normalizedData.email);
+      setIs2faStep(true);
       setIsVerifyingCreds(false);
-      loginMutation.mutate({ ...data, accountType });
-    } catch (err: any) {
-      toast.error(err?.message || "Invalid credentials. Please check your email and password.");
-      setIsVerifyingCreds(false);
+      return;
     }
+
+    setIsVerifyingCreds(false);
+    loginMutation.mutate(
+      { ...normalizedData, accountType },
+      {
+        onError: (err: any) => {
+          const errMsg = err?.message || "";
+          if (errMsg.includes("mfa_required") || errMsg.includes("OTP required")) {
+            setPendingLoginData(normalizedData);
+            sendOtp(normalizedData.email);
+            setIs2faStep(true);
+          }
+        },
+      }
+    );
   };
 
   const handleVerify2fa = async (e: React.FormEvent) => {

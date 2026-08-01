@@ -273,12 +273,13 @@ export const changeRegisteredPassword = async (input: {
 
 export const verifyAccountPassword = async (email: string, password: string) => {
   try {
+    const cleanEmail = (email || "").trim().toLowerCase();
     const { data } = await axiosInstance.post("/sso/auth/verify-password", {
-      email,
+      email: cleanEmail,
       password,
     });
     if (!data?.success) {
-      return { success: false, message: data?.message || "Current password is incorrect" };
+      return { success: false, message: data?.message || "Invalid email or password" };
     }
     return {
       success: true,
@@ -287,7 +288,7 @@ export const verifyAccountPassword = async (email: string, password: string) => 
       twoFactorMethod: data?.data?.twoFactorMethod ?? "",
     };
   } catch (error: any) {
-    const msg = error?.response?.data?.message || "Current password is incorrect";
+    const msg = parseApiError(error, "Invalid email or password");
     return { success: false, message: msg };
   }
 };
@@ -530,7 +531,7 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
     for (const [k, v] of Object.entries(payload)) {
       // Skip client-side-only helper fields not part of backend user entity
       if (k === "avatarUrl" || k === "documentUrl" || k === "resubmitted" ||
-          k === "accountLabel" || k === "secondaryEmail" || k === "countryCode") continue;
+        k === "accountLabel" || k === "secondaryEmail" || k === "countryCode") continue;
       if (v !== undefined && v !== null) {
         safePayload[k] = v;
       }
@@ -539,7 +540,7 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
     const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", safePayload, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    
+
     // Update the user cookie with light payload fields so refreshUser sees them immediately.
     // CRITICAL: Strip profilePhoto and idDocument from cookieStore to prevent HTTP header size overflow.
     if (data?.success) {
@@ -559,10 +560,10 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
           delete updatedUser.avatarUrl;
           delete updatedUser.documentUrl;
           cookieStore.set("user", JSON.stringify(updatedUser), getCookieOptions(false));
-        } catch {}
+        } catch { }
       }
     }
-    
+
     return data;
   } catch (error: unknown) {
     return { success: false, message: parseApiError(error, "Failed to update profile") };

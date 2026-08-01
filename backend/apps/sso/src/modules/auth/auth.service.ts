@@ -679,9 +679,15 @@ export class AuthService {
       throw new BadRequestException('User identifier is required');
     }
 
-    const user = await this.userRepository.findOne({
+    let user: any = await this.userRepository.findOne({
       where: whereConditions.length === 1 ? whereConditions[0] : whereConditions,
     });
+
+    if (!user && normalizedEmail) {
+      user = await this.adminRepository.findOne({
+        where: { email: normalizedEmail },
+      });
+    }
 
     if (!user) {
       throw new NotFoundException('User not found');
