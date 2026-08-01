@@ -75,6 +75,11 @@ export function isUnauthorizedError(error: unknown): boolean {
 }
 
 export function getLoginErrorMessage(error: unknown): string {
+  const parsed = parseApiError(error, AUTH_MESSAGES.loginFailed);
+  if (parsed.toLowerCase().includes("otp") || parsed.toLowerCase().includes("verification") || parsed.toLowerCase().includes("code")) {
+    return parsed;
+  }
+
   if (isUnauthorizedError(error)) {
     return AUTH_MESSAGES.invalidCredentials;
   }
@@ -88,7 +93,6 @@ export function getLoginErrorMessage(error: unknown): string {
     return AUTH_MESSAGES.serviceUnavailable;
   }
 
-  const parsed = parseApiError(error, AUTH_MESSAGES.loginFailed);
   if (parsed.toLowerCase().includes("timeout")) {
     return AUTH_MESSAGES.invalidCredentials;
   }

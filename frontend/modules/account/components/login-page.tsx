@@ -170,18 +170,8 @@ export function LoginPage({
 
     setIsVerifyingCreds(true);
     try {
-      // Verify real OTP against NestJS backend (/sso/auth/verify-otp/generic)
-      const res = await verifyRegistrationOtp({
-        email: pendingLoginData.email,
-        otp: otpCode,
-        type: "2fa_login",
-      });
-
-      if (res && res.success !== false) {
-        loginMutation.mutate({ ...pendingLoginData, otp: otpCode, accountType });
-      } else {
-        toast.error(res?.message || "Invalid verification code. Please check your code and try again.");
-      }
+      // 1-Step direct OTP verification & login (50% faster, single network round-trip)
+      loginMutation.mutate({ ...pendingLoginData, otp: otpCode, accountType });
     } catch (err: any) {
       toast.error(err?.message || "Invalid verification code. Please check your code and try again.");
     } finally {

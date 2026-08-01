@@ -129,8 +129,11 @@ export function proxy(request: NextRequest) {
   }
 
   if (isAuthRoute && isAuthenticated && !isAuthRouteException(pathname)) {
-    const dashboard = getDashboardForRole(payload?.role);
-    return NextResponse.redirect(new URL(dashboard, request.url));
+    const role = (payload?.role || "").toUpperCase();
+    if (role === "ADMIN" || role === "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (isAuthenticated && isRoleScopedDashboardRoute(pathname)) {
