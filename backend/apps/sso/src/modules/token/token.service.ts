@@ -281,7 +281,8 @@ export class TokenService {
       });
     }
 
-    const otpKey = `otp:${contact}:login`;
+    const otpKey = `otp:${contact}:2fa_login`;
+    const fallbackKey = `otp:${contact}:login`;
 
     if (!otp) {
       const generatedOtp = this.otpUtil.generateOTP(6, contact);
@@ -302,7 +303,11 @@ export class TokenService {
       });
     }
 
-    const isValid = await this.otpUtil.verifyOTP(this.redisClient, otpKey, otp);
+    let isValid = await this.otpUtil.verifyOTP(this.redisClient, otpKey, otp, false);
+    if (!isValid) {
+      isValid = await this.otpUtil.verifyOTP(this.redisClient, fallbackKey, otp, false);
+    }
+
     if (!isValid) {
       throw new UnauthorizedException({
         error: 'invalid_otp',

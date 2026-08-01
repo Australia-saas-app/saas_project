@@ -99,7 +99,11 @@ export function LoginPage({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+
   const sendOtp = async (userEmail: string) => {
+    if (isSendingOtp) return;
+    setIsSendingOtp(true);
     setTimeLeft(179);
     try {
       const res = await sendRegistrationOtp({ email: userEmail, type: "2fa_login" });
@@ -110,6 +114,8 @@ export function LoginPage({
       }
     } catch {
       toast.error(`Failed to send verification code to ${userEmail}`);
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
@@ -252,7 +258,7 @@ export function LoginPage({
             <div className="text-center">
               <button
                 type="button"
-                disabled={timeLeft > 0 || loginMutation.isPending}
+                disabled={timeLeft > 0 || loginMutation.isPending || isSendingOtp}
                 onClick={() => {
                   if (pendingLoginData?.email) {
                     sendOtp(pendingLoginData.email);
