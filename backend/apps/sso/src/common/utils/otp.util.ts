@@ -60,11 +60,18 @@ export class OtpUtil {
     return true;
   }
 
-  async sendOTPEmail(email: string, otp: string) {
+  async sendOTPEmail(email: string, otp: string, type: string = 'verification') {
     if (email === 'superadmin@systemdb.com') {
       Logger.log(`OTP for ${email}: ${otp} (Bypassed real email for superadmin)`, "OtpUtil");
       return { success: true, messageId: 'mock-superadmin-id' };
     }
+
+    const is2FA = type?.toLowerCase().includes('2fa') || type?.toLowerCase().includes('two');
+    const titleText = is2FA ? "Two-Factor Authentication (2FA)" : "One-Time Password (OTP) Verification";
+    const subjectText = is2FA ? "Your Two-Factor Authentication (2FA) Code - Vero" : "Your OTP Verification Code";
+    const descText = is2FA
+      ? "You are receiving this security code to complete Two-Factor Authentication (2FA) for your Vero account."
+      : "You requested a one-time password to verify your identity on Vero Platform.";
 
     try {
       const fromEmail = this.configService.get(
@@ -77,7 +84,7 @@ export class OtpUtil {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Vero - OTP Verification</title>
+          <title>Vero - ${titleText}</title>
           <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -93,11 +100,11 @@ export class OtpUtil {
           <div class="container">
             <div class="header">
               <div class="logo">Vero</div>
-              <h2>One-Time Password (OTP) Verification</h2>
+              <h2>${titleText}</h2>
             </div>
             
             <p>Hello,</p>
-            <p>You requested a one-time password to verify your identity on Vero Platform. Your OTP code is:</p>
+            <p>${descText} Your security code is:</p>
             
             <div class="otp-box">
               <div class="otp-code">${otp}</div>
@@ -106,10 +113,10 @@ export class OtpUtil {
             
             <div class="warning">
               <strong>⚠️ Security Notice:</strong><br>
-              Never share this OTP with anyone. Our team will never ask for your OTP via phone or email.
+              Never share this security code with anyone. Our team will never ask for your 2FA code via phone or email.
             </div>
             
-            <p>If you didn't request this OTP, please ignore this email or contact our support team.</p>
+            <p>If you didn't request this code, please secure your account immediately or contact support.</p>
             
             <div class="footer">
               <p>© 2026 Vero Platform. All rights reserved.</p>
@@ -121,20 +128,20 @@ export class OtpUtil {
       `;
 
       const textContent = `
-          Vero Platform - OTP Verification
+          Vero Platform - ${titleText}
 
           Hello,
 
-          You requested a one-time password to verify your identity on Vero2 Platform.
+          ${descText}
 
-          Your OTP code is: ${otp}
+          Your security code is: ${otp}
 
           This code will expire in ${Math.floor(this.ttlSeconds / 60)} minutes.
 
           ⚠️ Security Notice:
-          Never share this OTP with anyone. Our team will never ask for your OTP via phone or email.
+          Never share this security code with anyone. Our team will never ask for your 2FA code via phone or email.
 
-          If you didn't request this OTP, please ignore this email or contact our support team.
+          If you didn't request this code, please secure your account immediately.
 
           © 2026 Vero Platform. All rights reserved.
           This is an automated message. Please do not reply to this email.
@@ -143,7 +150,7 @@ export class OtpUtil {
       const mailOptions = {
         from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
         to: email,
-        subject: "Your OTP Verification Code",
+        subject: subjectText,
         text: textContent,
         html: htmlContent,
       };

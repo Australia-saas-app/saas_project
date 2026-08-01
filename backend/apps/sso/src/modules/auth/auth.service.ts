@@ -618,7 +618,7 @@ export class AuthService {
     await this.otpUtil.storeOTP(this.redisClient, otpKey, otp);
 
     if (normalizedEmail) {
-      await this.otpUtil.sendOTPEmail(normalizedEmail, otp);
+      await this.otpUtil.sendOTPEmail(normalizedEmail, otp, type);
     } else if (normalizedPhone) {
       await this.otpUtil.sendOTPSMS(normalizedPhone, otp);
     }
