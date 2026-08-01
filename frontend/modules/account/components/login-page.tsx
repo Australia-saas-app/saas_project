@@ -168,10 +168,16 @@ export function LoginPage({
     setIsVerifyingCreds(true);
     try {
       toast.success("OTP Verified Successfully");
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("show_login_success_toast", "true");
+      }
       loginMutation.mutate(
         { ...pendingLoginData, otp: otpCode, accountType },
         {
-          onSettled: () => {
+          onError: () => {
+            if (typeof window !== "undefined") {
+              sessionStorage.removeItem("show_login_success_toast");
+            }
             setIsVerifyingCreds(false);
           },
         }

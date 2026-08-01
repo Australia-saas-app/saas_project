@@ -52,6 +52,15 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     setStorageUserScope(getUserIdFromAuthUser(user));
+    if (typeof window !== "undefined") {
+      try {
+        const flag = sessionStorage.getItem("show_login_success_toast");
+        if (flag) {
+          sessionStorage.removeItem("show_login_success_toast");
+          toast.success("Login Successfully");
+        }
+      } catch {}
+    }
   }, [user]);
 
   // Auto logout / silent refresh: schedule a timer slightly before the JWT

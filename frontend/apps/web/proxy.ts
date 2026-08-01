@@ -1,82 +1,11 @@
-/**
- * Next.js Proxy – Route Protection & RBAC
- *
- * Replaces the deprecated middleware.ts convention (Next.js 16+).
- * Primary runtime target is Node (standalone / GCP VM).
- */
 import { NextRequest, NextResponse } from "next/server";
-
-const PROTECTED_PREFIXES = ["/dashboard", "/affiliate", "/user", "/business"];
-
-const AUTH_PREFIXES = ["/account"];
-
-/** Auth pages that remain accessible while logged in. */
-const AUTH_ROUTE_EXCEPTIONS: string[] = [];
-
-function isAuthRouteException(pathname: string): boolean {
-  if (AUTH_ROUTE_EXCEPTIONS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    return true;
-  }
-  return /^\/account\/(user|affiliate|business)\/pending-verification$/.test(pathname);
-}
-
-/** Public paths that require authentication (business-only where noted). */
-const AUTH_GATED_PATHS = ["/courses/create"];
-
-type UserRole = "USER" | "BUYER" | "SELLER" | "AFFILIATE" | "AGENCY" | "ADMIN" | "SUPER_ADMIN" | "BUSINESS" | string;
-
-const ROLE_DASHBOARD_PREFIX: Record<string, string> = {
-  AFFILIATE: "/dashboard/affiliate",
-  AGENCY: "/dashboard/affiliate",
-  BUSINESS: "/dashboard/business",
-  SELLER: "/dashboard/business",
-  USER: "/dashboard/user",
-  BUYER: "/dashboard/user",
-};
-
-function getDashboardForRole(role?: UserRole): string {
-  const normalized = (role || "").toUpperCase();
-  if (normalized.includes("AFFILIATE") || normalized.includes("AGENCY")) return "/dashboard/affiliate/dashboard";
-  if (normalized.includes("BUSINESS") || normalized.includes("SELLER")) return "/dashboard/business/dashboard";
-  return "/dashboard/user/dashboard";
-}
-
-function getDashboardPrefixForRole(role?: UserRole): string {
-  const normalized = (role || "").toUpperCase();
-  if (normalized.includes("AFFILIATE") || normalized.includes("AGENCY")) return "/dashboard/affiliate";
-  if (normalized.includes("BUSINESS") || normalized.includes("SELLER")) return "/dashboard/business";
-  return "/dashboard/user";
-}
-
-function isBusinessRole(role?: UserRole): boolean {
-  const normalized = (role || "").toUpperCase();
-  return normalized === "SELLER" || normalized === "BUSINESS";
-}
-
-function isRoleScopedDashboardRoute(pathname: string): boolean {
-  return (
-    pathname === "/dashboard" ||
-    pathname.startsWith("/dashboard/") ||
-    pathname === "/affiliate" ||
-    pathname.startsWith("/affiliate/") ||
-    pathname === "/user" ||
-    pathname.startsWith("/user/") ||
-    pathname === "/business" ||
-    pathname.startsWith("/business/")
-  );
-}
 
 interface JwtPayload {
   id?: string;
   sub?: string;
-  role?: UserRole;
-  accountType?: UserRole;
+  role?: string;
+  accountType?: string;
   exp?: number;
-}
-
-function getUserRoleFromPayload(payload: JwtPayload | null): string {
-  if (!payload) return "";
-  return String(payload.role || payload.accountType || "").toUpperCase();
 }
 
 function decodeJwtPayload(token: string): JwtPayload | null {
@@ -97,14 +26,33 @@ function isTokenExpired(payload: JwtPayload): boolean {
   return Date.now() / 1000 > payload.exp;
 }
 
-function matchesPrefix(pathname: string, prefixes: string[]): boolean {
-  return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p));
+function getUserRole(payload: JwtPayload | null): string {
+  if (!payload) return "";
+  return String(payload.role || payload.accountType || "").toUpperCase();
+}
+
+function getDashboardPrefixForRole(role: string): string {
+  if (role.includes("AFFILIATE") || role.includes("AGENCY")) return "/dashboard/affiliate";
+  if (role.includes("BUSINESS") || role.includes("SELLER")) return "/dashboard/business";
+  return "/dashboard/user";
+}
+
+function getDashboardForRole(role: string): string {
+  if (role.includes("AFFILIATE") || role.includes("AGENCY")) return "/dashboard/affiliate/dashboard";
+  if (role.includes("BUSINESS") || role.includes("SELLER")) return "/dashboard/business/dashboard";
+  return "/dashboard/user/dashboard";
 }
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (matchesPrefix(pathname, ["/_next", "/favicon", "/api", "/newLogo", "/placeholder"])) {
+  // 1. Bypass static assets, images, and API routes instantly for maximum performance
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/favicon") ||
+    pathname.includes(".")
+  ) {
     return NextResponse.next();
   }
 
@@ -119,36 +67,31 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  const isProtectedRoute = matchesPrefix(pathname, PROTECTED_PREFIXES);
-  const isAuthRoute = matchesPrefix(pathname, AUTH_PREFIXES);
-  const isAuthGatedPublic = matchesPrefix(pathname, AUTH_GATED_PATHS);
+  const isProtectedRoute =
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/user" ||
+    pathname.startsWith("/user/") ||
+    pathname === "/affiliate" ||
+    pathname.startsWith("/affiliate/") ||
+    pathname === "/business" ||
+    pathname.startsWith("/business/");
 
-  if ((isProtectedRoute || isAuthGatedPublic) && !isAuthenticated) {
+  // 2. Unauthenticated protection: redirect to login
+  if (isProtectedRoute && !isAuthenticated) {
     const loginUrl = new URL("/account/user/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  const userRole = getUserRoleFromPayload(payload);
-
-  if (isAuthGatedPublic && isAuthenticated) {
-    if (!isBusinessRole(userRole)) {
-      return NextResponse.redirect(new URL("/courses", request.url));
-    }
-    return NextResponse.redirect(new URL("/business/courses/create", request.url));
-  }
-
-  if (isAuthRoute && isAuthenticated && !isAuthRouteException(pathname)) {
-    if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-    }
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  if (isAuthenticated && isRoleScopedDashboardRoute(pathname)) {
-    const allowedPrefix = getDashboardPrefixForRole(userRole);
-    if (!pathname.startsWith(allowedPrefix)) {
-      return NextResponse.redirect(new URL(getDashboardForRole(userRole), request.url));
+  // 3. RBAC: Enforce role-scoped dashboard isolation for authenticated users
+  if (isAuthenticated && pathname.startsWith("/dashboard/")) {
+    const role = getUserRole(payload);
+    if (role && role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      const allowedPrefix = getDashboardPrefixForRole(role);
+      if (!pathname.startsWith(allowedPrefix)) {
+        return NextResponse.redirect(new URL(getDashboardForRole(role), request.url));
+      }
     }
   }
 

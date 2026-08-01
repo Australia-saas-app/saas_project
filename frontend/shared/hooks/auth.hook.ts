@@ -88,9 +88,9 @@ export const useUserRegistration = () => {
 export const getDashboardRedirect = (role?: string, userId?: string) => {
     const normalized = (role || "").toLowerCase();
     if (normalized === "admin" || normalized === "super_admin") return adminAppPath("/admin/dashboard");
-
-    // All registered users (User, Business, Affiliate) land on homepage landing page to see the header profile pill
-    return ROUTES.home;
+    if (normalized.includes("affiliate") || normalized.includes("agency")) return "/dashboard/affiliate/dashboard";
+    if (normalized.includes("business") || normalized.includes("seller")) return "/dashboard/business/dashboard";
+    return "/dashboard/user/dashboard";
 };
 
 export const useUserLogin = (redirectUrl?: string | null) => {
@@ -115,7 +115,9 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             const userId = userObj?.id || userObj?.userId || decoded?.id;
             const redirectTo = resolvePostLoginRedirect(redirectUrl, getDashboardRedirect(role, userId));
 
-            toast.success('Login Successfully');
+            if (typeof window !== "undefined") {
+                sessionStorage.setItem("show_login_success_toast", "true");
+            }
             activityLog.record("USER_LOGIN", { role });
             await refreshUser().catch(() => {});
 
