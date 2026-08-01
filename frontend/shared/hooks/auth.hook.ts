@@ -107,17 +107,23 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             return result as AuthResponse;
         },
         onSuccess: async (data) => {
-            toast.success('Login Successfully');
-            activityLog.record("USER_LOGIN", { role: data?.data?.user?.role });
-            await refreshUser();
-            const role = data?.data?.user?.role ?? (decodeJwt(data?.data?.token)?.role);
-            const userId = data?.data?.user?.id ?? decodeJwt(data?.data?.token)?.id
+            const dataAny = (data?.data || data) as any;
+            const userObj = dataAny?.user;
+            const tokenStr = dataAny?.access_token || dataAny?.accessToken || dataAny?.token;
+            const decoded = tokenStr ? decodeJwt(tokenStr) : null;
+            const role = userObj?.role || userObj?.accountType || decoded?.role || "user";
+            const userId = userObj?.id || userObj?.userId || decoded?.id;
             const redirectTo = resolvePostLoginRedirect(redirectUrl, getDashboardRedirect(role, userId));
-            router.refresh();
+
+            toast.success('Login Successfully');
+            activityLog.record("USER_LOGIN", { role });
+            await refreshUser().catch(() => {});
+
             if (typeof window !== "undefined") {
                 window.location.assign(redirectTo);
                 return;
             }
+            router.refresh();
             router.push(redirectTo);
         },
         onError: (error) => {
