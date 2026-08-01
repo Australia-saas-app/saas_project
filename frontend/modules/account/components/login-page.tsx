@@ -22,7 +22,7 @@ import { AccountTypeTabs } from "./account-type-tabs";
 import { UserStatusModal, type UserStatus } from "./UserStatusModal";
 import { OtpInput } from "./OtpInput";
 import { getSecuritySettings, saveSecuritySettings } from "@/src/shared/lib/security-settings-store";
-import { verifyAccountPassword, sendRegistrationOtp } from "@/src/server/AuthService";
+import { verifyAccountPassword, sendRegistrationOtp, verifyRegistrationOtp } from "@/src/server/AuthService";
 
 const loginSchema = z.object({
   email: z
@@ -66,7 +66,6 @@ export function LoginPage({
   const [pendingLoginData, setPendingLoginData] = useState<LoginFormValues | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
-  const [generatedOtp, setGeneratedOtp] = useState("123456");
   const [timeLeft, setTimeLeft] = useState(179);
   const [isVerifyingCreds, setIsVerifyingCreds] = useState(false);
 
@@ -116,7 +115,6 @@ export function LoginPage({
 
   const onSubmit = async (data: LoginFormValues) => {
     loginMutation.reset();
-    setOtpError(null);
     setIsVerifyingCreds(true);
 
     try {
@@ -150,23 +148,44 @@ export function LoginPage({
     }
   };
 
-  const handleVerify2fa = (e: React.FormEvent) => {
+  const handleVerify2fa = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOtpError(null);
 
     if (otpCode.length !== 6) {
-      setOtpError("Please enter the complete 6-digit verification code");
+      toast.error("Please enter the complete 6-digit verification code");
       return;
     }
 
-    // Verify OTP matching (or demo fallback)
-    if (otpCode === generatedOtp || otpCode === "123456") {
-      if (pendingLoginData) {
+    if (!pendingLoginData) {
+      toast.error("Session expired. Please log in again.");
+      setIs2faStep(false);
+      return;
+    }
+
+    setIsVerifyingCreds(true);
+    try {
+      // Demo code override "123456" for instant testing
+      if (otpCode === "123456") {
         loginMutation.mutate({ ...pendingLoginData, accountType });
+        return;
       }
-    } else {
-      setOtpError("Invalid verification code. Please check your code and try again.");
-      toast.error("Invalid verification code");
+
+      // Verify OTP against NestJS backend (/sso/auth/verify-otp/generic)
+      const res = await verifyRegistrationOtp({
+        email: pendingLoginData.email,
+        otp: otpCode,
+        type: "2fa_login",
+      });
+
+      if (res && res.success !== false) {
+        loginMutation.mutate({ ...pendingLoginData, accountType });
+      } else {
+        toast.error(res?.message || "Invalid verification code. Please check your code and try again.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Invalid verification code. Please check your code and try again.");
+    } finally {
+      setIsVerifyingCreds(false);
     }
   };
 
@@ -207,7 +226,6 @@ export function LoginPage({
               onClick={() => {
                 setIs2faStep(false);
                 setOtpCode("");
-                setOtpError(null);
               }}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted/30 text-foreground hover:bg-muted transition-all"
               title="Back to login"
@@ -230,19 +248,12 @@ export function LoginPage({
               <OtpInput
                 value={otpCode}
                 onChange={(val) => {
-                  setOtpError(null);
                   setOtpCode(val);
                 }}
                 length={6}
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || isVerifyingCreds}
               />
             </div>
-
-            {otpError && (
-              <p className="text-center text-xs font-semibold text-red-600 dark:text-red-400">
-                {otpError}
-              </p>
-            )}
 
             <div className="text-center">
               <button

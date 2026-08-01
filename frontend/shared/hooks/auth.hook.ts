@@ -85,12 +85,12 @@ export const useUserRegistration = () => {
     })
 }
 
-const getDashboardRedirect = (role?: string, userId?: string) => {
-    const normalized = role?.toUpperCase();
-    if (normalized === "ADMIN" || normalized === "SUPER_ADMIN") return adminAppPath("/admin/dashboard");
-
-    // All registered users (User, Business, Affiliate) land on homepage to see the header profile pill
-    return ROUTES.home;
+export const getDashboardRedirect = (role?: string, userId?: string) => {
+    const normalized = (role || "").toLowerCase();
+    if (normalized === "admin" || normalized === "super_admin") return adminAppPath("/admin/dashboard");
+    if (normalized.includes("affiliate") || normalized.includes("agency")) return "/dashboard/affiliate/dashboard";
+    if (normalized.includes("business") || normalized.includes("seller")) return "/dashboard/business/dashboard";
+    return "/dashboard/user/dashboard";
 };
 
 export const useUserLogin = (redirectUrl?: string | null) => {

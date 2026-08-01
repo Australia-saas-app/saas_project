@@ -23,25 +23,29 @@ function isAuthRouteException(pathname: string): boolean {
 /** Public paths that require authentication (business-only where noted). */
 const AUTH_GATED_PATHS = ["/courses/create"];
 
-type UserRole = "USER" | "BUYER" | "SELLER" | "AFFILIATE" | "ADMIN" | "SUPER_ADMIN" | "BUSINESS" | string;
+type UserRole = "USER" | "BUYER" | "SELLER" | "AFFILIATE" | "AGENCY" | "ADMIN" | "SUPER_ADMIN" | "BUSINESS" | string;
 
 const ROLE_DASHBOARD_PREFIX: Record<string, string> = {
-  AFFILIATE: "/affiliate",
-  USER: "/user",
-  BUYER: "/user",
-  SELLER: "/business",
-  BUSINESS: "/business",
+  AFFILIATE: "/dashboard/affiliate",
+  AGENCY: "/dashboard/affiliate",
+  BUSINESS: "/dashboard/business",
+  SELLER: "/dashboard/business",
+  USER: "/dashboard/user",
+  BUYER: "/dashboard/user",
 };
 
 function getDashboardForRole(role?: UserRole): string {
-  const normalized = role?.toUpperCase();
-  const prefix = ROLE_DASHBOARD_PREFIX[normalized ?? ""] ?? "/user";
-  return `${prefix}/dashboard`;
+  const normalized = (role || "").toUpperCase();
+  if (normalized.includes("AFFILIATE") || normalized.includes("AGENCY")) return "/dashboard/affiliate/dashboard";
+  if (normalized.includes("BUSINESS") || normalized.includes("SELLER")) return "/dashboard/business/dashboard";
+  return "/dashboard/user/dashboard";
 }
 
 function getDashboardPrefixForRole(role?: UserRole): string {
-  const normalized = role?.toUpperCase();
-  return ROLE_DASHBOARD_PREFIX[normalized ?? ""] ?? "/user";
+  const normalized = (role || "").toUpperCase();
+  if (normalized.includes("AFFILIATE") || normalized.includes("AGENCY")) return "/dashboard/affiliate";
+  if (normalized.includes("BUSINESS") || normalized.includes("SELLER")) return "/dashboard/business";
+  return "/dashboard/user";
 }
 
 function isBusinessRole(role?: UserRole): boolean {
