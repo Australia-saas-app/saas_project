@@ -7,6 +7,7 @@ import {
   UserIcon,
   Trash2,
   Calendar,
+  Clock,
   Database,
   RefreshCcw,
   Loader2,
@@ -42,8 +43,7 @@ export default function UserLogLayout() {
   const [currentPage, setCurrentPage] = useState(1);
   const [logsPerPage, setLogsPerPage] = useState(25);
 
-  const [logToDelete, setLogToDelete] = useState<string | null>(null);
-  const [isDeletingSingle, setIsDeletingSingle] = useState(false);
+  const [isDeletingSingle, setIsDeletingSingle] = useState<string | null>(null);
 
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -62,6 +62,7 @@ export default function UserLogLayout() {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
+      await new Promise((res) => setTimeout(res, 500));
       let userLogs = getLogsForUser(userId);
       if (userLogs.length === 0 && userId !== userEmail) {
         userLogs = getLogsForUser(userEmail);
@@ -74,19 +75,17 @@ export default function UserLogLayout() {
     }
   };
 
-  const confirmDeleteLog = async () => {
-    if (!logToDelete) return;
-    setIsDeletingSingle(true);
+  const confirmDeleteLog = async (id: string) => {
+    setIsDeletingSingle(id);
     try {
       await new Promise((res) => setTimeout(res, 400));
-      const updated = deleteSingleLog(userId, logToDelete);
+      const updated = deleteSingleLog(userId, id);
       setLogs(updated);
       toast.success("Log entry deleted successfully");
     } catch {
       toast.error("Failed to delete log entry");
     } finally {
-      setIsDeletingSingle(false);
-      setLogToDelete(null);
+      setIsDeletingSingle(null);
     }
   };
 
@@ -120,16 +119,12 @@ export default function UserLogLayout() {
 
   const formatAbsoluteTime = (dateStr: string) => {
     try {
-      return new Date(dateStr).toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
+      const d = new Date(dateStr);
+      const date = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      return { date, time };
     } catch {
-      return dateStr;
+      return { date: dateStr, time: "" };
     }
   };
 
@@ -252,72 +247,37 @@ export default function UserLogLayout() {
 
   return (
     <div className="w-full space-y-6">
-      {/* Delete Single Log Modal */}
-      {logToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-sm w-full p-6">
-            <div className="flex items-center space-x-3 mb-4 text-red-600 dark:text-red-400">
-              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">Delete Log Entry?</h3>
+      {/* Delete ALL Logs Modal */}
+      {showDeleteAllConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">
+          <div
+            style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
+            className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-5">
+              <AlertTriangle className="w-6 h-6 text-red-500" strokeWidth={1.8} />
             </div>
-            <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-              Are you sure you want to permanently delete this audit log? This action cannot be undone and will remove it from the database completely.
+            <h3 className="text-lg font-bold text-foreground mb-2">Delete ALL Logs?</h3>
+            <p className="text-sm text-muted-foreground mb-7 leading-relaxed">
+              Are you sure you want to permanently delete ALL audit logs?<br />
+              This action cannot be undone.
             </p>
-            <div className="flex justify-end space-x-3">
+            <div className="flex gap-3">
               <button
                 type="button"
-                disabled={isDeletingSingle}
-                onClick={() => setLogToDelete(null)}
-                className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+                disabled={isDeletingAll}
+                onClick={() => setShowDeleteAllConfirm(false)}
+                className="flex-1 py-2.5 bg-muted hover:bg-muted/80 rounded-xl font-semibold text-foreground text-sm transition-colors disabled:opacity-50"
               >
                 No, Cancel
               </button>
               <button
                 type="button"
-                disabled={isDeletingSingle}
-                onClick={confirmDeleteLog}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                {isDeletingSingle && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>Yes, Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete ALL Logs Modal */}
-      {showDeleteAllConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-sm w-full p-6">
-            <div className="flex items-center space-x-3 mb-4 text-red-600 dark:text-red-400">
-              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">Delete ALL Logs?</h3>
-            </div>
-            <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-              Are you sure you want to permanently delete ALL audit logs? This action cannot be undone and will completely wipe the database log table.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                disabled={isDeletingAll}
-                onClick={() => setShowDeleteAllConfirm(false)}
-                className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm font-medium rounded-lg transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
                 disabled={isDeletingAll}
                 onClick={handleDeleteAllLogs}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl font-semibold text-white text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {isDeletingAll && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>Yes, Delete All</span>
+                {isDeletingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Delete All"}
               </button>
             </div>
           </div>
@@ -349,10 +309,10 @@ export default function UserLogLayout() {
           <button
             type="button"
             onClick={fetchLogs}
-            className="flex items-center space-x-2 px-4 py-2 bg-card hover:bg-accent border border-border text-foreground text-sm font-medium rounded-lg transition-colors shadow-sm cursor-pointer"
+            title="Refresh Logs"
+            className="flex items-center justify-center p-2.5 bg-card hover:bg-accent border border-border text-foreground rounded-lg transition-colors shadow-sm cursor-pointer"
           >
-            <RefreshCcw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            <span>Refresh Logs</span>
+            <RefreshCcw className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
@@ -399,7 +359,7 @@ export default function UserLogLayout() {
 
       {/* Data Table - Columns matching page.tsx: Timestamp, User, Action, Details, IP Address, Delete */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-x-auto min-h-[400px]">
+        <div className="overflow-x-auto min-h-[400px] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all">
           <table className="w-full text-left border-collapse">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
@@ -459,7 +419,11 @@ export default function UserLogLayout() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col">
                           <span className="text-foreground text-sm font-medium">
-                            {formatAbsoluteTime(log.createdAt)}
+                            {formatAbsoluteTime(log.createdAt).date}
+                          </span>
+                          <span className="text-muted-foreground text-xs mt-0.5 flex items-center">
+                            <Clock className="w-3 h-3 mr-1" />
+                            {formatAbsoluteTime(log.createdAt).time}
                           </span>
                           <span className="text-muted-foreground text-xs mt-0.5 flex items-center">
                             <Calendar className="w-3 h-3 mr-1" />
@@ -472,9 +436,11 @@ export default function UserLogLayout() {
                           <div className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center text-muted-foreground shadow-inner">
                             <UserIcon className="w-4 h-4" />
                           </div>
-                          <span className="text-foreground font-medium text-sm">
-                            {log.username || "System/Unknown"}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-foreground font-medium text-sm">
+                              {log.username || "System/Unknown"}
+                            </span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -484,8 +450,8 @@ export default function UserLogLayout() {
                           {log.action}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-muted-foreground text-sm max-w-md line-clamp-2" title={log.details}>
+                      <td className="px-6 py-4 min-w-[250px]">
+                        <div className="text-muted-foreground text-sm break-words whitespace-normal" title={log.details}>
                           {log.details}
                         </div>
                       </td>
@@ -495,11 +461,16 @@ export default function UserLogLayout() {
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <button
                           type="button"
-                          onClick={() => setLogToDelete(log.id)}
-                          className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                          disabled={isDeletingSingle === log.id}
+                          onClick={() => confirmDeleteLog(log.id)}
+                          className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                           title="Delete log"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {isDeletingSingle === log.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </button>
                       </td>
                     </tr>

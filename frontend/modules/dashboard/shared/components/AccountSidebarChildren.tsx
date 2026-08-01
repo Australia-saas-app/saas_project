@@ -39,7 +39,7 @@ import { useProfileDisplay } from "../hooks/use-profile-display"
 
 export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: SidebarProps) {
   const pathname = usePathname()
-  const { user } = useUser()
+  const { user, isLoading } = useUser()
   const { isAffiliate, isBusiness } = usePermission()
   const { t } = useLocale()
   const logoutMutation = useLogout()
@@ -103,6 +103,7 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
   }
 
   const getDisplayName = () => {
+    if (isLoading) return "Loading..."
     if (!user) return "Guest User"
     if ("fullName" in user && user.fullName) {
       return user.fullName
@@ -212,8 +213,8 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
         <UserAccountMenu
           profileHref={`${dashboardPrefix}/profile`}
           settingsHref={`${dashboardPrefix}/settings`}
-          displayName={user?.email || "user@example.com"}
-          subtitle={accountIdLabel}
+          displayName={isLoading ? "Loading..." : (user?.email || "user@example.com")}
+          subtitle={isLoading ? "..." : accountIdLabel}
           avatarUrl={avatarUrl}
           isExpanded={isExpanded}
           menuPlacement="up"

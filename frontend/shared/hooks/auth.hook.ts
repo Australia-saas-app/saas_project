@@ -1,6 +1,6 @@
 import { loginUser, registerUser, requestPasswordReset, confirmPasswordReset, logout as apiLogout, sendRegistrationOtp, verifyRegistrationOtp } from "@/src/server/AuthService"
 import { parseApiError, getLoginErrorMessage } from "@/src/lib/api-error"
-import activityLog from "@/src/lib/activity-log"
+import { recordRealActivity } from "@/src/lib/real-activity-logger"
 import { resolvePostLoginRedirect } from "@/src/lib/auth-redirect"
 import { ROUTES } from "@/src/constants/routes"
 import { adminAppPath } from "@/src/constants/app-urls"
@@ -72,7 +72,7 @@ export const useUserRegistration = () => {
         },
         onSuccess: (data) => {
             toast.success('User Account create successfully');
-            activityLog.record("USER_REGISTRATION", { role: data?.data?.user?.role });
+            recordRealActivity("USER_REGISTRATION", `Registered with role: ${data?.data?.user?.role || 'User'}`, { userId: data?.data?.user?.id || "user", email: data?.data?.user?.email, name: (data?.data?.user as any)?.fullName || (data?.data?.user as any)?.firstName });
             // Token is already set server-side via httpOnly cookie – no client-side cookie needed
             const role = data?.data?.user?.role ?? (decodeJwt(data?.data?.token)?.role);
             const userId = data?.data?.user?.id ?? decodeJwt(data?.data?.token)?.id
@@ -118,7 +118,9 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             if (typeof window !== "undefined") {
                 sessionStorage.setItem("show_login_success_toast", "true");
             }
-            activityLog.record("USER_LOGIN", { role });
+            const email = userObj?.email || decoded?.email;
+            const name = userObj?.fullName || userObj?.firstName || userObj?.name;
+            recordRealActivity("USER_LOGIN", `Logged in successfully via ${role} portal`, { userId: userId || "user", email, name });
             await refreshUser().catch(() => {});
 
             if (typeof window !== "undefined") {
@@ -177,14 +179,14 @@ export const useResetPassword = (token?: string) => {
 
 export const useLogout = () => {
     const router = useRouter();
-    const { setUser } = useUser();
+    const { user, setUser } = useUser();
     return useMutation<{ success: boolean; message?: string } | void, Error>({
         mutationKey: ["USER_LOGOUT"],
         mutationFn: async () => await apiLogout(),
         onSuccess: () => {
             setUser(null);
             toast.success('Logged out');
-            activityLog.record("USER_LOGOUT");
+            recordRealActivity("USER_LOGOUT", "User logged out successfully", { userId: (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName });
             const isAdminApp =
                 typeof window !== "undefined" &&
                 (window.location.port === "3001" ||

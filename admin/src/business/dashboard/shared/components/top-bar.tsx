@@ -3,7 +3,7 @@
 import { Bell, MessageSquare, Sun, Search, User as UserIcon, LogOut, Settings, X, PhoneMissed } from "lucide-react"
 import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
-import { useAppDispatch } from "@/src/core/store/hooks"
+import { useAppDispatch, useAppSelector } from "@/src/core/store/hooks"
 import { logout } from "@/src/core/store/slices/authSlice"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
@@ -24,6 +24,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   const chatRef = useRef<HTMLDivElement>(null)
   
   const dispatch = useAppDispatch()
+  const user = useAppSelector((state) => state.auth.user)
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -197,11 +198,11 @@ export function TopBar({ onMenuClick }: TopBarProps) {
               }`}
             >
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0 shadow-sm border border-gray-100 dark:border-gray-700">
-                <Image width={32} height={32} src={'https://lh3.googleusercontent.com/a-/ALV-UjUcIWda3ZrzBMAJl37_GUwH9bvPyroMBoqo3x1hKRyIO-LD96s=s240-p-k-rw-no'} alt={'Admin'} className="w-full h-full object-cover" />
+                <img src={user?.profilePhoto || user?.avatarUrl || 'https://ui-avatars.com/api/?name=Admin'} alt={'Admin'} className="w-full h-full object-cover" />
               </div>
               <div className="flex flex-col hidden sm:flex">
-                <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 leading-none">Mr Jack</span>
-                <span className="text-[11px] text-gray-500 font-medium mt-0.5">Admin</span>
+                <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 leading-none">{user?.fullName || user?.firstName || 'Admin'}</span>
+                <span className="text-[11px] text-gray-500 font-medium mt-0.5">{user?.role || 'Admin'}</span>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`hidden sm:block transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-purple-600' : 'text-gray-400'}`}><polyline points="6 9 12 15 18 9"/></svg>
             </div>
@@ -210,8 +211,8 @@ export function TopBar({ onMenuClick }: TopBarProps) {
             {isDropdownOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[100]">
                 <div className="p-3 border-b border-gray-100 dark:border-gray-800">
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">Mr Jack</p>
-                  <p className="text-xs text-gray-500 truncate">admin@systemdb.com</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">{user?.fullName || user?.firstName || 'Admin'}</p>
+                  <p className="text-xs text-gray-500 truncate">{user?.email || 'admin@systemdb.com'}</p>
                 </div>
                 <div className="p-1">
                   <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white rounded-xl transition-colors">

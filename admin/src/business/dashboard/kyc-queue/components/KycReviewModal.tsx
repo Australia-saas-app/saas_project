@@ -121,16 +121,9 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
         </div>
 
         {/* Body - A4 Document Style */}
-        <div className="px-10 py-8 relative bg-white dark:bg-slate-900 max-h-[70vh] overflow-y-auto">
+        <div className="px-10 pt-8 pb-2 relative bg-white dark:bg-slate-900 overflow-y-auto flex flex-col" style={{ maxHeight: 'calc(80vh - 140px)' }}>
 
-          {/* Watermark/Stamp */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-20 rotate-[-15deg]">
-            <div className={`border-[8px] ${stampColor} rounded-lg px-8 py-4`}>
-              <span className={`text-6xl font-black tracking-widest ${stampColor}`}>
-                {stampText}
-              </span>
-            </div>
-          </div>
+
 
           {/* Declaration Text / Formal Application Format */}
           <div className="mb-8 relative z-10 space-y-3">
@@ -179,8 +172,17 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             return (
               <>
                 <div className="flex items-start gap-8 relative z-10">
+                  {/* Watermark/Stamp */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-20 rotate-[-15deg] z-0 flex items-center justify-center w-full h-full">
+                    <div className={`border-[8px] ${stampColor} rounded-lg px-8 py-4`}>
+                      <span className={`text-5xl sm:text-6xl font-black tracking-widest ${stampColor}`}>
+                        {stampText}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Left side info */}
-                  <div className="flex-1 space-y-4">
+                  <div className="flex-1 space-y-4 relative z-10">
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Account ID</span>
                       <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-base">{user.userId || user.publicId || user.id || "N/A"}</p>
@@ -342,34 +344,34 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           </div>
 
           {/* Applicant Signature Section */}
-          <style>{`
-            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600&family=Alex+Brush&display=swap');
-          `}</style>
-          <div className="mt-8 pt-4 flex justify-end relative z-10">
-            <div className="text-right space-y-2">
+          <div className="mt-4 flex justify-end relative z-10 mb-2">
+            <div className="text-right space-y-1">
               <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
                 Applicant Signature
               </span>
-              <div className="border-b-2 border-slate-400 dark:border-slate-600 pb-1 px-6 inline-block min-w-[200px]">
-                <p
-                  style={{ fontFamily: "'Great Vibes', 'Alex Brush', 'Dancing Script', cursive" }}
-                  className="text-3xl sm:text-4xl font-normal text-slate-800 dark:text-slate-200 tracking-wider inline-block transform -rotate-2 select-none leading-none"
-                >
-                  {(() => {
-                    const snap = user.kycApplicationData || {};
-                    return snap.fullName || user.fullName || "Applicant Signature";
-                  })()}
-                </p>
-              </div>
+              <p className="font-serif italic font-bold text-xl text-blue-600 dark:text-blue-500 tracking-wide border-b-2 border-blue-600/40 pb-1 px-6 inline-block">
+                {(() => {
+                  const snap = user.kycApplicationData || {};
+                  return snap.fullName || user.fullName || "Applicant Signature";
+                })()}
+              </p>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-1">
+                Verified Digital Signee — {(() => {
+                  const snap = user.kycApplicationData || {};
+                  return snap.email || user.email || snap.fullName || user.fullName;
+                })()}
+              </p>
             </div>
           </div>
+          </div>
+          {/* END OF SCROLLABLE BODY */}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 px-8 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 px-8 py-4 bg-background border-t border-border mt-auto">
             <button
               onClick={onClose}
               disabled={isAnyLoading}
-              className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm font-medium rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -379,7 +381,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 <button
                   onClick={() => handleUpdateStatus('rejected')}
                   disabled={isAnyLoading}
-                  className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[100px] flex items-center justify-center gap-2"
+                  className="px-4 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[100px] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
                 </button>
@@ -387,15 +389,13 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 <button
                   onClick={() => handleUpdateStatus('approved')}
                   disabled={isAnyLoading}
-                  className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[120px] flex items-center justify-center gap-2"
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[120px] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
                 </button>
               </>
             )}
           </div>
-
-        </div>
       </div>
     </div>
   );

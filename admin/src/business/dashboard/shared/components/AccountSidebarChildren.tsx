@@ -52,7 +52,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
       }
     }
     fetchKycCount()
-    const interval = setInterval(fetchKycCount, 30000) // update every 30s
+    const interval = setInterval(fetchKycCount, 5000) // update every 5s for near-instant badge updates
     // Instantly update badge when an admin approves / rejects an application
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;

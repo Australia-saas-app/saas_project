@@ -49,7 +49,7 @@ export default function KycApplicationModal({
         recordRealActivity(
           "KYC_SUBMITTED",
           "Submitted KYC verification application documents for review",
-          { email: user.email, userId: uid }
+          { email: user.email, userId: uid, name: user.fullName || user.firstName || "User" }
         );
 
         // Broadcast to admin side and other tabs
@@ -192,16 +192,7 @@ export default function KycApplicationModal({
 
         {/* ─── Body ─── */}
         <div className="px-10 py-8 relative bg-background max-h-[70vh] overflow-y-auto">
-          {/* Watermark stamp */}
-          {isViewMode && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-[0.08] rotate-[-15deg] z-0">
-              <div className={`border-[8px] ${stampColor} rounded-lg px-8 py-4`}>
-                <span className={`text-6xl font-black tracking-widest ${stampColor}`}>
-                  {stampText}
-                </span>
-              </div>
-            </div>
-          )}
+
 
           {/* Preamble / Formal Application Format */}
           <div className="mb-8 relative z-10 space-y-3">
@@ -256,8 +247,19 @@ export default function KycApplicationModal({
             return (
               <>
                 <div className="flex flex-col sm:flex-row items-start gap-6 sm:gap-8 relative z-10">
+                  {/* Watermark stamp */}
+                  {isViewMode && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-20 rotate-[-15deg] z-0 flex items-center justify-center w-full h-full">
+                      <div className={`border-[8px] ${stampColor} rounded-lg px-8 py-4`}>
+                        <span className={`text-5xl sm:text-6xl font-black tracking-widest ${stampColor}`}>
+                          {stampText}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Left col */}
-                  <div className="flex-1 space-y-4 w-full">
+                  <div className="flex-1 space-y-4 w-full relative z-10">
                     {[
                       { label: "Account ID", value: user.displayUserId || user.rawUserId || user.id },
                       { label: "Full Name", value: displayFullName },

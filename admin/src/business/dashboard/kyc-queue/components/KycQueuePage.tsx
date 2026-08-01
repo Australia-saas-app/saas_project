@@ -287,8 +287,8 @@ export default function KycQueuePage() {
               <TableColumn isHeader align="center">Actions</TableColumn>
             </TableHeading>
 
-            <TableBody isEmpty={!isFetching && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
-              {isFetching ? (
+            <TableBody isEmpty={!isLoading && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
+              {isLoading ? (
                 <TableRow>
                   <TableColumn colSpan={6}>
                     <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">

@@ -20,7 +20,8 @@ function isNavActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function displayNameFromUser(user: ReturnType<typeof useUser>["user"]) {
+function displayNameFromUser(user: ReturnType<typeof useUser>["user"], isLoading: boolean) {
+  if (isLoading) return "Loading...";
   if (!user) return "Kazol Hossain";
   if ("firstName" in user && user.firstName) {
     return `${user.firstName} ${"lastName" in user && user.lastName ? user.lastName : ""}`.trim();
@@ -38,13 +39,13 @@ function initialsFromName(name: string) {
 
 export default function AffiliaProAffiliateShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user, isLoading } = useUser();
   const logoutMutation = useLogout();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
-  const name = displayNameFromUser(user);
+  const name = displayNameFromUser(user, isLoading);
   const initials = initialsFromName(name);
 
   useEffect(() => {

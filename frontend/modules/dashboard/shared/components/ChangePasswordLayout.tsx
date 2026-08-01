@@ -7,7 +7,6 @@ import { useUser } from "@/src/context/user.provider"
 import { changeRegisteredPassword } from "@/src/server/AuthService"
 import { isDemoAuthUser, getUserEmailFromAuthUser } from "@/src/shared/lib/demo-user"
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger"
-
 export default function ChangePasswordLayout() {
   const { user } = useUser()
   const isDemo = isDemoAuthUser(user)
@@ -68,7 +67,7 @@ export default function ChangePasswordLayout() {
         return
       }
       // Record Real Activity Log
-      recordRealActivity("PASSWORD_CHANGED", "Account password updated successfully", { email, userId: (user as any)?.id });
+      recordRealActivity("PASSWORD_CHANGED", "Account password updated successfully", { email, userId: (user as any)?.id, name: (user as any)?.fullName || (user as any)?.firstName || "User" });
       toast.success(result.message ?? "Password updated successfully.")
       // Clear fields upon successful password update
       setCurrentPassword("")
