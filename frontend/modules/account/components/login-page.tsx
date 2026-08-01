@@ -164,13 +164,7 @@ export function LoginPage({
 
     setIsVerifyingCreds(true);
     try {
-      // Demo code override "123456" for instant testing
-      if (otpCode === "123456") {
-        loginMutation.mutate({ ...pendingLoginData, accountType });
-        return;
-      }
-
-      // Verify OTP against NestJS backend (/sso/auth/verify-otp/generic)
+      // Verify real OTP against NestJS backend (/sso/auth/verify-otp/generic)
       const res = await verifyRegistrationOtp({
         email: pendingLoginData.email,
         otp: otpCode,
