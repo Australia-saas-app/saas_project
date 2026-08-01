@@ -579,3 +579,16 @@ export const applyForKyc = async (userId: string) => {
     return { success: false, message: parseApiError(error, "Failed to submit application") };
   }
 };
+
+export const deleteUserAccount = async (userId: string) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  try {
+    const { data } = await axiosInstance.delete(`/sso/auth/admin/users/${userId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return data;
+  } catch (error: unknown) {
+    return { success: false, message: parseApiError(error, "Failed to delete user account") };
+  }
+};

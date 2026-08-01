@@ -111,9 +111,16 @@ export function useProfileDisplay() {
   // When admin changes KYC status or account status, instantly persist the new value in overrides
   // and refresh the user context from the DB so all components update across tabs
   useEffect(() => {
+    const isTargetUser = (tId?: string) => {
+      if (!tId || !rawUserId) return true;
+      if (tId === rawUserId) return true;
+      if (user && ((user as any).id === tId || (user as any).userId === tId || (user as any).internalId === tId || (user as any).publicId === tId)) return true;
+      return false;
+    };
+
     const processKycChange = (targetUserId?: string, newKycStatus?: string) => {
       if (!newKycStatus) return;
-      if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
+      if (!isTargetUser(targetUserId)) return;
 
       const lowerStatus = newKycStatus.toLowerCase();
       if (lowerStatus === "none" || lowerStatus === "deleted") {
@@ -127,7 +134,7 @@ export function useProfileDisplay() {
 
     const processStatusChange = (targetUserId?: string, newStatus?: string) => {
       if (!newStatus) return;
-      if (targetUserId && rawUserId && targetUserId !== rawUserId) return;
+      if (!isTargetUser(targetUserId)) return;
 
       const lowerStatus = newStatus.toLowerCase();
       saveProfileOverrides(rawUserId, { status: lowerStatus });
@@ -406,6 +413,7 @@ export function useProfileDisplay() {
   }
 
   return {
+    user,
     rawUserId,
     displayUserId: getDisplayUserId(user),
     fullName,

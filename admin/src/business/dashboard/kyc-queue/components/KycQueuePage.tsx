@@ -29,8 +29,8 @@ export default function KycQueuePage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const { data: users, isLoading, refetch } = useQuery<any[]>({
-    queryKey: ["kyc-users"],
+  const { data: users, isLoading, isFetching, refetch } = useQuery<any[]>({
+    queryKey: ["kyc-users", token],
     queryFn: async () => {
       if (!token) return [];
       const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
@@ -41,7 +41,7 @@ export default function KycQueuePage() {
       return resData.data?.users || resData.data || [];
     },
     enabled: !!token,
-    staleTime: 60 * 1000,      // cache for 60s — avoids spinner on every page visit
+    staleTime: 30 * 1000,      // cache for 30s — avoids spinner on every page visit
     refetchOnWindowFocus: false, // don't re-fetch just because user switches tabs
   });
 
@@ -57,6 +57,8 @@ export default function KycQueuePage() {
           return prev;
         });
       }
+      queryClient.invalidateQueries({ queryKey: ["kyc-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       refetch();
     };
 
@@ -64,14 +66,27 @@ export default function KycQueuePage() {
       const detail = (e as CustomEvent).detail;
       processUpdate(detail?.userId, detail?.kycStatus);
     };
+
+    const handleUserStatusUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.userId) {
+        processUpdate(detail.userId, detail.kycStatus);
+      }
+    };
+
     window.addEventListener("vero:kyc_updated", handleKycUpdate);
+    window.addEventListener("vero:user_status_updated", handleUserStatusUpdate);
 
     let bc: BroadcastChannel | null = null;
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         bc = new BroadcastChannel("vero_channel");
         bc.onmessage = (event) => {
-          if (event.data?.type === "vero:kyc_updated") {
+          if (
+            event.data?.type === "vero:kyc_updated" ||
+            event.data?.type === "vero:user_status_updated" ||
+            event.data?.type === "vero:kyc_submitted"
+          ) {
             processUpdate(event.data.userId, event.data.kycStatus);
           }
         };
@@ -79,7 +94,7 @@ export default function KycQueuePage() {
     } catch {}
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === "vero_kyc_sync" && e.newValue) {
+      if ((e.key === "vero_kyc_sync" || e.key === "vero_profile_sync") && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
           processUpdate(parsed.userId, parsed.kycStatus);
@@ -90,10 +105,11 @@ export default function KycQueuePage() {
 
     return () => {
       window.removeEventListener("vero:kyc_updated", handleKycUpdate);
+      window.removeEventListener("vero:user_status_updated", handleUserStatusUpdate);
       window.removeEventListener("storage", handleStorage);
       if (bc) bc.close();
     };
-  }, [refetch]);
+  }, [refetch, queryClient]);
 
   // Remove deleted users instantly from the KYC queue
   useEffect(() => {
@@ -149,6 +165,8 @@ export default function KycQueuePage() {
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 uppercase text-[10px]">Approved</Badge>;
       case "rejected":
         return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 uppercase text-[10px]">Rejected</Badge>;
+      case "expired":
+        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 uppercase text-[10px]">Expired</Badge>;
       default:
         return <Badge className="uppercase text-[10px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400">None</Badge>;
     }
@@ -176,8 +194,9 @@ export default function KycQueuePage() {
     if ((status === "Pending" || status === "Unverified") && (uStatus !== 'pending' && uStatus !== 'submitted')) return false;
     if ((status === "Approved" || status === "Verified") && uStatus !== 'approved') return false;
     if (status === "Rejected" && uStatus !== 'rejected') return false;
+    if (status === "Expired" && uStatus !== 'expired') return false;
 
-    // We only want to show users in the KYC queue if they have applied for KYC or are already approved/rejected/pending
+    // We only want to show users in the KYC queue if they have applied for KYC or are already approved/rejected/pending/expired
     if (!u.kycStatus || uStatus === 'none') return false;
 
     return true;
@@ -251,6 +270,7 @@ export default function KycQueuePage() {
                 <SelectItem value="Pending" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Pending</SelectItem>
                 <SelectItem value="Approved" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Approved</SelectItem>
                 <SelectItem value="Rejected" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Rejected</SelectItem>
+                <SelectItem value="Expired" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Expired</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -267,8 +287,8 @@ export default function KycQueuePage() {
               <TableColumn isHeader align="center">Actions</TableColumn>
             </TableHeading>
 
-            <TableBody isEmpty={!isLoading && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
-              {isLoading ? (
+            <TableBody isEmpty={!isFetching && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
+              {isFetching ? (
                 <TableRow>
                   <TableColumn colSpan={6}>
                     <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">

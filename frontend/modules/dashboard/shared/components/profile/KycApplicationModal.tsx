@@ -191,13 +191,17 @@ export default function KycApplicationModal({
             </div>
           )}
 
-          {/* Preamble */}
-          <div className="mb-8 relative z-10">
-            <h4 className="font-bold text-lg text-foreground mb-2">To The System Authority</h4>
-            <p className="text-sm text-muted-foreground font-medium leading-relaxed">
-              Request for KYC approval. I hereby declare that the details furnished below
-              are true and correct to the best of my knowledge and belief and I undertake
-              to inform you of any changes therein, immediately.
+          {/* Preamble / Formal Application Format */}
+          <div className="mb-8 relative z-10 space-y-3">
+            <div>
+              <p className="font-bold text-base text-foreground">To</p>
+              <p className="font-bold text-base text-foreground pl-6">The System Administrator</p>
+            </div>
+            <p className="font-bold text-sm text-foreground pt-1">
+              <span className="underline">Subject</span>: Request for KYC Verification & Approval
+            </p>
+            <p className="text-sm text-muted-foreground font-medium leading-relaxed pl-6">
+              I hereby declare that the details furnished below are true and correct to the best of my knowledge and belief and I undertake to inform you of any changes therein, immediately. In case any of the above information is found to be false or untrue or misleading or misrepresenting, I am aware that I may be held liable for it and my application is subject to rejection under standard system laws.
             </p>
           </div>
 
@@ -243,6 +247,7 @@ export default function KycApplicationModal({
                   {/* Left col */}
                   <div className="flex-1 space-y-4 w-full">
                     {[
+                      { label: "Account ID", value: user.displayUserId || user.rawUserId || user.id },
                       { label: "Full Name", value: displayFullName },
                       { label: "Email Address", value: displayEmail },
                       { label: "Account Type", value: displayAccountType },
@@ -255,7 +260,7 @@ export default function KycApplicationModal({
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
                           {label}
                         </span>
-                        <p className="font-bold text-foreground text-sm sm:text-base">{value || "N/A"}</p>
+                        <p className={`font-bold text-foreground text-sm sm:text-base ${label === "Account ID" ? "font-mono" : ""}`}>{value || "N/A"}</p>
                       </div>
                     ))}
                   </div>
@@ -277,15 +282,6 @@ export default function KycApplicationModal({
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    <div className="sm:text-right">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
-                        Account ID
-                      </span>
-                      <p className="font-mono font-bold text-foreground text-sm">
-                        {user.displayUserId || user.rawUserId || user.id || "N/A"}
-                      </p>
                     </div>
 
                     <div className="sm:text-right">
@@ -340,18 +336,32 @@ export default function KycApplicationModal({
                     </div>
                   </div>
                 </div>
-              </>
-            );
-          })()}
+                  <div className="h-px bg-border w-full my-6" />
 
-          <div className="h-px bg-border w-full my-6" />
+                  {/* Documents */}
+                  <div className="mb-4 relative z-10">
+                    <h4 className="font-bold text-base text-foreground mb-3">Attached Documents</h4>
+                    {renderDocuments()}
+                  </div>
 
-          {/* Documents */}
-          <div className="mb-4 relative z-10">
-            <h4 className="font-bold text-base text-foreground mb-3">Attached Documents</h4>
-            {renderDocuments()}
+                  {/* Applicant Signature Section */}
+                  <div className="mt-8 pt-4 flex justify-end relative z-10">
+                    <div className="text-right space-y-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                        Applicant Signature
+                      </span>
+                      <p className="font-serif italic font-bold text-xl text-primary tracking-wide border-b-2 border-primary/40 pb-1 px-6 inline-block">
+                        {displayFullName || "Applicant Signature"}
+                      </p>
+                      <p className="text-[11px] font-medium text-muted-foreground pt-1">
+                        Verified Digital Signee — {displayEmail || displayFullName}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
-        </div>
 
         {/* ─── Footer ─── */}
         <div className="flex items-center justify-end gap-3 px-8 py-4 bg-muted/40 border-t border-border">

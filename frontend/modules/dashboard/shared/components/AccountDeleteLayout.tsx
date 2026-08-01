@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { ShieldAlert, Loader2, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
-import { logout, verifyAccountPassword } from "@/src/server/AuthService"
+import { logout, verifyAccountPassword, deleteUserAccount } from "@/src/server/AuthService"
 import {
   getUserEmailFromAuthUser,
   getUserIdFromAuthUser,
@@ -62,11 +62,10 @@ export default function AccountDeleteLayout() {
   const onConfirm = async () => {
     setConfirming(true)
     try {
-      // Call backend permanent delete user endpoint
-      const res = await fetch(`/sso/auth/admin/users/${userId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      }).catch(() => null)
+      // Call backend permanent delete user endpoint via AuthService
+      if (userId) {
+        await deleteUserAccount(userId).catch(() => null)
+      }
 
       // Purge all local storage and browser caches for user
       if (userId) {

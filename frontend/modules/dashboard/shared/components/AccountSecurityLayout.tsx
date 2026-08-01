@@ -12,7 +12,7 @@ import {
 } from "@/src/shared/lib/security-settings-store";
 
 export default function AccountSecurityLayout() {
-  const { email, phone } = useProfileDisplay();
+  const { email, phone, user, updateProfile } = useProfileDisplay();
   const [enabled, setEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [method, setMethod] = useState("");
@@ -25,11 +25,14 @@ export default function AccountSecurityLayout() {
 
   useEffect(() => {
     const settings = getSecuritySettings(email);
-    setEnabled(settings.twoFactorEnabled);
+    const db2fa = (user as any)?.twoFactorEnabled;
+    const is2faOn = db2fa !== undefined ? Boolean(db2fa) : settings.twoFactorEnabled;
+    setEnabled(is2faOn);
     setMethod(settings.twoFactorMethod || verifyOptions[0] || "");
-  }, [email, verifyOptions]);
-
-  const { updateProfile } = useProfileDisplay();
+    if (email && db2fa !== undefined) {
+      saveSecuritySettings({ twoFactorEnabled: is2faOn, twoFactorMethod: settings.twoFactorMethod || verifyOptions[0] || "" }, email);
+    }
+  }, [email, verifyOptions, user]);
 
   const persist = async (nextEnabled: boolean) => {
     setSaving(true);
