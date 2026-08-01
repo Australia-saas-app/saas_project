@@ -88,9 +88,9 @@ export const useUserRegistration = () => {
 export const getDashboardRedirect = (role?: string, userId?: string) => {
     const normalized = (role || "").toLowerCase();
     if (normalized === "admin" || normalized === "super_admin") return adminAppPath("/admin/dashboard");
-    if (normalized.includes("affiliate") || normalized.includes("agency")) return "/dashboard/affiliate/dashboard";
-    if (normalized.includes("business") || normalized.includes("seller")) return "/dashboard/business/dashboard";
-    return "/dashboard/user/dashboard";
+
+    // All registered users (User, Business, Affiliate) land on homepage landing page after login
+    return ROUTES.home;
 };
 
 export const useUserLogin = (redirectUrl?: string | null) => {
