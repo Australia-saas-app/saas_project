@@ -12,6 +12,7 @@ import {
   isDemoAuthUser,
 } from "@/src/shared/lib/demo-user"
 import { clearAllUserStorage } from "@/src/shared/utils/profile-storage"
+import { deleteAllLogs } from "@/src/shared/lib/real-activity-logger"
 import ConfirmActionModal from "./ConfirmActionModal"
 
 export default function AccountDeleteLayout() {
@@ -67,9 +68,13 @@ export default function AccountDeleteLayout() {
         await deleteUserAccount(userId).catch(() => null)
       }
 
-      // Purge all local storage and browser caches for user
+      // Purge all local storage, activity logs and browser caches for user
       if (userId) {
         clearAllUserStorage(userId)
+        deleteAllLogs(userId)
+      }
+      if (email) {
+        deleteAllLogs(email)
       }
       if (typeof window !== "undefined") {
         localStorage.clear()

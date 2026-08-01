@@ -271,8 +271,8 @@ export class TokenService {
   }
 
   private async ensureValidOtp(user: User, otp?: string) {
-    const contact =
-      user.twoFactorMethod === 'email' ? user.email : user.phone;
+    const isEmailMethod = !user.twoFactorMethod || user.twoFactorMethod === 'email' || String(user.twoFactorMethod).toLowerCase() === 'email';
+    const contact = isEmailMethod ? (user.email || user.phone) : (user.phone || user.email);
 
     if (!contact) {
       throw new UnauthorizedException({
@@ -284,13 +284,15 @@ export class TokenService {
     const otpKey = `otp:${contact}:login`;
 
     if (!otp) {
-      const generatedOtp = this.otpUtil.generateOTP();
+      const generatedOtp = this.otpUtil.generateOTP(6, contact);
       await this.otpUtil.storeOTP(this.redisClient, otpKey, generatedOtp);
 
-      if (user.twoFactorMethod === 'email') {
-        await this.otpUtil.sendOTPEmail(contact, generatedOtp);
-      } else {
-        await this.otpUtil.sendOTPSMS(contact, generatedOtp);
+      if (isEmailMethod && user.email) {
+        await this.otpUtil.sendOTPEmail(user.email, generatedOtp, '2fa_login');
+      } else if (user.phone) {
+        await this.otpUtil.sendOTPSMS(user.phone, generatedOtp);
+      } else if (contact) {
+        await this.otpUtil.sendOTPEmail(contact, generatedOtp, '2fa_login');
       }
 
       throw new UnauthorizedException({

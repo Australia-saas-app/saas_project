@@ -5,6 +5,7 @@ import { X, ShieldAlert, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { applyForKyc } from "@/src/shared/server/AuthService";
 import { saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
 interface KycApplicationModalProps {
   isOpen: boolean;
@@ -43,6 +44,13 @@ export default function KycApplicationModal({
         if (user.updateProfile) {
           await user.updateProfile({ kycStatus: "pending" }).catch(() => {});
         }
+
+        // Record Real Activity Log
+        recordRealActivity(
+          "KYC_SUBMITTED",
+          "Submitted KYC verification application documents for review",
+          { email: user.email, userId: uid }
+        );
 
         // Broadcast to admin side and other tabs
         if (typeof window !== "undefined") {

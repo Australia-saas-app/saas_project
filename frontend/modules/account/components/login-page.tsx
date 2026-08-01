@@ -22,7 +22,7 @@ import { AccountTypeTabs } from "./account-type-tabs";
 import { UserStatusModal, type UserStatus } from "./UserStatusModal";
 import { OtpInput } from "./OtpInput";
 import { getSecuritySettings, saveSecuritySettings } from "@/src/shared/lib/security-settings-store";
-import { verifyAccountPassword } from "@/src/server/AuthService";
+import { verifyAccountPassword, sendRegistrationOtp } from "@/src/server/AuthService";
 
 const loginSchema = z.object({
   email: z
@@ -100,11 +100,18 @@ export function LoginPage({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const sendOtp = (userEmail: string) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(code);
+  const sendOtp = async (userEmail: string) => {
     setTimeLeft(179);
-    toast.success(`Verification code sent to ${userEmail}`);
+    try {
+      const res = await sendRegistrationOtp({ email: userEmail, type: "2fa_login" });
+      if (res && res.success !== false) {
+        toast.success(`Verification code sent to ${userEmail}`);
+      } else {
+        toast.error(res?.message || `Failed to send verification code to ${userEmail}`);
+      }
+    } catch {
+      toast.error(`Failed to send verification code to ${userEmail}`);
+    }
   };
 
   const onSubmit = async (data: LoginFormValues) => {

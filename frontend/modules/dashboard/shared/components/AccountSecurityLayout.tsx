@@ -11,6 +11,8 @@ import {
   saveSecuritySettings,
 } from "@/src/shared/lib/security-settings-store";
 
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+
 export default function AccountSecurityLayout() {
   const { email, phone, user, updateProfile } = useProfileDisplay();
   const [enabled, setEnabled] = useState(false);
@@ -47,6 +49,16 @@ export default function AccountSecurityLayout() {
       twoFactorEnabled: nextEnabled,
       twoFactorMethod: selectedMethod,
     }, email);
+
+    // Record Real Activity Log
+    recordRealActivity(
+      nextEnabled ? "TWO_FACTOR_ENABLED" : "TWO_FACTOR_DISABLED",
+      nextEnabled
+        ? `Enabled two-factor authentication via ${selectedMethod}`
+        : "Disabled two-factor authentication",
+      { email, userId: (user as any)?.id }
+    );
+
     try {
       await updateProfile({
         twoFactorEnabled: nextEnabled,

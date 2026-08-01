@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
 import { changeRegisteredPassword } from "@/src/server/AuthService"
 import { isDemoAuthUser, getUserEmailFromAuthUser } from "@/src/shared/lib/demo-user"
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger"
 
 export default function ChangePasswordLayout() {
   const { user } = useUser()
@@ -66,6 +67,8 @@ export default function ChangePasswordLayout() {
         toast.error(result.message || "Current password is incorrect.")
         return
       }
+      // Record Real Activity Log
+      recordRealActivity("PASSWORD_CHANGED", "Account password updated successfully", { email, userId: (user as any)?.id });
       toast.success(result.message ?? "Password updated successfully.")
       // Clear fields upon successful password update
       setCurrentPassword("")

@@ -80,16 +80,26 @@ import { UserPreference } from './preferences/entities/user-preference.entity';
       }),
       inject: [ConfigService],
     }),
-    // MongoDB connection for activity logs
+    // MongoDB connection for activity logs (GCP Cloud Mongo / Atlas / Multi-env support)
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>(
-          'MONGODB_URI',
-          'mongodb://localhost:27017/vero2',
-        ),
-        dbName: configService.get<string>('MONGODB_DB_NAME', 'vero2'),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const mongoUri =
+          configService.get<string>('MONGODB_URI') ||
+          configService.get<string>('MONGO_URI') ||
+          configService.get<string>('DATABASE_URL') ||
+          'mongodb://localhost:27017/vero2';
+
+        const dbName = configService.get<string>('MONGODB_DB_NAME', 'vero2');
+
+        return {
+          uri: mongoUri,
+          dbName,
+          retryAttempts: 5,
+          retryDelay: 3000,
+          serverSelectionTimeoutMS: 10000,
+        };
+      },
       inject: [ConfigService],
     }),
     CommonModule,
