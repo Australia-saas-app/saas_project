@@ -49,12 +49,13 @@ function getDashboardPrefixForRole(role?: UserRole): string {
 }
 
 function isBusinessRole(role?: UserRole): boolean {
-  const normalized = role?.toUpperCase();
+  const normalized = (role || "").toUpperCase();
   return normalized === "SELLER" || normalized === "BUSINESS";
 }
 
 function isRoleScopedDashboardRoute(pathname: string): boolean {
   return (
+    pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/") ||
     pathname === "/affiliate" ||
     pathname.startsWith("/affiliate/") ||
@@ -67,8 +68,15 @@ function isRoleScopedDashboardRoute(pathname: string): boolean {
 
 interface JwtPayload {
   id?: string;
+  sub?: string;
   role?: UserRole;
+  accountType?: UserRole;
   exp?: number;
+}
+
+function getUserRoleFromPayload(payload: JwtPayload | null): string {
+  if (!payload) return "";
+  return String(payload.role || payload.accountType || "").toUpperCase();
 }
 
 function decodeJwtPayload(token: string): JwtPayload | null {
@@ -121,25 +129,26 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  const userRole = getUserRoleFromPayload(payload);
+
   if (isAuthGatedPublic && isAuthenticated) {
-    if (!isBusinessRole(payload?.role)) {
+    if (!isBusinessRole(userRole)) {
       return NextResponse.redirect(new URL("/courses", request.url));
     }
     return NextResponse.redirect(new URL("/business/courses/create", request.url));
   }
 
   if (isAuthRoute && isAuthenticated && !isAuthRouteException(pathname)) {
-    const role = (payload?.role || "").toUpperCase();
-    if (role === "ADMIN" || role === "SUPER_ADMIN") {
+    if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
       return NextResponse.redirect(new URL("/admin/dashboard", request.url));
     }
     return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (isAuthenticated && isRoleScopedDashboardRoute(pathname)) {
-    const allowedPrefix = getDashboardPrefixForRole(payload?.role);
+    const allowedPrefix = getDashboardPrefixForRole(userRole);
     if (!pathname.startsWith(allowedPrefix)) {
-      return NextResponse.redirect(new URL(getDashboardForRole(payload?.role), request.url));
+      return NextResponse.redirect(new URL(getDashboardForRole(userRole), request.url));
     }
   }
 
