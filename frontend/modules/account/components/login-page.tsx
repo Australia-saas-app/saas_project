@@ -172,7 +172,7 @@ export function LoginPage({
       });
 
       if (res && res.success !== false) {
-        loginMutation.mutate({ ...pendingLoginData, accountType });
+        loginMutation.mutate({ ...pendingLoginData, otp: otpCode, accountType });
       } else {
         toast.error(res?.message || "Invalid verification code. Please check your code and try again.");
       }
