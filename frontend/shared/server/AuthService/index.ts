@@ -43,10 +43,12 @@ function shouldUseSecureCookies(): boolean {
   if (process.env.COOKIE_SECURE === "false") return false;
   if (process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")) return true;
   if (process.env.NEXT_PUBLIC_SITE_URL?.startsWith("http://")) return false;
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") return false;
-  if (typeof window !== "undefined" && window.location.hostname === "127.0.0.1") return false;
+  if (typeof window !== "undefined") {
+    if (window.location.protocol === "http:") return false;
+    if (window.location.protocol === "https:") return true;
+  }
 
-  return process.env.NODE_ENV === "production";
+  return false;
 }
 
 /** Shared cookie options – Lax for same-site forms; Secure only when HTTPS. */

@@ -170,11 +170,17 @@ export function LoginPage({
 
     setIsVerifyingCreds(true);
     try {
-      // 1-Step direct OTP verification & login (50% faster, single network round-trip)
-      loginMutation.mutate({ ...pendingLoginData, otp: otpCode, accountType });
+      toast.success("OTP Verified Successfully");
+      loginMutation.mutate(
+        { ...pendingLoginData, otp: otpCode, accountType },
+        {
+          onSettled: () => {
+            setIsVerifyingCreds(false);
+          },
+        }
+      );
     } catch (err: any) {
       toast.error(err?.message || "Invalid verification code. Please check your code and try again.");
-    } finally {
       setIsVerifyingCreds(false);
     }
   };
