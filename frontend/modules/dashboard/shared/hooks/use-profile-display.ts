@@ -334,7 +334,7 @@ export function useProfileDisplay() {
       if (patch.documentUrl) {
         recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId, email, name: fullName });
       }
-      const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod');
+      const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
       if (hasOtherUpdates) {
         recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
       }

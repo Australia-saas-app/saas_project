@@ -60,18 +60,25 @@ export class OtpUtil {
     return true;
   }
 
-  async sendOTPEmail(email: string, otp: string, type: string = 'verification') {
+  async sendOTPEmail(email: string, otp: string, type: string = 'verification', context?: { ipAddress?: string }) {
     if (email === 'superadmin@systemdb.com') {
       Logger.log(`OTP for ${email}: ${otp} (Bypassed real email for superadmin)`, "OtpUtil");
       return { success: true, messageId: 'mock-superadmin-id' };
     }
 
     const is2FA = type?.toLowerCase().includes('2fa') || type?.toLowerCase().includes('two');
-    const titleText = is2FA ? "Two-Factor Authentication (2FA)" : "One-Time Password (OTP) Verification";
-    const subjectText = is2FA ? "Your Two-Factor Authentication (2FA) Code - Vero" : "Your OTP Verification Code";
-    const descText = is2FA
+    const isNewDevice = type?.toLowerCase().includes('new_device');
+    
+    const titleText = isNewDevice ? "New Device Authentication" : is2FA ? "Two-Factor Authentication (2FA)" : "One-Time Password (OTP) Verification";
+    const subjectText = isNewDevice ? "New Device Authentication - Vero" : is2FA ? "Your Two-Factor Authentication (2FA) Code - Vero" : "Your OTP Verification Code";
+    
+    let descText = is2FA
       ? "You are receiving this security code to complete Two-Factor Authentication (2FA) for your Vero account."
       : "You requested a one-time password to verify your identity on Vero Platform.";
+      
+    if (isNewDevice) {
+      descText = `We noticed a login attempt from a new device or unrecognized IP address (${context?.ipAddress || 'Unknown IP'}). Please enter this OTP to authorize the device.`;
+    }
 
     try {
       const fromEmail = this.configService.get(

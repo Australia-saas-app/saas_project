@@ -236,6 +236,9 @@ export class User {
     };
   };
 
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  trustedIps: string[];
+
   @Column({ type: 'jsonb', nullable: true })
   agencyInfo: {
     agencyLogo: string;

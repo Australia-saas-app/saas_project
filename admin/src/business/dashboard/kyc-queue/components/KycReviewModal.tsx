@@ -121,7 +121,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
         </div>
 
         {/* Body - A4 Document Style */}
-        <div className="px-10 pt-8 pb-2 relative bg-white dark:bg-slate-900 overflow-y-auto flex flex-col" style={{ maxHeight: 'calc(80vh - 140px)' }}>
+        <div className="px-10 pt-8 pb-2 relative bg-white dark:bg-slate-900 overflow-y-auto overflow-x-hidden flex flex-col" style={{ maxHeight: 'calc(80vh - 140px)' }}>
 
 
 
@@ -368,20 +368,12 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 px-8 py-4 bg-background border-t border-border mt-auto">
-            <button
-              onClick={onClose}
-              disabled={isAnyLoading}
-              className="px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm font-medium rounded-lg transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-
             {(kycStatus === 'pending' || kycStatus === 'submitted') && (
               <>
                 <button
                   onClick={() => handleUpdateStatus('rejected')}
                   disabled={isAnyLoading}
-                  className="px-4 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[100px] flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[100px] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
                 </button>

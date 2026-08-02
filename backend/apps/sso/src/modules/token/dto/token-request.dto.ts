@@ -43,6 +43,10 @@ export class TokenRequestDto {
   @IsString()
   device_name?: string;
 
+  @IsOptional()
+  @IsString()
+  login_role?: string;
+
   // Refresh grant specific
   @IsOptional()
   @IsString()

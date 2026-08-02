@@ -30,6 +30,9 @@ export class UserSession {
   @Column({ name: 'device_id', type: 'varchar', length: 128, nullable: true })
   deviceId?: string;
 
+  @Column({ name: 'login_role', type: 'varchar', length: 50, nullable: true })
+  loginRole?: string;
+
   @Column({ name: 'device_name', type: 'varchar', length: 255, nullable: true })
   deviceName?: string;
 

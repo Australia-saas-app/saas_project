@@ -186,22 +186,30 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         address: permAddress,
       };
 
-      const patchData = {
-        fullName,
-        accountLabel: fullName,
-        email,
-        secondaryEmail,
-        phone,
-        countryCode,
-        nationality,
-        dateOfBirth,
-        nationalIdentity,
-        governmentIdType,
-        permanentAddress: permAddressObj,
-        currency,
-        documentUrl,
-        resubmitted: true,
-      };
+      const permAddressChanged = permCountry !== (initialPermanentAddress?.country || "") ||
+                                 permCity !== (initialPermanentAddress?.city || "") ||
+                                 permState !== (initialPermanentAddress?.state || "") ||
+                                 permZipCode !== (initialPermanentAddress?.zipCode || "") ||
+                                 permAddress !== (initialPermanentAddress?.address || "");
+
+      const patchData: Record<string, any> = { resubmitted: true };
+
+      if (nationality !== (initialNationality || "")) patchData.nationality = nationality;
+      if (dateOfBirth !== (initialDateOfBirth || "")) patchData.dateOfBirth = dateOfBirth;
+      if (nationalIdentity !== (initialNationalIdentity || "")) patchData.nationalIdentity = nationalIdentity;
+      if (governmentIdType !== (initialGovernmentIdType || "NID")) patchData.governmentIdType = governmentIdType;
+      if (permAddressChanged) patchData.permanentAddress = permAddressObj;
+      if (phone !== initPhone) patchData.phone = phone;
+      if (countryCode !== initCC) patchData.countryCode = countryCode;
+      if (secondaryEmail !== (initialSecondaryEmail || "")) patchData.secondaryEmail = secondaryEmail;
+      if (currency !== (initialCurrency || "USD")) patchData.currency = currency;
+      if (documentUrl !== (initialDocumentUrl || "")) patchData.documentUrl = documentUrl;
+
+      if (Object.keys(patchData).length === 1) { // only resubmitted
+        toast.info("Profile Already Updated");
+        setIsSubmitting(false);
+        return;
+      }
 
       // 1. Save locally & persist profile overrides for immediate UI reflection
       updateProfile(patchData as any);

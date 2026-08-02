@@ -63,6 +63,8 @@ export function LoginPage({
   const loginMutation = useUserLogin(redirect);
 
   const [is2faStep, setIs2faStep] = useState(false);
+  const [isNewDeviceStep, setIsNewDeviceStep] = useState(false);
+  const [capturedIp, setCapturedIp] = useState<string | null>(null);
   const [pendingLoginData, setPendingLoginData] = useState<LoginFormValues | null>(null);
   const [otpCode, setOtpCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function LoginPage({
 
   // Timer for 2FA OTP Resend
   useEffect(() => {
-    if (!is2faStep) return;
+    if (!is2faStep && !isNewDeviceStep) return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -91,7 +93,7 @@ export function LoginPage({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [is2faStep]);
+  }, [is2faStep, isNewDeviceStep]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -156,6 +158,18 @@ export function LoginPage({
               sendOtp(normalizedData.email);
               setIs2faStep(true);
             }
+            try {
+              const parsed = JSON.parse(errMsg);
+              if (parsed.type === "NEW_DEVICE") {
+                setPendingLoginData(normalizedData);
+                setCapturedIp(parsed.capturedIp);
+                setIsNewDeviceStep(true);
+                setTimeLeft(179);
+                toast.success("New device detected. Verification code sent to email.");
+              }
+            } catch {
+              // ignore
+            }
           },
         }
       );
@@ -176,6 +190,7 @@ export function LoginPage({
     if (!pendingLoginData) {
       toast.error("Session expired. Please log in again.");
       setIs2faStep(false);
+      setIsNewDeviceStep(false);
       return;
     }
 
@@ -231,13 +246,14 @@ export function LoginPage({
       subtitle="Sign in to manage projects, earnings, wallet activity, and your professional profile from one secure dashboard."
       badge="Secure access"
     >
-      {is2faStep ? (
+      {is2faStep || isNewDeviceStep ? (
         <div className="space-y-6">
           <div className="flex items-center gap-3 border-b border-border pb-4">
             <button
               type="button"
               onClick={() => {
                 setIs2faStep(false);
+                setIsNewDeviceStep(false);
                 setOtpCode("");
               }}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted/30 text-foreground hover:bg-muted transition-all"
@@ -249,8 +265,15 @@ export function LoginPage({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-foreground">Two-Factor Authentication</h3>
+              <h3 className="text-lg font-bold text-foreground">
+                {isNewDeviceStep ? "New Device Authentication" : "Two-Factor Authentication"}
+              </h3>
               <p className="text-xs text-muted-foreground">
+                {isNewDeviceStep && capturedIp && (
+                  <span className="block mb-0.5 text-orange-500 font-medium">
+                    Unrecognized IP: {capturedIp}
+                  </span>
+                )}
                 Code sent to <span className="font-semibold text-foreground">{pendingLoginData?.email}</span>
               </p>
             </div>

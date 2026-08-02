@@ -4,6 +4,8 @@ import dynamic from "next/dynamic"
 import { Suspense, useEffect, useState, type ComponentType } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { ProfileTabs, type ProfileTabId } from "../constants/profile.constant"
+import { getLogsForUser, LOG_ADDED_EVENT } from "@/src/shared/lib/real-activity-logger"
+import { useUser } from "@/src/context/user.provider"
 
 const TabLoading = () => (
   <div className="flex items-center justify-center py-16 text-sm text-gray-500">
@@ -30,6 +32,35 @@ const ProfileLayout = () => {
   }
 
   const [activeTab, setActiveTab] = useState<ProfileTabId>(resolveActiveTab)
+  
+  const { user } = useUser() || {}
+  const userId = user ? (("publicId" in user && user.publicId) || ("userId" in user && user.userId) || ("id" in user && user.id)) || "guest" : "guest"
+  const userEmail = user && "email" in user ? String(user.email) : ""
+  const [logCount, setLogCount] = useState(0)
+
+  useEffect(() => {
+    const fetchLogCount = () => {
+      let userLogs = getLogsForUser(userId)
+      if (userLogs.length === 0 && userId !== userEmail && userEmail) {
+        userLogs = getLogsForUser(userEmail)
+      }
+      setLogCount(userLogs.length)
+    }
+    fetchLogCount()
+    
+    window.addEventListener(LOG_ADDED_EVENT, fetchLogCount)
+    window.addEventListener("storage", fetchLogCount)
+    return () => {
+      window.removeEventListener(LOG_ADDED_EVENT, fetchLogCount)
+      window.removeEventListener("storage", fetchLogCount)
+    }
+  }, [userId, userEmail])
+
+  const formatCount = (num: number) => {
+    if (num === 0) return null
+    if (num < 1000) return num.toString()
+    return (num / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+  }
 
   useEffect(() => {
     const match = ProfileTabs.find((tab) => pathname === tab.url)
@@ -55,13 +86,18 @@ const ProfileLayout = () => {
             key={tab.id}
             type="button"
             onClick={() => handleTabClick(tab)}
-            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
               activeTab === tab.id
                 ? "bg-[#5D7293] text-white shadow-sm"
                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
             }`}
           >
             {tab.label}
+            {tab.id === "user-log" && logCount > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                {formatCount(logCount)}
+              </span>
+            )}
           </button>
         ))}
       </div>

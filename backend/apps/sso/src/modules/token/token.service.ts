@@ -112,6 +112,7 @@ export class TokenService {
       deviceName: dto.device_name,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
+      loginRole: dto.login_role,
     });
 
     return this.issueTokens({
@@ -324,8 +325,37 @@ export class TokenService {
       userAgent?: string;
       deviceId?: string;
       deviceName?: string;
+      loginRole?: string;
     },
   ) {
+    if (context.loginRole) {
+      const existingSessions = await this.sessionRepository.find({
+        where: {
+          user: { id: user.id },
+          loginRole: context.loginRole,
+          active: true,
+        },
+      });
+
+      if (existingSessions.length > 0) {
+        for (const sess of existingSessions) {
+          sess.active = false;
+          sess.terminationReason = 'CONCURRENT_LOGIN';
+          sess.terminatedAt = new Date();
+        }
+        await this.sessionRepository.save(existingSessions);
+
+        const sessionIds = existingSessions.map(s => s.id);
+        
+        // Use query builder to bulk update tokens for these sessions to revoked=true
+        await this.tokenRepository.createQueryBuilder()
+          .update(OAuthToken)
+          .set({ revoked: true, revokedAt: new Date() })
+          .where("sessionId IN (:...sessionIds)", { sessionIds })
+          .execute();
+      }
+    }
+
     const session = this.sessionRepository.create({
       user,
       client,
@@ -333,6 +363,7 @@ export class TokenService {
       userAgent: context.userAgent,
       deviceId: context.deviceId,
       deviceName: context.deviceName,
+      loginRole: context.loginRole,
       lastSeenAt: new Date(),
       active: true,
     });

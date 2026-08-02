@@ -102,6 +102,9 @@ export const useUserLogin = (redirectUrl?: string | null) => {
         mutationFn: async (userData) => {
             const result = await loginUser(userData);
             if (!result || !result.success) {
+                if ((result as any)?.isNewDevice) {
+                    throw new Error(JSON.stringify({ type: "NEW_DEVICE", capturedIp: (result as any).capturedIp }));
+                }
                 throw new Error(result?.message || "Login failed");
             }
             return result as AuthResponse;
@@ -124,6 +127,12 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             await refreshUser().catch(() => {});
 
             if (typeof window !== "undefined") {
+                const bc = new BroadcastChannel('session-sync');
+                bc.postMessage({ type: 'LOGIN', role });
+                bc.close();
+            }
+
+            if (typeof window !== "undefined") {
                 window.location.assign(redirectTo);
                 return;
             }
@@ -137,6 +146,10 @@ export const useUserLogin = (redirectUrl?: string | null) => {
                     const statusStr = String(parsed.status);
                     const formattedStatus = statusStr.charAt(0).toUpperCase() + statusStr.slice(1);
                     toast.error(`Account is ${formattedStatus}`);
+                    return;
+                }
+                if (parsed.type === "NEW_DEVICE") {
+                    // Handled in component
                     return;
                 }
             } catch {

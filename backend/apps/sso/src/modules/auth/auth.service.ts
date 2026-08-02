@@ -398,20 +398,55 @@ export class AuthService {
       );
     }
 
-    if (loginDto.accountType) {
-      const user = await this.userRepository.findOne({
-        where: [
-          ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
-          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
-        ],
-      });
+    let user = await this.userRepository.findOne({
+      where: [
+        ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+      ],
+    });
 
-      if (user && user.accountType && user.accountType.toLowerCase() !== loginDto.accountType.toLowerCase()) {
+    if (user) {
+      if (loginDto.accountType && user.accountType && user.accountType.toLowerCase() !== loginDto.accountType.toLowerCase()) {
         throw new ForbiddenException({
           success: false,
           error: 'ACCOUNT_TYPE_MISMATCH',
           message: `Account not found for the selected role. Please check the active tab.`,
         });
+      }
+
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'Unknown IP';
+      const actualIp = clientIp.split(',')[0].trim();
+
+      if (!user.trustedIps || user.trustedIps.length === 0) {
+        user.trustedIps = [actualIp];
+        await this.userRepository.save(user);
+      } else if (!user.trustedIps.includes(actualIp)) {
+        const otpKey = `otp:${user.email || user.phone}:new_device`;
+        
+        if (loginDto.otp) {
+          const isValid = await this.otpUtil.verifyOTP(this.redisClient, otpKey, loginDto.otp);
+          if (!isValid) {
+            throw new BadRequestException('Invalid or expired OTP for new device authentication');
+          }
+          user.trustedIps.push(actualIp);
+          await this.userRepository.save(user);
+        } else {
+          const otp = this.otpUtil.generateOTP(6, user.email || user.phone);
+          await this.otpUtil.storeOTP(this.redisClient, otpKey, otp);
+          
+          if (user.email) {
+            await this.otpUtil.sendOTPEmail(user.email, otp, 'new_device', { ipAddress: actualIp });
+          } else if (user.phone) {
+            await this.otpUtil.sendOTPSMS(user.phone, otp);
+          }
+
+          throw new ForbiddenException({
+            success: false,
+            error: 'NEW_DEVICE_OTP_REQUIRED',
+            message: 'New device or IP detected. Please enter the OTP sent to your email to authorize this login.',
+            data: { capturedIp: actualIp }
+          });
+        }
       }
     }
 
@@ -437,6 +472,7 @@ export class AuthService {
         ),
       device_id: loginDto.deviceId,
       device_name: loginDto.deviceName,
+      login_role: loginDto.accountType,
     };
 
     try {

@@ -5,6 +5,7 @@ import { Providers } from "@/src/shared/lib/providers";
 import { ThemeInitScript } from "@/src/shared/components/ThemeInitScript";
 import { MaintenanceBanner } from "@/src/shared/components/MaintenanceBanner";
 import { JsonLd, organizationJsonLd, websiteJsonLd } from "@/src/shared/components/seo/JsonLd";
+import { SessionSync } from "@/src/shared/components/SessionSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -81,6 +82,7 @@ export default function RootLayout({
         />
         <JsonLd data={websiteJsonLd({ name: APP_NAME, url: APP_URL })} />
         <MaintenanceBanner />
+        <SessionSync />
         <Providers>{children}</Providers>
       </body>
     </html>

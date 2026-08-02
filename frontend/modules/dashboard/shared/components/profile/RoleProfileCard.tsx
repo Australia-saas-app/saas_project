@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { ShieldCheck, Pencil, AlertTriangle } from "lucide-react";
+import { ShieldCheck, Pencil, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "./ProfileFormGrid";
 import KycApplicationModal from "./KycApplicationModal";
@@ -60,7 +60,9 @@ export default function RoleProfileCard({
     setIsKycModalOpen(true);
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -69,10 +71,13 @@ export default function RoleProfileCard({
       return;
     }
 
+    setIsUploadingAvatar(true);
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const result = reader.result as string;
+      await new Promise((res) => setTimeout(res, 1500)); // Simulate save delay
       updateProfile({ avatarUrl: result });
+      setIsUploadingAvatar(false);
       toast.success("Profile picture updated.");
     };
     reader.readAsDataURL(file);
@@ -99,7 +104,13 @@ export default function RoleProfileCard({
           <div className="flex items-start gap-5">
             {/* Avatar Container with Pencil Icon */}
             <div className="relative h-20 w-20 shrink-0 md:h-[85px] md:w-[85px]">
-              <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-primary/20 bg-muted shadow-sm">
+              <div className="h-full w-full overflow-hidden rounded-full border-[3px] border-primary/20 bg-muted shadow-sm relative">
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
+                    <Loader2 className="w-5 h-5 animate-spin mb-1 text-white" />
+                    <span className="text-[9px] font-medium leading-none">Uploading...</span>
+                  </div>
+                )}
                 <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
               </div>
               <button
