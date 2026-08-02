@@ -47,8 +47,21 @@ export function SessionSync() {
       }
     };
 
+    // Polling backend to check for session validity (cross-device logout)
+    const pollInterval = setInterval(async () => {
+      try {
+        const { getCurrentUser } = await import("@/src/shared/server/AuthService");
+        const user = await getCurrentUser();
+        if (!user) {
+          // backend session is invalidated, show popup
+          setIsLocked(true);
+        }
+      } catch (err) {}
+    }, 15000);
+
     return () => {
       bc.close();
+      clearInterval(pollInterval);
     };
   }, [pathname]);
 
@@ -59,7 +72,7 @@ export function SessionSync() {
   if (!isLocked) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
       <div
         style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
         className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"

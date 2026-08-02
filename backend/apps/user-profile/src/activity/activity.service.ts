@@ -93,4 +93,12 @@ export class ActivityService {
       pages: Math.ceil(total / limit),
     };
   }
+
+  async deleteActivity(userId: string, activityId: string): Promise<void> {
+    await this.activityModel.deleteOne({ _id: activityId, userId }).exec();
+  }
+
+  async deleteAllActivities(userId: string): Promise<void> {
+    await this.activityModel.deleteMany({ userId }).exec();
+  }
 }

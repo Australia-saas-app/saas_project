@@ -327,18 +327,6 @@ export function useProfileDisplay() {
     saveProfileOverrides(rawUserId, patch)
     setRevision((n) => n + 1)
     
-    try {
-      if (patch.avatarUrl) {
-        recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
-      }
-      if (patch.documentUrl) {
-        recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId, email, name: fullName });
-      }
-      const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
-      if (hasOtherUpdates) {
-        recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
-      }
-    } catch {}
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
       
@@ -356,6 +344,7 @@ export function useProfileDisplay() {
         localStorage.setItem("vero_profile_sync", JSON.stringify({ userId: rawUserId, timestamp: Date.now() }));
       } catch {}
     }
+    
     try {
       if (!isDemo) {
         const payload: Record<string, any> = {};
@@ -377,6 +366,28 @@ export function useProfileDisplay() {
         
         if (profileResult && !profileResult.success) {
           throw new Error(profileResult.message || "Failed to sync profile to backend");
+        }
+
+        if (patch.avatarUrl) {
+          recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
+        }
+        if (patch.documentUrl) {
+          recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId, email, name: fullName });
+        }
+        const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
+        if (hasOtherUpdates) {
+          recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
+        }
+      } else {
+        if (patch.avatarUrl) {
+          recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
+        }
+        if (patch.documentUrl) {
+          recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId, email, name: fullName });
+        }
+        const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
+        if (hasOtherUpdates) {
+          recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
         }
       }
     } catch (e) {

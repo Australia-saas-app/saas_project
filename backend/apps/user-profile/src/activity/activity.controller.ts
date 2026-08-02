@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { ActivityService } from './activity.service';
 import { ActivityQueryDto } from './dto/activity-query.dto';
+import { CreateActivityDto } from './dto/create-activity.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UserRequest } from '../common/interfaces/request.interface';
 
@@ -25,5 +26,54 @@ export class ActivityController {
   })
   getActivities(@Request() req: UserRequest, @Query() query: ActivityQueryDto) {
     return this.activityService.getActivities(req.user.userId, query);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Log a new user activity' })
+  @ApiResponse({
+    status: 201,
+    description: 'Activity logged successfully',
+  })
+  async createActivity(@Request() req: UserRequest, @Body() body: CreateActivityDto) {
+    // If not provided, assume 'system' or pull from req
+    const resource = body.resource || 'system';
+    
+    const expressReq = req as any;
+    // We allow the frontend to optionally supply an IP, but fallback to request IP if possible
+    const ipAddress = body.ipAddress || expressReq.ip || '127.0.0.1';
+    const userAgent = body.userAgent || expressReq.headers?.['user-agent'];
+
+    await this.activityService.logActivity(
+      req.user.userId,
+      body.action,
+      resource,
+      body.resourceId,
+      body.details,
+      ipAddress,
+      userAgent
+    );
+    return { success: true };
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a single activity log' })
+  @ApiResponse({
+    status: 200,
+    description: 'Activity deleted successfully',
+  })
+  async deleteActivity(@Request() req: UserRequest, @Param('id') id: string) {
+    await this.activityService.deleteActivity(req.user.userId, id);
+    return { success: true };
+  }
+
+  @Delete()
+  @ApiOperation({ summary: 'Delete all activity logs for the current user' })
+  @ApiResponse({
+    status: 200,
+    description: 'All activities deleted successfully',
+  })
+  async deleteAllActivities(@Request() req: UserRequest) {
+    await this.activityService.deleteAllActivities(req.user.userId);
+    return { success: true };
   }
 }

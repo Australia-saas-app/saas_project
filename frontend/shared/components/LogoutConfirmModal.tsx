@@ -56,7 +56,7 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
       <div
         style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
         className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"

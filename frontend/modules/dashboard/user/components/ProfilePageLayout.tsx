@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Pencil, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Pencil, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
@@ -15,6 +15,7 @@ export default function ProfilePageLayout() {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const effectiveKycStatus = kycStatus;
   const effectiveIsKycVerified = kycStatus === 'approved';
@@ -52,6 +53,7 @@ export default function ProfilePageLayout() {
       return;
     }
 
+    setIsUploadingAvatar(true);
     const reader = new FileReader();
     reader.onload = async () => {
       const result = reader.result as string;
@@ -59,6 +61,7 @@ export default function ProfilePageLayout() {
       if (refreshUser) {
         await refreshUser().catch(() => {});
       }
+      setIsUploadingAvatar(false);
       toast.success("Profile picture updated.");
     };
     reader.readAsDataURL(file);
@@ -86,7 +89,13 @@ export default function ProfilePageLayout() {
           <div className="flex items-center gap-4">
             {/* Avatar Container with Bottom-Right Pencil Icon */}
             <div className="relative h-20 w-20 shrink-0">
-              <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-primary/20 bg-muted shadow-sm">
+              <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-primary/20 bg-muted shadow-sm relative">
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
+                    <Loader2 className="w-5 h-5 animate-spin mb-1 text-white" />
+                    <span className="text-[9px] font-medium leading-none">Uploading...</span>
+                  </div>
+                )}
                 <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
               </div>
               {/* Pencil Icon Button */}

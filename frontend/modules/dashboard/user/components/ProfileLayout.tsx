@@ -39,10 +39,10 @@ const ProfileLayout = () => {
   const [logCount, setLogCount] = useState(0)
 
   useEffect(() => {
-    const fetchLogCount = () => {
-      let userLogs = getLogsForUser(userId)
+    const fetchLogCount = async () => {
+      let userLogs = await getLogsForUser(userId)
       if (userLogs.length === 0 && userId !== userEmail && userEmail) {
-        userLogs = getLogsForUser(userEmail)
+        userLogs = await getLogsForUser(userEmail)
       }
       setLogCount(userLogs.length)
     }

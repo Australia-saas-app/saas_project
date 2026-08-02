@@ -75,8 +75,7 @@ export default function RoleProfileCard({
     const reader = new FileReader();
     reader.onload = async () => {
       const result = reader.result as string;
-      await new Promise((res) => setTimeout(res, 1500)); // Simulate save delay
-      updateProfile({ avatarUrl: result });
+      await updateProfile({ avatarUrl: result });
       setIsUploadingAvatar(false);
       toast.success("Profile picture updated.");
     };

@@ -413,8 +413,8 @@ export default function Header() {
 
       {/* Logout Confirmation Modal */}
       {logoutModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
-          <div style={{ width: '360px', maxWidth: 'calc(100vw - 32px)' }} className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
+          <div style={{ width: '360px', maxWidth: 'calc(100vw - 32px)', margin: 'auto' }} className="bg-card rounded-2xl shadow-2xl p-7 text-center border border-border">
             {/* Icon */}
             <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-5">
               <LogOut className="w-6 h-6 text-red-500" strokeWidth={1.8} />

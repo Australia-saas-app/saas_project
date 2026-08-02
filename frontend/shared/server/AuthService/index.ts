@@ -439,7 +439,13 @@ export const getCurrentUser = async () => {
         if (twoFactorEnabled !== undefined) merged.twoFactorEnabled = twoFactorEnabled;
         if (twoFactorMethod !== undefined) merged.twoFactorMethod = twoFactorMethod;
       }
-    } catch {
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        cookieStore.delete("accessToken");
+        cookieStore.delete("refreshToken");
+        cookieStore.delete("user");
+        return null;
+      }
       // /me call failed (network/timeout) — fall back to cookie data only
     }
 

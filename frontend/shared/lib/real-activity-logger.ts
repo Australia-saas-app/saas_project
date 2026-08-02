@@ -1,7 +1,4 @@
-/**
- * Centralized Real Activity Logger
- * Logs real user & admin actions to localStorage, custom window events, and backend database.
- */
+import axiosInstance from "./axiosInstance";
 
 export interface RealLogEntry {
   id: string;
@@ -14,25 +11,40 @@ export interface RealLogEntry {
   createdAt: string;
 }
 
-const STORAGE_KEY_PREFIX = "sys_real_user_logs_";
 export const LOG_ADDED_EVENT = "vero:log_added";
 
-export function getLogsForUser(userId: string): RealLogEntry[] {
+function formatBackendLog(log: any): RealLogEntry {
+  return {
+    id: log._id || log.id,
+    userId: log.userId,
+    username: log.details?.name || "User",
+    email: log.details?.email || "",
+    action: log.action,
+    details: log.resource || log.details?.message || "",
+    ipAddress: log.ipAddress || "",
+    createdAt: log.timestamp || log.createdAt,
+  };
+}
+
+export async function getLogsForUser(userId: string): Promise<RealLogEntry[]> {
   if (typeof window === "undefined" || !userId) return [];
   try {
-    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+    const res = await axiosInstance.get(`/user-profile-service/activity`);
+    // Assuming backend returns { activities: [...] } based on ActivityService
+    const activities = res.data?.activities || [];
+    return activities.map(formatBackendLog);
+  } catch (error) {
+    console.error("Failed to fetch activity logs", error);
     return [];
   }
 }
 
-export function recordRealActivity(
+export async function recordRealActivity(
   action: string,
   details: string,
   userOrEmail?: string | { email?: string; userId?: string; id?: string; name?: string; firstName?: string },
   ipAddress = "127.0.0.1"
-): RealLogEntry {
+): Promise<RealLogEntry | null> {
   let userId = "user";
   let username = "User";
   let email = "";
@@ -46,73 +58,68 @@ export function recordRealActivity(
     userId = userOrEmail.userId || userOrEmail.id || username;
   }
 
-  const newLog: RealLogEntry = {
-    id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    userId,
-    username,
-    email,
-    action,
-    details,
-    ipAddress,
-    createdAt: new Date().toISOString(),
-  };
-
-  if (typeof window !== "undefined") {
-    try {
-      // Optimistically save the log first
-      const saveLog = (logToSave: RealLogEntry) => {
-        const existing = getLogsForUser(userId);
-        // if this log already exists (via ID), replace it, otherwise unshift
-        const idx = existing.findIndex(l => l.id === logToSave.id);
-        if (idx !== -1) {
-          existing[idx] = logToSave;
-        } else {
-          existing.unshift(logToSave);
+  try {
+    let resolvedIp = ipAddress;
+    // Async fetch real IP if we're on client side and it's the default
+    if (ipAddress === "127.0.0.1" && typeof window !== "undefined") {
+      try {
+        const ipRes = await fetch("https://api.ipify.org?format=json");
+        const ipData = await ipRes.json();
+        if (ipData.ip) {
+          resolvedIp = ipData.ip;
         }
-        const updated = existing.slice(0, 500);
-        localStorage.setItem(`${STORAGE_KEY_PREFIX}${userId}`, JSON.stringify(updated));
-        window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT, { detail: logToSave }));
-      };
-      
-      saveLog(newLog);
-
-      // Async fetch real IP if we're on client side and it's the default
-      if (ipAddress === "127.0.0.1") {
-        fetch("https://api.ipify.org?format=json")
-          .then(res => res.json())
-          .then(data => {
-            if (data.ip) {
-              newLog.ipAddress = data.ip;
-              saveLog(newLog);
-            }
-          })
-          .catch(() => {});
-      }
-    } catch (e) {
-      console.error("Failed to record activity log", e);
+      } catch {}
     }
-  }
 
-  return newLog;
+    const payload = {
+      action,
+      resource: details,
+      details: { name: username, email },
+      ipAddress: resolvedIp,
+      userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Unknown",
+    };
+
+    await axiosInstance.post("/user-profile-service/activity", payload);
+
+    const fakeLocalLog: RealLogEntry = {
+      id: "pending",
+      userId,
+      username,
+      email,
+      action,
+      details,
+      ipAddress: resolvedIp,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT, { detail: fakeLocalLog }));
+    }
+    return fakeLocalLog;
+  } catch (e) {
+    console.error("Failed to record activity log", e);
+    return null;
+  }
 }
 
-export function deleteSingleLog(userId: string, logId: string): RealLogEntry[] {
-  const existing = getLogsForUser(userId);
-  const updated = existing.filter((l) => l.id !== logId);
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(`${STORAGE_KEY_PREFIX}${userId}`, JSON.stringify(updated));
+export async function deleteSingleLog(userId: string, logId: string): Promise<void> {
+  try {
+    await axiosInstance.delete(`/user-profile-service/activity/${logId}`);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
-    } catch {}
+    }
+  } catch (error) {
+    console.error("Failed to delete log", error);
   }
-  return updated;
 }
 
-export function deleteAllLogs(userId: string): void {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${userId}`);
+export async function deleteAllLogs(userId: string): Promise<void> {
+  try {
+    await axiosInstance.delete(`/user-profile-service/activity`);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
-    } catch {}
+    }
+  } catch (error) {
+    console.error("Failed to delete all logs", error);
   }
 }

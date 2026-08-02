@@ -63,9 +63,9 @@ export default function UserLogLayout() {
     setIsLoading(true);
     try {
       await new Promise((res) => setTimeout(res, 500));
-      let userLogs = getLogsForUser(userId);
+      let userLogs = await getLogsForUser(userId);
       if (userLogs.length === 0 && userId !== userEmail) {
-        userLogs = getLogsForUser(userEmail);
+        userLogs = await getLogsForUser(userEmail);
       }
       setLogs(userLogs);
     } catch (err) {
@@ -79,7 +79,8 @@ export default function UserLogLayout() {
     setIsDeletingSingle(id);
     try {
       await new Promise((res) => setTimeout(res, 400));
-      const updated = deleteSingleLog(userId, id);
+      await deleteSingleLog(userId, id);
+      const updated = await getLogsForUser(userId);
       setLogs(updated);
       toast.success("Log entry deleted successfully");
     } catch {
@@ -93,8 +94,10 @@ export default function UserLogLayout() {
     setIsDeletingAll(true);
     try {
       await new Promise((res) => setTimeout(res, 500));
-      deleteAllLogs(userId);
-      deleteAllLogs(userEmail);
+      await deleteAllLogs(userId);
+      if (userId !== userEmail) {
+        await deleteAllLogs(userEmail);
+      }
       setLogs([]);
       setShowDeleteAllConfirm(false);
       toast.success("All activity logs deleted successfully");
@@ -360,7 +363,7 @@ export default function UserLogLayout() {
       {/* Data Table - Columns matching page.tsx: Timestamp, User, Action, Details, IP Address, Delete */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto min-h-[400px] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[900px] text-left border-collapse">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-4 text-muted-foreground text-xs font-semibold uppercase tracking-wider">

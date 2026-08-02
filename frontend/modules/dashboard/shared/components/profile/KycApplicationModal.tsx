@@ -170,7 +170,7 @@ export default function KycApplicationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto overflow-x-hidden">
       <div
         style={{ maxWidth: "850px", width: "92%", margin: "0 auto" }}
         className="relative bg-background border border-border shadow-2xl overflow-hidden rounded-2xl my-6"
@@ -191,7 +191,7 @@ export default function KycApplicationModal({
         </div>
 
         {/* ─── Body ─── */}
-        <div className="px-10 py-8 relative bg-background max-h-[70vh] overflow-y-auto">
+        <div className="px-10 py-8 relative bg-background max-h-[70vh] overflow-y-auto overflow-x-hidden">
 
 
           {/* Preamble / Formal Application Format */}

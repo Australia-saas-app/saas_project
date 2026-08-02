@@ -106,9 +106,9 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
   const stampText = isKycVerified ? "VERIFIED" : kycStatus === "rejected" ? "REJECTED" : "PENDING";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto overflow-x-hidden">
       <div
-        style={{ maxWidth: '850px', width: '92%', margin: '0 auto' }}
+        style={{ maxWidth: '850px', width: '100%', margin: '0 auto' }}
         className="relative bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden rounded-2xl my-6"
       >
 
@@ -171,7 +171,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
             return (
               <>
-                <div className="flex items-start gap-8 relative z-10">
+                <div className="flex flex-col md:flex-row items-start gap-8 relative z-10">
                   {/* Watermark/Stamp */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-20 rotate-[-15deg] z-0 flex items-center justify-center w-full h-full">
                     <div className={`border-[8px] ${stampColor} rounded-lg px-8 py-4`}>
@@ -218,8 +218,8 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   </div>
 
                   {/* Right side info & Photo */}
-                  <div className="flex-1 space-y-4">
-                    <div className="flex justify-end mb-4">
+                  <div className="flex-1 space-y-4 w-full">
+                    <div className="flex justify-center md:justify-end mb-4">
                       <div className="h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
                         {user.profilePhoto || user.avatarUrl ? (
                           <img src={user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
@@ -230,13 +230,13 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-center md:text-right">
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>
                       <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
                         {user.userId ? `KYC-${user.userId}` : (user.id ? `KYC-${user.id}` : "N/A")}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-center md:text-right">
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Application Date</span>
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{appliedDate}</p>
                     </div>

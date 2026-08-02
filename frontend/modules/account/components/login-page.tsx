@@ -147,9 +147,18 @@ export function LoginPage({
       }
 
       // 3. Perform login when 2FA is disabled
+      let deviceId = "";
+      if (typeof window !== "undefined") {
+        deviceId = localStorage.getItem("vero_device_id") || "";
+        if (!deviceId) {
+          deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+          localStorage.setItem("vero_device_id", deviceId);
+        }
+      }
+
       setIsVerifyingCreds(false);
       loginMutation.mutate(
-        { ...normalizedData, accountType },
+        { ...normalizedData, accountType, deviceId },
         {
           onError: (err: any) => {
             const errMsg = err?.message || "";
@@ -200,8 +209,13 @@ export function LoginPage({
       if (typeof window !== "undefined") {
         sessionStorage.setItem("show_login_success_toast", "true");
       }
+      let deviceId = "";
+      if (typeof window !== "undefined") {
+        deviceId = localStorage.getItem("vero_device_id") || "";
+      }
+      
       loginMutation.mutate(
-        { ...pendingLoginData, otp: otpCode, accountType },
+        { ...pendingLoginData, otp: otpCode, accountType, deviceId },
         {
           onError: () => {
             if (typeof window !== "undefined") {

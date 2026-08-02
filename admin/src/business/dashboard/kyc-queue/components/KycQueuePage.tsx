@@ -56,6 +56,13 @@ export default function KycQueuePage() {
           if (id === uid) return { ...prev, kycStatus: newKycStatus };
           return prev;
         });
+        
+        queryClient.setQueryData(["kyc-users", token], (oldData: any[] | undefined) => {
+          if (!oldData) return oldData;
+          return oldData.map((u: any) => 
+            (u.userId === uid || u.id === uid) ? { ...u, kycStatus: newKycStatus } : u
+          );
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["kyc-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });

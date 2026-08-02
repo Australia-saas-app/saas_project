@@ -42,7 +42,7 @@ export function SidebarResponsive({
         )}
         <aside
           className={[
-            "fixed left-0 top-0 z-40 flex h-screen min-h-0 w-64 flex-col overflow-hidden border-r border-border bg-card shadow-xl transition-transform duration-300 ease-in-out lg:hidden",
+            "fixed left-0 top-0 z-40 flex h-[100dvh] min-h-0 w-64 flex-col overflow-hidden border-r border-border bg-card shadow-xl transition-transform duration-300 ease-in-out lg:hidden",
             isExpanded ? "translate-x-0" : "-translate-x-full pointer-events-none",
           ].join(" ")}
         >
@@ -53,7 +53,7 @@ export function SidebarResponsive({
   }
 
   return (
-    <div className="relative h-screen w-16 shrink-0">
+    <div className="relative h-[100dvh] w-16 shrink-0">
       <aside
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}

@@ -416,11 +416,12 @@ export class AuthService {
 
       const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'Unknown IP';
       const actualIp = clientIp.split(',')[0].trim();
+      const deviceIdentifier = loginDto.deviceId ? `${actualIp}|${loginDto.deviceId}` : actualIp;
 
       if (!user.trustedIps || user.trustedIps.length === 0) {
-        user.trustedIps = [actualIp];
+        user.trustedIps = [deviceIdentifier];
         await this.userRepository.save(user);
-      } else if (!user.trustedIps.includes(actualIp)) {
+      } else if (!user.trustedIps.includes(deviceIdentifier)) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
         
         if (loginDto.otp) {
@@ -428,7 +429,7 @@ export class AuthService {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          user.trustedIps.push(actualIp);
+          user.trustedIps.push(deviceIdentifier);
           await this.userRepository.save(user);
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);

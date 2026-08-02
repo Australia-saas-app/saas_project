@@ -71,10 +71,10 @@ export default function AccountDeleteLayout() {
       // Purge all local storage, activity logs and browser caches for user
       if (userId) {
         clearAllUserStorage(userId)
-        deleteAllLogs(userId)
+        await deleteAllLogs(userId)
       }
       if (email) {
-        deleteAllLogs(email)
+        await deleteAllLogs(email)
       }
       if (typeof window !== "undefined") {
         localStorage.clear()

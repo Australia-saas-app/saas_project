@@ -269,6 +269,11 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
       const data = form.getValues();
       const payload = { ...data, otp, recoveryKey: generatedKey };
       await Promise.resolve(onNext(payload));
+      form.reset({ fullName: "", email: "", password: "", agreeToTerms: false, currency: "USD" });
+      setStep(1);
+      setOtp("");
+      setOtpVerified(false);
+      setGeneratedKey("");
       toast.success("Account created successfully!");
     } catch (err) {
       setSubmitErrors(err instanceof Error ? err.message : "Sign up failed. Please try again.");
