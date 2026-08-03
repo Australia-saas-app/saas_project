@@ -32,12 +32,8 @@ export function SessionSync() {
 
     const bc = new BroadcastChannel("session-sync");
     
-    const handleLock = async () => {
+    const handleLock = () => {
       setIsLocked(true);
-      try {
-        const { logout } = await import("@/src/shared/server/AuthService");
-        await logout();
-      } catch {}
       window.location.href = "/login?reason=session_superseded";
     };
 
