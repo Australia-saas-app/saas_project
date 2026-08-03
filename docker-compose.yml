@@ -179,10 +179,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3005
-      - MONGODB_URI=mongodb://admin:adminpassword@saas-mongodb:27017/saas_db?authSource=admin
+      - MONGODB_URI=mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin
       - JWT_SECRET=${SSO_PRIVATE_KEY}
     depends_on:
-      - saas-mongodb
+      - saas_mongodb
     restart: always
     networks:
       - saas_network
