@@ -57,3 +57,11 @@ services:
         paths:
           - /api/v1/users
         strip_path: true
+
+  - name: user-profile-service
+    url: http://saas-backend-user-profile:3005/user-profile-service
+    routes:
+      - name: user-profile-route
+        paths:
+          - /api/v1/user-profile-service
+        strip_path: true

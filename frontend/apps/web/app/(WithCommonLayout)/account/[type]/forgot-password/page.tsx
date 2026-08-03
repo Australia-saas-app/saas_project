@@ -19,5 +19,5 @@ export default function ForgotPasswordPageRoute() {
     router.push(`/account/${accountType}/login`)
   }
 
-  return <ForgotPasswordPage onNext={handleNext} onBackToLogin={handleBackToLogin} />
+  return <ForgotPasswordPage onNext={handleNext} onBackToLogin={handleBackToLogin} accountType={accountType} />
 }

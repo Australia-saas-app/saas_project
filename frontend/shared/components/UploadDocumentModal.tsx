@@ -69,14 +69,20 @@ export function UploadDocumentModal({ open, onClose, onUploadSuccess, existingUr
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === "string") {
-        if (side === "front") {
-          setFrontFile(file);
-          setFrontUrl(reader.result);
-        } else {
-          setBackFile(file);
-          setBackUrl(reader.result);
+        try {
+          const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+          const compressed = await compressImageFile(file, 1200, 1200, 0.85);
+          if (side === "front") {
+            setFrontFile(file);
+            setFrontUrl(compressed);
+          } else {
+            setBackFile(file);
+            setBackUrl(compressed);
+          }
+        } catch (e) {
+          toast.error("Failed to process image.");
         }
       }
     };

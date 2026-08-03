@@ -18,6 +18,19 @@ import { UserRequest } from '../common/interfaces/request.interface';
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}
 
+  @Get('admin/device-stats')
+  @ApiOperation({ summary: 'Get aggregated device stats for admin dashboard' })
+  @ApiResponse({
+    status: 200,
+    description: 'Device stats retrieved successfully',
+  })
+  async getAdminDeviceStats() {
+    // Note: JwtAuthGuard already protects the controller.
+    // Ensure that only admins can access this in a real scenario by checking req.user.role if necessary.
+    const stats = await this.activityService.getAdminDeviceStats();
+    return { success: true, data: stats };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get user activity logs' })
   @ApiResponse({

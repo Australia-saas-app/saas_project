@@ -71,13 +71,21 @@ export async function recordRealActivity(
       } catch {}
     }
 
-    const payload = {
+    const payload: any = {
       action,
       resource: details,
       details: { name: username, email },
-      ipAddress: resolvedIp,
       userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Unknown",
     };
+    
+    if (typeof window !== "undefined") {
+      const storedDeviceId = localStorage.getItem("vero_device_id");
+      if (storedDeviceId) payload.details.deviceId = storedDeviceId;
+    }
+    
+    if (resolvedIp && resolvedIp !== "127.0.0.1") {
+      payload.ipAddress = resolvedIp;
+    }
 
     await axiosInstance.post("/user-profile-service/activity", payload);
 

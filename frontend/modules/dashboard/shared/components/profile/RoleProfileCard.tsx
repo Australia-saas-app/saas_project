@@ -72,14 +72,16 @@ export default function RoleProfileCard({
     }
 
     setIsUploadingAvatar(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const result = reader.result as string;
-      await updateProfile({ avatarUrl: result });
+    try {
+      const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+      const compressedBase64 = await compressImageFile(file, 400, 400, 0.6);
+      await updateProfile({ avatarUrl: compressedBase64 });
       setIsUploadingAvatar(false);
       toast.success("Profile picture updated.");
-    };
-    reader.readAsDataURL(file);
+    } catch (e) {
+      setIsUploadingAvatar(false);
+      toast.error("Failed to process image.");
+    }
     e.target.value = "";
   };
 
@@ -208,8 +210,14 @@ export default function RoleProfileCard({
                     if (!file) return;
 
                     const reader = new FileReader();
-                    reader.onload = () => {
-                      const result = typeof reader.result === "string" ? reader.result : "";
+                    reader.onload = async () => {
+                      let result = typeof reader.result === "string" ? reader.result : "";
+                      try {
+                        const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+                        result = await compressImageFile(file, 800, 800, 0.7);
+                      } catch (e) {
+                        console.error("Image compression failed", e);
+                      }
                       addProfileDocument(rawUserId, {
                         id: `doc-${Date.now()}`,
                         type: "UPLOADED",

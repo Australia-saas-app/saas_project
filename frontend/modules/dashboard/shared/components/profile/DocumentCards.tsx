@@ -211,8 +211,15 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
 
     const reader = new FileReader();
     reader.onload = async () => {
-      const newFileUrl = typeof reader.result === "string" ? reader.result : "";
+      let newFileUrl = typeof reader.result === "string" ? reader.result : "";
       if (!newFileUrl) return;
+
+      try {
+        const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+        newFileUrl = await compressImageFile(file, 1200, 1200, 0.85);
+      } catch (e) {
+        console.error("Image compression failed", e);
+      }
 
       const docName = uploadSlot === "front" ? "Front ID Document" : uploadSlot === "back" ? "Back ID Document" : file.name;
       const docType = uploadSlot === "front" ? "FRONT ID" : uploadSlot === "back" ? "BACK ID" : "ID DOCUMENT";

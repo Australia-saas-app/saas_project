@@ -33,10 +33,16 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
     // No cached profile, KYC, session or auth data should remain in the browser.
     if (typeof window !== "undefined") {
       try {
+        const deviceId = localStorage.getItem("vero_device_id");
+        
         // Clear every localStorage entry (profile overrides, documents, scope, etc.)
         localStorage.clear();
         // Clear sessionStorage as well (any temp session values)
         sessionStorage.clear();
+        
+        if (deviceId) {
+          localStorage.setItem("vero_device_id", deviceId);
+        }
       } catch {
         // Fallback: remove known keys individually if clear() is blocked
         const knownKeys = [

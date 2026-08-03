@@ -44,7 +44,7 @@ export default function ProfilePageLayout() {
     setIsKycModalOpen(true);
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -54,17 +54,20 @@ export default function ProfilePageLayout() {
     }
 
     setIsUploadingAvatar(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const result = reader.result as string;
-      await updateProfile({ avatarUrl: result });
+    try {
+      const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+      const compressedBase64 = await compressImageFile(file, 400, 400, 0.6);
+      
+      await updateProfile({ avatarUrl: compressedBase64 });
       if (refreshUser) {
         await refreshUser().catch(() => {});
       }
       setIsUploadingAvatar(false);
       toast.success("Profile picture updated.");
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setIsUploadingAvatar(false);
+      toast.error("Failed to process image.");
+    }
     e.target.value = "";
   };
 

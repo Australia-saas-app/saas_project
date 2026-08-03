@@ -119,8 +119,15 @@ export function BusinessInfoStep({ onNext, onBack, initialData = {} }: BusinessI
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onloadend = () => {
-      form.setValue(name as any, reader.result as string)
+    reader.onloadend = async () => {
+      let result = reader.result as string
+      try {
+        const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+        result = await compressImageFile(file, 1200, 1200, 0.85);
+      } catch (e) {
+        console.error("Compression failed", e);
+      }
+      form.setValue(name as any, result)
     }
     reader.readAsDataURL(file)
   }

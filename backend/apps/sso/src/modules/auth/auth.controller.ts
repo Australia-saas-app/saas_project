@@ -28,6 +28,7 @@ import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AccessTokenGuard } from '../../common/guards/access-token.guard';
 
 @Controller('sso/auth')
 export class AuthController {
@@ -107,7 +108,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AccessTokenGuard)
   getCurrentUser(@Request() req: any) {
     if (!req.user?.userId) {
       throw new ForbiddenException('Invalid authentication payload');

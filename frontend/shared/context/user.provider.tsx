@@ -95,8 +95,10 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     if (typeof window !== "undefined") {
       try {
+        const deviceId = localStorage.getItem("vero_device_id");
         localStorage.clear();
         sessionStorage.clear();
+        if (deviceId) localStorage.setItem("vero_device_id", deviceId);
       } catch {
         localStorage.removeItem("user_profile_overrides_v2");
         localStorage.removeItem("user_profile_documents_v2");

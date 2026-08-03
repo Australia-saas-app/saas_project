@@ -2,6 +2,8 @@
 import Chart from "chart.js/auto";
 import React, { useEffect, useRef } from "react";
 import { Inter } from "next/font/google";
+import { useQuery } from "@tanstack/react-query";
+import { useAppSelector } from "@/src/core/store/hooks";
 
 const inter = Inter({
   weight: ["400", "500", "600", "700"],
@@ -10,8 +12,25 @@ const inter = Inter({
 
 export const TrafficByDeviceChart: React.FC = () => {
   const chartRef = useRef<Chart | null>(null);
+  const token = useAppSelector(state => state.auth.token);
+
+  const { data: chartData = [0, 0, 0, 0, 0, 0], isLoading } = useQuery({
+    queryKey: ['admin-device-stats', token],
+    queryFn: async () => {
+      const res = await fetch('/admin/api/user-profile/activity/admin/device-stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch device stats');
+      const json = await res.json();
+      return json.data || [0, 0, 0, 0, 0, 0];
+    },
+    enabled: !!token,
+    refetchInterval: 30000 // refresh every 30 seconds
+  });
 
   useEffect(() => {
+    if (isLoading) return;
+
     const ctx = document.getElementById("trafficByDeviceNew") as HTMLCanvasElement;
     if (!ctx) return;
 
@@ -50,7 +69,7 @@ export const TrafficByDeviceChart: React.FC = () => {
         datasets: [
           {
             label: "Traffic",
-            data: [15000, 25000, 18000, 30000, 10000, 22000],
+            data: chartData,
             backgroundColor: [
               gradientPurple as any,
               gradientTeal as any,
@@ -163,7 +182,7 @@ export const TrafficByDeviceChart: React.FC = () => {
         chartRef.current.destroy();
       }
     };
-  }, []);
+  }, [chartData, isLoading]);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-6 flex flex-col h-full">

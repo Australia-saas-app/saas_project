@@ -219,21 +219,26 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
       // 3. Post to backend DB endpoint if authenticated
       const dbAccountType = String(user?.accountType || (accountType === "affiliate" ? "agency" : accountType)).toLowerCase();
-      const photoVal = (user as any)?.avatarUrl || (user as any)?.profilePhoto;
-      const profileResult = await completeUserProfile({
+      
+      const apiPayload: Record<string, any> = {
         accountType: dbAccountType,
-        fullName,
-        nationality,
-        dateOfBirth,
-        governmentId: nationalIdentity,
-        governmentIdType,
-        permanentAddress: permAddressObj,
-        idDocument: documentUrl,
-        phone: `${countryCode}${phone}`,
-        email,
-        currency,
-        ...(photoVal ? { profilePhoto: photoVal } : {}),
-      });
+      };
+
+      if (patchData.fullName) apiPayload.fullName = patchData.fullName;
+      else if (fullName !== (user as any)?.fullName) apiPayload.fullName = fullName; // if fullName is handled differently
+
+      if (nationality !== (initialNationality || "")) apiPayload.nationality = nationality;
+      if (dateOfBirth !== (initialDateOfBirth || "")) apiPayload.dateOfBirth = dateOfBirth;
+      if (nationalIdentity !== (initialNationalIdentity || "")) apiPayload.governmentId = nationalIdentity;
+      if (governmentIdType !== (initialGovernmentIdType || "NID")) apiPayload.governmentIdType = governmentIdType;
+      if (permAddressChanged) apiPayload.permanentAddress = permAddressObj;
+      if (phone !== initPhone) apiPayload.phone = `${countryCode}${phone}`;
+      if (email !== (user as any)?.email) apiPayload.email = email;
+      if (currency !== (initialCurrency || "USD")) apiPayload.currency = currency;
+
+      // DO NOT send profilePhoto or idDocument here, as they are updated directly via DocumentCards and ProfilePageLayout
+      
+      const profileResult = await completeUserProfile(apiPayload);
 
       if (profileResult && !profileResult.success) {
         throw new Error(profileResult.message || "Failed to update profile on backend");

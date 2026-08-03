@@ -271,13 +271,17 @@ export const changeRegisteredPassword = async (input: {
   }
 };
 
-export const verifyAccountPassword = async (email: string, password: string) => {
+export const verifyAccountPassword = async (email: string, password: string, accountType?: string) => {
   try {
     const cleanEmail = (email || "").trim().toLowerCase();
-    const { data } = await axiosInstance.post("/sso/auth/verify-password", {
+    const payload: any = {
       email: cleanEmail,
       password,
-    });
+    };
+    if (accountType) {
+      payload.accountType = accountType === "affiliate" ? "agency" : accountType;
+    }
+    const { data } = await axiosInstance.post("/sso/auth/verify-password", payload);
     if (!data?.success) {
       return { success: false, message: data?.message || "Invalid email or password" };
     }
@@ -531,7 +535,7 @@ export const verifyRecoveryKey = async (recoveryKey: string) => {
   }
 };
 
-export const resetUserPassword = async (payload: { email?: string; phone?: string; otp?: string; recoveryKey?: string; newPassword: string }) => {
+export const resetUserPassword = async (payload: { email?: string; phone?: string; otp?: string; recoveryKey?: string; newPassword: string; accountType?: string }) => {
   try {
     const { data } = await axiosInstance.post("/sso/auth/user/reset-password", payload);
     return data;

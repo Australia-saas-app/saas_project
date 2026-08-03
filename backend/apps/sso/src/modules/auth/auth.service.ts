@@ -180,7 +180,7 @@ export class AuthService {
 
     if (normalizedEmail) {
       const existingByEmail = await this.userRepository.findOne({
-        where: { email: normalizedEmail, accountType: accountType, },
+        where: { email: normalizedEmail },
       });
 
       if (existingByEmail) {
@@ -593,8 +593,8 @@ export class AuthService {
 
     const whereConditions: FindOptionsWhere<User>[] = [];
     if (recoveryKey && recoveryKey.trim()) whereConditions.push({ recoveryKey: recoveryKey.trim() });
-    if (normalizedEmail) whereConditions.push({ email: normalizedEmail });
-    if (normalizedPhone) whereConditions.push({ phone: normalizedPhone });
+    if (normalizedEmail) whereConditions.push({ email: normalizedEmail, ...(resetPasswordDto.accountType && { accountType: resetPasswordDto.accountType }) } as any);
+    if (normalizedPhone) whereConditions.push({ phone: normalizedPhone, ...(resetPasswordDto.accountType && { accountType: resetPasswordDto.accountType }) } as any);
 
     const user = whereConditions.length
       ? await this.userRepository.findOne({ where: whereConditions })
@@ -706,10 +706,10 @@ export class AuthService {
       whereConditions.push({ userId: verifyPasswordDto.userId });
     }
     if (normalizedEmail) {
-      whereConditions.push({ email: normalizedEmail });
+      whereConditions.push({ email: normalizedEmail, ...(verifyPasswordDto.accountType && { accountType: verifyPasswordDto.accountType }) } as any);
     }
     if (normalizedPhone) {
-      whereConditions.push({ phone: normalizedPhone });
+      whereConditions.push({ phone: normalizedPhone, ...(verifyPasswordDto.accountType && { accountType: verifyPasswordDto.accountType }) } as any);
     }
 
     if (!whereConditions.length) {

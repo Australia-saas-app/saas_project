@@ -103,12 +103,12 @@ export function LoginPage({
 
   const [isSendingOtp, setIsSendingOtp] = useState(false);
 
-  const sendOtp = async (userEmail: string) => {
+  const sendOtp = async (userEmail: string, otpType: string = "2fa_login") => {
     if (isSendingOtp) return;
     setIsSendingOtp(true);
     setTimeLeft(179);
     try {
-      const res = await sendRegistrationOtp({ email: userEmail, type: "2fa_login" });
+      const res = await sendRegistrationOtp({ email: userEmail, type: otpType });
       if (res && res.success !== false) {
         toast.success(`Verification code sent to ${userEmail}`);
       } else {
@@ -130,7 +130,7 @@ export function LoginPage({
 
     try {
       // 1. Check credentials & backend DB 2FA setting
-      const res = await verifyAccountPassword(normalizedData.email, normalizedData.password);
+      const res = await verifyAccountPassword(normalizedData.email, normalizedData.password, accountType);
       if (!res.success) {
         toast.error(res.message || "Invalid credentials. Please check your email and password.");
         setIsVerifyingCreds(false);
@@ -140,7 +140,7 @@ export function LoginPage({
       // 2. Check 2FA setting directly from Database (DB)
       if (res.twoFactorEnabled) {
         setPendingLoginData(normalizedData);
-        sendOtp(normalizedData.email);
+        sendOtp(normalizedData.email, "2fa_login");
         setIs2faStep(true);
         setIsVerifyingCreds(false);
         return;
@@ -164,7 +164,7 @@ export function LoginPage({
             const errMsg = err?.message || "";
             if (errMsg.includes("mfa_required") || errMsg.includes("OTP required")) {
               setPendingLoginData(normalizedData);
-              sendOtp(normalizedData.email);
+              sendOtp(normalizedData.email, "2fa_login");
               setIs2faStep(true);
             }
             try {
@@ -311,7 +311,7 @@ export function LoginPage({
                 disabled={timeLeft > 0 || loginMutation.isPending || isSendingOtp}
                 onClick={() => {
                   if (pendingLoginData?.email) {
-                    sendOtp(pendingLoginData.email);
+                    sendOtp(pendingLoginData.email, isNewDeviceStep ? "new_device" : "2fa_login");
                   }
                 }}
                 className="text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground transition-all"

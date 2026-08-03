@@ -56,7 +56,14 @@ export function IdentityVerificationStep({
             onFileChange={(file) => {
               if (!file) return setFacePhoto(null)
               const reader = new FileReader()
-              reader.onloadend = () => setFacePhoto(reader.result as string)
+              reader.onloadend = async () => {
+                let result = reader.result as string
+                try {
+                  const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+                  result = await compressImageFile(file, 1200, 1200, 0.85);
+                } catch (e) {}
+                setFacePhoto(result)
+              }
               reader.readAsDataURL(file)
             }}
           />
@@ -78,7 +85,14 @@ export function IdentityVerificationStep({
             onFileChange={(file) => {
               if (!file) return setIdFront(null)
               const reader = new FileReader()
-              reader.onloadend = () => setIdFront(reader.result as string)
+              reader.onloadend = async () => {
+                let result = reader.result as string
+                try {
+                  const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+                  result = await compressImageFile(file, 1200, 1200, 0.85);
+                } catch (e) {}
+                setIdFront(result)
+              }
               reader.readAsDataURL(file)
             }}
           />
@@ -91,7 +105,14 @@ export function IdentityVerificationStep({
             onFileChange={(file) => {
               if (!file) return setIdBack(null)
               const reader = new FileReader()
-              reader.onloadend = () => setIdBack(reader.result as string)
+              reader.onloadend = async () => {
+                let result = reader.result as string
+                try {
+                  const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+                  result = await compressImageFile(file, 1200, 1200, 0.85);
+                } catch (e) {}
+                setIdBack(result)
+              }
               reader.readAsDataURL(file)
             }}
           />

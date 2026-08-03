@@ -25,9 +25,10 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 interface ForgotPasswordPageProps {
   onNext: (email: string) => void;
   onBackToLogin: () => void;
+  accountType?: string;
 }
 
-export function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPageProps) {
+export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswordPageProps) {
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
@@ -144,6 +145,10 @@ export function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPageProps) {
         payload.phone = emailVal;
       }
       payload.otp = otp;
+    }
+    
+    if (accountType) {
+      payload.accountType = accountType;
     }
     
     const res = await resetUserPassword(payload);

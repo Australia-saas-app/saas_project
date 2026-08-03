@@ -15,6 +15,10 @@ export class VerifyPasswordDto {
 
   @IsString()
   password: string;
+
+  @IsOptional()
+  @IsString()
+  accountType?: string;
 }
 
 

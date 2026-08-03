@@ -65,8 +65,15 @@ export function SessionSync() {
     };
   }, [pathname]);
 
-  const handleClose = () => {
-    setIsLocked(false);
+  const handleClose = async () => {
+    // Clear frontend state
+    try {
+      const { logout } = await import("@/src/shared/server/AuthService");
+      await logout();
+    } catch {}
+    
+    // Hard reload and redirect to login page
+    window.location.href = "/login";
   };
 
   if (!isLocked) return null;
@@ -85,7 +92,7 @@ export function SessionSync() {
           You have been logged out of this tab because a new login was detected on another tab or device for this account role.
         </p>
         <Button onClick={handleClose} className="w-full font-semibold">
-          OK
+          Go to Login
         </Button>
       </div>
     </div>
