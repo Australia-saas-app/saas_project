@@ -625,3 +625,17 @@ export const deleteUserAccount = async (userId?: string) => {
     }
   }
 };
+
+export const logActivityToServer = async (payload: any) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  try {
+    const { data } = await axiosInstance.post("/user-profile-service/activity", payload, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return data;
+  } catch (error: any) {
+    console.error("logActivityToServer failed:", error?.response?.data || error.message);
+    return null;
+  }
+};

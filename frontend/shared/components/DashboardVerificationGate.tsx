@@ -21,7 +21,7 @@ export default function DashboardVerificationGate({ children }: { children: Reac
 
   if (isLoading || (!access.allowed && access.reason === "auth")) {
     if (!isLoading && typeof window !== "undefined") {
-      window.location.replace("/account/user/login?reason=session_superseded");
+      window.location.replace("/");
     }
     return (
       <div className="flex min-h-[50vh] items-center justify-center">

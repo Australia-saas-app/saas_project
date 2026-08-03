@@ -1,4 +1,5 @@
 import axiosInstance from "./axiosInstance";
+import { logActivityToServer } from "@/src/shared/server/AuthService";
 
 export interface RealLogEntry {
   id: string;
@@ -87,17 +88,18 @@ export async function recordRealActivity(
       payload.ipAddress = resolvedIp;
     }
 
-    let headers: any = {};
-    if (typeof window === "undefined") {
+    if (typeof window !== "undefined") {
+      await logActivityToServer(payload);
+    } else {
+      let headers: any = {};
       try {
         const { cookies } = await import("next/headers");
         const cookieStore = await cookies();
         const token = cookieStore.get("accessToken")?.value;
         if (token) headers["Authorization"] = `Bearer ${token}`;
       } catch {}
+      await axiosInstance.post("/user-profile-service/activity", payload, { headers });
     }
-
-    await axiosInstance.post("/user-profile-service/activity", payload, { headers });
 
     const fakeLocalLog: RealLogEntry = {
       id: "pending",

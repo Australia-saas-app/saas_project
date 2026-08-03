@@ -20,7 +20,7 @@ export function SessionSync() {
     
     const handleLock = () => {
       setIsLocked(true);
-      window.location.href = "/account/user/login?reason=session_superseded";
+      window.location.href = "/";
     };
 
     bc.onmessage = (event) => {

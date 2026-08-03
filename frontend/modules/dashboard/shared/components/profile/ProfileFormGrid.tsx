@@ -117,26 +117,30 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     permAddress?.trim()
   );
 
-  // Sync initial values only when rawUserId changes (on initial mount / user change), NOT when field is emptied
-  const prevUserIdRef = React.useRef<string | null>(null);
+  // Sync values when the data loads from the DB.
+  // user object updates after the initial login cookie (which lacks heavy fields) is refreshed via /me
   useEffect(() => {
-    if (prevUserIdRef.current === rawUserId) return;
-    prevUserIdRef.current = rawUserId;
-    if (initialNationality) setNationality(initialNationality);
-    if (initialDateOfBirth) setDateOfBirth(initialDateOfBirth);
-    if (initialNationalIdentity) setNationalIdentity(initialNationalIdentity);
-    if (initialGovernmentIdType) setGovernmentIdType(initialGovernmentIdType);
-    if (initialPermanentAddress?.country) setPermCountry(initialPermanentAddress.country);
-    if (initialPermanentAddress?.city) setPermCity(initialPermanentAddress.city);
-    if (initialPermanentAddress?.state) setPermState(initialPermanentAddress.state);
-    if (initialPermanentAddress?.zipCode) setPermZipCode(initialPermanentAddress.zipCode);
-    if (initialPermanentAddress?.address) setPermAddress(initialPermanentAddress.address);
-    if (initialCountryCode) setCountryCode(initialCountryCode);
-    if (initialPhone) setPhone(stripCountryCode(initialPhone, initialCountryCode));
-    if (initialSecondaryEmail) setSecondaryEmail(initialSecondaryEmail);
-    if (initialCurrency) setCurrency(initialCurrency);
-    if (initialDocumentUrl !== undefined) setDocumentUrl(initialDocumentUrl);
-  }, [rawUserId]);
+    if (initialNationality && !nationality) setNationality(initialNationality);
+    if (initialDateOfBirth && !dateOfBirth) setDateOfBirth(initialDateOfBirth);
+    if (initialNationalIdentity && !nationalIdentity) setNationalIdentity(initialNationalIdentity);
+    if (initialGovernmentIdType && !governmentIdType) setGovernmentIdType(initialGovernmentIdType);
+    
+    if (initialPermanentAddress?.country && !permCountry) setPermCountry(initialPermanentAddress.country);
+    if (initialPermanentAddress?.city && !permCity) setPermCity(initialPermanentAddress.city);
+    if (initialPermanentAddress?.state && !permState) setPermState(initialPermanentAddress.state);
+    if (initialPermanentAddress?.zipCode && !permZipCode) setPermZipCode(initialPermanentAddress.zipCode);
+    if (initialPermanentAddress?.address && !permAddress) setPermAddress(initialPermanentAddress.address);
+    
+    if (initialCountryCode && countryCode === "+92") setCountryCode(initialCountryCode);
+    if (initialPhone && !phone) setPhone(stripCountryCode(initialPhone, initialCountryCode));
+    if (initialSecondaryEmail && !secondaryEmail) setSecondaryEmail(initialSecondaryEmail);
+    if (initialCurrency && currency === "USD") setCurrency(initialCurrency);
+    if (initialDocumentUrl && !documentUrl) setDocumentUrl(initialDocumentUrl);
+  }, [
+    initialNationality, initialDateOfBirth, initialNationalIdentity, initialGovernmentIdType,
+    initialPermanentAddress, initialCountryCode, initialPhone, initialSecondaryEmail,
+    initialCurrency, initialDocumentUrl
+  ]);
 
   // Sync documentUrl live whenever PROFILE_UPDATED_EVENT or storage changes occur
   useEffect(() => {
