@@ -28,11 +28,11 @@ export function AccessDeniedState({
       <p className="text-muted-foreground text-center max-w-md mb-6">{description}</p>
       <div className="flex gap-3">
         {showLoginButton && (
-          <Button variant="outline" onClick={() => router.push("/login")}>
-            Log In
+          <Button variant="outline" onClick={() => router.push("/account/user/login")}>
+            Sign In
           </Button>
         )}
-        {showSignupButton && <Button onClick={() => router.push("/signup")}>Sign Up</Button>}
+        {showSignupButton && <Button onClick={() => router.push("/account/user/registration")}>Sign Up</Button>}
       </div>
     </div>
   )

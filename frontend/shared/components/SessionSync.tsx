@@ -2,21 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
 import { getCurrentUser } from "@/src/shared/server/AuthService";
+import { useUser } from "@/src/context/user.provider";
 
 export function SessionSync() {
   const pathname = usePathname();
   const router = useRouter();
   const [isLocked, setIsLocked] = useState(false);
+  const { user } = useUser();
 
   useEffect(() => {
+    // If the user is a public visitor on a non-dashboard page, do nothing.
+    const isDashboard = pathname.includes("/dashboard/");
+    if (!user && !isDashboard) return;
+
     const bc = new BroadcastChannel("session-sync");
     
     const handleLock = () => {
       setIsLocked(true);
-      window.location.href = "/login?reason=session_superseded";
+      window.location.href = "/account/user/login?reason=session_superseded";
     };
 
     bc.onmessage = (event) => {
@@ -27,8 +31,9 @@ export function SessionSync() {
 
     const checkSession = async () => {
       try {
-        const user = await getCurrentUser();
-        if (!user) {
+        const currentUser = await getCurrentUser();
+        // If they were authenticated (or in dashboard) but now are not, kick them out
+        if (!currentUser) {
           handleLock();
         }
       } catch (err) {}
@@ -41,7 +46,7 @@ export function SessionSync() {
       bc.close();
       clearInterval(pollInterval);
     };
-  }, [pathname]);
+  }, [pathname, user]);
 
   return null;
 }
