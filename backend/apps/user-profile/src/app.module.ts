@@ -88,7 +88,7 @@ import { UserPreference } from './preferences/entities/user-preference.entity';
           configService.get<string>('MONGODB_URI') ||
           configService.get<string>('MONGO_URI') ||
           configService.get<string>('DATABASE_URL') ||
-          'mongodb://admin:adminpassword@localhost:27017/saas_db?authSource=admin';
+          'mongodb://localhost:27017/vero2';
 
         const dbName = configService.get<string>('MONGODB_DB_NAME', 'vero2');
 

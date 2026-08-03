@@ -171,6 +171,22 @@ services:
     networks:
       - saas_network
 
+  saas-backend-user-profile:
+    build:
+      context: ./backend/apps/user-profile
+      dockerfile: Dockerfile
+    container_name: saas-backend-user-profile
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+      - MONGODB_URI=mongodb://admin:adminpassword@saas-mongodb:27017/saas_db?authSource=admin
+      - JWT_SECRET=${SSO_PRIVATE_KEY}
+    depends_on:
+      - saas-mongodb
+    restart: always
+    networks:
+      - saas_network
+
   # ==========================================
   # 5. DATABASE & INFRASTRUCTURE
   # ==========================================
