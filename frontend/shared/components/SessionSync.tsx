@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { getCurrentUser } from "@/src/shared/server/AuthService";
 
 export function SessionSync() {
   const pathname = usePathname();
@@ -49,7 +50,6 @@ export function SessionSync() {
 
     const checkSession = async () => {
       try {
-        const { getCurrentUser } = await import("@/src/shared/server/AuthService");
         const user = await getCurrentUser();
         if (!user) {
           handleLock();

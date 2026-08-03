@@ -416,7 +416,7 @@ export class AuthService {
 
       const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'Unknown IP';
       const actualIp = clientIp.split(',')[0].trim();
-      const deviceIdentifier = loginDto.deviceId ? `${actualIp}|${loginDto.deviceId}` : actualIp;
+      const deviceIdentifier = loginDto.deviceId ? loginDto.deviceId : actualIp;
 
       if (!user.trustedIps || user.trustedIps.length === 0) {
         user.trustedIps = [deviceIdentifier];
