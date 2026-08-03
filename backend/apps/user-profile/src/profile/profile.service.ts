@@ -584,7 +584,7 @@ export class ProfileService {
       await this.contactRepository.save(existing);
     }
   }
-}
+  async checkProjectKycRequirement(projectId: string): Promise<boolean> {
     try {
       const response = await fetch(`${this.configService.get('TECHNOLOGY_URL', 'http://localhost:3003')}/technology/projects/${projectId}`, {
         method: 'GET',
