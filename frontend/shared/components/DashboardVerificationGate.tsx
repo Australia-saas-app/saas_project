@@ -20,6 +20,9 @@ export default function DashboardVerificationGate({ children }: { children: Reac
   }, [user, isLoading, pathname]);
 
   if (isLoading || (!access.allowed && access.reason === "auth")) {
+    if (!isLoading && typeof window !== "undefined") {
+      window.location.replace("/login?reason=session_superseded");
+    }
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />

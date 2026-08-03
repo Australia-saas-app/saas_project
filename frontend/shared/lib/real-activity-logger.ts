@@ -87,7 +87,17 @@ export async function recordRealActivity(
       payload.ipAddress = resolvedIp;
     }
 
-    await axiosInstance.post("/user-profile-service/activity", payload);
+    let headers: any = {};
+    if (typeof window === "undefined") {
+      try {
+        const { cookies } = await import("next/headers");
+        const cookieStore = await cookies();
+        const token = cookieStore.get("accessToken")?.value;
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      } catch {}
+    }
+
+    await axiosInstance.post("/user-profile-service/activity", payload, { headers });
 
     const fakeLocalLog: RealLogEntry = {
       id: "pending",

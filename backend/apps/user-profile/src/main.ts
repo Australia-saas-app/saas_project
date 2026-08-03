@@ -12,6 +12,10 @@ async function bootstrap() {
     bufferLogs: true,
   });
   app.set('trust proxy', 1);
+  
+  const { json, urlencoded } = require('express');
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
 
   // Global prefix
   app.setGlobalPrefix('user-profile-service');

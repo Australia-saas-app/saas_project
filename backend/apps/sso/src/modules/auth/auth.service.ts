@@ -429,7 +429,7 @@ export class AuthService {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          user.trustedIps.push(deviceIdentifier);
+          user.trustedIps = [...user.trustedIps, deviceIdentifier];
           await this.userRepository.save(user);
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);

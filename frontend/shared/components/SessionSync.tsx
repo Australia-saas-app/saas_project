@@ -12,25 +12,6 @@ export function SessionSync() {
   const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
-    // Only apply logic inside dashboards
-    const isDashboard = pathname.includes("/dashboard/");
-    if (!isDashboard) return;
-
-    // Identify current dashboard role
-    const isUserDashboard = pathname.includes("/dashboard/user");
-    const isAffiliateDashboard = pathname.includes("/dashboard/affiliate");
-    const isBusinessDashboard = pathname.includes("/dashboard/business");
-
-    const currentRole: string | null = isUserDashboard 
-      ? "user" 
-      : isAffiliateDashboard 
-        ? "agency" // backend returns agency for affiliate
-        : isBusinessDashboard
-          ? "business"
-          : null;
-
-    if (!currentRole) return;
-
     const bc = new BroadcastChannel("session-sync");
     
     const handleLock = () => {
@@ -40,11 +21,7 @@ export function SessionSync() {
 
     bc.onmessage = (event) => {
       if (event.data && event.data.type === "LOGIN") {
-        const loginRole = event.data.role;
-        const isSameRole = (loginRole === currentRole) || 
-                           (loginRole === "affiliate" && currentRole === "agency") ||
-                           (loginRole === "agency" && currentRole === "affiliate");
-        if (isSameRole) handleLock();
+        handleLock();
       }
     };
 

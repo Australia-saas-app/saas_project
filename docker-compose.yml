@@ -179,6 +179,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3005
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=admin
+      - DB_PASSWORD=adminpassword
+      - DB_NAME=saas_db
       - MONGODB_URI=mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin
       - JWT_SECRET=${SSO_PRIVATE_KEY}
     depends_on:
