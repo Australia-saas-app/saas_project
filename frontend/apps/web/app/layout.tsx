@@ -82,8 +82,10 @@ export default function RootLayout({
         />
         <JsonLd data={websiteJsonLd({ name: APP_NAME, url: APP_URL })} />
         <MaintenanceBanner />
-        <SessionSync />
-        <Providers>{children}</Providers>
+        <Providers>
+          <SessionSync />
+          {children}
+        </Providers>
       </body>
     </html>
   );
