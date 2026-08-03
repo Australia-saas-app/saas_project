@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { ShieldCheck, ArrowLeft, Loader2 } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Loader2, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { FormTextInput } from "@/src/components/form/form-text-input";
 import { FormCheckbox } from "@/src/components/form/form-checkbox";
@@ -60,7 +60,12 @@ export function LoginPage({
 }: LoginPageProps) {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect");
+  const reason = searchParams.get("reason");
   const loginMutation = useUserLogin(redirect);
+
+  const [showModalReason, setShowModalReason] = useState<string | null>(
+    reason === "session_superseded" || reason === "inactivity" ? reason : null
+  );
 
   const [is2faStep, setIs2faStep] = useState(false);
   const [isNewDeviceStep, setIsNewDeviceStep] = useState(false);
@@ -402,6 +407,39 @@ export function LoginPage({
             onClose={() => loginMutation.reset()} 
           />
         </>
+      )}
+
+      {showModalReason && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
+          <div
+            style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
+            className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-5">
+              <LogOut className="w-6 h-6 text-red-500" strokeWidth={1.8} />
+            </div>
+            <h3 className="text-lg font-bold text-foreground mb-2">Session Expired</h3>
+            <p className="text-sm text-muted-foreground mb-7 leading-relaxed">
+              {showModalReason === "inactivity"
+                ? "You have been logged out due to inactivity."
+                : "You have been logged out because a new login was detected on another tab or device for this account role."}
+            </p>
+            <button 
+              onClick={() => {
+                setShowModalReason(null);
+                // Remove 'reason' from URL
+                if (typeof window !== 'undefined') {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('reason');
+                  window.history.replaceState({}, '', url.toString());
+                }
+              }} 
+              className="w-full font-semibold inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+            >
+              OK
+            </button>
+          </div>
+        </div>
       )}
     </AuthShell>
   );

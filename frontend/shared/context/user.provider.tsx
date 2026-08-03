@@ -17,8 +17,8 @@ import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user";
 import { setStorageUserScope } from "@/src/shared/lib/storage-scope";
 import { useIdleTimeout } from "@/src/shared/hooks/useIdleTimeout";
 
-/** Log the user out after 30 minutes of no mouse/keyboard/touch activity. */
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+/** Log the user out after 15 minutes of no mouse/keyboard/touch activity. */
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 interface IUserProvider {
   user: IUser | IDecodedToken | null;
@@ -103,8 +103,8 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem("user_profile_overrides_v2");
         localStorage.removeItem("user_profile_documents_v2");
       }
+      window.location.href = "/login?reason=inactivity";
     }
-    toast.warning("You were signed out due to inactivity.");
   }, []);
 
   useIdleTimeout({
