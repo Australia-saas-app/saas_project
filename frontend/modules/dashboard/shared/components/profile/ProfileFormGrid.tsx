@@ -120,22 +120,20 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   // Sync values when the data loads from the DB.
   // user object updates after the initial login cookie (which lacks heavy fields) is refreshed via /me
   useEffect(() => {
-    if (initialNationality && !nationality) setNationality(initialNationality);
-    if (initialDateOfBirth && !dateOfBirth) setDateOfBirth(initialDateOfBirth);
-    if (initialNationalIdentity && !nationalIdentity) setNationalIdentity(initialNationalIdentity);
-    if (initialGovernmentIdType && !governmentIdType) setGovernmentIdType(initialGovernmentIdType);
-    
     if (initialPermanentAddress?.country && !permCountry) setPermCountry(initialPermanentAddress.country);
     if (initialPermanentAddress?.city && !permCity) setPermCity(initialPermanentAddress.city);
     if (initialPermanentAddress?.state && !permState) setPermState(initialPermanentAddress.state);
     if (initialPermanentAddress?.zipCode && !permZipCode) setPermZipCode(initialPermanentAddress.zipCode);
     if (initialPermanentAddress?.address && !permAddress) setPermAddress(initialPermanentAddress.address);
-    
-    if (initialCountryCode && countryCode === "+92") setCountryCode(initialCountryCode);
-    if (initialPhone && !phone) setPhone(stripCountryCode(initialPhone, initialCountryCode));
-    if (initialSecondaryEmail && !secondaryEmail) setSecondaryEmail(initialSecondaryEmail);
-    if (initialCurrency && currency === "USD") setCurrency(initialCurrency);
-    if (initialDocumentUrl && !documentUrl) setDocumentUrl(initialDocumentUrl);
+
+    if (initialNationality) setNationality((prev) => prev || initialNationality);
+    if (initialDateOfBirth) setDateOfBirth((prev) => prev || initialDateOfBirth);
+    if (initialNationalIdentity) setNationalIdentity((prev) => prev || initialNationalIdentity);
+    if (initialGovernmentIdType) setGovernmentIdType((prev) => prev || initialGovernmentIdType);
+    if (initialPhone) setPhone((prev) => prev || stripCountryCode(initialPhone, initialCountryCode || countryCode));
+    if (initialSecondaryEmail) setSecondaryEmail((prev) => prev || initialSecondaryEmail);
+    if (initialCurrency) setCurrency((prev) => (prev === "USD" ? initialCurrency : prev));
+    if (initialDocumentUrl) setDocumentUrl((prev) => prev || initialDocumentUrl);
   }, [
     initialNationality, initialDateOfBirth, initialNationalIdentity, initialGovernmentIdType,
     initialPermanentAddress, initialCountryCode, initialPhone, initialSecondaryEmail,
@@ -215,40 +213,13 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         return;
       }
 
-      // 1. Save locally & persist profile overrides for immediate UI reflection
-      updateProfile(patchData as any);
+      // 1. Save locally, persist profile overrides, and sync to backend
+      await updateProfile(patchData as any);
 
       // 2. Mark profile as complete in local storage & session
       markProfileComplete(rawUserId, accountType, patchData as any);
 
-      // 3. Post to backend DB endpoint if authenticated
-      const dbAccountType = String(user?.accountType || (accountType === "affiliate" ? "agency" : accountType)).toLowerCase();
-      
-      const apiPayload: Record<string, any> = {
-        accountType: dbAccountType,
-      };
-
-      if (patchData.fullName) apiPayload.fullName = patchData.fullName;
-      else if (fullName !== (user as any)?.fullName) apiPayload.fullName = fullName; // if fullName is handled differently
-
-      if (nationality !== (initialNationality || "")) apiPayload.nationality = nationality;
-      if (dateOfBirth !== (initialDateOfBirth || "")) apiPayload.dateOfBirth = dateOfBirth;
-      if (nationalIdentity !== (initialNationalIdentity || "")) apiPayload.governmentId = nationalIdentity;
-      if (governmentIdType !== (initialGovernmentIdType || "NID")) apiPayload.governmentIdType = governmentIdType;
-      if (permAddressChanged) apiPayload.permanentAddress = permAddressObj;
-      if (phone !== initPhone) apiPayload.phone = `${countryCode}${phone}`;
-      if (email !== (user as any)?.email) apiPayload.email = email;
-      if (currency !== (initialCurrency || "USD")) apiPayload.currency = currency;
-
-      // DO NOT send profilePhoto or idDocument here, as they are updated directly via DocumentCards and ProfilePageLayout
-      
-      const profileResult = await completeUserProfile(apiPayload);
-
-      if (profileResult && !profileResult.success) {
-        throw new Error(profileResult.message || "Failed to update profile on backend");
-      }
-
-      // 4. Refresh global user context
+      // 3. Refresh global user context
       if (refreshUser) {
         await refreshUser().catch(() => undefined);
       }

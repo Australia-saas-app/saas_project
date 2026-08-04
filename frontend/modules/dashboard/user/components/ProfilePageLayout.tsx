@@ -64,9 +64,9 @@ export default function ProfilePageLayout() {
       }
       setIsUploadingAvatar(false);
       toast.success("Profile picture updated.");
-    } catch (error) {
+    } catch (error: any) {
       setIsUploadingAvatar(false);
-      toast.error("Failed to process image.");
+      toast.error(error?.message || "Failed to save profile picture.");
     }
     e.target.value = "";
   };

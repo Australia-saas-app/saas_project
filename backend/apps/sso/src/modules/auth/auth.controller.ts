@@ -28,7 +28,8 @@ import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { AccessTokenGuard } from '../../common/guards/access-token.guard';
+import { AccessTokenGuard, AuthContext } from '../../common/guards/access-token.guard';
+import { CurrentAuth } from '../../common/decorators/current-user.decorator';
 
 @Controller('sso/auth')
 export class AuthController {
@@ -109,11 +110,12 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AccessTokenGuard)
-  getCurrentUser(@Request() req: any) {
-    if (!req.user?.userId) {
+  getCurrentUser(@CurrentAuth() auth: AuthContext) {
+    const userId = auth?.user?.userId;
+    if (!userId) {
       throw new ForbiddenException('Invalid authentication payload');
     }
-    return this.authService.getCurrentUser(req.user.userId);
+    return this.authService.getCurrentUser(userId);
   }
 
   @Post('send-otp')

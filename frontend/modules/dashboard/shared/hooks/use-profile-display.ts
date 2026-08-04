@@ -89,14 +89,45 @@ export function useProfileDisplay() {
   const isDemo = isDemoAuthUser(user)
   const [revision, setRevision] = useState(0)
 
-  // Ensure local overrides remain in sync when DB updates
+  // Ensure local overrides remain in sync when DB updates (e.g. after login via /me)
   useEffect(() => {
-    if (!rawUserId || !user) return;
-    const dbKyc = (user as any).kycStatus ? String((user as any).kycStatus).toLowerCase() : "none";
+    if (!rawUserId || !user || isDemo) return;
+    const u = user as Record<string, unknown>;
+    const patch: ProfileDataPatch = {};
+
+    const dbKyc = u.kycStatus ? String(u.kycStatus).toLowerCase() : "none";
     if (dbKyc !== "none" && dbKyc !== "unverified" && dbKyc !== "") {
-      saveProfileOverrides(rawUserId, { kycStatus: dbKyc });
+      patch.kycStatus = dbKyc;
     }
-  }, [rawUserId, user]);
+    if (u.profilePhoto && !getProfileOverrides(rawUserId).avatarUrl) {
+      patch.avatarUrl = String(u.profilePhoto);
+    }
+    if (u.idDocument && getProfileOverrides(rawUserId).documentUrl === undefined) {
+      patch.documentUrl = String(u.idDocument);
+    }
+    if (u.nationality && !getProfileOverrides(rawUserId).nationality) {
+      patch.nationality = String(u.nationality);
+    }
+    if (u.dateOfBirth && !getProfileOverrides(rawUserId).dateOfBirth) {
+      patch.dateOfBirth = String(u.dateOfBirth).split("T")[0];
+    }
+    if (u.governmentId && !getProfileOverrides(rawUserId).nationalIdentity) {
+      patch.nationalIdentity = String(u.governmentId);
+    }
+    if (u.governmentIdType && !(getProfileOverrides(rawUserId) as any).governmentIdType) {
+      (patch as any).governmentIdType = String(u.governmentIdType);
+    }
+    const dbAddr = u.permanentAddress as ProfileDataPatch["permanentAddress"] | undefined;
+    const localAddr = (getProfileOverrides(rawUserId) as any).permanentAddress;
+    if (dbAddr && !localAddr) {
+      (patch as any).permanentAddress = dbAddr;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      saveProfileOverrides(rawUserId, patch);
+      setRevision((n) => n + 1);
+    }
+  }, [rawUserId, user, isDemo]);
 
   useEffect(() => {
     const handleProfileUpdate = () => setRevision(n => n + 1);
@@ -392,6 +423,7 @@ export function useProfileDisplay() {
       }
     } catch (e) {
       console.error("Failed to sync profile to backend", e);
+      throw e;
     }
   }
 

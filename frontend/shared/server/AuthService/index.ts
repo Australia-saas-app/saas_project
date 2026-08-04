@@ -385,11 +385,16 @@ export const getCurrentUser = async () => {
     payload = payload.replace(/-/g, "+").replace(/_/g, "/");
     while (payload.length % 4 !== 0) payload += "=";
     const json = Buffer.from(payload, "base64").toString("utf8");
-    const parsed = JSON.parse(json) as IDecodedToken;
+    const parsed = JSON.parse(json) as Record<string, unknown>;
 
     // Merge fields from the lightweight "user" cookie (name, email, etc.)
     const userCookie = cookieStore.get("user")?.value;
-    let merged: any = { ...parsed };
+    let merged: any = {
+      ...parsed,
+      id: (parsed.id as string) ?? (parsed.sub as string) ?? (parsed.userId as string),
+      userId: (parsed.userId as string) ?? (parsed.sub as string),
+      role: (parsed.role as string) ?? (parsed.accountType as string),
+    };
     if (userCookie) {
       try {
         const userObj = JSON.parse(userCookie);
@@ -402,7 +407,9 @@ export const getCurrentUser = async () => {
     try {
       const { data } = await axiosInstance.get("/sso/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 5000,
+        timeout: 60000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       });
       if (data?.success && data?.data) {
         const {
@@ -423,6 +430,8 @@ export const getCurrentUser = async () => {
           accountType,
           twoFactorEnabled,
           twoFactorMethod,
+          publicId,
+          internalId,
         } = data.data;
         // Merge only DB-sourced fields; don't overwrite JWT claims
         if (profilePhoto !== undefined) merged.profilePhoto = profilePhoto;
@@ -442,6 +451,8 @@ export const getCurrentUser = async () => {
         if (accountType !== undefined) merged.accountType = accountType;
         if (twoFactorEnabled !== undefined) merged.twoFactorEnabled = twoFactorEnabled;
         if (twoFactorMethod !== undefined) merged.twoFactorMethod = twoFactorMethod;
+        if (publicId !== undefined) merged.userId = publicId;
+        if (internalId !== undefined) merged.id = internalId;
       }
     } catch (error: any) {
       if (error?.response?.status === 401) {
@@ -561,6 +572,9 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
 
     const { data } = await axiosInstance.post("/sso/auth/user/complete-profile", safePayload, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      timeout: 120000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
     });
 
     // Update the user cookie with light payload fields so refreshUser sees them immediately.
@@ -629,13 +643,56 @@ export const deleteUserAccount = async (userId?: string) => {
 export const logActivityToServer = async (payload: any) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
+  if (!token) {
+    throw new Error("Not authenticated — cannot log activity");
+  }
   try {
     const { data } = await axiosInstance.post("/user-profile-service/activity", payload, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15000,
     });
     return data;
   } catch (error: any) {
     console.error("logActivityToServer failed:", error?.response?.data || error.message);
-    return null;
+    throw error;
   }
+};
+
+export const getLogsFromServer = async (limit = 100) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  if (!token) return [];
+  try {
+    const { data } = await axiosInstance.get("/user-profile-service/activity", {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { limit, page: 1 },
+      timeout: 15000,
+    });
+    return data?.activities || data?.data?.activities || [];
+  } catch (error: any) {
+    console.error("getLogsFromServer failed:", error?.response?.data || error.message);
+    return [];
+  }
+};
+
+export const deleteActivityFromServer = async (logId: string) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  if (!token) throw new Error("Not authenticated");
+  const { data } = await axiosInstance.delete(`/user-profile-service/activity/${logId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 15000,
+  });
+  return data;
+};
+
+export const deleteAllActivitiesFromServer = async () => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  if (!token) throw new Error("Not authenticated");
+  const { data } = await axiosInstance.delete("/user-profile-service/activity", {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 15000,
+  });
+  return data;
 };

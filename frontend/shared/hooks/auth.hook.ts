@@ -123,7 +123,11 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             }
             const email = userObj?.email || decoded?.email;
             const name = userObj?.fullName || userObj?.firstName || userObj?.name;
-            recordRealActivity("USER_LOGIN", `Logged in successfully via ${role} portal`, { userId: userId || "user", email, name });
+            await recordRealActivity(
+              "USER_LOGIN",
+              `Logged in successfully via ${role} portal`,
+              { userId: userObj?.userId || userId || "user", email, name }
+            ).catch(() => undefined);
             await refreshUser().catch(() => {});
 
             if (typeof window !== "undefined") {

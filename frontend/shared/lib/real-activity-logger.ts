@@ -1,5 +1,9 @@
-import axiosInstance from "./axiosInstance";
-import { logActivityToServer } from "@/src/shared/server/AuthService";
+import {
+  logActivityToServer,
+  getLogsFromServer,
+  deleteActivityFromServer,
+  deleteAllActivitiesFromServer,
+} from "@/src/shared/server/AuthService";
 
 export interface RealLogEntry {
   id: string;
@@ -27,12 +31,10 @@ function formatBackendLog(log: any): RealLogEntry {
   };
 }
 
-export async function getLogsForUser(userId: string): Promise<RealLogEntry[]> {
-  if (typeof window === "undefined" || !userId) return [];
+export async function getLogsForUser(_userId?: string): Promise<RealLogEntry[]> {
+  if (typeof window === "undefined") return [];
   try {
-    const res = await axiosInstance.get(`/user-profile-service/activity`);
-    // Assuming backend returns { activities: [...] } based on ActivityService
-    const activities = res.data?.activities || [];
+    const activities = await getLogsFromServer();
     return activities.map(formatBackendLog);
   } catch (error) {
     console.error("Failed to fetch activity logs", error);
@@ -61,47 +63,36 @@ export async function recordRealActivity(
 
   try {
     let resolvedIp = ipAddress;
-    // Async fetch real IP if we're on client side and it's the default
     if (ipAddress === "127.0.0.1" && typeof window !== "undefined") {
       try {
-        const ipRes = await fetch("https://api.ipify.org?format=json");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1500);
+        const ipRes = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+        clearTimeout(timeout);
         const ipData = await ipRes.json();
-        if (ipData.ip) {
-          resolvedIp = ipData.ip;
-        }
+        if (ipData.ip) resolvedIp = ipData.ip;
       } catch {}
     }
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       action,
       resource: details,
-      details: { name: username, email },
+      details: { name: username, email, userId },
       userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Unknown",
     };
-    
+
     if (typeof window !== "undefined") {
       const storedDeviceId = localStorage.getItem("vero_device_id");
-      if (storedDeviceId) payload.details.deviceId = storedDeviceId;
+      if (storedDeviceId) (payload.details as Record<string, unknown>).deviceId = storedDeviceId;
     }
-    
+
     if (resolvedIp && resolvedIp !== "127.0.0.1") {
       payload.ipAddress = resolvedIp;
     }
 
-    if (typeof window !== "undefined") {
-      await logActivityToServer(payload);
-    } else {
-      let headers: any = {};
-      try {
-        const { cookies } = await import("next/headers");
-        const cookieStore = await cookies();
-        const token = cookieStore.get("accessToken")?.value;
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-      } catch {}
-      await axiosInstance.post("/user-profile-service/activity", payload, { headers });
-    }
+    await logActivityToServer(payload);
 
-    const fakeLocalLog: RealLogEntry = {
+    const localLog: RealLogEntry = {
       id: "pending",
       userId,
       username,
@@ -113,33 +104,35 @@ export async function recordRealActivity(
     };
 
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT, { detail: fakeLocalLog }));
+      window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT, { detail: localLog }));
     }
-    return fakeLocalLog;
+    return localLog;
   } catch (e) {
     console.error("Failed to record activity log", e);
     return null;
   }
 }
 
-export async function deleteSingleLog(userId: string, logId: string): Promise<void> {
+export async function deleteSingleLog(_userId: string, logId: string): Promise<void> {
   try {
-    await axiosInstance.delete(`/user-profile-service/activity/${logId}`);
+    await deleteActivityFromServer(logId);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
     }
   } catch (error) {
     console.error("Failed to delete log", error);
+    throw error;
   }
 }
 
-export async function deleteAllLogs(userId: string): Promise<void> {
+export async function deleteAllLogs(_userId: string): Promise<void> {
   try {
-    await axiosInstance.delete(`/user-profile-service/activity`);
+    await deleteAllActivitiesFromServer();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
     }
   } catch (error) {
     console.error("Failed to delete all logs", error);
+    throw error;
   }
 }
