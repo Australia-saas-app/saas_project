@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react"
 import { UserActionModal } from "../../allUsers/components/UserActionModal"
 import { useAppSelector } from "@/src/core/store/hooks"
 import { toast } from "sonner"
+import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AffiliateStatus = "ACTIVE" | "PENDING" | "SUSPEND" | "BLOCK" | "DORMANT" | "CLOSED" | "INACTIVE"
@@ -69,6 +70,7 @@ const AllAffiliateTable: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   const token = useAppSelector(state => state.auth.token)
+  const adminUser = useAppSelector((state: any) => state.auth.user)
 
   React.useEffect(() => {
     const handler = setTimeout(() => setDebouncedQuery(query), 300)
@@ -162,21 +164,17 @@ const AllAffiliateTable: React.FC = () => {
       window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: lowerStatus } }));
       window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId, status: lowerStatus } }));
 
-      try {
-        fetch('/admin/api/user-profile/activity', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            action: 'ACCOUNT_STATUS_CHANGED',
-            resource: `Affiliate account status updated to ${newStatus} by administrator`,
-            details: { userId },
-            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Admin Dashboard'
-          })
-        }).catch(() => undefined);
-      } catch {}
+      // Log admin action with real IP — admin email in details only
+      logAdminActivity(token || "", {
+        action: 'ACCOUNT_STATUS_CHANGED',
+        resource: `Affiliate account status updated to ${newStatus} by administrator`,
+        targetUserId: userId,
+        targetUserEmail: selectedUser?.email,
+        targetUserName: selectedUser?.fullName,
+        adminEmail: adminUser?.email,
+        adminName: adminUser?.fullName || adminUser?.name,
+        extra: { newStatus },
+      });
 
       try {
         if (typeof window !== "undefined" && "BroadcastChannel" in window) {

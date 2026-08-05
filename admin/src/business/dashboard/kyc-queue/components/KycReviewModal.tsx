@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2, X, FileText, ShieldAlert } from "lucide-react";
 import { useAppSelector } from "@/src/core/store/hooks";
+import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger";
 
 interface KycReviewModalProps {
   user: any | null;
@@ -16,6 +17,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
   const [loadingAction, setLoadingAction] = useState<'approved' | 'rejected' | null>(null);
   const [localKycStatus, setLocalKycStatus] = useState<string | null>(null);
   const token = useAppSelector((state) => state.auth.token);
+  const adminUser = useAppSelector((state: any) => state.auth.user);
 
   useEffect(() => {
     // Reset local overrides when a new user is opened
@@ -43,24 +45,20 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
       // Instant local stamp update — no need to wait for server refresh
       setLocalKycStatus(kycStatus);
       toast.success(`Application ${kycStatus === 'approved' ? 'approved' : 'rejected'} successfully.`);
-      if (typeof window !== "undefined") {
+      // Log admin KYC action with real IP — admin email in details only
         const uid = user.userId || user.id;
-        // Record activity log to MongoDB
-        try {
-          fetch('/admin/api/user-profile/activity', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              action: kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
-              resource: `KYC application ${kycStatus} by administrator`,
-              details: { userId: uid, email: user.email, name: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName },
-              userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Admin Dashboard'
-            })
-          }).catch(() => undefined);
-        } catch {}
+        logAdminActivity(token || "", {
+          action: kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
+          resource: `KYC application ${kycStatus} by administrator`,
+          targetUserId: uid,
+          targetUserEmail: user.email,
+          targetUserName: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName,
+          adminEmail: adminUser?.email,
+          adminName: adminUser?.fullName || adminUser?.name,
+          extra: { kycStatus },
+        });
+
+        if (typeof window !== "undefined") {
 
         // 1. Local DOM CustomEvents
         window.dispatchEvent(new CustomEvent("vero:kyc_updated", {

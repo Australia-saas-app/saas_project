@@ -11,10 +11,10 @@ export function SessionSync() {
 
   useEffect(() => {
     if (isLoading) return;
+    // Only run when the user is authenticated — no user, no session to sync.
+    if (!user) return;
 
     const isDashboard = pathname.includes("/dashboard/");
-    if (!user && !isDashboard) return;
-
     const bc = new BroadcastChannel("session-sync");
 
     const handleLock = async (reason: "session_superseded" | "inactivity" = "session_superseded") => {
@@ -39,25 +39,27 @@ export function SessionSync() {
       window.location.href = targetPath;
     };
 
+    // Listen for LOGIN events from other tabs — means our session was superseded
     bc.onmessage = (event) => {
       if (event.data?.type === "LOGIN") {
         handleLock("session_superseded");
       }
     };
 
+    // Poll session validity every 8s on ALL pages.
+    // This is the only way to detect cross-device logins (different browsers/devices).
+    // BroadcastChannel only works within the same browser instance.
     const checkSession = async () => {
       try {
         const currentUser = await getCurrentUser();
-        if (!currentUser && (user || isDashboard)) {
+        if (!currentUser) {
           handleLock("session_superseded");
         }
       } catch {
-        // Ignore transient network errors during polling
+        // Ignore transient network errors
       }
     };
-
-    // Only poll after initial auth load — avoids false logout on hard refresh
-    const pollInterval = setInterval(checkSession, 15000);
+    const pollInterval = setInterval(checkSession, 8000);
 
     return () => {
       bc.close();

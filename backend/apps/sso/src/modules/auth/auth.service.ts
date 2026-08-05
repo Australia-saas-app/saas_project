@@ -1226,7 +1226,7 @@ export class AuthService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'ACCOUNT_STATUS_CHANGED',
-          resource: `Account status updated to ${status} by administrator (${adminEmail || 'admin'})`,
+          resource: `Account status updated to ${status} by administrator`,
           details: { userId: user.userId, email: user.email, name: user.fullName, newStatus: status, changedBy: adminEmail },
           userAgent: 'Admin Backend'
         })
@@ -1271,7 +1271,7 @@ export class AuthService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: kycStatus === 'approved' ? 'KYC_APPROVED' : 'KYC_REJECTED',
-          resource: `KYC application ${kycStatus} by administrator (${adminEmail || 'admin'})`,
+          resource: `KYC application ${kycStatus} by administrator`,
           details: { userId: user.userId, email: user.email, name: user.fullName, kycStatus, reason, changedBy: adminEmail },
           userAgent: 'Admin Backend'
         })

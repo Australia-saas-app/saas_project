@@ -13,6 +13,7 @@ import { Loader2, Eye, Search } from "lucide-react"
 import { UserActionModal } from "./UserActionModal"
 import { useAppSelector } from "@/src/core/store/hooks"
 import { toast } from "sonner"
+import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger"
 
 function clearAllUserStorage(userId: string) {
     if (typeof window === "undefined" || !userId) return;
@@ -102,6 +103,7 @@ const AllUserTable: React.FC = () => {
 
     const router = useRouter()
     const token = useAppSelector(state => state.auth.token)
+    const adminUser = useAppSelector((state: any) => state.auth.user)
     const queryClient = useQueryClient()
 
     useEffect(() => {
@@ -211,21 +213,17 @@ const AllUserTable: React.FC = () => {
             window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: lowerStatus } }));
             window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId, status: lowerStatus } }));
 
-            try {
-              fetch('/admin/api/user-profile/activity', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  action: 'ACCOUNT_STATUS_CHANGED',
-                  resource: `Account status updated to ${newStatus} by administrator`,
-                  details: { userId, email: selectedUser?.email, name: selectedUser?.fullName },
-                  userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Admin Dashboard'
-                })
-              }).catch(() => undefined);
-            } catch {}
+            // Log admin action with real IP and admin email in details only
+            logAdminActivity(token || "", {
+              action: 'ACCOUNT_STATUS_CHANGED',
+              resource: `Account status updated to ${newStatus} by administrator`,
+              targetUserId: userId,
+              targetUserEmail: selectedUser?.email,
+              targetUserName: selectedUser?.fullName,
+              adminEmail: adminUser?.email,
+              adminName: adminUser?.fullName || adminUser?.name,
+              extra: { newStatus },
+            });
 
             try {
               if (typeof window !== "undefined" && "BroadcastChannel" in window) {
