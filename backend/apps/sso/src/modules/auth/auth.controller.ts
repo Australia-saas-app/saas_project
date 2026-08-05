@@ -71,7 +71,7 @@ export class AuthController {
 
   @Post('user/login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() loginDto: LoginDto, @Request() req: ExpressRequest) {
+  login(@Body() loginDto: LoginDto, @Request() req: any) {
     return this.authService.login(loginDto, req);
   }
 
@@ -82,8 +82,8 @@ export class AuthController {
 
   @Patch('user/preferences')
   @UseGuards(JwtAuthGuard)
-  updatePreferences(@Body() updatePreferencesDto: UpdatePreferencesDto, @Request() req: ExpressRequest) {
-    const userId = (req.user as any).userId;
+  updatePreferences(@Body() updatePreferencesDto: UpdatePreferencesDto, @Request() req: any) {
+    const userId = (req.user as any)?.userId || req.user?.id;
     return this.authService.updatePreferences(userId, (updatePreferencesDto.preferences || updatePreferencesDto) as any);
   }
 
