@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest, props: { params: Promise<{ path: string[] }> }) {
   return handleProxy(req, props);
 }
@@ -20,18 +21,15 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ path: 
 async function handleProxy(req: NextRequest, props: { params: Promise<{ path: string[] }> }) {
   const params = await props.params;
   const pathString = params.path.join('/');
-  // user-profile service usually runs on 3002
-  const backendUrl = process.env.USER_PROFILE_BACKEND_URL || 'http://localhost:3002';
-  
-  // Preserve query parameters
+  const backendUrl =
+    process.env.USER_PROFILE_BACKEND_URL || 'http://localhost:3005/user-profile-service';
+
   const searchParams = req.nextUrl.search;
   const targetUrl = `${backendUrl}/${pathString}${searchParams}`;
 
   try {
     const headers = new Headers();
-    // Copy all necessary headers, especially Authorization
     req.headers.forEach((value, key) => {
-      // Don't copy host to avoid issues with proxying
       if (key.toLowerCase() !== 'host') {
         headers.set(key, value);
       }
@@ -50,8 +48,6 @@ async function handleProxy(req: NextRequest, props: { params: Promise<{ path: st
       }
     }
 
-    console.log(`[PROXY] Forwarding ${req.method} request to: ${targetUrl}`);
-
     const res = await fetch(targetUrl, init);
 
     const textData = await res.text();
@@ -61,16 +57,16 @@ async function handleProxy(req: NextRequest, props: { params: Promise<{ path: st
     } catch {
       return NextResponse.json({
         statusCode: res.status,
-        message: `Backend returned non-JSON response: ${textData.substring(0, 200)}`
+        message: `Backend returned non-JSON response: ${textData.substring(0, 200)}`,
       }, { status: res.status });
     }
 
     return NextResponse.json(jsonData, { status: res.status });
   } catch (error: any) {
-    console.error('[PROXY ERROR]', error);
+    console.error('[USER-PROFILE PROXY ERROR]', error);
     return NextResponse.json(
       { success: false, message: 'Internal Server Error', error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

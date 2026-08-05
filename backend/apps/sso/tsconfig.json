@@ -8,8 +8,8 @@
     "allowSyntheticDefaultImports": true,
     "target": "ES2017",
     "sourceMap": true,
+    "rootDir": "./src",
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "strictNullChecks": true,
     "strictBindCallApply": true,
@@ -20,5 +20,3 @@
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
-
-

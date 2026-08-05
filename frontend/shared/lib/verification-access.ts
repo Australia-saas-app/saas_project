@@ -25,7 +25,7 @@ export type DashboardAccessResult =
 
 function isAccountMaintenancePath(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  return /^\/(user|affiliate|business)\/(profile|settings|complete-profile)(\/|$)/.test(pathname);
+  return /^\/(dashboard\/)?(user|affiliate|business)\/(profile|settings|complete-profile|log)(\/|$)/.test(pathname);
 }
 
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage";

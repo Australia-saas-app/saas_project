@@ -103,7 +103,7 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem("user_profile_overrides_v2");
         localStorage.removeItem("user_profile_documents_v2");
       }
-      window.location.href = "/";
+      window.location.href = "/?reason=inactivity";
     }
   }, []);
 

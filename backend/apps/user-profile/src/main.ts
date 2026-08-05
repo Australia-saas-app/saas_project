@@ -8,6 +8,20 @@ import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  const ssoPublicKey = process.env.SSO_PUBLIC_KEY;
+  if (!mongoUri) {
+    console.error('❌ MONGODB_URI is not set — activity logs will not persist.');
+  }
+  if (!ssoPublicKey) {
+    console.error('❌ SSO_PUBLIC_KEY is not set — JWT auth for activity API will fail.');
+  } else {
+    console.log('✅ SSO_PUBLIC_KEY loaded');
+  }
+  if (mongoUri) {
+    console.log('✅ MONGODB_URI configured');
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
@@ -24,7 +38,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
       transform: true,
     }),
   );

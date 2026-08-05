@@ -317,19 +317,20 @@ export function useProfileDisplay() {
       ? String(user.currency).toUpperCase()
       : "USD")
 
-  const joiningDate =
-    overrides.joiningDate ??
-    (user && "createdAt" in user && user.createdAt && !isNaN(new Date(user.createdAt).getTime())
-      ? new Date(user.createdAt).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }))
+  const joiningDate = useMemo(() => {
+    const created =
+      (user && "createdAt" in user && user.createdAt
+        ? user.createdAt
+        : null) as string | Date | null;
+    if (created && !isNaN(new Date(created).getTime())) {
+      return new Date(created).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+    return "—";
+  }, [user]);
 
   const initials = getInitials(fullName);
   const hasCustomAvatar = Boolean(overrides.avatarUrl || (user && "profilePhoto" in user && user.profilePhoto));

@@ -123,12 +123,6 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             }
             const email = userObj?.email || decoded?.email;
             const name = userObj?.fullName || userObj?.firstName || userObj?.name;
-            await recordRealActivity(
-              "USER_LOGIN",
-              `Logged in successfully via ${role} portal`,
-              { userId: userObj?.userId || userId || "user", email, name }
-            ).catch(() => undefined);
-            await refreshUser().catch(() => {});
 
             if (typeof window !== "undefined") {
                 const bc = new BroadcastChannel('session-sync');
@@ -136,12 +130,21 @@ export const useUserLogin = (redirectUrl?: string | null) => {
                 bc.close();
             }
 
+            // Redirect immediately — don't block UI on logging or /me refresh
             if (typeof window !== "undefined") {
                 window.location.assign(redirectTo);
-                return;
+            } else {
+                router.refresh();
+                router.push(redirectTo);
             }
-            router.refresh();
-            router.push(redirectTo);
+
+            recordRealActivity(
+              "USER_LOGIN",
+              `Logged in successfully via ${role} portal`,
+              { userId: userObj?.userId || userId || "user", email, name }
+            ).catch(() => undefined);
+            refreshUser().catch(() => undefined);
+            return;
         },
         onError: (error) => {
             try {

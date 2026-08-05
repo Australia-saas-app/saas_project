@@ -465,6 +465,7 @@ export class TokenService {
         dateOfBirth: options.user.dateOfBirth,
         governmentId: options.user.governmentId,
         currency: options.user.currency,
+        createdAt: options.user.createdAt,
       },
       session: {
         id: options.session.id,

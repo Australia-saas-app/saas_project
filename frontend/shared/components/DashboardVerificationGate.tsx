@@ -11,17 +11,23 @@ import { logout } from "@/src/server/AuthService";
 export default function DashboardVerificationGate({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useUser();
   const pathname = usePathname();
-  const [access, setAccess] = useState(() => resolveDashboardAccess(user, pathname));
-  const [loggingOut, setLoggingOut] = useState(false);
+  
+  // Calculate access synchronously to avoid a race condition where isLoading is false 
+  // but access hasn't updated yet.
+  const access = resolveDashboardAccess(user, pathname);
 
-  useEffect(() => {
-    if (isLoading) return;
-    setAccess(resolveDashboardAccess(user, pathname));
-  }, [user, isLoading, pathname]);
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
-  if (isLoading || (!access.allowed && access.reason === "auth")) {
-    if (!isLoading && typeof window !== "undefined") {
-      window.location.replace("/");
+  if (!access.allowed && access.reason === "auth") {
+    if (typeof window !== "undefined") {
+      const returnUrl = encodeURIComponent(pathname || "/dashboard");
+      window.location.replace(`/account/user/login?redirect=${returnUrl}`);
     }
     return (
       <div className="flex min-h-[50vh] items-center justify-center">

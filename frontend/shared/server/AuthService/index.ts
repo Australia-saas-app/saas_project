@@ -430,6 +430,7 @@ export const getCurrentUser = async () => {
           accountType,
           twoFactorEnabled,
           twoFactorMethod,
+          createdAt,
           publicId,
           internalId,
         } = data.data;
@@ -451,8 +452,12 @@ export const getCurrentUser = async () => {
         if (accountType !== undefined) merged.accountType = accountType;
         if (twoFactorEnabled !== undefined) merged.twoFactorEnabled = twoFactorEnabled;
         if (twoFactorMethod !== undefined) merged.twoFactorMethod = twoFactorMethod;
-        if (publicId !== undefined) merged.userId = publicId;
-        if (internalId !== undefined) merged.id = internalId;
+        if (createdAt !== undefined) merged.createdAt = createdAt;
+        if (publicId !== undefined) {
+          merged.userId = publicId;
+          merged.publicId = publicId;
+        }
+        if (internalId !== undefined) merged.internalId = internalId;
       }
     } catch (error: any) {
       if (error?.response?.status === 401) {

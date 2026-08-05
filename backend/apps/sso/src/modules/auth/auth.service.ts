@@ -891,6 +891,7 @@ export class AuthService {
         kycApplicationData: user.kycApplicationData,
         twoFactorEnabled: user.twoFactorEnabled,
         twoFactorMethod: user.twoFactorMethod,
+        createdAt: user.createdAt,
       },
     };
   }

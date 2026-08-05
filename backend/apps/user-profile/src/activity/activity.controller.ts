@@ -9,29 +9,30 @@ import { ActivityService } from './activity.service';
 import { ActivityQueryDto } from './dto/activity-query.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AdminAuthGuard } from '../common/guards/admin-auth.guard';
 import { UserRequest } from '../common/interfaces/request.interface';
 
 @ApiTags('activity')
 @Controller('activity')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth('JWT-auth')
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}
 
   @Get('admin/device-stats')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get aggregated device stats for admin dashboard' })
   @ApiResponse({
     status: 200,
     description: 'Device stats retrieved successfully',
   })
   async getAdminDeviceStats() {
-    // Note: JwtAuthGuard already protects the controller.
-    // Ensure that only admins can access this in a real scenario by checking req.user.role if necessary.
     const stats = await this.activityService.getAdminDeviceStats();
     return { success: true, data: stats };
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get user activity logs' })
   @ApiResponse({
     status: 200,
@@ -42,17 +43,17 @@ export class ActivityController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Log a new user activity' })
   @ApiResponse({
     status: 201,
     description: 'Activity logged successfully',
   })
   async createActivity(@Request() req: UserRequest, @Body() body: CreateActivityDto) {
-    // If not provided, assume 'system' or pull from req
     const resource = body.resource || 'system';
-    
+
     const expressReq = req as any;
-    // We allow the frontend to optionally supply an IP, but fallback to request IP if possible
     const ipAddress = body.ipAddress || expressReq.ip || '127.0.0.1';
     const userAgent = body.userAgent || expressReq.headers?.['user-agent'];
 
@@ -63,12 +64,14 @@ export class ActivityController {
       body.resourceId,
       body.details,
       ipAddress,
-      userAgent
+      userAgent,
     );
     return { success: true };
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Delete a single activity log' })
   @ApiResponse({
     status: 200,
@@ -80,6 +83,8 @@ export class ActivityController {
   }
 
   @Delete()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Delete all activity logs for the current user' })
   @ApiResponse({
     status: 200,

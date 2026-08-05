@@ -38,6 +38,9 @@ export const TrafficByDeviceChart: React.FC = () => {
       chartRef.current.destroy();
     }
 
+    const maxVal = Math.max(...chartData, 1);
+    const yMax = maxVal <= 10 ? 10 : Math.ceil(maxVal * 1.2);
+
     const gradientPurple = ctx.getContext("2d")?.createLinearGradient(0, 0, 0, 400);
     gradientPurple?.addColorStop(0, "rgba(139, 92, 246, 1)"); // Purple 500
     gradientPurple?.addColorStop(1, "rgba(139, 92, 246, 0.4)");
@@ -126,11 +129,15 @@ export const TrafficByDeviceChart: React.FC = () => {
         scales: {
           y: {
             beginAtZero: true,
-            max: 35000,
+            max: yMax,
             ticks: {
-              stepSize: 10000,
+              stepSize: maxVal <= 10 ? 1 : Math.max(1, Math.ceil(yMax / 5)),
               callback: function (value) {
-                return value === 0 ? "0" : Number(value) / 1000 + "K";
+                const num = Number(value);
+                if (num === 0) return "0";
+                if (yMax <= 10) return String(num);
+                if (num >= 1000) return `${num / 1000}K`;
+                return String(num);
               },
               padding: 10,
               font: {

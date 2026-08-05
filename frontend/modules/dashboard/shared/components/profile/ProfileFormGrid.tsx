@@ -110,7 +110,6 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     nationalIdentity?.trim() &&
     governmentIdType?.trim() &&
     phone?.trim() &&
-    documentUrl?.trim() &&
     permCountry?.trim() &&
     permCity?.trim() &&
     permState?.trim() &&
@@ -126,14 +125,14 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     if (initialPermanentAddress?.zipCode && !permZipCode) setPermZipCode(initialPermanentAddress.zipCode);
     if (initialPermanentAddress?.address && !permAddress) setPermAddress(initialPermanentAddress.address);
 
-    if (initialNationality) setNationality((prev) => prev || initialNationality);
-    if (initialDateOfBirth) setDateOfBirth((prev) => prev || initialDateOfBirth);
-    if (initialNationalIdentity) setNationalIdentity((prev) => prev || initialNationalIdentity);
-    if (initialGovernmentIdType) setGovernmentIdType((prev) => prev || initialGovernmentIdType);
-    if (initialPhone) setPhone((prev) => prev || stripCountryCode(initialPhone, initialCountryCode || countryCode));
-    if (initialSecondaryEmail) setSecondaryEmail((prev) => prev || initialSecondaryEmail);
-    if (initialCurrency) setCurrency((prev) => (prev === "USD" ? initialCurrency : prev));
-    if (initialDocumentUrl) setDocumentUrl((prev) => prev || initialDocumentUrl);
+    if (initialNationality) setNationality((prev: string) => prev || initialNationality);
+    if (initialDateOfBirth) setDateOfBirth((prev: string) => prev || initialDateOfBirth);
+    if (initialNationalIdentity) setNationalIdentity((prev: string) => prev || initialNationalIdentity);
+    if (initialGovernmentIdType) setGovernmentIdType((prev: string) => prev || initialGovernmentIdType);
+    if (initialPhone) setPhone((prev: string) => prev || stripCountryCode(initialPhone, initialCountryCode || countryCode));
+    if (initialSecondaryEmail) setSecondaryEmail((prev: string) => prev || initialSecondaryEmail);
+    if (initialCurrency) setCurrency((prev: string) => (prev === "USD" ? initialCurrency : prev));
+    if (initialDocumentUrl) setDocumentUrl((prev: string) => prev || initialDocumentUrl);
   }, [
     initialNationality, initialDateOfBirth, initialNationalIdentity, initialGovernmentIdType,
     initialPermanentAddress, initialCountryCode, initialPhone, initialSecondaryEmail,
@@ -170,7 +169,6 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     if (!permCity?.trim()) missingFields.push("City");
     if (!permState?.trim()) missingFields.push("State");
     if (!permAddress?.trim()) missingFields.push("Street Address");
-    if (!documentUrl?.trim()) missingFields.push("ID Document");
 
     if (missingFields.length > 0) {
       toast.error(`Please complete the following required fields before updating: ${missingFields.join(", ")}`);
@@ -482,11 +480,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             </div>
           </div>
 
-          {/* 9. Mandatory Document Upload Row */}
+          {/* Identity Document — optional for profile update, required for KYC apply */}
           <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
               <span>Identity Document Upload</span>
-              <span className="text-red-500 font-bold">*</span>
+              <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Required for KYC only)</span>
             </label>
 
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-input bg-card shadow-sm">

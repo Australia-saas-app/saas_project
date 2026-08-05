@@ -1,52 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { getCurrentUser } from "@/src/shared/server/AuthService";
 import { useUser } from "@/src/context/user.provider";
 
 export function SessionSync() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [isLocked, setIsLocked] = useState(false);
-  const { user } = useUser();
+  const { user, isLoading } = useUser();
 
   useEffect(() => {
-    // If the user is a public visitor on a non-dashboard page, do nothing.
+    if (isLoading) return;
+
     const isDashboard = pathname.includes("/dashboard/");
     if (!user && !isDashboard) return;
 
     const bc = new BroadcastChannel("session-sync");
-    
-    const handleLock = () => {
-      setIsLocked(true);
-      window.location.href = "/";
+
+    const handleLock = (reason: "session_superseded" | "inactivity" = "session_superseded") => {
+      window.location.href = `/?reason=${reason}`;
     };
 
     bc.onmessage = (event) => {
-      if (event.data && event.data.type === "LOGIN") {
-        handleLock();
+      if (event.data?.type === "LOGIN") {
+        handleLock("session_superseded");
       }
     };
 
     const checkSession = async () => {
       try {
         const currentUser = await getCurrentUser();
-        // If they were authenticated (or in dashboard) but now are not, kick them out
-        if (!currentUser) {
-          handleLock();
+        if (!currentUser && (user || isDashboard)) {
+          handleLock("session_superseded");
         }
-      } catch (err) {}
+      } catch {
+        // Ignore transient network errors during polling
+      }
     };
 
-    checkSession();
+    // Only poll after initial auth load — avoids false logout on hard refresh
     const pollInterval = setInterval(checkSession, 15000);
 
     return () => {
       bc.close();
       clearInterval(pollInterval);
     };
-  }, [pathname, user]);
+  }, [pathname, user, isLoading]);
 
   return null;
 }

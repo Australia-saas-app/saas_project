@@ -27,10 +27,10 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     (request as any).user = {
-      userId: payload.userId,
+      userId: payload.userId || payload.sub,
       email: payload.email,
       phone: payload.phone,
-      role: payload.role,
+      role: payload.role || payload.accountType,
     };
 
     return true;

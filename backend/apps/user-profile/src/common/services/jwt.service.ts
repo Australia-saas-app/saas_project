@@ -95,11 +95,13 @@ export class JwtService {
         payload = decoded;
       }
 
-      // Verify required fields
-      if (!payload || !payload.userId || !payload.sub) {
+      // Verify required fields — userId may be in sub for some token formats
+      const resolvedUserId = payload?.userId || payload?.sub;
+      if (!payload || !resolvedUserId) {
         Logger.warn('User token missing required fields', JwtService.name);
         return null;
       }
+      payload.userId = resolvedUserId;
 
       // Verify it's a user token (not admin token)
       // Reject admin tokens explicitly, but accept user tokens or tokens without role/accountType

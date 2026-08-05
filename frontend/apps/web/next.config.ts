@@ -83,9 +83,9 @@ const nextConfig: NextConfig = {
     ...(isDev
       ? {}
       : {
-          optimizeCss: true,
-          optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
-        }),
+        optimizeCss: true,
+        optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
+      }),
   },
 
   /**

@@ -210,6 +210,7 @@ export default function ProfilePageLayout() {
           nationalIdentity,
           permanentAddress,
           avatarUrl,
+          profilePhoto: avatarUrl,
           documentUrl,
           documentFrontUrl,
           documentBackUrl

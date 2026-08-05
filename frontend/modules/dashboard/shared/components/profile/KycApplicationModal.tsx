@@ -32,6 +32,25 @@ export default function KycApplicationModal({
     kycStatus === "pending" || kycStatus === "submitted" || isKycVerified;
 
   const handleApply = async () => {
+    if (!isViewMode) {
+      const missing: string[] = [];
+      const hasPhoto = Boolean(user.avatarUrl || user.profilePhoto);
+      const hasFrontDoc = Boolean(user.documentFrontUrl || user.documentUrl);
+      const hasBackDoc = Boolean(user.documentBackUrl);
+      const isDualDoc =
+        user.documentUrl?.startsWith("[") ||
+        Boolean(user.documentFrontUrl && user.documentBackUrl);
+
+      if (!hasPhoto) missing.push("Profile Photo");
+      if (!hasFrontDoc) missing.push("Front ID Document");
+      if (isDualDoc && !hasBackDoc) missing.push("Back ID Document");
+
+      if (missing.length > 0) {
+        toast.error(`Please complete the following before applying for KYC: ${missing.join(", ")}`);
+        return;
+      }
+    }
+
     setIsApplying(true);
     try {
       const targetUid = user.userId || user.id || user.rawUserId || "self";
@@ -390,7 +409,11 @@ export default function KycApplicationModal({
           {!isViewMode && (
             <button
               onClick={handleApply}
-              disabled={isApplying || (!user.documentUrl && !user.documentFrontUrl)}
+              disabled={
+                isApplying ||
+                !(user.avatarUrl || user.profilePhoto) ||
+                !(user.documentUrl || user.documentFrontUrl)
+              }
               className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 min-w-[150px] justify-center"
             >
               {isApplying ? (
