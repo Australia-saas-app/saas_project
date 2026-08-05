@@ -157,6 +157,27 @@ const AllAffiliateTable: React.FC = () => {
       if (!res.ok) throw new Error("Failed to update");
       setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
       toast.success("Affiliate status updated successfully");
+
+      const lowerStatus = newStatus.toLowerCase();
+      window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: lowerStatus } }));
+      window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId, status: lowerStatus } }));
+
+      try {
+        const { recordRealActivity } = require("@/src/shared/lib/real-activity-logger");
+        recordRealActivity(
+          "ACCOUNT_STATUS_CHANGED",
+          `Affiliate account status updated to ${newStatus} by administrator`,
+          { userId }
+        ).catch(() => undefined);
+      } catch {}
+
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:account_changed", userId, status: lowerStatus });
+          bc.close();
+        }
+      } catch {}
     } catch (e: any) {
       toast.error(e.message || "Failed to update status");
     }
@@ -172,8 +193,18 @@ const AllAffiliateTable: React.FC = () => {
       setItems(prev => prev.filter(u => u.userId !== userId));
       setTotalResults(prev => prev - 1);
       toast.success("Affiliate account permanently deleted.");
+
       // Notify KYC queue and other pages to remove this user
       window.dispatchEvent(new CustomEvent("vero:user_deleted", { detail: { userId } }));
+      window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId } }));
+
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:account_changed", userId });
+          bc.close();
+        }
+      } catch {}
     } catch (e: any) {
       toast.error(e.message || "Failed to delete user");
     }

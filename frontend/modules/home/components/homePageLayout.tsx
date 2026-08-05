@@ -1,3 +1,4 @@
+import React, { Suspense } from "react";
 import Services from "./services";
 import WhyChooseUs from "./WhyChooseUs";
 import Hero from "./hero";
@@ -13,10 +14,14 @@ import ImpactStatsBar from "./ImpactStatsBar";
 import GlobalCommitment from "./GlobalCommitment";
 import FeaturedBusinesses from "./FeaturedBusinesses";
 import { RecentlyViewedSection } from "./RecentlyViewedSection";
+import SessionExpiredLandingModal from "@/src/shared/components/SessionExpiredLandingModal";
 
 const HomePageLayout = () => {
   return (
     <main className="min-h-screen w-full overflow-x-clip">
+      <Suspense fallback={null}>
+        <SessionExpiredLandingModal />
+      </Suspense>
       <Hero />
       <RecentlyViewedSection />
       <Services />

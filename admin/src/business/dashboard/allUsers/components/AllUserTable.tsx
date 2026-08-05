@@ -209,14 +209,27 @@ const AllUserTable: React.FC = () => {
             // Real-time broadcast to user profile and all web tabs
             const lowerStatus = newStatus.toLowerCase();
             window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: lowerStatus } }));
+            window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId, status: lowerStatus } }));
+
+            try {
+              const { recordRealActivity } = require("@/src/shared/lib/real-activity-logger");
+              recordRealActivity(
+                "ACCOUNT_STATUS_CHANGED",
+                `Account status updated to ${newStatus} by administrator`,
+                { userId, email: selectedUser?.email, name: selectedUser?.fullName }
+              ).catch(() => undefined);
+            } catch {}
+
             try {
               if (typeof window !== "undefined" && "BroadcastChannel" in window) {
                 const bc = new BroadcastChannel("vero_channel");
                 bc.postMessage({ type: "vero:user_status_updated", userId, status: lowerStatus });
+                bc.postMessage({ type: "vero:account_changed", userId, status: lowerStatus });
                 bc.close();
               }
             } catch {}
             try {
+              localStorage.setItem("vero_account_sync", JSON.stringify({ userId, status: lowerStatus, t: Date.now() }));
               localStorage.setItem("vero_profile_sync", JSON.stringify({ userId, status: lowerStatus, t: Date.now() }));
             } catch {}
         } catch (e: any) {
@@ -234,11 +247,12 @@ const AllUserTable: React.FC = () => {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || "Failed to delete");
             }
+            
             // Invalidate React Query caches for both admin users and kyc queue
             queryClient.invalidateQueries({ queryKey: ["admin-users"] });
             queryClient.invalidateQueries({ queryKey: ["admin", "kyc-queue"] });
             toast.success("User account permanently deleted.");
-            
+
             // Clear local storage overrides & broadcast deletion to all windows/tabs
             clearAllUserStorage(userId);
             window.dispatchEvent(new CustomEvent("vero:user_deleted", { detail: { userId } }));

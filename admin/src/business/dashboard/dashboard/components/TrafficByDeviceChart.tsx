@@ -12,9 +12,10 @@ const inter = Inter({
 
 export const TrafficByDeviceChart: React.FC = () => {
   const chartRef = useRef<Chart | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const token = useAppSelector(state => state.auth.token);
 
-  const { data: chartData = [0, 0, 0, 0, 0, 0], isLoading } = useQuery({
+  const { data: rawChartData = [0, 0, 0, 0, 0, 0], isLoading } = useQuery({
     queryKey: ['admin-device-stats', token],
     queryFn: async () => {
       const res = await fetch('/admin/api/user-profile/activity/admin/device-stats', {
@@ -25,14 +26,15 @@ export const TrafficByDeviceChart: React.FC = () => {
       return json.data || [0, 0, 0, 0, 0, 0];
     },
     enabled: !!token,
-    refetchInterval: 30000 // refresh every 30 seconds
+    refetchInterval: 15000
   });
 
-  useEffect(() => {
-    if (isLoading) return;
+  const chartData = rawChartData;
 
-    const ctx = document.getElementById("trafficByDeviceNew") as HTMLCanvasElement;
-    if (!ctx) return;
+  useEffect(() => {
+    if (isLoading || !canvasRef.current) return;
+
+    const ctx = canvasRef.current;
 
     if (chartRef.current) {
       chartRef.current.destroy();
@@ -202,7 +204,7 @@ export const TrafficByDeviceChart: React.FC = () => {
         </button>
       </div>
       <div className="flex-1 min-h-[250px] relative w-full h-[300px]">
-        <canvas id="trafficByDeviceNew"></canvas>
+        <canvas ref={canvasRef} id="trafficByDeviceNew" className="w-full h-full"></canvas>
       </div>
     </div>
   );

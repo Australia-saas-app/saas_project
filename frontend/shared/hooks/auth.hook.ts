@@ -130,20 +130,20 @@ export const useUserLogin = (redirectUrl?: string | null) => {
                 bc.close();
             }
 
-            // Redirect immediately — don't block UI on logging or /me refresh
+            await recordRealActivity(
+              "USER_LOGIN",
+              `Logged in successfully via ${role} portal`,
+              { userId: userObj?.userId || userId || "user", email, name }
+            ).catch(() => undefined);
+            refreshUser().catch(() => undefined);
+
+            // Redirect after logging activity
             if (typeof window !== "undefined") {
                 window.location.assign(redirectTo);
             } else {
                 router.refresh();
                 router.push(redirectTo);
             }
-
-            recordRealActivity(
-              "USER_LOGIN",
-              `Logged in successfully via ${role} portal`,
-              { userId: userObj?.userId || userId || "user", email, name }
-            ).catch(() => undefined);
-            refreshUser().catch(() => undefined);
             return;
         },
         onError: (error) => {
@@ -202,18 +202,26 @@ export const useLogout = () => {
     const { user, setUser } = useUser();
     return useMutation<{ success: boolean; message?: string } | void, Error>({
         mutationKey: ["USER_LOGOUT"],
-        mutationFn: async () => await apiLogout(),
+        mutationFn: async () => {
+            if (user) {
+              await recordRealActivity(
+                "USER_LOGOUT",
+                "User logged out successfully",
+                { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
+              ).catch(() => undefined);
+            }
+            return await apiLogout();
+        },
         onSuccess: () => {
             setUser(null);
             toast.success('Logged out');
-            recordRealActivity("USER_LOGOUT", "User logged out successfully", { userId: (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName });
             const isAdminApp =
                 typeof window !== "undefined" &&
                 (window.location.port === "3001" ||
                     window.location.hostname.startsWith("admin.") ||
                     window.location.pathname.startsWith("/admin") ||
                     window.location.pathname.startsWith("/account/admin"));
-            const targetPath = isAdminApp ? "/account/admin/login" : "/";
+            const targetPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
             if (typeof window !== "undefined") {
                 window.location.href = targetPath;
                 return;

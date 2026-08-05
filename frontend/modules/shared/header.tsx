@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, LayoutGrid, Menu, MessageSquare, Search, User, Wallet, X, ChevronDown, LogOut, Loader2, LayoutDashboard } from "lucide-react";
 import Image from "next/image";
@@ -412,9 +413,9 @@ export default function Header() {
     </header>
 
       {/* Logout Confirmation Modal */}
-      {logoutModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
-          <div style={{ width: '360px', maxWidth: 'calc(100vw - 32px)', margin: 'auto' }} className="bg-card rounded-2xl shadow-2xl p-7 text-center border border-border">
+      {logoutModalOpen && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
+          <div style={{ width: '340px', maxWidth: 'calc(100vw - 32px)', margin: 'auto' }} className="bg-card rounded-2xl shadow-2xl p-7 text-center border border-border animate-in fade-in zoom-in-95 duration-200">
             {/* Icon */}
             <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-5">
               <LogOut className="w-6 h-6 text-red-500" strokeWidth={1.8} />
@@ -442,7 +443,8 @@ export default function Header() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

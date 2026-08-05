@@ -297,7 +297,7 @@ export function useProfileDisplay() {
     (overrides as any).governmentIdType ??
     (user && "governmentIdType" in user && (user as any).governmentIdType
       ? String((user as any).governmentIdType)
-      : "NID")
+      : "")
 
   const permanentAddress = useMemo(() => {
     const oAddr = (overrides as any).permanentAddress;

@@ -110,6 +110,9 @@ const DashboardPageLayout: React.FC = () => {
       };
     },
     enabled: !!token,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000,
   });
 
   const queryClient = useQueryClient();
@@ -118,11 +121,14 @@ const DashboardPageLayout: React.FC = () => {
   useEffect(() => {
     const handleSync = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
     };
 
     window.addEventListener("vero:kyc_updated", handleSync);
     window.addEventListener("vero:user_status_updated", handleSync);
     window.addEventListener("vero:user_deleted", handleSync);
+    window.addEventListener("vero:user_created", handleSync);
+    window.addEventListener("vero:account_changed", handleSync);
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -133,7 +139,7 @@ const DashboardPageLayout: React.FC = () => {
     } catch {}
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === "vero_kyc_sync" || e.key === "vero_user_sync") {
+      if (e.key === "vero_kyc_sync" || e.key === "vero_user_sync" || e.key === "vero_account_sync") {
         handleSync();
       }
     };

@@ -235,7 +235,7 @@ export default function KycApplicationModal({
             const displayFullName = snap.fullName || user.fullName;
             const displayEmail = snap.email || user.email;
             const displayNationality = snap.nationality || user.nationality;
-            const displayGovtIdType = snap.governmentIdType || user.governmentIdType || "NID";
+            const displayGovtIdType = snap.governmentIdType || user.governmentIdType || "Not Selected";
             const displayGovtId = snap.governmentId || user.nationalIdentity;
             const displayDob = snap.dateOfBirth || user.dateOfBirth;
             const displayPermAddress = (() => {

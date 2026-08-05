@@ -1,9 +1,9 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { Inter } from "next/font/google"
 import { useAppSelector } from "@/src/core/store/hooks"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 
 const inter = Inter({
@@ -43,8 +43,9 @@ const StatCard: React.FC<StatCardProps> = ({ title, items }) => (
 
 const SystemOverview: React.FC = () => {
   const { token } = useAppSelector((state) => state.auth)
+  const queryClient = useQueryClient()
 
-  // React Query caches this for staleTime (30s) — no flash of "0" on revisit
+  // Real-time invalidation and immediate update on mount / account changes
   const { data: stats, isLoading } = useQuery<any>({
     queryKey: ["admin-stats", token],
     queryFn: async () => {
@@ -56,7 +57,46 @@ const SystemOverview: React.FC = () => {
       return data.data
     },
     enabled: !!token,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000,
   })
+
+  useEffect(() => {
+    const handleSync = () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-dashboard-stats"] });
+    };
+
+    window.addEventListener("vero:account_changed", handleSync);
+    window.addEventListener("vero:user_deleted", handleSync);
+    window.addEventListener("vero:user_created", handleSync);
+    window.addEventListener("vero:user_status_updated", handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = () => handleSync();
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_account_sync" || e.key === "vero_profile_sync") {
+        handleSync();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("vero:account_changed", handleSync);
+      window.removeEventListener("vero:user_deleted", handleSync);
+      window.removeEventListener("vero:user_created", handleSync);
+      window.removeEventListener("vero:user_status_updated", handleSync);
+      window.removeEventListener("storage", handleStorage);
+      if (bc) bc.close();
+    };
+  }, [queryClient]);
 
   const formatNumber = (numStr: string | number) => {
     const num = parseInt(String(numStr), 10);

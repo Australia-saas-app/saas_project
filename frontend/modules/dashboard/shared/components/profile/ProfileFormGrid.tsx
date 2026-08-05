@@ -42,7 +42,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [nationality, setNationality] = useState(initialNationality || "");
   const [dateOfBirth, setDateOfBirth] = useState(initialDateOfBirth || "");
   const [nationalIdentity, setNationalIdentity] = useState(initialNationalIdentity || "");
-  const [governmentIdType, setGovernmentIdType] = useState(initialGovernmentIdType || "NID");
+  const [governmentIdType, setGovernmentIdType] = useState(initialGovernmentIdType || "");
   
   // Permanent Address States
   const [permCountry, setPermCountry] = useState(initialPermanentAddress?.country || "");
@@ -543,12 +543,13 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                     type="button"
                     onClick={async () => {
                       setDocumentUrl("");
-                      updateProfile({ documentUrl: "" });
+                      setGovernmentIdType("");
+                      updateProfile({ documentUrl: "", governmentIdType: "" });
                       if (rawUserId) {
                         clearProfileDocuments(rawUserId);
-                        saveProfileOverrides(rawUserId, { documentUrl: "" });
+                        saveProfileOverrides(rawUserId, { documentUrl: "", governmentIdType: "" });
                       }
-                      await completeUserProfile({ idDocument: "", governmentId: "" }).catch(() => undefined);
+                      await completeUserProfile({ idDocument: "", governmentIdType: "" }).catch(() => undefined);
                       if (typeof window !== "undefined") {
                         window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
                       }
@@ -583,8 +584,8 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             </div>
             <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
               <span>Government ID Type:</span>
-              <span className="font-bold text-primary px-2 py-0.5 rounded bg-primary/10 border border-primary/20">
-                {governmentIdType || "NID"}
+              <span className={`font-bold px-2 py-0.5 rounded ${governmentIdType ? 'text-primary bg-primary/10 border border-primary/20' : 'text-muted-foreground bg-muted border border-border'}`}>
+                {governmentIdType || "Not Selected"}
               </span>
             </div>
           </div>
@@ -617,18 +618,15 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
         initialDocType={governmentIdType || "NID"}
         onUploadSuccess={(url, filename, sizeLabel, selectedType) => {
           setDocumentUrl(url);
-          if (selectedType) {
-            setGovernmentIdType(selectedType);
-            updateProfile({ documentUrl: url, governmentIdType: selectedType });
-          } else {
-            updateProfile({ documentUrl: url });
-          }
+          const activeType = selectedType || governmentIdType || "NID";
+          setGovernmentIdType(activeType);
+          updateProfile({ documentUrl: url, governmentIdType: activeType });
           setDocumentFileName(filename);
           setDocumentSizeLabel(sizeLabel);
           if (rawUserId) {
             setProfileDocument(rawUserId, {
               id: `doc-${Date.now()}`,
-              type: selectedType || governmentIdType || "NID",
+              type: activeType,
               name: filename || `identity-document`,
               mimeType: url.split(";")[0].split(":")[1] || "image/png",
               sizeLabel: sizeLabel || "",

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { LogOut, Loader2 } from "lucide-react";
 import { logout } from "@/src/shared/server/AuthService";
 import { useUser } from "@/src/context/user.provider";
@@ -15,8 +16,13 @@ interface LogoutConfirmModalProps {
 export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutConfirmModalProps) {
   const { setUser } = useUser();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!open) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!open || !mounted) return null;
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -61,10 +67,10 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
       <div
-        style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
+        style={{ width: "340px", maxWidth: "calc(100vw - 32px)" }}
         className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Icon */}
@@ -95,7 +101,8 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

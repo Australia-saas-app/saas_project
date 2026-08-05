@@ -266,7 +266,7 @@ export function LoginPage({
       badge="Secure access"
     >
       {is2faStep || isNewDeviceStep ? (
-        <div className="space-y-6">
+        <div className="space-y-5 max-h-[82vh] overflow-y-auto custom-scrollbar px-1 py-1 sm:max-h-none sm:overflow-visible">
           <div className="flex items-center gap-3 border-b border-border pb-4">
             <button
               type="button"
@@ -275,31 +275,31 @@ export function LoginPage({
                 setIsNewDeviceStep(false);
                 setOtpCode("");
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted/30 text-foreground hover:bg-muted transition-all"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/30 text-foreground hover:bg-muted transition-all"
               title="Back to login"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <ShieldCheck className="h-5 w-5" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-foreground">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
                 {isNewDeviceStep ? "New Device Authentication" : "Two-Factor Authentication"}
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 {isNewDeviceStep && capturedIp && (
-                  <span className="block mb-0.5 text-orange-500 font-medium">
+                  <span className="block mb-0.5 text-orange-500 font-medium truncate">
                     Unrecognized IP: {capturedIp}
                   </span>
                 )}
-                Code sent to <span className="font-semibold text-foreground">{pendingLoginData?.email}</span>
+                Code sent to <span className="font-semibold text-foreground truncate">{pendingLoginData?.email}</span>
               </p>
             </div>
           </div>
 
           <form onSubmit={handleVerify2fa} className="space-y-5">
-            <div className="pt-1">
+            <div className="pt-1 w-full overflow-x-auto flex justify-center">
               <OtpInput
                 value={otpCode}
                 onChange={(val) => {

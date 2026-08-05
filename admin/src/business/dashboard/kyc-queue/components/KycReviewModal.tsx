@@ -45,19 +45,25 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
       toast.success(`Application ${kycStatus === 'approved' ? 'approved' : 'rejected'} successfully.`);
       if (typeof window !== "undefined") {
         const uid = user.userId || user.id;
-        // 1. Local DOM CustomEvent
+        // Record activity log to MongoDB
+        try {
+          const { recordRealActivity } = require("@/src/shared/lib/real-activity-logger");
+          recordRealActivity(
+            kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
+            `KYC application ${kycStatus} by administrator`,
+            { userId: uid, email: user.email, name: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName }
+          ).catch(() => undefined);
+        } catch {}
+
+        // 1. Local DOM CustomEvents
         window.dispatchEvent(new CustomEvent("vero:kyc_updated", {
-          detail: {
-            userId: uid,
-            kycStatus,
-          }
+          detail: { userId: uid, kycStatus }
         }));
+        window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId: uid } }));
+
         if (kycStatus === "approved") {
           window.dispatchEvent(new CustomEvent("vero:user_status_updated", {
-            detail: {
-              userId: uid,
-              status: "active",
-            }
+            detail: { userId: uid, status: "active" }
           }));
         }
 
@@ -66,6 +72,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
             bc.postMessage({ type: "vero:kyc_updated", userId: uid, kycStatus });
+            bc.postMessage({ type: "vero:account_changed", userId: uid });
             if (kycStatus === "approved") {
               bc.postMessage({ type: "vero:user_status_updated", userId: uid, status: "active" });
             }
@@ -73,8 +80,8 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           }
         } catch { }
 
-        // 3. Cross-tab Storage Event
         try {
+          localStorage.setItem("vero_account_sync", JSON.stringify({ userId: uid, action: kycStatus, t: Date.now() }));
           localStorage.setItem("vero_kyc_sync", JSON.stringify({
             userId: uid,
             kycStatus,
@@ -87,7 +94,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               timestamp: Date.now()
             }));
           }
-        } catch { }
+        } catch {}
       }
       onSuccess();
     } catch (error) {
