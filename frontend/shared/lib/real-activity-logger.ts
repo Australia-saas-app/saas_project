@@ -66,7 +66,7 @@ export async function recordRealActivity(
     if (ipAddress === "127.0.0.1" && typeof window !== "undefined") {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 1500);
+        const timeout = setTimeout(() => controller.abort(), 300);
         const ipRes = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
         clearTimeout(timeout);
         const ipData = await ipRes.json();

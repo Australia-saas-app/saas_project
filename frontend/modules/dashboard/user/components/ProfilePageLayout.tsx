@@ -7,6 +7,7 @@ import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal";
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display";
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { useUser } from "@/src/shared/context/user.provider";
 
 export default function ProfilePageLayout() {
@@ -208,6 +209,7 @@ export default function ProfilePageLayout() {
           nationality,
           dateOfBirth,
           nationalIdentity,
+          governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
           permanentAddress,
           avatarUrl,
           profilePhoto: avatarUrl,

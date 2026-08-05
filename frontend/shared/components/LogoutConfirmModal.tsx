@@ -27,6 +27,12 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
+      await recordRealActivity(
+        "USER_LOGOUT",
+        "User logged out successfully",
+        { userId: (setUser as any)?.userId || "user" }
+      ).catch(() => undefined);
       await logout();
       setUser(null);
     } catch (error) {
@@ -41,16 +47,15 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
       try {
         const deviceId = localStorage.getItem("vero_device_id");
         
-        // Clear every localStorage entry (profile overrides, documents, scope, etc.)
+        // Clear every localStorage entry
         localStorage.clear();
-        // Clear sessionStorage as well (any temp session values)
         sessionStorage.clear();
+        sessionStorage.setItem("manual_logout", "true");
         
         if (deviceId) {
           localStorage.setItem("vero_device_id", deviceId);
         }
       } catch {
-        // Fallback: remove known keys individually if clear() is blocked
         const knownKeys = [
           "user_profile_overrides_v2",
           "user_profile_documents_v2",
@@ -62,8 +67,22 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
           try { localStorage.removeItem(k); } catch { /* ignore */ }
         });
       }
-      // Hard redirect — full page reload clears all in-memory React/query state
-      window.location.href = targetPath;
+
+      const pathname = window.location.pathname;
+      const isLandingPage = pathname === "/" || pathname === "";
+      if (isLandingPage) {
+        window.location.href = "/";
+        return;
+      }
+
+      const isAdminApp =
+        window.location.port === "3001" ||
+        window.location.hostname.startsWith("admin.") ||
+        window.location.pathname.startsWith("/admin") ||
+        window.location.pathname.startsWith("/account/admin");
+
+      const cleanPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
+      window.location.href = cleanPath;
     }
   };
 

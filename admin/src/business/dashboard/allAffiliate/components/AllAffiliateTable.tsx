@@ -163,12 +163,19 @@ const AllAffiliateTable: React.FC = () => {
       window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId, status: lowerStatus } }));
 
       try {
-        const { recordRealActivity } = require("@/src/shared/lib/real-activity-logger");
-        recordRealActivity(
-          "ACCOUNT_STATUS_CHANGED",
-          `Affiliate account status updated to ${newStatus} by administrator`,
-          { userId }
-        ).catch(() => undefined);
+        fetch('/admin/api/user-profile/activity', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            action: 'ACCOUNT_STATUS_CHANGED',
+            resource: `Affiliate account status updated to ${newStatus} by administrator`,
+            details: { userId },
+            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Admin Dashboard'
+          })
+        }).catch(() => undefined);
       } catch {}
 
       try {

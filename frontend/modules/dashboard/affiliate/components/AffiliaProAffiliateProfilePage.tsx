@@ -685,6 +685,7 @@ export default function AffiliaProAffiliateProfilePage() {
           email,
           nationality,
           nationalIdentity,
+          governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
           avatarUrl,
           documentUrl,
           documentFrontUrl,

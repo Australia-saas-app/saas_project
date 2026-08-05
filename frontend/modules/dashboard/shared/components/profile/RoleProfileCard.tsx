@@ -7,7 +7,7 @@ import ProfileFormGrid from "./ProfileFormGrid";
 import KycApplicationModal from "./KycApplicationModal";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
-import { addProfileDocument, saveProfileOverrides } from "@/src/shared/utils/profile-storage";
+import { addProfileDocument, saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { useProfileDisplay, getStatusBadgeStyle } from "../../hooks/use-profile-display";
 import { useUser } from "@/src/context/user.provider";
 
@@ -283,6 +283,7 @@ export default function RoleProfileCard({
           email,
           nationality,
           nationalIdentity,
+          governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
           permanentAddress,
           avatarUrl,
           documentUrl,

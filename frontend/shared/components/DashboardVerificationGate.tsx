@@ -26,8 +26,17 @@ export default function DashboardVerificationGate({ children }: { children: Reac
 
   if (!access.allowed && access.reason === "auth") {
     if (typeof window !== "undefined") {
-      const returnUrl = encodeURIComponent(pathname || "/dashboard");
-      window.location.replace(`/account/user/login?redirect=${returnUrl}`);
+      let isManualLogout = false;
+      try {
+        isManualLogout = sessionStorage.getItem("manual_logout") === "true";
+      } catch {}
+
+      if (isManualLogout) {
+        window.location.replace("/account/user/login");
+      } else {
+        const returnUrl = encodeURIComponent(pathname || "/dashboard");
+        window.location.replace(`/account/user/login?redirect=${returnUrl}`);
+      }
     }
     return (
       <div className="flex min-h-[50vh] items-center justify-center">

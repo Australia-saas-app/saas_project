@@ -215,26 +215,40 @@ export const useLogout = () => {
         onSuccess: () => {
             setUser(null);
             toast.success('Logged out');
-            const isAdminApp =
-                typeof window !== "undefined" &&
-                (window.location.port === "3001" ||
-                    window.location.hostname.startsWith("admin.") ||
-                    window.location.pathname.startsWith("/admin") ||
-                    window.location.pathname.startsWith("/account/admin"));
-            const targetPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
             if (typeof window !== "undefined") {
-                window.location.href = targetPath;
+              try {
+                sessionStorage.setItem("manual_logout", "true");
+              } catch {}
+
+              const pathname = window.location.pathname;
+              const isLandingPage = pathname === "/" || pathname === "";
+              if (isLandingPage) {
+                window.location.href = "/";
                 return;
+              }
+
+              const isAdminApp =
+                  window.location.port === "3001" ||
+                  window.location.hostname.startsWith("admin.") ||
+                  window.location.pathname.startsWith("/admin") ||
+                  window.location.pathname.startsWith("/account/admin");
+              const targetPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
+              window.location.href = targetPath;
             }
-            router.push(targetPath);
-            router.refresh();
         },
         onError: (error) => {
             setUser(null);
             if (typeof window !== "undefined") {
-                window.location.href = "/";
-            } else {
-                router.push("/");
+                try {
+                  sessionStorage.setItem("manual_logout", "true");
+                } catch {}
+                const pathname = window.location.pathname;
+                const isLandingPage = pathname === "/" || pathname === "";
+                if (isLandingPage) {
+                  window.location.href = "/";
+                  return;
+                }
+                window.location.href = "/account/user/login";
             }
         }
     })

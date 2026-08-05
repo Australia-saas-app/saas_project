@@ -47,12 +47,19 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
         const uid = user.userId || user.id;
         // Record activity log to MongoDB
         try {
-          const { recordRealActivity } = require("@/src/shared/lib/real-activity-logger");
-          recordRealActivity(
-            kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
-            `KYC application ${kycStatus} by administrator`,
-            { userId: uid, email: user.email, name: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName }
-          ).catch(() => undefined);
+          fetch('/admin/api/user-profile/activity', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              action: kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
+              resource: `KYC application ${kycStatus} by administrator`,
+              details: { userId: uid, email: user.email, name: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName },
+              userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Admin Dashboard'
+            })
+          }).catch(() => undefined);
         } catch {}
 
         // 1. Local DOM CustomEvents

@@ -52,6 +52,14 @@ export default function Header() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      if (user) {
+        const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
+        await recordRealActivity(
+          "USER_LOGOUT",
+          "User logged out successfully",
+          { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
+        ).catch(() => undefined);
+      }
       await logout();
       setUser(null);
     } catch (error) {
@@ -60,11 +68,27 @@ export default function Header() {
     setIsLoggingOut(false);
     setLogoutModalOpen(false);
     if (typeof window !== "undefined") {
-      localStorage.removeItem("user_profile_overrides_v2");
-      localStorage.removeItem("user_profile_documents_v2");
-      window.location.href = "/";
-    } else {
-      router.push("/");
+      try {
+        sessionStorage.setItem("manual_logout", "true");
+        localStorage.clear();
+        sessionStorage.clear();
+        sessionStorage.setItem("manual_logout", "true");
+      } catch {}
+
+      const isLandingPage = pathname === "/" || pathname === "";
+      if (isLandingPage) {
+        window.location.href = "/";
+        return;
+      }
+
+      const isAdminApp =
+        window.location.port === "3001" ||
+        window.location.hostname.startsWith("admin.") ||
+        window.location.pathname.startsWith("/admin") ||
+        window.location.pathname.startsWith("/account/admin");
+
+      const cleanPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
+      window.location.href = cleanPath;
     }
   };
 

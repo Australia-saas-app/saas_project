@@ -41,7 +41,7 @@ export default function UserLogLayout() {
   const [filterDate, setFilterDate] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [logsPerPage, setLogsPerPage] = useState(25);
+  const [logsPerPage, setLogsPerPage] = useState(10);
 
   const [isDeletingSingle, setIsDeletingSingle] = useState<string | null>(null);
 
@@ -186,8 +186,6 @@ export default function UserLogLayout() {
   };
 
   const renderPagination = () => {
-    if (totalPages <= 1) return null;
-
     const pages = [];
     let startPage = currentPage;
     let endPage = Math.min(startPage + 2, totalPages);
@@ -226,7 +224,7 @@ export default function UserLogLayout() {
         {pages}
         {endPage < totalPages && (
           <>
-            <span className="text-muted-foreground px-1 tracking-widest">.......</span>
+            <span className="text-muted-foreground px-1 tracking-widest">...</span>
             <button
               type="button"
               onClick={() => setCurrentPage(totalPages)}
@@ -505,6 +503,7 @@ export default function UserLogLayout() {
                 onChange={(e) => setLogsPerPage(Number(e.target.value))}
                 className="bg-background border border-input rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
+                <option value={10}>10</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={75}>75</option>

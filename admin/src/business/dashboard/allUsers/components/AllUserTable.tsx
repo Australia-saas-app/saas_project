@@ -212,12 +212,19 @@ const AllUserTable: React.FC = () => {
             window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId, status: lowerStatus } }));
 
             try {
-              const { recordRealActivity } = require("@/src/shared/lib/real-activity-logger");
-              recordRealActivity(
-                "ACCOUNT_STATUS_CHANGED",
-                `Account status updated to ${newStatus} by administrator`,
-                { userId, email: selectedUser?.email, name: selectedUser?.fullName }
-              ).catch(() => undefined);
+              fetch('/admin/api/user-profile/activity', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  action: 'ACCOUNT_STATUS_CHANGED',
+                  resource: `Account status updated to ${newStatus} by administrator`,
+                  details: { userId, email: selectedUser?.email, name: selectedUser?.fullName },
+                  userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Admin Dashboard'
+                })
+              }).catch(() => undefined);
             } catch {}
 
             try {
