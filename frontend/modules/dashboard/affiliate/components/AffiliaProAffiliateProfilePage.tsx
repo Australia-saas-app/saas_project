@@ -20,6 +20,7 @@ import { useUser } from "@/src/context/user.provider"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
 import { useProfileDisplay } from "../../shared/hooks/use-profile-display"
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
@@ -81,7 +82,7 @@ function VerifiedBadge() {
 export default function AffiliaProAffiliateProfilePage() {
   const { user } = useUser()
   const { isDemo } = useIsDemoAccount()
-  const { rawUserId, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, avatarUrl, updateProfile, dateOfBirth } = useProfileDisplay()
+  const { rawUserId, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, avatarUrl, updateProfile, dateOfBirth, kycApplicationData } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
 
@@ -689,7 +690,8 @@ export default function AffiliaProAffiliateProfilePage() {
           avatarUrl,
           documentUrl,
           documentFrontUrl,
-          documentBackUrl
+          documentBackUrl,
+          kycApplicationData: (user as any)?.kycApplicationData
         }}
       />
     </div>

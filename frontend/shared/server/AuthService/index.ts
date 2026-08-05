@@ -646,20 +646,46 @@ export const deleteUserAccount = async (userId?: string) => {
 };
 
 export const logActivityToServer = async (payload: any) => {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("accessToken")?.value;
-  if (!token) {
-    throw new Error("Not authenticated — cannot log activity");
-  }
+  let token = "";
   try {
-    const { data } = await axiosInstance.post("/user-profile-service/activity", payload, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 15000,
-    });
-    return data;
+    const cookieStore = await cookies();
+    token = cookieStore.get("accessToken")?.value || "";
+  } catch {}
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Use USER_PROFILE_BACKEND_URL (set in Docker env) for direct service-to-service calls.
+  // Falls back to apiBaseURL for local dev where user-profile runs via host.
+  const userProfileBase = process.env.USER_PROFILE_BACKEND_URL;
+  const endpoint = token ? "activity" : "activity/internal";
+
+  try {
+    if (userProfileBase) {
+      // Direct call to user-profile service (Docker/production)
+      const url = `${userProfileBase}/${endpoint}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      return res.ok ? await res.json().catch(() => null) : null;
+    } else {
+      // Local dev: use apiBaseURL (platform gateway)
+      const { data } = await axiosInstance.post(`/user-profile-service/${endpoint}`, payload, {
+        headers,
+        timeout: 15000,
+      });
+      return data;
+    }
   } catch (error: any) {
     console.error("logActivityToServer failed:", error?.response?.data || error.message);
-    throw error;
+    return null;
   }
 };
 
@@ -668,12 +694,22 @@ export const getLogsFromServer = async (limit = 100) => {
   const token = cookieStore.get("accessToken")?.value;
   if (!token) return [];
   try {
-    const { data } = await axiosInstance.get("/user-profile-service/activity", {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { limit, page: 1 },
-      timeout: 15000,
-    });
-    return data?.activities || data?.data?.activities || [];
+    const userProfileBase = process.env.USER_PROFILE_BACKEND_URL;
+    if (userProfileBase) {
+      // Direct call in Docker/production
+      const res = await fetch(`${userProfileBase}/activity?limit=${limit}&page=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = res.ok ? await res.json().catch(() => ({})) : {};
+      return json?.activities || json?.data?.activities || [];
+    } else {
+      const { data } = await axiosInstance.get("/user-profile-service/activity", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit, page: 1 },
+        timeout: 15000,
+      });
+      return data?.activities || data?.data?.activities || [];
+    }
   } catch (error: any) {
     console.error("getLogsFromServer failed:", error?.response?.data || error.message);
     return [];

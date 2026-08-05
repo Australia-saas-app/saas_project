@@ -419,9 +419,9 @@ export class AuthService {
       const deviceIdentifier = loginDto.deviceId ? loginDto.deviceId : actualIp;
 
       if (!user.trustedIps || user.trustedIps.length === 0) {
-        user.trustedIps = [deviceIdentifier];
+        user.trustedIps = Array.from(new Set([deviceIdentifier, actualIp]));
         await this.userRepository.save(user);
-      } else if (!user.trustedIps.includes(deviceIdentifier)) {
+      } else if (!user.trustedIps.includes(deviceIdentifier) && !user.trustedIps.includes(actualIp)) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
         
         if (loginDto.otp) {
@@ -429,7 +429,7 @@ export class AuthService {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          user.trustedIps = [...user.trustedIps, deviceIdentifier];
+          user.trustedIps = Array.from(new Set([...user.trustedIps, deviceIdentifier, actualIp]));
           await this.userRepository.save(user);
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);
@@ -1221,7 +1221,7 @@ export class AuthService {
 
     try {
       const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
-      fetch(`${userProfileUrl}/activity`, {
+      fetch(`${userProfileUrl}/activity/internal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1266,7 +1266,7 @@ export class AuthService {
 
     try {
       const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
-      fetch(`${userProfileUrl}/activity`, {
+      fetch(`${userProfileUrl}/activity/internal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1297,11 +1297,31 @@ export class AuthService {
     }
 
     if (user.kycStatus === KycStatus.PENDING || user.kycStatus === KycStatus.SUBMITTED) {
-      throw new BadRequestException('KYC Application already submitted and is pending review.');
+      // Already pending — return the saved snapshot so the frontend can display it
+      return {
+        success: true,
+        message: 'KYC Application already submitted and is pending review.',
+        data: {
+          userId: user.userId,
+          kycStatus: user.kycStatus,
+          kycApplicationData: user.kycApplicationData,
+          alreadySubmitted: true,
+        },
+      };
     }
 
     if (user.kycStatus === KycStatus.APPROVED) {
-      throw new BadRequestException('KYC Application is already approved.');
+      // Already approved — return the saved snapshot
+      return {
+        success: true,
+        message: 'KYC Application is already approved.',
+        data: {
+          userId: user.userId,
+          kycStatus: user.kycStatus,
+          kycApplicationData: user.kycApplicationData,
+          alreadySubmitted: true,
+        },
+      };
     }
 
     user.kycApplicationData = {

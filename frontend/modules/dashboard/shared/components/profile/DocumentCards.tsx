@@ -87,9 +87,9 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
   useEffect(() => {
     if (!userId) return;
 
-    // If documentUrl was explicitly set to empty string by user deletion, show no documents
+    // If no DB document and documentUrl was explicitly set to empty string by local deletion
     const overrides = getProfileOverrides(userId);
-    if (overrides.documentUrl === "") {
+    if (!dbDocumentUrl && overrides.documentUrl === "") {
       setDocuments([]);
       return;
     }

@@ -112,7 +112,14 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem("user_profile_overrides_v2");
         localStorage.removeItem("user_profile_documents_v2");
       }
-      window.location.href = "/?reason=inactivity";
+      const isAdminApp =
+          window.location.port === "3001" ||
+          window.location.hostname.startsWith("admin.") ||
+          window.location.pathname.startsWith("/admin") ||
+          window.location.pathname.startsWith("/account/admin");
+      
+      const targetPath = isAdminApp ? "/account/admin/login?reason=inactivity" : "/?reason=inactivity";
+      window.location.href = targetPath;
     }
   }, [user]);
 

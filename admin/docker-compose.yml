@@ -10,4 +10,6 @@ services:
       - "443:3000" # Standard HTTPS (requires SSL setup later)
     environment:
       - NODE_ENV=production
+      - USER_PROFILE_BACKEND_URL=http://user-profile-service:3005/user-profile-service
+      - BACKEND_URL=http://sso-service:3001
     restart: always

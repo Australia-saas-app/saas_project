@@ -125,10 +125,15 @@ export default function KycApplicationModal({
   /* ---- Document rendering helper ---- */
   const renderDocuments = () => {
     const snap = user.kycApplicationData || {};
-    const docUrl = snap.idDocument || snap.documentUrl || user.documentUrl;
-    const hasDoc = docUrl || user.documentFrontUrl;
+    // In view mode, ONLY use documents from the saved snapshot
+    const docUrl = isViewMode
+      ? (snap.idDocument || snap.documentUrl || null)
+      : (snap.idDocument || snap.documentUrl || user.documentUrl);
+    const hasFrontDoc = isViewMode
+      ? Boolean(docUrl || snap.documentFrontUrl)
+      : Boolean(docUrl || user.documentFrontUrl);
 
-    if (!hasDoc) {
+    if (!hasFrontDoc) {
       return (
         <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-lg text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
           <ShieldAlert className="h-4 w-4 shrink-0" />
@@ -137,8 +142,8 @@ export default function KycApplicationModal({
       );
     }
 
-    let front = snap.documentFrontUrl || user.documentFrontUrl || "";
-    let back = snap.documentBackUrl || user.documentBackUrl || "";
+    let front = snap.documentFrontUrl || (isViewMode ? "" : user.documentFrontUrl) || "";
+    let back = snap.documentBackUrl || (isViewMode ? "" : user.documentBackUrl) || "";
     try {
       if (!front && !back && docUrl?.startsWith("[") && docUrl?.endsWith("]")) {
         const parsed = JSON.parse(docUrl);
@@ -245,28 +250,40 @@ export default function KycApplicationModal({
           {/* Details grid */}
           {(() => {
             const snap = user.kycApplicationData || {};
-            const displayFullName = snap.fullName || user.fullName;
-            const displayEmail = snap.email || user.email;
-            const displayNationality = snap.nationality || user.nationality;
-            const displayGovtIdType = snap.governmentIdType || user.governmentIdType || (() => {
-              if (typeof window !== "undefined") {
-                try {
-                  const o = getProfileOverrides(user.rawUserId || user.userId || user.id);
-                  return (o as any).governmentIdType;
-                } catch {}
-              }
-              return undefined;
-            })() || "Not Selected";
-            const displayGovtId = snap.governmentId || user.nationalIdentity;
-            const displayDob = snap.dateOfBirth || user.dateOfBirth;
+            // In view mode (pending/approved/rejected), ONLY show data from the saved snapshot.
+            // Never fall back to live profile — changes to profile must NOT affect the frozen application.
+            const displayFullName = isViewMode ? (snap.fullName || "N/A") : (snap.fullName || user.fullName);
+            const displayEmail = isViewMode ? (snap.email || "N/A") : (snap.email || user.email);
+            const displayNationality = isViewMode ? (snap.nationality || "N/A") : (snap.nationality || user.nationality);
+            const displayGovtIdType = isViewMode
+              ? (snap.governmentIdType || "Not Selected")
+              : (snap.governmentIdType || user.governmentIdType || (() => {
+                  if (typeof window !== "undefined") {
+                    try {
+                      const o = getProfileOverrides(user.rawUserId || user.userId || user.id);
+                      return (o as any).governmentIdType;
+                    } catch {}
+                  }
+                  return undefined;
+                })() || "Not Selected");
+            const displayGovtId = isViewMode
+              ? (snap.governmentId || "N/A")
+              : (snap.governmentId || user.nationalIdentity);
+            const displayDob = isViewMode
+              ? (snap.dateOfBirth || "N/A")
+              : (snap.dateOfBirth || user.dateOfBirth);
             const displayPermAddress = (() => {
-              let addr = snap.permanentAddress || user.permanentAddress;
-              if (!addr && typeof window !== "undefined") {
-                try {
-                  const o = getProfileOverrides(user.rawUserId || user.userId || user.id);
-                  addr = o.permanentAddress;
-                } catch {}
-              }
+              let addr = isViewMode
+                ? snap.permanentAddress
+                : (snap.permanentAddress || user.permanentAddress || (() => {
+                    if (typeof window !== "undefined") {
+                      try {
+                        const o = getProfileOverrides(user.rawUserId || user.userId || user.id);
+                        return o.permanentAddress;
+                      } catch {}
+                    }
+                    return undefined;
+                  })());
               if (typeof addr === "string") {
                 try {
                   return JSON.parse(addr);
@@ -324,7 +341,7 @@ export default function KycApplicationModal({
                     {/* Profile photo */}
                     <div className="flex sm:justify-end mb-4">
                       <div className="h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
-                        {(snap.avatarUrl || snap.profilePhoto || user.avatarUrl) ? (
+                        {(snap.avatarUrl || snap.profilePhoto || (!isViewMode && user.avatarUrl)) ? (
                           <img
                             src={snap.avatarUrl || snap.profilePhoto || user.avatarUrl}
                             alt="Profile"

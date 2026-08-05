@@ -153,7 +153,7 @@ export class AuthController {
   @Get('admin/users')
   @UseGuards(JwtAuthGuard)
   getUsers(@Query() query: any, @Request() req: any) {
-    if (req.user?.role !== 'super_admin') {
+    if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
     return this.authService.getUsers(query);
@@ -162,7 +162,7 @@ export class AuthController {
   @Get('admin/users/:userId')
   @UseGuards(JwtAuthGuard)
   getUserDetails(@Param('userId') userId: string, @Request() req: any) {
-    if (req.user?.role !== 'super_admin') {
+    if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
     return this.authService.getUserDetails(userId);
@@ -171,7 +171,7 @@ export class AuthController {
   @Get('admin/stats')
   @UseGuards(JwtAuthGuard)
   async getAdminStats(@Request() req: any) {
-    if (req.user?.role !== 'super_admin') {
+    if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
     return this.authService.getAdminStats();
@@ -184,7 +184,7 @@ export class AuthController {
     @Body() body: UpdateUserStatusDto,
     @Request() req: any,
   ) {
-    if (req.user?.role !== 'super_admin') {
+    if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
     return this.authService.updateUserStatus(userId, body.status, body.reason || 'Status changed', (req.user as any).email);
@@ -197,7 +197,7 @@ export class AuthController {
     @Body() body: UpdateKycStatusDto,
     @Request() req: any,
   ) {
-    if (req.user?.role !== 'super_admin') {
+    if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
     return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email);

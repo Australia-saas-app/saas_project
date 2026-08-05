@@ -42,6 +42,22 @@ export class ActivityController {
     return this.activityService.getActivities(req.user.userId, query);
   }
 
+  @Post('internal')
+  @ApiOperation({ summary: 'Internal backend-to-backend activity logging' })
+  async createInternalActivity(@Body() body: CreateActivityDto) {
+    const resource = body.resource || 'system';
+    const targetUserId = (body.details as any)?.userId || body.resourceId || 'system';
+    return this.activityService.logActivity(
+      targetUserId,
+      body.action,
+      resource,
+      body.resourceId,
+      body.details,
+      body.ipAddress || '127.0.0.1',
+      body.userAgent || 'Internal-Backend'
+    );
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')

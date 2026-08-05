@@ -197,7 +197,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       if (nationality !== (initialNationality || "")) patchData.nationality = nationality;
       if (dateOfBirth !== (initialDateOfBirth || "")) patchData.dateOfBirth = dateOfBirth;
       if (nationalIdentity !== (initialNationalIdentity || "")) patchData.nationalIdentity = nationalIdentity;
-      if (governmentIdType !== (initialGovernmentIdType || "NID")) patchData.governmentIdType = governmentIdType;
+      if (governmentIdType !== (initialGovernmentIdType || "")) patchData.governmentIdType = governmentIdType;
       if (permAddressChanged) patchData.permanentAddress = permAddressObj;
       if (phone !== initPhone) patchData.phone = phone;
       if (countryCode !== initCC) patchData.countryCode = countryCode;
