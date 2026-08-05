@@ -1219,6 +1219,20 @@ export class AuthService {
 
     await this.userRepository.save(user);
 
+    try {
+      const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
+      fetch(`${userProfileUrl}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ACCOUNT_STATUS_CHANGED',
+          resource: `Account status updated to ${status} by administrator (${adminEmail || 'admin'})`,
+          details: { userId: user.userId, email: user.email, name: user.fullName, newStatus: status, changedBy: adminEmail },
+          userAgent: 'Admin Backend'
+        })
+      }).catch(() => undefined);
+    } catch {}
+
     return {
       success: true,
       message: `User status updated to ${status} successfully`,
@@ -1250,6 +1264,20 @@ export class AuthService {
     }
     await this.userRepository.save(user);
 
+    try {
+      const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
+      fetch(`${userProfileUrl}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: kycStatus === 'approved' ? 'KYC_APPROVED' : 'KYC_REJECTED',
+          resource: `KYC application ${kycStatus} by administrator (${adminEmail || 'admin'})`,
+          details: { userId: user.userId, email: user.email, name: user.fullName, kycStatus, reason, changedBy: adminEmail },
+          userAgent: 'Admin Backend'
+        })
+      }).catch(() => undefined);
+    } catch {}
+
     return {
       success: true,
       message: `User KYC status updated to ${kycStatus} successfully`,
@@ -1280,11 +1308,12 @@ export class AuthService {
       fullName: user.fullName,
       email: user.email,
       nationality: user.nationality,
-      governmentId: user.governmentId,
+      governmentId: user.governmentId || (user as any).nationalIdentity,
       governmentIdType: user.governmentIdType || 'NID',
       dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
       permanentAddress: user.permanentAddress || { country: '', city: '', state: '', zipCode: '', address: '' },
       idDocument: user.idDocument,
+      avatarUrl: user.profilePhoto || (user as any).avatarUrl,
       appliedAt: new Date().toISOString(),
     };
     user.kycStatus = KycStatus.PENDING;

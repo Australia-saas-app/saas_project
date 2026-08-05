@@ -59,9 +59,21 @@ export default function KycApplicationModal({
         toast.success("KYC Application submitted successfully!");
 
         const uid = user.rawUserId || targetUid;
-        saveProfileOverrides(uid, { kycStatus: "pending", resubmitted: true, unverifiedByAdmin: false });
+        const snapData = {
+          fullName: user.fullName,
+          email: user.email,
+          nationality: user.nationality,
+          governmentId: user.nationalIdentity || user.governmentId,
+          governmentIdType: user.governmentIdType || (getProfileOverrides(uid) as any).governmentIdType || "NID",
+          dateOfBirth: user.dateOfBirth,
+          permanentAddress: user.permanentAddress,
+          idDocument: user.documentUrl || user.idDocument,
+          avatarUrl: user.avatarUrl || user.profilePhoto,
+          appliedAt: new Date().toISOString(),
+        };
+        saveProfileOverrides(uid, { kycStatus: "pending", kycApplicationData: snapData, resubmitted: true, unverifiedByAdmin: false });
         if (user.updateProfile) {
-          await user.updateProfile({ kycStatus: "pending" }).catch(() => {});
+          await user.updateProfile({ kycStatus: "pending", kycApplicationData: snapData }).catch(() => {});
         }
 
         // Record Real Activity Log
@@ -112,7 +124,8 @@ export default function KycApplicationModal({
 
   /* ---- Document rendering helper ---- */
   const renderDocuments = () => {
-    const docUrl = user.documentUrl;
+    const snap = user.kycApplicationData || {};
+    const docUrl = snap.idDocument || snap.documentUrl || user.documentUrl;
     const hasDoc = docUrl || user.documentFrontUrl;
 
     if (!hasDoc) {
@@ -124,8 +137,8 @@ export default function KycApplicationModal({
       );
     }
 
-    let front = user.documentFrontUrl || "";
-    let back = user.documentBackUrl || "";
+    let front = snap.documentFrontUrl || user.documentFrontUrl || "";
+    let back = snap.documentBackUrl || user.documentBackUrl || "";
     try {
       if (!front && !back && docUrl?.startsWith("[") && docUrl?.endsWith("]")) {
         const parsed = JSON.parse(docUrl);
@@ -311,9 +324,9 @@ export default function KycApplicationModal({
                     {/* Profile photo */}
                     <div className="flex sm:justify-end mb-4">
                       <div className="h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
-                        {user.avatarUrl ? (
+                        {(snap.avatarUrl || snap.profilePhoto || user.avatarUrl) ? (
                           <img
-                            src={user.avatarUrl}
+                            src={snap.avatarUrl || snap.profilePhoto || user.avatarUrl}
                             alt="Profile"
                             className="h-full w-full object-cover"
                           />

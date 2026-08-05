@@ -57,8 +57,10 @@ export class ActivityController {
     const ipAddress = body.ipAddress || expressReq.ip || '127.0.0.1';
     const userAgent = body.userAgent || expressReq.headers?.['user-agent'];
 
+    const targetUserId = (body.details as any)?.userId || body.resourceId || req.user.userId;
+
     await this.activityService.logActivity(
-      req.user.userId,
+      targetUserId,
       body.action,
       resource,
       body.resourceId,

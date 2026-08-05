@@ -198,6 +198,7 @@ export class User {
       address?: string;
     };
     idDocument?: string;
+    avatarUrl?: string;
     appliedAt?: string;
   } | null;
 

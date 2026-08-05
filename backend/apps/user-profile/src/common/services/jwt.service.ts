@@ -53,7 +53,7 @@ export class JwtService {
     this.issuer = this.configService.get<string>('SSO_ISSUER', defaultIssuer);
   }
 
-  verifyUserToken(token: string): UserTokenPayload | null {
+  verifyUserToken(token: string, allowAdmin = false): UserTokenPayload | null {
     try {
       // First, verify signature and decode token (with flexible issuer handling)
       let payload: UserTokenPayload;
@@ -95,20 +95,19 @@ export class JwtService {
         payload = decoded;
       }
 
-      // Verify required fields — userId may be in sub for some token formats
-      const resolvedUserId = payload?.userId || payload?.sub;
+      // Verify required fields — userId may be in sub or adminId for some token formats
+      const resolvedUserId = payload?.userId || payload?.sub || (payload as any)?.adminId;
       if (!payload || !resolvedUserId) {
         Logger.warn('User token missing required fields', JwtService.name);
         return null;
       }
       payload.userId = resolvedUserId;
 
-      // Verify it's a user token (not admin token)
-      // Reject admin tokens explicitly, but accept user tokens or tokens without role/accountType
-      const role = payload.role || payload.accountType;
-      if (role === 'admin' || role === 'sub-admin' || role === 'super_admin') {
+      // Verify it's a user token (or allowed admin token)
+      const role = payload.role || payload.accountType || payload.aud;
+      if (!allowAdmin && (role === 'admin' || role === 'sub-admin' || role === 'super_admin' || payload.aud === 'admin')) {
         Logger.warn(
-          `Token rejected: Admin tokens are not allowed. Got role: ${payload.role}, accountType: ${payload.accountType}`,
+          'Admin tokens not allowed for user endpoints',
           JwtService.name,
         );
         return null;

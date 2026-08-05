@@ -270,14 +270,6 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
         {documents.length === 0 && (
           <div className="w-full rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-xs font-medium text-muted-foreground flex flex-col items-center justify-center gap-3">
             <p>No document uploaded yet. Upload your ID document to apply for KYC verification.</p>
-            <button
-              type="button"
-              onClick={() => triggerUploadForSlot("single")}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Upload ID Document
-            </button>
           </div>
         )}
 

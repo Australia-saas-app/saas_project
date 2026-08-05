@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -66,6 +67,12 @@ export function LoginPage({
   const [showModalReason, setShowModalReason] = useState<string | null>(
     reason === "session_superseded" || reason === "inactivity" ? reason : null
   );
+
+  useEffect(() => {
+    if (reason === "session_superseded" || reason === "inactivity") {
+      setShowModalReason(reason);
+    }
+  }, [reason]);
 
   const [is2faStep, setIs2faStep] = useState(false);
   const [isNewDeviceStep, setIsNewDeviceStep] = useState(false);
@@ -265,78 +272,86 @@ export function LoginPage({
       subtitle="Sign in to manage projects, earnings, wallet activity, and your professional profile from one secure dashboard."
       badge="Secure access"
     >
-      {is2faStep || isNewDeviceStep ? (
-        <div className="space-y-5 max-h-[82vh] overflow-y-auto custom-scrollbar px-1 py-1 sm:max-h-none sm:overflow-visible">
-          <div className="flex items-center gap-3 border-b border-border pb-4">
-            <button
-              type="button"
-              onClick={() => {
-                setIs2faStep(false);
-                setIsNewDeviceStep(false);
-                setOtpCode("");
-              }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/30 text-foreground hover:bg-muted transition-all"
-              title="Back to login"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
-                {isNewDeviceStep ? "New Device Authentication" : "Two-Factor Authentication"}
-              </h3>
-              <p className="text-xs text-muted-foreground truncate">
-                {isNewDeviceStep && capturedIp && (
-                  <span className="block mb-0.5 text-orange-500 font-medium truncate">
-                    Unrecognized IP: {capturedIp}
-                  </span>
-                )}
-                Code sent to <span className="font-semibold text-foreground truncate">{pendingLoginData?.email}</span>
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleVerify2fa} className="space-y-5">
-            <div className="pt-1 w-full overflow-x-auto flex justify-center">
-              <OtpInput
-                value={otpCode}
-                onChange={(val) => {
-                  setOtpCode(val);
-                }}
-                length={6}
-                disabled={loginMutation.isPending || isVerifyingCreds}
-              />
-            </div>
-
-            <div className="text-center">
+      {/* OTP Verification Modal Overlay */}
+      {(is2faStep || isNewDeviceStep) && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[4px] p-4 overflow-y-auto">
+          <div
+            style={{ width: "420px", maxWidth: "calc(100vw - 32px)" }}
+            className="bg-card rounded-2xl shadow-2xl p-6 sm:p-7 border border-border animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center gap-3 border-b border-border pb-4 mb-5">
               <button
                 type="button"
-                disabled={timeLeft > 0 || loginMutation.isPending || isSendingOtp}
                 onClick={() => {
-                  if (pendingLoginData?.email) {
-                    sendOtp(pendingLoginData.email, isNewDeviceStep ? "new_device" : "2fa_login");
-                  }
+                  setIs2faStep(false);
+                  setIsNewDeviceStep(false);
+                  setOtpCode("");
                 }}
-                className="text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground transition-all"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/30 text-foreground hover:bg-muted transition-all"
+                title="Back to login"
               >
-                {timeLeft > 0 ? `Resend code in ${formatTime(timeLeft)}` : "Resend code"}
+                <ArrowLeft className="h-4 w-4" />
               </button>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                  {isNewDeviceStep ? "New Device Authentication" : "Two-Factor Authentication"}
+                </h3>
+                <p className="text-xs text-muted-foreground truncate">
+                  {isNewDeviceStep && capturedIp && (
+                    <span className="block mb-0.5 text-orange-500 font-medium truncate">
+                      Unrecognized IP: {capturedIp}
+                    </span>
+                  )}
+                  Code sent to <span className="font-semibold text-foreground truncate">{pendingLoginData?.email}</span>
+                </p>
+              </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={otpCode.length !== 6 || loginMutation.isPending}
-              className="w-full rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loginMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span>{loginMutation.isPending ? "Verifying & Signing in..." : "Verify & Sign in"}</span>
-            </button>
-          </form>
-        </div>
-      ) : (
-        <>
+            <form onSubmit={handleVerify2fa} className="space-y-5">
+              <div className="pt-1 w-full overflow-x-auto flex justify-center">
+                <OtpInput
+                  value={otpCode}
+                  onChange={(val) => {
+                    setOtpCode(val);
+                  }}
+                  length={6}
+                  disabled={loginMutation.isPending || isVerifyingCreds}
+                />
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  disabled={timeLeft > 0 || loginMutation.isPending || isSendingOtp}
+                  onClick={() => {
+                    if (pendingLoginData?.email) {
+                      sendOtp(pendingLoginData.email, isNewDeviceStep ? "new_device" : "2fa_login");
+                    }
+                  }}
+                  className="text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground transition-all"
+                >
+                  {timeLeft > 0 ? `Resend code in ${formatTime(timeLeft)}` : "Resend code"}
+                </button>
+              </div>
+
+              <button
+                type="submit"
+                disabled={otpCode.length !== 6 || loginMutation.isPending}
+                className="w-full rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loginMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>{loginMutation.isPending ? "Verifying & Signing in..." : "Verify & Sign in"}</span>
+              </button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <>
           <div className="mb-2">
             <h3 className="hidden text-xl font-bold tracking-tight text-foreground lg:block">
               {LOGIN_TITLES[accountType]}
@@ -407,7 +422,6 @@ export function LoginPage({
             onClose={() => loginMutation.reset()} 
           />
         </>
-      )}
 
       {showModalReason && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">

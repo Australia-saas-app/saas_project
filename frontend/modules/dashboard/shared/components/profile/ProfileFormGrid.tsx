@@ -480,8 +480,41 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
             </div>
           </div>
 
+          {/* Update Profile Button Section (Above Identity Document Upload) */}
+          <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 md:col-span-2">
+            <div className="flex flex-col gap-1">
+              <div className="text-xs text-muted-foreground font-medium">
+                * Please ensure all fields are correct before updating.
+              </div>
+              <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <span>Government ID Type:</span>
+                <span className={`font-bold px-2 py-0.5 rounded ${governmentIdType ? 'text-primary bg-primary/10 border border-primary/20' : 'text-muted-foreground bg-muted border border-border'}`}>
+                  {governmentIdType || "Not Selected"}
+                </span>
+              </div>
+            </div>
+            <div className="w-full sm:w-auto flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full sm:w-auto rounded-lg bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" /> Update Profile
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           {/* Identity Document — optional for profile update, required for KYC apply */}
-          <div className="flex flex-col gap-2 min-w-0 md:col-span-2">
+          <div className="flex flex-col gap-2 min-w-0 md:col-span-2 pt-4 border-t border-border">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
               <span>Identity Document Upload</span>
               <span className="text-[10px] text-muted-foreground/70 normal-case font-normal">(Required for KYC only)</span>
@@ -573,39 +606,6 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Bottom Update Button Section */}
-        <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-muted-foreground font-medium">
-              * Please ensure all fields are correct before updating.
-            </div>
-            <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
-              <span>Government ID Type:</span>
-              <span className={`font-bold px-2 py-0.5 rounded ${governmentIdType ? 'text-primary bg-primary/10 border border-primary/20' : 'text-muted-foreground bg-muted border border-border'}`}>
-                {governmentIdType || "Not Selected"}
-              </span>
-            </div>
-          </div>
-          <div className="w-full sm:w-auto flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full sm:w-auto rounded-lg bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4" /> Update Profile
-                </>
-              )}
-            </button>
           </div>
         </div>
       </form>

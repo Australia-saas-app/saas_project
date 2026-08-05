@@ -342,12 +342,12 @@ export const loginUser = async (userData: FieldValues) => {
       return { success: false, message: "mfa_required", requiresOtp: true };
     }
     if (axiosError?.response?.data?.error === "NEW_DEVICE_OTP_REQUIRED") {
-      return { 
-        success: false, 
-        message: "NEW_DEVICE_OTP_REQUIRED", 
+      return {
+        success: false,
+        message: "NEW_DEVICE_OTP_REQUIRED",
         requiresOtp: true,
-        isNewDevice: true, 
-        capturedIp: axiosError?.response?.data?.data?.capturedIp 
+        isNewDevice: true,
+        capturedIp: axiosError?.response?.data?.data?.capturedIp
       };
     }
     if (axiosError?.response?.status === 403) {

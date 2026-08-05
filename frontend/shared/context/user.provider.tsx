@@ -91,6 +91,15 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Activity-based idle logout (separate from JWT expiry).
   const handleIdle = useCallback(async () => {
+    try {
+      const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
+      await recordRealActivity(
+        "AUTO_LOGOUT",
+        "Session expired due to inactivity",
+        { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
+      ).catch(() => undefined);
+    } catch {}
+
     await logout().catch(() => undefined);
     setUser(null);
     if (typeof window !== "undefined") {
@@ -105,7 +114,7 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
       }
       window.location.href = "/?reason=inactivity";
     }
-  }, []);
+  }, [user]);
 
   useIdleTimeout({
     timeoutMs: IDLE_TIMEOUT_MS,
