@@ -1,23 +1,26 @@
 #!/bin/sh
 set -e
 
+# ── Wait for PostgreSQL to be ready ─────────────────────────────────────────
+echo "Waiting for PostgreSQL to be ready..."
+RETRIES=30
+until pg_isready -h "${DB_HOST:-postgres}" -p "${DB_PORT:-5432}" -U "${DB_USERNAME}" -q || [ "$RETRIES" -eq 0 ]; do
+  echo "PostgreSQL not ready yet, waiting... ($RETRIES retries left)"
+  RETRIES=$((RETRIES - 1))
+  sleep 2
+done
+
 # ── Pre-start SQL migration ──────────────────────────────────────────────────
-# Adds any missing columns that cannot be added by TypeORM synchronize
-# because the user table already has ~1600 columns (PostgreSQL hard limit).
-# This script runs BEFORE the NestJS app boots, so the column exists by the
-# time TypeORM checks the schema — meaning TypeORM won't try to add it.
-#
+# Adds any missing columns before the NestJS app boots.
+# TypeORM synchronize is DISABLED (table has ~1600 cols — PostgreSQL hard limit).
 # All statements use IF NOT EXISTS — completely safe to run on every deploy.
-
 echo "Running pre-start SQL migrations..."
-
 PGPASSWORD="${DB_PASSWORD}" psql \
   -h "${DB_HOST:-postgres}" \
   -p "${DB_PORT:-5432}" \
   -U "${DB_USERNAME}" \
   -d "${DB_NAME}" \
-  -c 'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "kycApplicationData" jsonb NULL;' \
-  2>/dev/null || echo "SQL migration skipped (psql unavailable or column already exists)"
+  -c 'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "kycApplicationData" jsonb NULL;'
 
 echo "Pre-start migrations done."
 

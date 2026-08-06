@@ -112,7 +112,7 @@ import { SecurityDeposit } from './entities/security-deposit.entity';
           AffiliateIncome,
           SecurityDeposit
         ],
-        synchronize: process.env.SSO_SYNCHRONIZE === 'true',
+        synchronize: false, // Table has ~1600 cols — TypeORM sync crashes. StartupMigrationService handles schema changes.
       }),
       inject: [ConfigService],
     }),
