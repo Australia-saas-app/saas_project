@@ -24,6 +24,7 @@ import {
   TwoFactorMethod,
 } from '../../entities/user.entity';
 import { Admin } from '../../entities/admin.entity';
+import { KycApplication } from '../../entities/kyc-application.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -44,6 +45,8 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Admin)
     private readonly adminRepository: Repository<Admin>,
+    @InjectRepository(KycApplication)
+    private readonly kycApplicationRepository: Repository<KycApplication>,
     private readonly otpUtil: OtpUtil,
     private readonly configService: ConfigService,
     private readonly tokenService: TokenService,
@@ -869,6 +872,10 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
+    // Load KYC application data from separate table
+    const kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+    const kycApplicationData = kycRecord?.applicationData ?? null;
+
     return {
       success: true,
       data: {
@@ -888,7 +895,7 @@ export class AuthService {
         governmentId: user.governmentId,
         governmentIdType: user.governmentIdType,
         permanentAddress: user.permanentAddress,
-        kycApplicationData: user.kycApplicationData,
+        kycApplicationData: kycApplicationData,
         twoFactorEnabled: user.twoFactorEnabled,
         twoFactorMethod: user.twoFactorMethod,
         createdAt: user.createdAt,
@@ -1296,6 +1303,9 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
+    // Load existing KYC record from separate table
+    let kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+
     // ── Already under review — block re-submission, return saved snapshot ───
     if (user.kycStatus === KycStatus.PENDING || user.kycStatus === KycStatus.SUBMITTED) {
       return {
@@ -1304,7 +1314,7 @@ export class AuthService {
         data: {
           userId: user.userId,
           kycStatus: user.kycStatus,
-          kycApplicationData: user.kycApplicationData,
+          kycApplicationData: kycRecord?.applicationData ?? null,
           alreadySubmitted: true,
         },
       };
@@ -1318,20 +1328,15 @@ export class AuthService {
         data: {
           userId: user.userId,
           kycStatus: user.kycStatus,
-          kycApplicationData: user.kycApplicationData,
+          kycApplicationData: kycRecord?.applicationData ?? null,
           alreadySubmitted: true,
         },
       };
     }
 
-    // ── NONE or REJECTED — take a fresh snapshot of the current profile ──────
-    // For REJECTED: the user may have updated their profile to fix issues before
-    // re-submitting, so we snapshot the latest data, not the old rejected data.
-    // After this point, updating the profile will NOT change kycApplicationData
-    // (snapshot is frozen until the next submission or approval/rejection).
+    // ── NONE or REJECTED — snapshot current profile into kyc_application table ─
     const isResubmission = user.kycStatus === KycStatus.REJECTED;
-
-    user.kycApplicationData = {
+    const applicationData = {
       fullName: user.fullName,
       email: user.email,
       nationality: user.nationality,
@@ -1344,6 +1349,15 @@ export class AuthService {
       appliedAt: new Date().toISOString(),
       ...(isResubmission ? { resubmittedAt: new Date().toISOString() } : {}),
     };
+
+    // Upsert into kyc_application table (create or update)
+    if (kycRecord) {
+      kycRecord.applicationData = applicationData;
+    } else {
+      kycRecord = this.kycApplicationRepository.create({ userId: user.userId, applicationData });
+    }
+    await this.kycApplicationRepository.save(kycRecord);
+
     user.kycStatus = KycStatus.PENDING;
     await this.userRepository.save(user);
 
@@ -1355,7 +1369,7 @@ export class AuthService {
       data: {
         userId: user.userId,
         kycStatus: user.kycStatus,
-        kycApplicationData: user.kycApplicationData,
+        kycApplicationData: applicationData,
       },
     };
   }
@@ -1375,6 +1389,7 @@ export class AuthService {
       data: user.preferences,
     };
   }
+
 
   async changePassword(email: string, oldPassword?: string, newPassword?: string) {
     if (!newPassword || !oldPassword) {

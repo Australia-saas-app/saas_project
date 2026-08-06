@@ -34,6 +34,7 @@ import { SystemEvent } from './entities/system-event.entity';
 import { PaymentCard } from './entities/payment-card.entity';
 import { AffiliateIncome } from './entities/affiliate-income.entity';
 import { SecurityDeposit } from './entities/security-deposit.entity';
+import { KycApplication } from './entities/kyc-application.entity';
 
 @Module({
   imports: [
@@ -109,7 +110,8 @@ import { SecurityDeposit } from './entities/security-deposit.entity';
           PredefinedMessage,
           PaymentCard,
           AffiliateIncome,
-          SecurityDeposit
+          SecurityDeposit,
+          KycApplication,
         ],
         synchronize: configService.get('SSO_SYNCHRONIZE', true),
       }),

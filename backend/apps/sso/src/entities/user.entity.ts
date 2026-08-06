@@ -182,8 +182,10 @@ export class User {
   })
   kycStatus: KycStatus;
 
-  @Column({ type: 'jsonb', nullable: true })
-  kycApplicationData: {
+  // kycApplicationData is stored in the separate `kyc_application` table (KycApplication entity).
+  // Kept here as a non-mapped virtual field so that existing code that reads
+  // user.kycApplicationData continues to work when populated manually in auth.service.ts.
+  kycApplicationData?: {
     fullName?: string;
     email?: string;
     nationality?: string;
@@ -200,6 +202,7 @@ export class User {
     idDocument?: string;
     avatarUrl?: string;
     appliedAt?: string;
+    resubmittedAt?: string;
   } | null;
 
   @Column({ type: 'jsonb', nullable: true })
