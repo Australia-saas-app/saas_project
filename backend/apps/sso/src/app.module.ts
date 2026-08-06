@@ -111,7 +111,7 @@ import { SecurityDeposit } from './entities/security-deposit.entity';
           AffiliateIncome,
           SecurityDeposit
         ],
-        synchronize: configService.get('SSO_SYNCHRONIZE', true),
+        synchronize: configService.get('SSO_SYNCHRONIZE') === 'true',
       }),
       inject: [ConfigService],
     }),

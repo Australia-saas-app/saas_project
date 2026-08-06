@@ -53,7 +53,7 @@ services:
       SSO_PUBLIC_KEY: ${SSO_PUBLIC_KEY}
       SSO_ISSUER: ${SSO_ISSUER}
       REDIS_URL: ${REDIS_URL}
-      SSO_SYNCHRONIZE: "true"
+      SSO_SYNCHRONIZE: "false"
       USER_PROFILE_SERVICE_URL: http://user-profile-service:3005/user-profile-service
 
   admin-service:
