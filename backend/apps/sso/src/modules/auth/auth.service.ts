@@ -1296,8 +1296,8 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
+    // ── Already under review — block re-submission, return saved snapshot ───
     if (user.kycStatus === KycStatus.PENDING || user.kycStatus === KycStatus.SUBMITTED) {
-      // Already pending — return the saved snapshot so the frontend can display it
       return {
         success: true,
         message: 'KYC Application already submitted and is pending review.',
@@ -1310,8 +1310,8 @@ export class AuthService {
       };
     }
 
+    // ── Already approved — block re-submission ───────────────────────────────
     if (user.kycStatus === KycStatus.APPROVED) {
-      // Already approved — return the saved snapshot
       return {
         success: true,
         message: 'KYC Application is already approved.',
@@ -1324,6 +1324,13 @@ export class AuthService {
       };
     }
 
+    // ── NONE or REJECTED — take a fresh snapshot of the current profile ──────
+    // For REJECTED: the user may have updated their profile to fix issues before
+    // re-submitting, so we snapshot the latest data, not the old rejected data.
+    // After this point, updating the profile will NOT change kycApplicationData
+    // (snapshot is frozen until the next submission or approval/rejection).
+    const isResubmission = user.kycStatus === KycStatus.REJECTED;
+
     user.kycApplicationData = {
       fullName: user.fullName,
       email: user.email,
@@ -1335,13 +1342,16 @@ export class AuthService {
       idDocument: user.idDocument,
       avatarUrl: user.profilePhoto || (user as any).avatarUrl,
       appliedAt: new Date().toISOString(),
+      ...(isResubmission ? { resubmittedAt: new Date().toISOString() } : {}),
     };
     user.kycStatus = KycStatus.PENDING;
     await this.userRepository.save(user);
 
     return {
       success: true,
-      message: 'KYC Application submitted successfully',
+      message: isResubmission
+        ? 'KYC Application resubmitted successfully'
+        : 'KYC Application submitted successfully',
       data: {
         userId: user.userId,
         kycStatus: user.kycStatus,

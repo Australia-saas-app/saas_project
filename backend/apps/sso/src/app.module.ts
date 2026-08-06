@@ -11,6 +11,7 @@ import { SessionModule } from './modules/session/session.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthorizeModule } from './modules/authorize/authorize.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { StartupMigrationService } from './startup-migration.service';
 import { User } from './entities/user.entity';
 import { OAuthClient } from './entities/oauth-client.entity';
 import { OAuthAuthorizationCode } from './entities/oauth-authorization-code.entity';
@@ -129,6 +130,7 @@ import { SecurityDeposit } from './entities/security-deposit.entity';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    StartupMigrationService,
   ],
 })
 export class AppModule {}
