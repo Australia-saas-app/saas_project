@@ -454,7 +454,7 @@ export const getCurrentUser = async () => {
         if (internalId !== undefined) merged.internalId = internalId;
       }
     } catch (error: any) {
-      if (error?.response?.status === 401) {
+      if (error?.response?.status === 401 || error?.status === 401) {
         cookieStore.delete("accessToken");
         cookieStore.delete("refreshToken");
         cookieStore.delete("user");

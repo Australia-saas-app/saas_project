@@ -19,13 +19,13 @@ import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
-import { useProfileDisplay } from "../../shared/hooks/use-profile-display"
+import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 
 const inputClass =
-  "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600"
-const cardClass = "rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6"
+  "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500"
+const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600 dark:text-gray-400"
+const cardClass = "rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6 dark:border-gray-800 dark:bg-gray-900"
 const outlineBtn =
   "inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
 const primaryBtn =
@@ -82,29 +82,21 @@ function VerifiedBadge() {
 export default function AffiliaProAffiliateProfilePage() {
   const { user } = useUser()
   const { isDemo } = useIsDemoAccount()
-  const { rawUserId, isActive, isKycVerified, kycStatus, documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, avatarUrl, updateProfile, dateOfBirth, kycApplicationData } = useProfileDisplay()
+  const { 
+    rawUserId, displayUserId, isActive, status, isKycVerified, kycStatus, 
+    documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, 
+    avatarUrl, updateProfile, dateOfBirth, kycApplicationData,
+    fullName, email: profileEmail, phone: profilePhone, initials
+  } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
 
-  const email = user?.email || (isDemo ? "john.doe@email.com" : "")
-  const defaultFirst =
-    user && "firstName" in user && user.firstName
-      ? String(user.firstName)
-      : isDemo
-        ? "John"
-        : ""
-  const defaultLast =
-    user && "lastName" in user && user.lastName ? String(user.lastName) : isDemo ? "Doe" : ""
-
-  const [firstName, setFirstName] = useState(defaultFirst)
-  const [lastName, setLastName] = useState(defaultLast)
   const [username, setUsername] = useState(isDemo ? "johndoe_affiliate" : "")
   const [gender, setGender] = useState("Male")
   const [dob, setDob] = useState(isDemo ? "1990-05-15" : "")
   const [bio, setBio] = useState(
     isDemo ? "Affiliate marketer and digital entrepreneur." : ""
   )
-  const [phone, setPhone] = useState(isDemo ? "+880 1234-567890" : "")
   const [telegram, setTelegram] = useState(isDemo ? "@johndoe" : "")
   const [whatsapp, setWhatsapp] = useState(isDemo ? "+880 1234-567890" : "")
   const [country, setCountry] = useState(isDemo ? "Bangladesh" : "United States")
@@ -119,14 +111,6 @@ export default function AffiliaProAffiliateProfilePage() {
   const [timezone, setTimezone] = useState("(UTC+06:00) Dhaka, Bangladesh")
   const [devices, setDevices] = useState(DEMO_DEVICES)
 
-  const fullName = `${firstName} ${lastName}`.trim() || "Affiliate"
-  const initials = fullName
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() || "A"
-
   const save = (label: string) => {
     toast.success(`${label} saved`)
   }
@@ -137,7 +121,7 @@ export default function AffiliaProAffiliateProfilePage() {
       return;
     }
 
-    if (!firstName || !phone || !dob || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
+    if (!fullName || (!profilePhone && !profileEmail) || !dob || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
       toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
       return;
     }
@@ -164,13 +148,9 @@ export default function AffiliaProAffiliateProfilePage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Profile Settings</h1>
-            <span className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
-              isActive
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            }`}>
-              <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
-              {isActive ? "Active" : "Pending"}
+            <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+              <span className={`h-2 w-2 rounded-full ${getStatusBadgeStyle(status).dot} ${status === 'pending' ? 'animate-pulse' : ''}`} />
+              {getStatusBadgeStyle(status).label}
             </span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
@@ -227,13 +207,9 @@ export default function AffiliaProAffiliateProfilePage() {
                 <p className="text-xs text-gray-400">JPG, PNG or GIF. Max size 2MB.</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>First Name</label>
-                  <input className={inputClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>Last Name</label>
-                  <input className={inputClass} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>Full Name</label>
+                  <input className={inputClass} value={fullName} readOnly />
                 </div>
                 <div className="sm:col-span-2">
                   <label className={labelClass}>Username</label>
@@ -275,10 +251,12 @@ export default function AffiliaProAffiliateProfilePage() {
                 <div>
                   <label className={labelClass}>Email Address</label>
                   <div className="relative">
-                    <input className={`${inputClass} pr-24`} value={email} readOnly />
-                    <span className="absolute top-1/2 right-3 -translate-y-1/2">
-                      <VerifiedBadge />
-                    </span>
+                    <input className={`${inputClass} pr-24`} value={profileEmail || "Not added yet"} readOnly />
+                    {profileEmail && (
+                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                        <VerifiedBadge />
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -286,12 +264,14 @@ export default function AffiliaProAffiliateProfilePage() {
                   <div className="relative">
                     <input
                       className={`${inputClass} pr-24`}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      value={profilePhone || "Not added yet"}
+                      readOnly
                     />
-                    <span className="absolute top-1/2 right-3 -translate-y-1/2">
-                      <VerifiedBadge />
-                    </span>
+                    {profilePhone && (
+                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                        <VerifiedBadge />
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -446,12 +426,12 @@ export default function AffiliaProAffiliateProfilePage() {
                   },
                   {
                     label: "Recovery Email",
-                    value: isDemo ? "john.doe.recovery@email.com" : email || "—",
+                    value: isDemo ? "john.doe.recovery@email.com" : profileEmail || "—",
                     href: "/affiliate/settings/account-security",
                   },
                   {
                     label: "Recovery Phone",
-                    value: phone || "—",
+                    value: profilePhone || "—",
                     href: "/affiliate/settings/account-security",
                   },
                 ].map((row) => (
@@ -595,34 +575,50 @@ export default function AffiliaProAffiliateProfilePage() {
             <h2 className="mb-4 text-base font-bold text-gray-900">Account Overview</h2>
             <dl className="space-y-3 text-sm">
               {[
-                { label: "Member Since", value: isDemo ? "Jan 20, 2023" : "—" },
+                { 
+                  label: "Member Since", 
+                  value: user && "createdAt" in user && user.createdAt
+                    ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
+                    : "—"
+                },
                 { label: "Account Type", value: "Affiliate" },
                 { label: "Status", value: "Active", badge: true },
-                { label: "ID", value: isDemo ? "AFF-12345" : "—" },
+                { 
+                  label: "ID", 
+                  value: displayUserId
+                },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-2">
-                  <dt className="text-gray-500">{row.label}</dt>
+                  <dt className="text-gray-500 dark:text-gray-400">{row.label}</dt>
                   <dd>
                     {row.badge ? (
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                         {row.value}
                       </span>
                     ) : (
-                      <span className="font-semibold text-gray-900">{row.value}</span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">{row.value}</span>
                     )}
                   </dd>
                 </div>
               ))}
               <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
-                <dt className="text-gray-500">Email</dt>
+                <dt className="text-gray-500 dark:text-gray-400">Email</dt>
                 <dd>
-                  <VerifiedBadge />
+                  {profileEmail ? (
+                    <VerifiedBadge />
+                  ) : (
+                    <span className="text-[11px] font-semibold text-gray-400">Not added yet</span>
+                  )}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-gray-500">Phone</dt>
+                <dt className="text-gray-500 dark:text-gray-400">Phone</dt>
                 <dd>
-                  <VerifiedBadge />
+                  {profilePhone ? (
+                    <VerifiedBadge />
+                  ) : (
+                    <span className="text-[11px] font-semibold text-gray-400">Not added yet</span>
+                  )}
                 </dd>
               </div>
             </dl>
@@ -683,7 +679,7 @@ export default function AffiliaProAffiliateProfilePage() {
           rawUserId,
           displayUserId: rawUserId,
           fullName,
-          email,
+          email: profileEmail,
           nationality,
           nationalIdentity,
           governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,

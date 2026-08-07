@@ -25,7 +25,7 @@ export enum OrderStatus {
 
 export enum AccountType {
   USER = 'user',
-  AGENCY = 'agency',
+  AFFILIATE = 'affiliate',
   BUSINESS = 'business',
 }
 

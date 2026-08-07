@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 
 export enum AccountType {
   USER = 'user',
+  AFFILIATE = 'affiliate',
   AGENCY = 'agency',
   BUSINESS = 'business',
 }

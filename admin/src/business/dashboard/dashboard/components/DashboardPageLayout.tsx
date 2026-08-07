@@ -106,7 +106,7 @@ const DashboardPageLayout: React.FC = () => {
         totalUsers: resData.data?.analytics?.all || 0,
         userCount: types.user ? Number(types.user) : 0,
         businessCount: types.business ? Number(types.business) : 0,
-        affiliateCount: types.agency ? Number(types.agency) : 0,
+        affiliateCount: Number(types.affiliate || types.agency || 0),
       };
     },
     enabled: !!token,

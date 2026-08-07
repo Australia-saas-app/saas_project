@@ -30,6 +30,7 @@ function generateUuidV7(): string {
 
 export enum AccountType {
   USER = 'user',
+  AFFILIATE = 'affiliate',
   AGENCY = 'agency',
   BUSINESS = 'business',
 }

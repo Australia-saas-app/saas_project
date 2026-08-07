@@ -348,8 +348,8 @@ export class TokenService {
       role:
         options.user.accountType === AccountType.BUSINESS
           ? 'business'
-          : options.user.accountType === AccountType.AGENCY
-          ? 'agency'
+          : options.user.accountType === AccountType.AFFILIATE
+          ? 'affiliate'
           : 'user',
     });
 

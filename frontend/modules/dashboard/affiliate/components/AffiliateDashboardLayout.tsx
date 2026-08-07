@@ -28,6 +28,7 @@ import {
   YAxis,
 } from "recharts"
 import { useUser } from "@/src/context/user.provider"
+import { useProfileDisplay } from "@/src/modules/dashboard/shared/hooks/use-profile-display"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import {
   AFFILIATE_ACCOUNT_SUMMARY,
@@ -84,6 +85,8 @@ const DOT_TONES: Record<string, string> = {
 
 function displayName(user: ReturnType<typeof useUser>["user"], fallback: string) {
   if (!user) return fallback
+  // fullName comes from the /me API response (DB field)
+  if ("fullName" in user && user.fullName) return String(user.fullName)
   if ("firstName" in user && user.firstName) return String(user.firstName)
   if ("name" in user && user.name) return String(user.name).split(/\s+/)[0]
   return user.email?.split("@")[0] || fallback
@@ -91,31 +94,40 @@ function displayName(user: ReturnType<typeof useUser>["user"], fallback: string)
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "K"
-  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase()
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  if (parts.length === 0) return "A"
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  return parts[0][0].toUpperCase()
 }
 
 export default function AffiliateDashboardLayout() {
   const { user } = useUser()
   const { demoOrEmpty } = useIsDemoAccount()
+  const { fullName, initials, displayUserId } = useProfileDisplay()
   const kpis = demoOrEmpty(AFFILIATE_KPI, EMPTY_AFFILIATE_KPI)
   const chart = demoOrEmpty(AFFILIATE_EARNINGS_CHART, [] as AffiliateEarningsPoint[])
   const links = demoOrEmpty(TOP_PERFORMING_LINKS, [] as TopLinkRow[])
   const activity = demoOrEmpty(AFFILIATE_DASH_ACTIVITY, [] as AffiliateDashActivityItem[])
   const account = demoOrEmpty(AFFILIATE_ACCOUNT_SUMMARY, EMPTY_AFFILIATE_ACCOUNT_SUMMARY)
   const notifications = demoOrEmpty(AFFILIATE_SIDE_NOTIFICATIONS, [] as AffiliateSideNotification[])
-  const greetName = displayName(user, account.name.split(/\s+/)[0])
-  const avatarInitials = initials(account.name)
+  
+  const greetName = fullName ? fullName.split(/\s+/)[0] : account.name.split(/\s+/)[0]
+  const realName = fullName || account.name
+  const realInitials = initials
+
+  const memberSince = user && "createdAt" in user && user.createdAt
+    ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
+    : "—"
+  
+  const accountId = displayUserId
 
   return (
     <div className="space-y-5 pb-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
             Welcome back, {greetName} 👋
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Here&apos;s how your affiliate performance looks this month.
           </p>
         </div>
@@ -135,7 +147,7 @@ export default function AffiliateDashboardLayout() {
             {kpis.map((kpi) => {
               const Icon = KPI_ICONS[kpi.icon]
               return (
-                <div key={kpi.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                <div key={kpi.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${kpi.iconBg}`}>
                       <Icon className="h-5 w-5" />
@@ -151,16 +163,16 @@ export default function AffiliateDashboardLayout() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-gray-500">{kpi.label}</p>
-                  <p className="mt-1 text-xl font-bold tracking-tight text-gray-900">{kpi.value}</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{kpi.label}</p>
+                  <p className="mt-1 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{kpi.value}</p>
                 </div>
               )
             })}
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-base font-bold text-gray-900">Earnings Overview</h2>
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Earnings Overview</h2>
               <div className="relative self-start">
                 <select className="appearance-none rounded-lg border border-gray-200 bg-white py-1.5 pr-8 pl-3 text-xs font-medium text-gray-600 focus:outline-none">
                   <option>This Month</option>
@@ -310,35 +322,35 @@ export default function AffiliateDashboardLayout() {
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-4 flex items-center gap-3">
               <div
                 className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white"
                 style={{ backgroundColor: PRIMARY }}
               >
-                {avatarInitials}
+                {realInitials}
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate font-bold text-gray-900">{account.name}</p>
+                  <p className="truncate font-bold text-gray-900 dark:text-gray-100">{realName}</p>
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                     {account.status}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500">{account.title}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{account.title}</p>
               </div>
             </div>
             <dl className="space-y-2.5 text-sm">
               {[
-                { label: "Member Since", value: account.memberSince },
-                { label: "Account Type", value: account.accountType },
-                { label: "Referral Code", value: account.referralCode },
+                { label: "Member Since", value: memberSince },
+                { label: "Account Type", value: "Affiliate" },
+                { label: "Account ID", value: accountId },
                 { label: "Your Rank", value: account.rank },
                 { label: "Available Balance", value: account.balance, highlight: true },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3">
-                  <dt className="text-gray-500">{item.label}</dt>
-                  <dd className={`font-semibold ${item.highlight ? "text-indigo-600" : "text-gray-900"}`}>
+                  <dt className="text-gray-500 dark:text-gray-400">{item.label}</dt>
+                  <dd className={`font-semibold ${item.highlight ? "text-indigo-600" : "text-gray-900 dark:text-gray-100"}`}>
                     {item.value}
                   </dd>
                 </div>

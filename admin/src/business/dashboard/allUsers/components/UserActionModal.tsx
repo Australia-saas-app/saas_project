@@ -27,7 +27,7 @@ interface UserActionModalProps {
   token?: string;
 }
 
-const statuses = ["ACTIVE", "PENDING", "SUSPENDED", "DORMANT", "CLOSED", "BLOCKED"];
+const statuses = ["ACTIVE", "SUSPENDED", "DORMANT", "CLOSED", "BLOCKED"];
 
 export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete }: UserActionModalProps) {
   const [selectedStatus, setSelectedStatus] = useState(user?.status?.toUpperCase() || "ACTIVE");

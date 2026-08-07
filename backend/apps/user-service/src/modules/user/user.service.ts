@@ -77,7 +77,7 @@ export class UserService {
       user.businessInfo = { ...user.businessInfo, ...updates.businessInfo };
     }
 
-    if (updates.agencyInfo && user.accountType === AccountType.AGENCY) {
+    if (updates.agencyInfo && (user.accountType === AccountType.AFFILIATE || (user.accountType as any) === 'agency')) {
       user.agencyInfo = { ...user.agencyInfo, ...updates.agencyInfo };
     }
 
@@ -127,7 +127,7 @@ export class UserService {
       createdAt: user.createdAt,
     };
 
-    if (user.accountType === AccountType.AGENCY && user.agencyInfo) {
+    if ((user.accountType === AccountType.AFFILIATE || (user.accountType as any) === 'agency') && user.agencyInfo) {
       return {
         success: true,
         data: {

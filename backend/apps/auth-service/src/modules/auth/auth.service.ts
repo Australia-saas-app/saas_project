@@ -87,7 +87,7 @@ export class AuthService {
       const age = Math.floor(
         (today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000),
       );
-      if (accountType === AccountType.AGENCY && age < 16) {
+      if (accountType === AccountType.AFFILIATE && age < 16) {
         throw new BadRequestException(
           'Agency account requires minimum age of 16 years',
         );
@@ -127,7 +127,7 @@ export class AuthService {
       );
     }
 
-    if (accountType === AccountType.AGENCY) {
+    if (accountType === AccountType.AFFILIATE) {
       if (!registerDto.agencyInfo || !registerDto.agencyInfo.agencyName) {
         throw new BadRequestException(
           'Agency name is required for agency accounts',
@@ -137,7 +137,7 @@ export class AuthService {
         const existingAgency = await this.userRepository
           .createQueryBuilder('user')
           .where('user.accountType = :accountType', {
-            accountType: AccountType.AGENCY,
+            accountType: AccountType.AFFILIATE,
           })
           .andWhere("user.agencyInfo ->> 'agencyName' = :agencyName", {
             agencyName: registerDto.agencyInfo.agencyName,
@@ -180,7 +180,7 @@ export class AuthService {
       governmentId: registerDto.governmentId,
       idDocument: registerDto.idDocument,
       passportNumber: registerDto.passportNumber,
-      status: UserStatus.PENDING,
+      status: UserStatus.ACTIVE,
       emailVerified: !normalizedEmail,
       phoneVerified: !normalizedPhone,
       statusHistory: [] as User['statusHistory'],
@@ -192,7 +192,7 @@ export class AuthService {
       };
     }
 
-    if (accountType === AccountType.AGENCY && registerDto.agencyInfo) {
+    if (accountType === AccountType.AFFILIATE && registerDto.agencyInfo) {
       (user as any).agencyInfo = {
         ...registerDto.agencyInfo,
         annualFee: 0,
@@ -287,7 +287,7 @@ export class AuthService {
       user.statusHistory = user.statusHistory || [];
       user.statusHistory.push({
         status: UserStatus.ACTIVE,
-        changedAt: new Date(),
+        changedAt: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date()),
         changedBy: 'system',
         reason: 'OTP verification completed',
       });
@@ -594,6 +594,7 @@ export class AuthService {
         phone: user.phone,
         status: user.status,
         currency: user.currency,
+        createdAt: user.createdAt,
       },
     };
   }
@@ -624,7 +625,7 @@ export class AuthService {
     if (!dto.phone && !user.phone && !user.email && !dto.email)
       missingCommon.push('phoneOrEmail');
 
-    if (user.accountType === AccountType.AGENCY) {
+    if (user.accountType === AccountType.AFFILIATE) {
       const dobStr =
         dto.dateOfBirth || (user.dateOfBirth && user.dateOfBirth.toISOString());
       if (!dobStr) {
@@ -690,7 +691,7 @@ export class AuthService {
       user.dateOfBirth = new Date(dto.dateOfBirth);
     }
 
-    if (user.accountType === AccountType.AGENCY && dto.agencyName) {
+    if (user.accountType === AccountType.AFFILIATE && dto.agencyName) {
       user.agencyInfo = {
         ...(user.agencyInfo || {}),
         agencyName: dto.agencyName,
@@ -698,7 +699,7 @@ export class AuthService {
       } as any;
     }
 
-    user.status = UserStatus.PENDING;
+    // user.status = UserStatus.PENDING; // Removed as per request to not use pending
     await this.userRepository.save(user);
 
     return {
@@ -728,7 +729,14 @@ export class AuthService {
     }
 
     if (query.accountType) {
-      qb.andWhere('user.accountType = :accountType', { accountType: query.accountType });
+      const typeStr = String(query.accountType).toLowerCase();
+      if (typeStr === 'affiliate' || typeStr === 'agency') {
+        qb.andWhere('user.accountType IN (:...accTypes)', {
+          accTypes: [AccountType.AFFILIATE, AccountType.AGENCY],
+        });
+      } else {
+        qb.andWhere('user.accountType = :accountType', { accountType: query.accountType });
+      }
     }
 
     if (query.status) {
@@ -795,8 +803,11 @@ export class AuthService {
 
     const accountTypeCounts: Record<AccountType, number> = {
       [AccountType.USER]: 0,
-      [AccountType.AGENCY]: 0,
+      [AccountType.AFFILIATE]: 0,
       [AccountType.BUSINESS]: 0,
+      [AccountType.AGENCY]: 0,
+      [AccountType.ADMIN]: 0,
+      [AccountType.SUB_ADMIN]: 0,
     };
 
     for (const accountType of Object.values(AccountType)) {

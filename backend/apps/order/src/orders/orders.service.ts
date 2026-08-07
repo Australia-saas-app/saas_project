@@ -420,7 +420,7 @@ export class OrdersService {
 
   private normalizeAccountType(accountType: string | undefined): AccountType {
     const normalized = (accountType ?? '').toLowerCase();
-    if (normalized === AccountType.AGENCY) return AccountType.AGENCY;
+    if (normalized === AccountType.AFFILIATE) return AccountType.AFFILIATE;
     if (normalized === AccountType.BUSINESS) return AccountType.BUSINESS;
     return AccountType.USER;
   }

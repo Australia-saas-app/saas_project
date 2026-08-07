@@ -34,9 +34,16 @@ export class UserManagementService {
     }
 
     if (query.accountType) {
-      qb.andWhere('user.accountType = :accountType', {
-        accountType: query.accountType,
-      });
+      const typeStr = String(query.accountType).toLowerCase();
+      if (typeStr === 'affiliate' || typeStr === 'agency') {
+        qb.andWhere('user.accountType IN (:...accTypes)', {
+          accTypes: ['affiliate', 'agency'],
+        });
+      } else {
+        qb.andWhere('user.accountType = :accountType', {
+          accountType: query.accountType,
+        });
+      }
     }
 
     if (query.status) {

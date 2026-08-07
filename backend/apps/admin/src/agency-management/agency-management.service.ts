@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository, SelectQueryBuilder, In } from 'typeorm';
 import { User, UserStatus, AccountType } from '../entities/user.entity';
 import { AgencyQueryDto, AgencyStatus, BusinessType } from './dto/agency-query.dto';
 import { UpdateAgencyStatusDto } from './dto/update-agency-status.dto';
@@ -27,9 +27,9 @@ export class AgencyManagementService {
     query: AgencyQueryDto,
     includeSearch = true,
   ) {
-    // Filter by account type = AGENCY
-    qb.andWhere('user.accountType = :accountType', {
-      accountType: AccountType.AGENCY,
+    // Filter by account type = AFFILIATE or AGENCY (legacy)
+    qb.andWhere('user.accountType IN (:...accountTypes)', {
+      accountTypes: [AccountType.AFFILIATE, 'affiliate', 'agency'],
     });
 
     if (includeSearch && query.search) {
@@ -138,7 +138,7 @@ export class AgencyManagementService {
 
   async getAgencyDetails(agencyId: string) {
     const agency = await this.userRepository.findOne({
-      where: { userId: agencyId, accountType: AccountType.AGENCY },
+      where: { userId: agencyId, accountType: In([AccountType.AFFILIATE, 'affiliate', 'agency'] as any) },
     });
     if (!agency) {
       throw new NotFoundException('Agency not found');
@@ -160,7 +160,7 @@ export class AgencyManagementService {
     }
 
     const agency = await this.userRepository.findOne({
-      where: { userId: agencyId, accountType: AccountType.AGENCY },
+      where: { userId: agencyId, accountType: In([AccountType.AFFILIATE, 'affiliate', 'agency'] as any) },
     });
     if (!agency) {
       throw new NotFoundException('Agency not found');
@@ -221,7 +221,7 @@ export class AgencyManagementService {
 
   async addPenalty(agencyId: string, penaltyDto: AddPenaltyDto, adminEmail: string) {
     const agency = await this.userRepository.findOne({
-      where: { userId: agencyId, accountType: AccountType.AGENCY },
+      where: { userId: agencyId, accountType: In([AccountType.AFFILIATE, 'affiliate', 'agency'] as any) },
     });
     if (!agency) {
       throw new NotFoundException('Agency not found');
@@ -257,7 +257,7 @@ export class AgencyManagementService {
 
   async updateAgency(agencyId: string, updateDto: UpdateAgencyDto) {
     const agency = await this.userRepository.findOne({
-      where: { userId: agencyId, accountType: AccountType.AGENCY },
+      where: { userId: agencyId, accountType: In([AccountType.AFFILIATE, 'affiliate', 'agency'] as any) },
     });
     if (!agency) {
       throw new NotFoundException('Agency not found');
@@ -278,7 +278,7 @@ export class AgencyManagementService {
     changeOwnerDto: ChangeAccountOwnerDto,
   ) {
     const agency = await this.userRepository.findOne({
-      where: { userId: agencyId, accountType: AccountType.AGENCY },
+      where: { userId: agencyId, accountType: In([AccountType.AFFILIATE, 'affiliate', 'agency'] as any) },
     });
     if (!agency) {
       throw new NotFoundException('Agency not found');

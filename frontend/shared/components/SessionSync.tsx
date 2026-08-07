@@ -53,7 +53,7 @@ export function SessionSync() {
       try {
         const currentUser = await getCurrentUser();
         if (!currentUser) {
-          handleLock("session_superseded");
+          handleLock("inactivity");
         }
       } catch {
         // Ignore transient network errors

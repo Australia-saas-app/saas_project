@@ -23,6 +23,7 @@ import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import ChangePasswordLayout from "@/src/modules/dashboard/shared/components/ChangePasswordLayout"
 import AccountSecurityLayout from "@/src/modules/dashboard/shared/components/AccountSecurityLayout"
 import AccountDeleteLayout from "@/src/modules/dashboard/shared/components/AccountDeleteLayout"
+import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 
 const SETTINGS_NAV = [
   { id: "profile", label: "Profile", href: "/affiliate/settings", icon: User, exact: true },
@@ -84,17 +85,11 @@ function SettingsSideNav({ activeId }: { activeId: string }) {
 function ProfileSettingsPanel() {
   const { user } = useUser()
   const { isDemo } = useIsDemoAccount()
-  const first =
-    user && "firstName" in user && user.firstName ? String(user.firstName) : isDemo ? "John" : ""
-  const last =
-    user && "lastName" in user && user.lastName ? String(user.lastName) : isDemo ? "Doe" : ""
-  const full = `${first} ${last}`.trim() || "Affiliate"
-  const initials = full
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
+  const { status, fullName, initials } = useProfileDisplay()
+
+  const memberSince = user && "createdAt" in user && user.createdAt
+    ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
+    : "—"
 
   return (
     <div className="space-y-5">
@@ -125,7 +120,7 @@ function ProfileSettingsPanel() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Full Name</label>
-            <input className={inputClass} defaultValue={full} />
+            <input className={inputClass} value={fullName} readOnly />
           </div>
           <div>
             <label className={labelClass}>Username</label>
@@ -148,16 +143,16 @@ function ProfileSettingsPanel() {
 
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            { label: "Member Since", value: isDemo ? "May 10, 2023" : "—" },
-            { label: "Account Status", value: "Active", badge: true },
+            { label: "Member Since", value: memberSince },
+            { label: "Account Status", value: status, badge: true },
             { label: "Account Type", value: "Affiliate" },
             { label: "Country", value: isDemo ? "United States" : "—" },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-gray-100 bg-slate-50/80 p-3">
               <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">{item.label}</p>
               {item.badge ? (
-                <span className="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                  {item.value}
+                <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusBadgeStyle(item.value).pill}`}>
+                  {getStatusBadgeStyle(item.value).label}
                 </span>
               ) : (
                 <p className="mt-1 text-sm font-bold text-gray-900">{item.value}</p>

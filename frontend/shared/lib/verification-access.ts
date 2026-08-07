@@ -127,7 +127,7 @@ export function resolveDashboardAccess(
 
 export function accountTypeFromRole(role?: string): ProfileAccountType {
   const normalized = role?.toUpperCase();
-  if (normalized === "AFFILIATE") return "affiliate";
+  if (normalized === "AFFILIATE" || normalized === "AGENCY") return "affiliate";
   if (normalized === "SELLER" || normalized === "BUSINESS") return "business";
   return "user";
 }
