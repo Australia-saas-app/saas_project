@@ -1145,6 +1145,7 @@ export class AuthService {
         [AccountType.USER]: 0,
         [AccountType.AFFILIATE]: 0,
         [AccountType.BUSINESS]: 0,
+        [AccountType.AGENCY]: 0,
       };
 
       for (const accountType of Object.values(AccountType)) {
