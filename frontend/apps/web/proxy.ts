@@ -32,13 +32,13 @@ function getUserRole(payload: JwtPayload | null): string {
 }
 
 function getDashboardPrefixForRole(role: string): string {
-  if (role.includes("AFFILIATE") || role.includes("AGENCY")) return "/dashboard/affiliate";
+  if (role.includes("AFFILIATE")) return "/dashboard/affiliate";
   if (role.includes("BUSINESS") || role.includes("SELLER")) return "/dashboard/business";
   return "/dashboard/user";
 }
 
 function getDashboardForRole(role: string): string {
-  if (role.includes("AFFILIATE") || role.includes("AGENCY")) return "/dashboard/affiliate/dashboard";
+  if (role.includes("AFFILIATE")) return "/dashboard/affiliate/dashboard";
   if (role.includes("BUSINESS") || role.includes("SELLER")) return "/dashboard/business/dashboard";
   return "/dashboard/user/dashboard";
 }

@@ -173,9 +173,6 @@ export const registerUser = async (userData: FieldValues) => {
       }
       delete payload["contact"];
     }
-    if (payload["accountType"] === "affiliate") {
-      payload["accountType"] = "agency";
-    }
 
     const { data } = await axiosInstance.post("/sso/auth/user/register", payload);
 
@@ -279,7 +276,7 @@ export const verifyAccountPassword = async (email: string, password: string, acc
       password,
     };
     if (accountType) {
-      payload.accountType = accountType === "affiliate" ? "agency" : accountType;
+      payload.accountType = accountType;
     }
     const { data } = await axiosInstance.post("/sso/auth/verify-password", payload);
     if (!data?.success) {
@@ -317,9 +314,6 @@ export const loginUser = async (userData: FieldValues) => {
     delete loginPayload.rememberMe;
     delete loginPayload.contact;
     delete loginPayload.identifier;
-    if (loginPayload.accountType === "affiliate") {
-      loginPayload.accountType = "agency";
-    }
     const { data } = await axiosInstance.post("/sso/auth/user/login", loginPayload, {
       timeout: AUTH_REQUEST_TIMEOUT,
     });

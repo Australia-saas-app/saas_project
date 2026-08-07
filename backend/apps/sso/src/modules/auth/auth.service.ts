@@ -167,7 +167,7 @@ export class AuthService {
       const age = Math.floor(
         (today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000),
       );
-      if (accountType === AccountType.AGENCY && age < 16) {
+      if (accountType === AccountType.AFFILIATE && age < 16) {
         throw new BadRequestException(
           'Agency account requires minimum age of 16 years',
         );
@@ -207,12 +207,12 @@ export class AuthService {
       );
     }
 
-    if (accountType === AccountType.AGENCY && registerDto.agencyInfo?.agencyName) {
+    if (accountType === AccountType.AFFILIATE && registerDto.agencyInfo?.agencyName) {
       try {
         const existingAgency = await this.userRepository
           .createQueryBuilder('user')
           .where('user.accountType = :accountType', {
-            accountType: AccountType.AGENCY,
+            accountType: AccountType.AFFILIATE,
           })
           .andWhere("user.agencyInfo ->> 'agencyName' = :agencyName", {
             agencyName: registerDto.agencyInfo.agencyName,
@@ -247,7 +247,7 @@ export class AuthService {
     }
 
     let prefix = 'USR-';
-    if (accountType === AccountType.AGENCY) prefix = 'AFF-';
+    if (accountType === AccountType.AFFILIATE) prefix = 'AFF-';
     if (accountType === AccountType.BUSINESS) prefix = 'BSN-';
     const lastUser = await this.userRepository.findOne({
       where: { accountType },
@@ -293,7 +293,7 @@ export class AuthService {
       };
     }
 
-    if (accountType === AccountType.AGENCY && registerDto.agencyInfo) {
+    if (accountType === AccountType.AFFILIATE && registerDto.agencyInfo) {
       (user as any).agencyInfo = {
         ...registerDto.agencyInfo,
         annualFee: 0,
@@ -426,7 +426,7 @@ export class AuthService {
         await this.userRepository.save(user);
       } else if (!user.trustedIps.includes(deviceIdentifier) && !user.trustedIps.includes(actualIp)) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
-        
+
         if (loginDto.otp) {
           const isValid = await this.otpUtil.verifyOTP(this.redisClient, otpKey, loginDto.otp);
           if (!isValid) {
@@ -437,7 +437,7 @@ export class AuthService {
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);
           await this.otpUtil.storeOTP(this.redisClient, otpKey, otp);
-          
+
           if (user.email) {
             await this.otpUtil.sendOTPEmail(user.email, otp, 'new_device', { ipAddress: actualIp });
           } else if (user.phone) {
@@ -835,7 +835,7 @@ export class AuthService {
         await safeDelete(`DELETE FROM "withdrawal_requests" WHERE "businessUserId" = $1`, [user.id]);
         await safeDelete(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.userId]);
         await safeDelete(`DELETE FROM "referrals" WHERE "referredUserId" = $1 OR "referrerId" = $1`, [user.id]);
-        
+
         // Handle microservice-specific owner ID formats
         await safeDelete(`DELETE FROM "files" WHERE "ownerId" = $1`, [user.userId]);
         await safeDelete(`DELETE FROM "files" WHERE "ownerId" = $1`, [user.id]);
@@ -852,7 +852,7 @@ export class AuthService {
       if (!userDeleted) {
         throw new Error('Failed to delete user row due to foreign key constraints');
       }
-      
+
       await runner.commitTransaction();
     } catch (err: any) {
       await runner.rollbackTransaction();
@@ -916,7 +916,7 @@ export class AuthService {
     const missingCommon: string[] = [];
     if (!dto.fullName && !user.fullName) missingCommon.push('fullName');
 
-    if (user.accountType === AccountType.AGENCY) {
+    if (user.accountType === AccountType.AFFILIATE) {
       const dobStr =
         dto.dateOfBirth || (user.dateOfBirth && user.dateOfBirth.toISOString());
       if (dobStr) {
@@ -967,7 +967,7 @@ export class AuthService {
     assignIf('currency', dto.currency);
     assignIf('passportNumber', dto.passportNumber);
     assignIf('twoFactorEnabled', dto.twoFactorEnabled);
-    
+
     if (dto.twoFactorMethod !== undefined) {
       if (!dto.twoFactorMethod) {
         user.twoFactorMethod = null as unknown as TwoFactorMethod;
@@ -985,7 +985,7 @@ export class AuthService {
       user.dateOfBirth = new Date(dto.dateOfBirth);
     }
 
-    if (user.accountType === AccountType.AGENCY && dto.agencyName) {
+    if (user.accountType === AccountType.AFFILIATE && dto.agencyName) {
       user.agencyInfo = {
         ...(user.agencyInfo || {}),
         agencyName: dto.agencyName,
@@ -1017,7 +1017,7 @@ export class AuthService {
 
       const accountTypes = [
         { type: AccountType.USER, key: 'user' },
-        { type: AccountType.AGENCY, key: 'affiliate' },
+        { type: AccountType.AFFILIATE, key: 'affiliate' },
         { type: AccountType.BUSINESS, key: 'business' },
       ];
 
@@ -1143,7 +1143,7 @@ export class AuthService {
 
       const accountTypeCounts: Record<AccountType, number> = {
         [AccountType.USER]: 0,
-        [AccountType.AGENCY]: 0,
+        [AccountType.AFFILIATE]: 0,
         [AccountType.BUSINESS]: 0,
       };
 
@@ -1238,7 +1238,7 @@ export class AuthService {
           userAgent: 'Admin Backend'
         })
       }).catch(() => undefined);
-    } catch {}
+    } catch { }
 
     return {
       success: true,
@@ -1283,7 +1283,7 @@ export class AuthService {
           userAgent: 'Admin Backend'
         })
       }).catch(() => undefined);
-    } catch {}
+    } catch { }
 
     return {
       success: true,

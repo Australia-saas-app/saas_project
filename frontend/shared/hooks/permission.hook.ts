@@ -13,6 +13,8 @@ import { can, canAll, canAny, Permission, Role } from "@/src/lib/rbac";
 export function usePermission() {
   const { user } = useUser();
   const role = (user?.role as Role) ?? null;
+  // Normalise to uppercase for consistent comparisons
+  const roleUpper = (role ?? "").toUpperCase();
 
   return {
     /** The current user's role */
@@ -28,13 +30,13 @@ export function usePermission() {
     canAny: (permissions: Permission[]) => canAny(role, permissions),
 
     /** True for ADMIN and SUPER_ADMIN */
-    isAdmin: role === "ADMIN" || role === "SUPER_ADMIN",
+    isAdmin: roleUpper === "ADMIN" || roleUpper === "SUPER_ADMIN",
 
     /** True for AFFILIATE role */
-    isAffiliate: role === "AFFILIATE",
+    isAffiliate: roleUpper === "AFFILIATE",
 
     /** True for SELLER / business role */
-    isBusiness: role === "SELLER" || role === "BUSINESS",
+    isBusiness: roleUpper === "SELLER" || roleUpper === "BUSINESS",
 
     /** True for any authenticated user */
     isAuthenticated: !!user,
