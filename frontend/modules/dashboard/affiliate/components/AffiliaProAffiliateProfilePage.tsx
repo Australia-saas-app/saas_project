@@ -23,9 +23,9 @@ import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-p
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 
 const inputClass =
-  "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500"
-const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600 dark:text-gray-400"
-const cardClass = "rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6 dark:border-gray-800 dark:bg-gray-900"
+  "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100:border-indigo-500"
+const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600"
+const cardClass = "rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6"
 const outlineBtn =
   "inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
 const primaryBtn =
@@ -75,6 +75,14 @@ function VerifiedBadge() {
     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
       <BadgeCheck className="h-3 w-3" />
       Verified
+    </span>
+  )
+}
+
+function UnaddedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+      Not added yet
     </span>
   )
 }
@@ -136,8 +144,8 @@ export default function AffiliaProAffiliateProfilePage() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
             <div>
-              <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Account Unverified by Admin</h4>
-              <p className="mt-1 text-sm text-red-600/90 dark:text-red-300/90">
+              <h4 className="text-sm font-semibold text-red-700">Account Unverified by Admin</h4>
+              <p className="mt-1 text-sm text-red-600/90">
                 Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
               </p>
             </div>
@@ -160,17 +168,17 @@ export default function AffiliaProAffiliateProfilePage() {
         
         <div className="flex items-center gap-3">
           {isKycVerified ? (
-            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600">
               <BadgeCheck className="h-4 w-4" />
               Verified Account
             </span>
           ) : kycStatus === "pending" || kycStatus === "submitted" ? (
-            <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+            <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600">
               <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
               Pending Verification
             </span>
           ) : (
-            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600">
               Unverified Account
             </span>
           )}
@@ -589,35 +597,35 @@ export default function AffiliaProAffiliateProfilePage() {
                 },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-2">
-                  <dt className="text-gray-500 dark:text-gray-400">{row.label}</dt>
+                  <dt className="text-gray-500">{row.label}</dt>
                   <dd>
                     {row.badge ? (
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                         {row.value}
                       </span>
                     ) : (
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">{row.value}</span>
+                      <span className="font-semibold text-gray-900">{row.value}</span>
                     )}
                   </dd>
                 </div>
               ))}
               <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
-                <dt className="text-gray-500 dark:text-gray-400">Email</dt>
+                <dt className="text-gray-500">Email</dt>
                 <dd>
                   {profileEmail ? (
                     <VerifiedBadge />
                   ) : (
-                    <span className="text-[11px] font-semibold text-gray-400">Not added yet</span>
+                    <UnaddedBadge />
                   )}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-gray-500 dark:text-gray-400">Phone</dt>
+                <dt className="text-gray-500">Phone</dt>
                 <dd>
                   {profilePhone ? (
                     <VerifiedBadge />
                   ) : (
-                    <span className="text-[11px] font-semibold text-gray-400">Not added yet</span>
+                    <UnaddedBadge />
                   )}
                 </dd>
               </div>

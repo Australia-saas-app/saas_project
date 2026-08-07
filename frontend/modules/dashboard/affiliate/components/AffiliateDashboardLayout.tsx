@@ -124,10 +124,10 @@ export default function AffiliateDashboardLayout() {
     <div className="space-y-5 pb-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
             Welcome back, {greetName} 👋
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-gray-500">
             Here&apos;s how your affiliate performance looks this month.
           </p>
         </div>
@@ -147,7 +147,7 @@ export default function AffiliateDashboardLayout() {
             {kpis.map((kpi) => {
               const Icon = KPI_ICONS[kpi.icon]
               return (
-                <div key={kpi.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div key={kpi.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${kpi.iconBg}`}>
                       <Icon className="h-5 w-5" />
@@ -163,16 +163,16 @@ export default function AffiliateDashboardLayout() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{kpi.label}</p>
-                  <p className="mt-1 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{kpi.value}</p>
+                  <p className="text-xs font-medium text-gray-500">{kpi.label}</p>
+                  <p className="mt-1 text-xl font-bold tracking-tight text-gray-900">{kpi.value}</p>
                 </div>
               )
             })}
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Earnings Overview</h2>
+              <h2 className="text-base font-bold text-gray-900">Earnings Overview</h2>
               <div className="relative self-start">
                 <select className="appearance-none rounded-lg border border-gray-200 bg-white py-1.5 pr-8 pl-3 text-xs font-medium text-gray-600 focus:outline-none">
                   <option>This Month</option>
@@ -322,7 +322,7 @@ export default function AffiliateDashboardLayout() {
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div
                 className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white"
@@ -332,12 +332,12 @@ export default function AffiliateDashboardLayout() {
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate font-bold text-gray-900 dark:text-gray-100">{realName}</p>
+                  <p className="truncate font-bold text-gray-900">{realName}</p>
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                     {account.status}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{account.title}</p>
+                <p className="text-xs text-gray-500">{account.title}</p>
               </div>
             </div>
             <dl className="space-y-2.5 text-sm">
@@ -349,8 +349,8 @@ export default function AffiliateDashboardLayout() {
                 { label: "Available Balance", value: account.balance, highlight: true },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3">
-                  <dt className="text-gray-500 dark:text-gray-400">{item.label}</dt>
-                  <dd className={`font-semibold ${item.highlight ? "text-indigo-600" : "text-gray-900 dark:text-gray-100"}`}>
+                  <dt className="text-gray-500">{item.label}</dt>
+                  <dd className={`font-semibold ${item.highlight ? "text-indigo-600" : "text-gray-900"}`}>
                     {item.value}
                   </dd>
                 </div>

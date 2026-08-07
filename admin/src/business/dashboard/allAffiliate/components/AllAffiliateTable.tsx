@@ -82,7 +82,7 @@ const AllAffiliateTable: React.FC = () => {
     const fetchAffiliates = async () => {
       setIsFetching(true)
       try {
-        const response = await fetch('/admin/api/sso/auth/admin/users?accountType=agency', {
+        const response = await fetch('/admin/api/sso/auth/admin/users?accountType=affiliate', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) throw new Error('Failed to fetch')
