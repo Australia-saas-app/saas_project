@@ -30,8 +30,7 @@ export const AFFILIAPRO_AFFILIATE_NAV: AffiliaProAffiliateNavItem[] = [
   { label: "Payments", href: "/affiliate/wallet", icon: CreditCard },
   { label: "Reports", href: "/affiliate/earnings", icon: FileBarChart },
   { label: "Profile", href: "/affiliate/profile", icon: User },
-  { label: "Payment Settings", href: "/affiliate/settings", icon: Wallet, exact: true },
-  { label: "Security", href: "/affiliate/settings/account-security", icon: Shield },
+
   { label: "Notifications", href: "/affiliate/notices", icon: Bell },
   { label: "Tickets", href: "/affiliate/messages", icon: Ticket },
   { label: "Help Center", href: "/affiliate/messages", icon: CircleHelp },

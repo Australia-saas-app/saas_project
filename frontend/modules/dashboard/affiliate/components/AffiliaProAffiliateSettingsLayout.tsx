@@ -4,35 +4,21 @@ import type React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  Building2,
-  Camera,
-  Globe,
-  Headset,
   KeyRound,
-  Lock,
-  MapPin,
-  Settings2,
   Shield,
   Trash2,
-  User,
-  BadgeCheck,
+  Monitor,
+  Headset,
 } from "lucide-react"
-import { toast } from "sonner"
-import { useUser } from "@/src/context/user.provider"
-import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import ChangePasswordLayout from "@/src/modules/dashboard/shared/components/ChangePasswordLayout"
 import AccountSecurityLayout from "@/src/modules/dashboard/shared/components/AccountSecurityLayout"
 import AccountDeleteLayout from "@/src/modules/dashboard/shared/components/AccountDeleteLayout"
-import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
+import DeviceManagementLayout from "@/src/modules/dashboard/shared/components/DeviceManagementLayout"
 
 const SETTINGS_NAV = [
-  { id: "profile", label: "Profile", href: "/affiliate/settings", icon: User, exact: true },
-  { id: "contact", label: "Contact Information", href: "/affiliate/profile#contact", icon: Building2 },
-  { id: "address", label: "Address", href: "/affiliate/profile#address", icon: MapPin },
-  { id: "identity", label: "Identity Verification", href: "/affiliate/profile#identity", icon: BadgeCheck },
-  { id: "security", label: "Security", href: "/affiliate/settings/account-security", icon: Shield },
   { id: "password", label: "Change Password", href: "/affiliate/settings/change-password", icon: KeyRound },
-  { id: "preferences", label: "Preferences", href: "/affiliate/profile#preferences", icon: Settings2 },
+  { id: "security", label: "Security", href: "/affiliate/settings/account-security", icon: Shield },
+  { id: "device-management", label: "Device Management", href: "/affiliate/settings/device-management", icon: Monitor },
   { id: "account", label: "Account", href: "/affiliate/settings/account-delete", icon: Trash2 },
 ] as const
 
@@ -82,151 +68,11 @@ function SettingsSideNav({ activeId }: { activeId: string }) {
   )
 }
 
-function ProfileSettingsPanel() {
-  const { user } = useUser()
-  const { isDemo } = useIsDemoAccount()
-  const { status, fullName, initials } = useProfileDisplay()
-
-  const memberSince = user && "createdAt" in user && user.createdAt
-    ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
-    : "—"
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-bold text-gray-900">Profile Information</h2>
-          <button
-            type="button"
-            className={primaryBtn}
-            onClick={() => toast.success("Profile changes saved")}
-          >
-            Save Changes
-          </button>
-        </div>
-
-        <div className="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-          <div className="relative">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500 text-xl font-bold text-white">
-              {initials}
-            </div>
-            <span className="absolute -right-0.5 -bottom-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-white ring-2 ring-white">
-              <Camera className="h-3.5 w-3.5" />
-            </span>
-          </div>
-          <p className="text-xs text-gray-400">JPG, PNG or GIF. Max size 2MB.</p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>Full Name</label>
-            <input className={inputClass} value={fullName} readOnly />
-          </div>
-          <div>
-            <label className={labelClass}>Username</label>
-            <input className={inputClass} defaultValue={isDemo ? "johndoe_affiliate" : ""} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Bio</label>
-            <textarea
-              className={`${inputClass} min-h-[88px]`}
-              defaultValue={isDemo ? "Affiliate marketer | Helping businesses grow online." : ""}
-              maxLength={160}
-            />
-            <p className="mt-1 text-[11px] text-gray-400">58/160</p>
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Company (Optional)</label>
-            <input className={inputClass} defaultValue={isDemo ? "Doe Digital Solutions" : ""} />
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            { label: "Member Since", value: memberSince },
-            { label: "Account Status", value: status, badge: true },
-            { label: "Account Type", value: "Affiliate" },
-            { label: "Country", value: isDemo ? "United States" : "—" },
-          ].map((item) => (
-            <div key={item.label} className="rounded-xl border border-gray-100 bg-slate-50/80 p-3">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">{item.label}</p>
-              {item.badge ? (
-                <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusBadgeStyle(item.value).pill}`}>
-                  {getStatusBadgeStyle(item.value).label}
-                </span>
-              ) : (
-                <p className="mt-1 text-sm font-bold text-gray-900">{item.value}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            title: "Change Password",
-            desc: "Update your account password regularly.",
-            href: "/affiliate/settings/change-password",
-            icon: Lock,
-            action: "Change",
-          },
-          {
-            title: "2-Step Verification",
-            desc: "Add an extra layer of security.",
-            href: "/affiliate/settings/account-security",
-            icon: Shield,
-            action: "Manage",
-          },
-          {
-            title: "Language",
-            desc: "Choose your preferred language.",
-            href: "/affiliate/profile#preferences",
-            icon: Globe,
-            action: "Manage",
-          },
-          {
-            title: "Currency",
-            desc: "Set payout and display currency.",
-            href: "/affiliate/profile#preferences",
-            icon: Settings2,
-            action: "Manage",
-          },
-        ].map((card) => {
-          const Icon = card.icon
-          return (
-            <div
-              key={card.title}
-              className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
-            >
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                <Icon className="h-4 w-4" />
-              </div>
-              <p className="text-sm font-bold text-gray-900">{card.title}</p>
-              <p className="mt-1 text-xs text-gray-500">{card.desc}</p>
-              <Link href={card.href} className={`${outlineBtn} mt-3`}>
-                {card.action}
-              </Link>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="rounded-2xl border border-gray-100 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
-        Need the full profile editor?{" "}
-        <Link href="/affiliate/profile" className="font-semibold text-indigo-600 hover:underline">
-          Open Profile Settings
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 function resolveActiveId(pathname: string) {
-  if (pathname.includes("/change-password")) return "password"
   if (pathname.includes("/account-security")) return "security"
+  if (pathname.includes("/device-management")) return "device-management"
   if (pathname.includes("/account-delete")) return "account"
-  return "profile"
+  return "password" // Default
 }
 
 export default function AffiliaProAffiliateSettingsLayout() {
@@ -234,9 +80,9 @@ export default function AffiliaProAffiliateSettingsLayout() {
   const router = useRouter()
   const activeId = resolveActiveId(pathname.replace(/^\/dashboard/, ""))
 
-  let panel: React.ReactNode = <ProfileSettingsPanel />
-  if (activeId === "password") panel = <ChangePasswordLayout />
+  let panel: React.ReactNode = <ChangePasswordLayout />
   if (activeId === "security") panel = <AccountSecurityLayout />
+  if (activeId === "device-management") panel = <DeviceManagementLayout />
   if (activeId === "account") panel = <AccountDeleteLayout />
 
   return (
