@@ -97,7 +97,7 @@ export default function AffiliaProAffiliateSettingsLayout() {
           onClick={() => router.push("/affiliate/profile")}
           className="text-sm font-semibold text-indigo-600 hover:underline"
         >
-          Go to full profile →
+          Go to profile →
         </button>
       </div>
 

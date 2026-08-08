@@ -177,7 +177,7 @@ export default function AffiliaProAffiliateProfilePage() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-5">
           {/* Profile preview */}
-          <section id="preview" className={cardClass}>
+          <section id="preview" className={`${cardClass} xl:h-[318px]`}>
             <h2 className="mb-4 text-base font-bold text-gray-900">Profile Preview</h2>
             <div className="overflow-hidden rounded-2xl border border-gray-100">
               <div className="relative h-36 bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 sm:h-44">
@@ -458,7 +458,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </dl>
           </div>
 
-          <div className={`${cardClass} xl:h-[250px] flex flex-col justify-center`}>
+          <div className={`${cardClass} flex flex-col justify-center`}>
             <h2 className="mb-3 text-base font-bold text-gray-900">Quick Links</h2>
             <ul className="space-y-1">
               {[
