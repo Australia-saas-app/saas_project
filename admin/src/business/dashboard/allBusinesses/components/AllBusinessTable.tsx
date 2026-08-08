@@ -155,7 +155,6 @@ const AllBusinessTable: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to update");
       setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
-      toast.success("Business status updated successfully");
 
       const lowerStatus = newStatus.toLowerCase();
       window.dispatchEvent(new CustomEvent("vero:user_status_updated", { detail: { userId, status: lowerStatus } }));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Pencil, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
+import { Camera, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
@@ -49,8 +49,8 @@ export default function ProfilePageLayout() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file.");
+    if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+      toast.error("Please select a JPG, JPEG, or PNG image file.");
       return;
     }
 
@@ -109,13 +109,13 @@ export default function ProfilePageLayout() {
                 title="Change profile photo"
                 className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow hover:bg-primary/90 transition-all border border-background"
               >
-                <Pencil className="h-3 w-3" />
+                <Camera className="h-3 w-3" />
               </button>
               <input
                 ref={avatarFileRef}
                 type="file"
                 className="hidden"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png"
                 onChange={handleAvatarChange}
               />
             </div>

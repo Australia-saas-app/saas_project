@@ -310,7 +310,12 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
               type="text"
               placeholder="NID / Passport / Driving License"
               value={nationalIdentity}
-              onChange={(e) => setNationalIdentity(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "" || /^[0-9]+$/.test(val)) {
+                  setNationalIdentity(val);
+                }
+              }}
               required
               className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground truncate"
             />

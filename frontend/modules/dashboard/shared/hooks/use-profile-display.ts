@@ -285,6 +285,26 @@ export function useProfileDisplay() {
         ? "2000-01-01"
         : "")
 
+  const username =
+    overrides.username ??
+    (user && "username" in user && user.username
+      ? String(user.username)
+      : isDemo
+        ? "johndoe_affiliate"
+        : "")
+
+  const gender =
+    overrides.gender ??
+    (user && "gender" in user && user.gender
+      ? String(user.gender)
+      : "")
+
+  const bio =
+    overrides.bio ??
+    (user && "bio" in user && user.bio
+      ? String(user.bio)
+      : "")
+
   const nationalIdentity =
     overrides.nationalIdentity ??
     (user && "nationalIdentity" in user && user.nationalIdentity
@@ -393,6 +413,9 @@ export function useProfileDisplay() {
         if (patch.accountType) payload.accountType = String(patch.accountType).toLowerCase();
         if ((patch as any).twoFactorEnabled !== undefined) payload.twoFactorEnabled = (patch as any).twoFactorEnabled;
         if ((patch as any).twoFactorMethod !== undefined) payload.twoFactorMethod = (patch as any).twoFactorMethod;
+        if (patch.username !== undefined) payload.username = patch.username;
+        if (patch.gender !== undefined) payload.gender = patch.gender;
+        if (patch.bio !== undefined) payload.bio = patch.bio;
 
         const profileResult = await completeUserProfile(payload);
         
@@ -506,6 +529,9 @@ export function useProfileDisplay() {
     isActive,
     isKycVerified,
     isVerified: isKycVerified, // backwards compatibility
+    username,
+    gender,
+    bio,
     documentUrl,
     documentFrontUrl,
     documentBackUrl,

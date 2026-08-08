@@ -1,13 +1,29 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { usePathname } from "next/navigation"
-import Link from "next/link"
+import dynamic from "next/dynamic"
+import { Suspense, useEffect, useState, type ComponentType } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { ProfileTabs } from "../constants/profile.constant"
-import AffiliaProAffiliateProfilePage from "./AffiliaProAffiliateProfilePage"
-import AffiliateLogLayout from "./AffiliateLogLayout"
+import { getLogsForUser, LOG_ADDED_EVENT } from "@/src/shared/lib/real-activity-logger"
+import { useUser } from "@/src/context/user.provider"
+
+const TabLoading = () => (
+  <div className="flex items-center justify-center py-16 text-sm text-gray-500">
+    Loading...
+  </div>
+)
+
+const TAB_COMPONENTS: Record<string, ComponentType> = {
+  profile: dynamic(() => import("./AffiliaProAffiliateProfilePage"), {
+    loading: TabLoading,
+  }),
+  "affiliate-log": dynamic(() => import("./AffiliateLogLayout"), {
+    loading: TabLoading,
+  }),
+}
 
 const ProfileLayout = () => {
+  const router = useRouter()
   const pathname = usePathname()
   const normalized = pathname.replace(/^\/dashboard/, "")
 
@@ -16,35 +32,83 @@ const ProfileLayout = () => {
     return match?.id ?? ProfileTabs[0].id
   }
 
-  const [activeTab, setActiveTab] = useState(resolveActiveTab)
+  const [activeTab, setActiveTab] = useState<string>(resolveActiveTab)
+  
+  const { user } = useUser() || {}
+  const userId = user ? (("publicId" in user && user.publicId) || ("userId" in user && user.userId) || ("id" in user && user.id)) || "guest" : "guest"
+  const userEmail = user && "email" in user ? String(user.email) : ""
+  const [logCount, setLogCount] = useState(0)
 
   useEffect(() => {
-    setActiveTab(resolveActiveTab())
-  }, [pathname])
+    const fetchLogCount = async () => {
+      let userLogs = await getLogsForUser(userId)
+      if (userLogs.length === 0 && userId !== userEmail && userEmail) {
+        userLogs = await getLogsForUser(userEmail)
+      }
+      setLogCount(userLogs.length)
+    }
+    fetchLogCount()
+    
+    window.addEventListener(LOG_ADDED_EVENT, fetchLogCount)
+    window.addEventListener("storage", fetchLogCount)
+    return () => {
+      window.removeEventListener(LOG_ADDED_EVENT, fetchLogCount)
+      window.removeEventListener("storage", fetchLogCount)
+    }
+  }, [userId, userEmail])
 
-  if (activeTab === "affiliate-log") {
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Affiliate Log</h1>
-            <p className="mt-1 text-sm text-gray-500">Activity history for your affiliate account.</p>
-          </div>
-          <Link
-            href="/affiliate/profile"
-            className="text-sm font-semibold text-indigo-600 hover:underline"
-          >
-            ← Back to Profile Settings
-          </Link>
-        </div>
-        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-          <AffiliateLogLayout />
-        </div>
-      </div>
-    )
+  const formatCount = (num: number) => {
+    if (num === 0) return null
+    if (num < 1000) return num.toString()
+    return (num / 1000).toFixed(1).replace(/\.0$/, "") + "k"
   }
 
-  return <AffiliaProAffiliateProfilePage />
+  useEffect(() => {
+    const match = ProfileTabs.find((tab) => normalized === tab.url || pathname === tab.url)
+    setActiveTab(match?.id ?? ProfileTabs[0].id)
+  }, [pathname, normalized])
+
+  const ActiveComponent = TAB_COMPONENTS[activeTab] ?? TAB_COMPONENTS.profile
+
+  const handleTabClick = (tab: (typeof ProfileTabs)[number]) => {
+    setActiveTab(tab.id)
+    router.push(tab.url)
+  }
+
+  return (
+    <div className="flex flex-col w-full">
+      <div className="mb-2">
+        <h1 className="text-xl font-semibold text-gray-900">Affiliate Profile</h1>
+        <p className="text-sm text-gray-500 mt-1">View and manage your affiliate account and logs.</p>
+      </div>
+      <div className="flex flex-wrap gap-3 mb-6">
+        {ProfileTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => handleTabClick(tab)}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+              activeTab === tab.id
+                ? "bg-[#5D7293] text-white shadow-sm"
+                : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+            }`}
+          >
+            {tab.label}
+            {tab.id === "affiliate-log" && logCount > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                {formatCount(logCount)}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="w-full">
+        <Suspense fallback={<TabLoading />}>
+          <ActiveComponent />
+        </Suspense>
+      </div>
+    </div>
+  )
 }
 
 export default ProfileLayout

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import Link from "next/link"
 import {
   BadgeCheck,
@@ -14,6 +14,9 @@ import {
   Smartphone,
   Trash2,
   AlertTriangle,
+  Loader2,
+  Eye,
+  Upload
 } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
@@ -21,6 +24,9 @@ import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
+import SelectDropdown from "@/src/shared/components/SelectDropdown"
+import { ALL_COUNTRIES } from "@/src/shared/constants/countries"
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger"
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100:border-indigo-500"
@@ -57,39 +63,302 @@ function UnaddedBadge() {
 }
 
 export default function AffiliaProAffiliateProfilePage() {
-  const { user } = useUser()
+  const { user, refreshUser } = useUser()
   const { isDemo } = useIsDemoAccount()
-  const { 
-    rawUserId, displayUserId, isActive, status, isKycVerified, kycStatus, 
+  const {
+    rawUserId, displayUserId, isActive, status, isKycVerified, kycStatus,
     documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, 
     avatarUrl, updateProfile, dateOfBirth, kycApplicationData,
-    fullName, email: profileEmail, phone: profilePhone, initials
+    fullName, email: profileEmail, phone: profilePhone, initials,
+    username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
+    permanentAddress, governmentIdType, joiningDate
   } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
 
-  const [username, setUsername] = useState(isDemo ? "johndoe_affiliate" : "")
-  const [gender, setGender] = useState("Male")
-  const [dob, setDob] = useState(isDemo ? "1990-05-15" : "")
+  const avatarFileRef = useRef<HTMLInputElement>(null)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+      toast.error("Please select a JPG, JPEG, or PNG image file.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+      const compressedBase64 = await compressImageFile(file, 400, 400, 0.6);
+
+      await updateProfile({ avatarUrl: compressedBase64 });
+      if (refreshUser) {
+        await refreshUser().catch(() => { });
+      }
+      setIsUploadingAvatar(false);
+      toast.success("Profile Photo Uploaded");
+    } catch (error: any) {
+      setIsUploadingAvatar(false);
+      toast.error(error?.message || "Failed to save profile picture.");
+    }
+    e.target.value = "";
+  };
+
+  const [username, setUsername] = useState(hookUsername || (isDemo ? "johndoe_affiliate" : ""))
+  const [gender, setGender] = useState(hookGender || "Select")
+  const [dob, setDob] = useState(dateOfBirth || (isDemo ? "1990-05-15" : ""))
   const [bio, setBio] = useState(
-    isDemo ? "Affiliate marketer and digital entrepreneur." : ""
+    hookBio || (isDemo ? "Affiliate marketer and digital entrepreneur." : "")
   )
   const [telegram, setTelegram] = useState(isDemo ? "@johndoe" : "")
   const [whatsapp, setWhatsapp] = useState(isDemo ? "+880 1234-567890" : "")
-  const [country, setCountry] = useState(isDemo ? "Bangladesh" : "United States")
-  const [state, setState] = useState(isDemo ? "Dhaka" : "")
-  const [city, setCity] = useState(isDemo ? "Dhaka" : "")
-  const [zip, setZip] = useState(isDemo ? "1205" : "")
+  const [country, setCountry] = useState(permanentAddress?.country || (isDemo ? "Bangladesh" : ""))
+  const [state, setState] = useState(permanentAddress?.state || (isDemo ? "Dhaka" : ""))
+  const [city, setCity] = useState(permanentAddress?.city || (isDemo ? "Dhaka" : ""))
+  const [zip, setZip] = useState(permanentAddress?.zipCode || (isDemo ? "1205" : ""))
   const [address, setAddress] = useState(
-    isDemo ? "House-123, Road-5, Dhanmondi, Dhaka-1205, Bangladesh" : ""
+    permanentAddress?.address || (isDemo ? "House-123, Road-5, Dhanmondi, Dhaka-1205, Bangladesh" : "")
   )
   const [language, setLanguage] = useState("English")
-  const [currency, setCurrency] = useState("USD - US Dollar")
+  const [currency, setCurrency] = useState(hookCurrency || "USD - US Dollar")
   const [timezone, setTimezone] = useState("(UTC+06:00) Dhaka, Bangladesh")
   const [logsCount, setLogsCount] = useState(12)
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
+  const [isUpdatingAddress, setIsUpdatingAddress] = useState(false)
+  const [isUpdatingVerification, setIsUpdatingVerification] = useState(false)
+  const [usernameError, setUsernameError] = useState("")
 
+  const [idType, setIdType] = useState(governmentIdType || "National ID Card")
+  const [idNumber, setIdNumber] = useState(nationalIdentity || "")
+  const [frontDoc, setFrontDoc] = useState(documentFrontUrl || "")
+  const [backDoc, setBackDoc] = useState(documentBackUrl || "")
+  const frontFileRef = useRef<HTMLInputElement>(null)
+  const backFileRef = useRef<HTMLInputElement>(null)
+
+  const handleIdNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "" || /^[0-9]+$/.test(val)) {
+      setIdNumber(val);
+    }
+  }
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+      toast.error("Please select a JPG, JPEG, or PNG image file.");
+      return;
+    }
+
+    try {
+      const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
+      const compressedBase64 = await compressImageFile(file, 1200, 1200, 0.7);
+      if (side === "front") setFrontDoc(compressedBase64);
+      else setBackDoc(compressedBase64);
+    } catch (err: any) {
+      toast.error("Failed to process image.");
+    }
+    e.target.value = "";
+  }
+
+  const handleDeleteDoc = async (side: "front" | "back") => {
+    const dbValue = side === "front" ? documentFrontUrl : documentBackUrl;
+    const localValue = side === "front" ? frontDoc : backDoc;
+
+    if (localValue && localValue !== dbValue) {
+      if (side === "front") setFrontDoc(dbValue || "");
+      else setBackDoc(dbValue || "");
+      return;
+    }
+
+    setIsUpdatingVerification(true);
+    try {
+      let updatedFront = side === "front" ? "" : frontDoc;
+      let updatedBack = side === "back" ? "" : backDoc;
+      
+      let newDocumentUrl = "";
+      if (updatedFront && updatedBack) newDocumentUrl = JSON.stringify([updatedFront, updatedBack]);
+      else if (updatedFront) newDocumentUrl = JSON.stringify([updatedFront, ""]);
+      else if (updatedBack) newDocumentUrl = JSON.stringify(["", updatedBack]);
+      
+      await updateProfile({ documentUrl: newDocumentUrl });
+      toast.success("Document deleted");
+      if (side === "front") setFrontDoc("");
+      else setBackDoc("");
+    } catch (err: any) {
+      toast.error("Failed to delete document.");
+    } finally {
+      setIsUpdatingVerification(false);
+    }
+  }
+
+  const handleUpdateVerification = async () => {
+    if (!idType) {
+      toast.error("Please select an ID Type.");
+      return;
+    }
+    if (!idNumber) {
+      toast.error("Please provide your ID Number.");
+      return;
+    }
+
+    const currentDocStr = JSON.stringify([frontDoc, backDoc].map(s => s || ""));
+    const dbDocStr = JSON.stringify([documentFrontUrl, documentBackUrl].map(s => s || ""));
+
+    if (
+      idType === (governmentIdType || "") &&
+      idNumber === (nationalIdentity || "") &&
+      currentDocStr === dbDocStr
+    ) {
+      toast.success("Already Updated");
+      return;
+    }
+
+    setIsUpdatingVerification(true);
+    try {
+      let newDocumentUrl = "";
+      if (frontDoc && backDoc) newDocumentUrl = JSON.stringify([frontDoc, backDoc]);
+      else if (frontDoc) newDocumentUrl = JSON.stringify([frontDoc, ""]);
+      else if (backDoc) newDocumentUrl = JSON.stringify(["", backDoc]);
+      
+      await updateProfile({
+        governmentIdType: idType,
+        nationalIdentity: idNumber,
+        documentUrl: newDocumentUrl
+      });
+      recordRealActivity("VERIFICATION_UPDATED", "Affiliate updated Identity Verification", { userId: rawUserId, email: profileEmail, name: fullName });
+      toast.success("Verification updated successfully");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update verification.");
+    } finally {
+      setIsUpdatingVerification(false);
+    }
+  }
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setUsername(val);
+    if (!val) {
+      setUsernameError("");
+      return;
+    }
+    const isValid = /^[a-z](?:[a-z0-9._]*[a-z0-9])?$/.test(val);
+    if (!isValid) {
+      setUsernameError("not valid");
+    } else {
+      setUsernameError("");
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (gender === "Select" || !gender) {
+      toast.error("Please select a gender.");
+      return;
+    }
+    if (!dob) {
+      toast.error("Please provide your date of birth.");
+      return;
+    }
+    if (username && usernameError && usernameError !== "username already taken, choose another") {
+      toast.error("Please provide a valid username.");
+      return;
+    }
+    
+    if (
+      username === (hookUsername || "") &&
+      gender === (hookGender || "") &&
+      dob === (dateOfBirth || "") &&
+      bio === (hookBio || "") &&
+      currency === (hookCurrency || "USD - US Dollar")
+    ) {
+      toast.success("Already Updated");
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    try {
+      const patch: any = {};
+      if (username !== (hookUsername || "")) patch.username = username;
+      if (gender !== (hookGender || "")) patch.gender = gender;
+      if (dob !== (dateOfBirth || "")) patch.dateOfBirth = dob;
+      if (bio !== (hookBio || "")) patch.bio = bio;
+      if (currency !== (hookCurrency || "USD - US Dollar")) patch.currency = currency;
+
+      await updateProfile(patch);
+      recordRealActivity("PROFILE_UPDATED", "Affiliate updated Personal Information", { userId: rawUserId, email: profileEmail, name: fullName });
+      toast.success("Personal Information Updated Successfully");
+      setUsernameError("");
+    } catch (e: any) {
+      if (e?.message?.toLowerCase().includes("username")) {
+         setUsernameError("username already taken, choose another");
+      } else {
+         toast.error(e?.message || "Failed to update profile.");
+      }
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  }
+
+  const handleUpdateAddress = async () => {
+    if (!country) {
+      toast.error("Please select a Country.");
+      return;
+    }
+    if (!state) {
+      toast.error("Please provide your State/Division.");
+      return;
+    }
+    if (!city) {
+      toast.error("Please provide your City.");
+      return;
+    }
+    if (!address) {
+      toast.error("Please provide your Full Address.");
+      return;
+    }
+
+    if (
+      country === (permanentAddress?.country || "") &&
+      state === (permanentAddress?.state || "") &&
+      city === (permanentAddress?.city || "") &&
+      zip === (permanentAddress?.zipCode || "") &&
+      address === (permanentAddress?.address || "")
+    ) {
+      toast.success("Already Updated");
+      return;
+    }
+
+    setIsUpdatingAddress(true);
+    try {
+      await updateProfile({
+        permanentAddress: {
+          country,
+          state,
+          city,
+          zipCode: zip,
+          address
+        }
+      });
+      recordRealActivity("ADDRESS_UPDATED", "Affiliate updated Address information", { userId: rawUserId, email: profileEmail, name: fullName });
+      toast.success("Address Updated Successfully");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update address.");
+    } finally {
+      setIsUpdatingAddress(false);
+    }
+  }
 
   const save = (label: string) => {
+    if (label === "Profile") {
+      handleUpdateProfile();
+      return;
+    }
+    if (label === "Address") {
+      handleUpdateAddress();
+      return;
+    }
     toast.success(`${label} saved`)
   }
 
@@ -146,7 +415,7 @@ export default function AffiliaProAffiliateProfilePage() {
             Manage your personal information and account settings.
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           {isKycVerified ? (
             <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600">
@@ -163,8 +432,8 @@ export default function AffiliaProAffiliateProfilePage() {
               Unverified Account
             </span>
           )}
-          
-          <button 
+
+          <button
             type="button"
             onClick={handleApplyKycClick}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
@@ -184,8 +453,34 @@ export default function AffiliaProAffiliateProfilePage() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(255,255,255,0.25),transparent_55%)]" />
               </div>
               <div className="relative -mt-10 flex flex-col gap-4 bg-white px-4 pb-4 pt-0 sm:flex-row sm:items-end sm:px-6 sm:pb-5">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-indigo-500 text-lg font-bold text-white shadow">
-                  {initials}
+                <div className="relative h-16 w-16 shrink-0">
+                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-white bg-indigo-500 text-lg font-bold text-white shadow relative">
+                    {isUploadingAvatar && (
+                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
+                        <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      </div>
+                    )}
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => avatarFileRef.current?.click()}
+                    title="Change profile photo"
+                    className="absolute bottom-0 right-0 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform hover:scale-110 border border-white"
+                  >
+                    <Camera className="h-3 w-3" />
+                  </button>
+                  <input
+                    ref={avatarFileRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg,image/png"
+                    onChange={handleAvatarChange}
+                  />
                 </div>
                 <div className="min-w-0 flex-1 pb-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -216,68 +511,100 @@ export default function AffiliaProAffiliateProfilePage() {
             {/* Left Column: Personal + Identity */}
             <div className="flex flex-col gap-5">
               <section id="personal" className={cardClass}>
-              <h2 className="mb-4 text-base font-bold text-gray-900">Personal Information</h2>
-              <div className="mb-5 flex items-center gap-4">
-                <div className="relative">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500 text-xl font-bold text-white">
-                    {initials}
+                <h2 className="mb-4 text-base font-bold text-gray-900">Personal Information</h2>
+                <div className="mb-5 flex items-center gap-4">
+                  <div className="relative shrink-0">
+                    <div className="relative flex h-20 w-20 overflow-hidden items-center justify-center rounded-full bg-indigo-500 text-xl font-bold text-white shadow">
+                      {isUploadingAvatar && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
+                          <Loader2 className="w-6 h-6 animate-spin text-white" />
+                        </div>
+                      )}
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                      ) : (
+                        initials
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => avatarFileRef.current?.click()}
+                      className="absolute -right-0.5 -bottom-0.5 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-white shadow ring-2 ring-white transition-transform hover:scale-110"
+                      aria-label="Change photo"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="absolute -right-0.5 -bottom-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-white shadow ring-2 ring-white"
-                    aria-label="Change photo"
+                  <p className="text-xs text-gray-400">JPG, JPEG or PNG. Max size 2MB.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>
+                      Full Name <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input className={inputClass} value={fullName} readOnly />
+                  </div>
+                  <div className="sm:col-span-2 relative">
+                    <label className={labelClass}>Username</label>
+                    <input 
+                      className={`${inputClass} ${usernameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`} 
+                      value={username} 
+                      onChange={handleUsernameChange} 
+                    />
+                    {usernameError && (
+                      <p className="mt-1 text-xs text-red-500 font-medium absolute -bottom-5 left-0">
+                        {usernameError}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      Gender <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <select className={inputClass} value={gender} onChange={(e) => setGender(e.target.value)}>
+                      <option value="Select" disabled>Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      Date of Birth <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input type="date" className={inputClass} value={dob} onChange={(e) => setDob(e.target.value)} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>Currency</label>
+                    <select className={inputClass} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                      <option>USD - US Dollar</option>
+                      <option>EUR - Euro</option>
+                      <option>BDT - Bangladeshi Taka</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>Bio (Optional)</label>
+                    <textarea
+                      className={`${inputClass} min-h-[140px] resize-y`}
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      maxLength={40}
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button 
+                    type="button" 
+                    className={`${primaryBtn} flex items-center justify-center gap-2`} 
+                    onClick={() => save("Profile")}
+                    disabled={isUpdatingProfile}
                   >
-                    <Camera className="h-3.5 w-3.5" />
+                    {isUpdatingProfile && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Update Profile
                   </button>
                 </div>
-                <p className="text-xs text-gray-400">JPG, PNG or GIF. Max size 2MB.</p>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>Full Name</label>
-                  <input className={inputClass} value={fullName} readOnly />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>Username</label>
-                  <input className={inputClass} value={username} onChange={(e) => setUsername(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>Gender</label>
-                  <select className={inputClass} value={gender} onChange={(e) => setGender(e.target.value)}>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Other</option>
-                    <option>Prefer not to say</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Date of Birth</label>
-                  <input type="date" className={inputClass} value={dob} onChange={(e) => setDob(e.target.value)} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>Currency</label>
-                  <select className={inputClass} value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                    <option>USD - US Dollar</option>
-                    <option>EUR - Euro</option>
-                    <option>BDT - Bangladeshi Taka</option>
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>Bio (Optional)</label>
-                  <textarea
-                    className={`${inputClass} min-h-[140px] resize-y`}
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    maxLength={160}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button type="button" className={primaryBtn} onClick={() => save("Profile")}>
-                  Update Profile
-                </button>
-              </div>
-            </section>
+              </section>
             </div>
 
             {/* Right Column: Contact + Address */}
@@ -317,43 +644,56 @@ export default function AffiliaProAffiliateProfilePage() {
               <section id="address" className={cardClass}>
                 <h2 className="mb-4 text-base font-bold text-gray-900">Address</h2>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>Country</label>
-                  <select className={inputClass} value={country} onChange={(e) => setCountry(e.target.value)}>
-                    <option>Bangladesh</option>
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>Canada</option>
-                    <option>India</option>
-                  </select>
+                  <div>
+                    <label className={labelClass}>
+                      Country <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <SelectDropdown
+                      value={country}
+                      onChange={setCountry}
+                      placeholder="Select Country..."
+                      options={ALL_COUNTRIES.map((c) => ({ label: c.name, value: c.name }))}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      State / Division <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      City <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input className={inputClass} value={city} onChange={(e) => setCity(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>ZIP / Postal Code</label>
+                    <input className={inputClass} value={zip} onChange={(e) => setZip(e.target.value)} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>
+                      Full Address <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <textarea
+                      className={`${inputClass} min-h-[88px] resize-y`}
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={labelClass}>State / Division</label>
-                  <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
+                <div className="mt-4 flex justify-end">
+                  <button 
+                    type="button" 
+                    className={`${outlineBtn} flex items-center justify-center gap-2`} 
+                    onClick={() => save("Address")}
+                    disabled={isUpdatingAddress}
+                  >
+                    {isUpdatingAddress && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Update Address
+                  </button>
                 </div>
-                <div>
-                  <label className={labelClass}>City</label>
-                  <input className={inputClass} value={city} onChange={(e) => setCity(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>ZIP / Postal Code</label>
-                  <input className={inputClass} value={zip} onChange={(e) => setZip(e.target.value)} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>Full Address</label>
-                  <textarea
-                    className={`${inputClass} min-h-[88px] resize-y`}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button type="button" className={outlineBtn} onClick={() => save("Address")}>
-                  Update Address
-                </button>
-              </div>
-            </section>
+              </section>
             </div>
           </div>
 
@@ -362,23 +702,46 @@ export default function AffiliaProAffiliateProfilePage() {
             <section id="identity" className={`${cardClass} flex flex-col`}>
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
-                <VerifiedBadge />
+                {isKycVerified ? <VerifiedBadge /> : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                    <Shield className="h-3.5 w-3.5" /> Unverified
+                  </span>
+                )}
               </div>
-              <dl className="mb-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs text-gray-500">ID Type</dt>
-                  <dd className="font-semibold text-gray-900">National ID Card</dd>
+                  <label className={labelClass}>
+                    ID Type <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <select className={inputClass} value={idType} onChange={(e) => setIdType(e.target.value)}>
+                    <option value="National ID Card">National ID Card</option>
+                    <option value="Driving Licence">Driving Licence</option>
+                    <option value="Passport">Passport</option>
+                  </select>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">ID Number</dt>
-                  <dd className="font-semibold text-gray-900">{isDemo ? "1234567890" : "—"}</dd>
+                  <label className={labelClass}>
+                    ID Number <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  <input className={inputClass} value={idNumber} onChange={handleIdNumberChange} />
                 </div>
-              </dl>
+              </div>
+
+              <input type="file" ref={frontFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "front")} />
+              <input type="file" ref={backFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "back")} />
+
               <ul className="space-y-2.5">
-                {ID_FILES.map((f) => (
+                {[
+                  { name: "ID Front Side", ref: frontFileRef, side: "front" as const, doc: frontDoc, dbUrl: documentFrontUrl },
+                  { name: "ID Back Side", ref: backFileRef, side: "back" as const, doc: backDoc, dbUrl: documentBackUrl },
+                ].map((f) => (
                   <li
                     key={f.name}
-                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5"
+                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition"
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest('button')) return;
+                      f.ref.current?.click();
+                    }}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
                       ID
@@ -386,15 +749,39 @@ export default function AffiliaProAffiliateProfilePage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
                       <p className="truncate text-[11px] text-gray-400">
-                        {f.file} · {f.date}
+                        {f.doc ? (f.doc === f.dbUrl ? `Uploaded ${joiningDate || "on file"}` : "Ready to Update") : "Click to select a JPG/PNG file"}
                       </p>
                     </div>
-                    <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                    {f.doc && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          onClick={() => window.open(f.doc, "_blank")}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          onClick={() => handleDeleteDoc(f.side)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                    {!f.doc && <Upload className="h-4 w-4 shrink-0 text-gray-400" />}
                   </li>
                 ))}
               </ul>
               <div className="mt-auto pt-4 flex justify-end">
-                <button type="button" className={outlineBtn} onClick={() => toast.message("Verification documents are up to date")}>
+                <button 
+                  type="button" 
+                  className={`${outlineBtn} flex items-center justify-center gap-2`} 
+                  onClick={handleUpdateVerification}
+                  disabled={isUpdatingVerification}
+                >
+                  {isUpdatingVerification && <Loader2 className="h-4 w-4 animate-spin" />}
                   Update Verification
                 </button>
               </div>
@@ -409,16 +796,16 @@ export default function AffiliaProAffiliateProfilePage() {
             <h2 className="mb-4 text-base font-bold text-gray-900">Account Overview</h2>
             <dl className="space-y-3 text-sm">
               {[
-                { 
-                  label: "Member Since", 
+                {
+                  label: "Member Since",
                   value: user && "createdAt" in user && user.createdAt
                     ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
                     : "—"
                 },
                 { label: "Account Type", value: "Affiliate" },
                 { label: "Status", value: status, badge: true },
-                { 
-                  label: "ID", 
+                {
+                  label: "ID",
                   value: displayUserId
                 },
               ].map((row) => (
@@ -496,8 +883,8 @@ export default function AffiliaProAffiliateProfilePage() {
           </div>
         </aside>
       </div>
-      <KycApplicationModal 
-        isOpen={isKycModalOpen} 
+      <KycApplicationModal
+        isOpen={isKycModalOpen}
         onClose={() => setIsKycModalOpen(false)}
         kycStatus={kycStatus}
         isKycVerified={isKycVerified}

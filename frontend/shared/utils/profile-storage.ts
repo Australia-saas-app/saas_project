@@ -26,6 +26,9 @@ export interface ProfileDataPatch {
   nationalIdentity?: string;
   currency?: string;
   avatarUrl?: string;
+  username?: string;
+  gender?: string;
+  bio?: string;
   joiningDate?: string;
   [key: string]: any;
 }
