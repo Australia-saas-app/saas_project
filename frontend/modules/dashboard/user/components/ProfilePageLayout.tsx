@@ -161,7 +161,7 @@ export default function ProfilePageLayout() {
               onClick={handleApplyKycClick}
               className="mt-1 w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
             >
-              {effectiveIsKycVerified || effectiveKycStatus === "pending" || effectiveKycStatus === "submitted" || effectiveKycStatus === "rejected" ? "View Application" : "Apply KYC"}
+              {effectiveIsKycVerified || effectiveKycStatus === "pending" || effectiveKycStatus === "submitted" ? "View Application" : effectiveKycStatus === "rejected" ? "Re Apply KYC" : "Apply KYC"}
             </button>
 
             {(effectiveKycStatus === 'pending' || effectiveKycStatus === 'submitted' || effectiveIsKycVerified || effectiveKycStatus === 'rejected') && (

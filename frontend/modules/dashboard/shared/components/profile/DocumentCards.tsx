@@ -13,6 +13,7 @@ import {
   type StoredDocument,
 } from "@/src/shared/utils/profile-storage";
 import { completeUserProfile } from "@/src/shared/server/AuthService";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { PROFILE_UPDATED_EVENT } from "../../hooks/use-profile-display";
 
 interface DocumentCardsProps {
@@ -185,6 +186,8 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
         idDocument: updatedDocUrl || null,
       }).catch(() => undefined);
 
+      recordRealActivity("DOCUMENT_DELETED", "User deleted KYC identification document", { userId });
+
       // Trigger global event so previews everywhere update instantly
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
@@ -245,6 +248,8 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
       await completeUserProfile({ idDocument: updatedDocUrl }).catch(() => undefined);
       saveProfileOverrides(userId, { documentUrl: updatedDocUrl });
       setProfileDocument(userId, doc);
+
+      recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId });
 
       // Dispatch global update event
       if (typeof window !== "undefined") {

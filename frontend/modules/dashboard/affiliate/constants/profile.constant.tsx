@@ -1,7 +1,7 @@
 import AccountDeleteLayout from "@/src/modules/dashboard/shared/components/AccountDeleteLayout"
 import AffiliateLogLayout from "../components/AffiliateLogLayout"
 import AccountSecurityLayout from "@/src/modules/dashboard/shared/components/AccountSecurityLayout"
-import ChangePasswordLayout from "@/src/modules/dashboard/shared/components/ChangePasswordLayout"
+import ChangePasswordLayout from "../components/ChangePasswordLayout"
 import ProfilePageLayout from "../components/ProfilePageLayout"
 
 export const PROFILE_BASE = "/affiliate/profile"

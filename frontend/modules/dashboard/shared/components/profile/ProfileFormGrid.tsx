@@ -626,6 +626,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
           const activeType = selectedType || governmentIdType || "NID";
           setGovernmentIdType(activeType);
           updateProfile({ documentUrl: url, governmentIdType: activeType });
+          if (rawUserId) {
+            import("@/src/shared/lib/real-activity-logger").then((m) => {
+              m.recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId });
+            });
+          }
           setDocumentFileName(filename);
           setDocumentSizeLabel(sizeLabel);
           if (rawUserId) {

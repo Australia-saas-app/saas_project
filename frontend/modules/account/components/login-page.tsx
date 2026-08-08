@@ -273,7 +273,7 @@ export function LoginPage({
       subtitle="Sign in to manage projects, earnings, wallet activity, and your professional profile from one secure dashboard."
       badge="Secure access"
     >
-      <SessionExpiredLandingModal />
+
       {/* OTP Verification Modal Overlay */}
       {(is2faStep || isNewDeviceStep) && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[4px] p-4 overflow-y-auto">

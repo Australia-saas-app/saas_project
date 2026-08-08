@@ -102,14 +102,14 @@ function initials(name: string) {
 export default function AffiliateDashboardLayout() {
   const { user } = useUser()
   const { demoOrEmpty } = useIsDemoAccount()
-  const { fullName, initials, displayUserId, status } = useProfileDisplay()
+  const { fullName, initials, displayUserId, status, avatarUrl } = useProfileDisplay()
   const kpis = demoOrEmpty(AFFILIATE_KPI, EMPTY_AFFILIATE_KPI)
   const chart = demoOrEmpty(AFFILIATE_EARNINGS_CHART, [] as AffiliateEarningsPoint[])
   const links = demoOrEmpty(TOP_PERFORMING_LINKS, [] as TopLinkRow[])
   const activity = demoOrEmpty(AFFILIATE_DASH_ACTIVITY, [] as AffiliateDashActivityItem[])
   const account = demoOrEmpty(AFFILIATE_ACCOUNT_SUMMARY, EMPTY_AFFILIATE_ACCOUNT_SUMMARY)
   const notifications = demoOrEmpty(AFFILIATE_SIDE_NOTIFICATIONS, [] as AffiliateSideNotification[])
-  
+
   const greetName = fullName ? fullName.split(/\s+/)[0] : account.name.split(/\s+/)[0]
   const realName = fullName || account.name
   const realInitials = initials
@@ -117,7 +117,7 @@ export default function AffiliateDashboardLayout() {
   const memberSince = user && "createdAt" in user && user.createdAt
     ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
     : "—"
-  
+
   const accountId = displayUserId
 
   return (
@@ -131,14 +131,7 @@ export default function AffiliateDashboardLayout() {
             Here&apos;s how your affiliate performance looks this month.
           </p>
         </div>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 self-start rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-        >
-          <Calendar className="h-4 w-4 text-gray-400" />
-          May 1, 2024 - May 31, 2024
-          <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-        </button>
+
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -325,15 +318,20 @@ export default function AffiliateDashboardLayout() {
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white"
+                className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white overflow-hidden shrink-0"
                 style={{ backgroundColor: PRIMARY }}
               >
-                {realInitials}
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={realName} className="h-full w-full object-cover" />
+                ) : (
+                  realInitials
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate font-bold text-gray-900">{realName}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                  <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${getStatusBadgeStyle(status).dot} ${status === 'pending' ? 'animate-pulse' : ''}`} />
                     {getStatusBadgeStyle(status).label}
                   </span>
                 </div>

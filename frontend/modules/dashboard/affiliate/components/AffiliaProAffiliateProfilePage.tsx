@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import {
   BadgeCheck,
@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Loader2,
   Eye,
-  Upload
+  Upload,
+  X
 } from "lucide-react"
 import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
@@ -26,7 +27,7 @@ import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-p
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 import SelectDropdown from "@/src/shared/components/SelectDropdown"
 import { ALL_COUNTRIES } from "@/src/shared/constants/countries"
-import { recordRealActivity } from "@/src/shared/lib/real-activity-logger"
+import { recordRealActivity, getLogsForUser, LOG_ADDED_EVENT } from "@/src/shared/lib/real-activity-logger"
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100:border-indigo-500"
@@ -67,7 +68,7 @@ export default function AffiliaProAffiliateProfilePage() {
   const { isDemo } = useIsDemoAccount()
   const {
     rawUserId, displayUserId, isActive, status, isKycVerified, kycStatus,
-    documentUrl, documentFrontUrl, documentBackUrl, nationality, nationalIdentity, 
+    documentUrl, documentFrontUrl, documentBackUrl, documentFrontName, documentBackName, nationality, nationalIdentity,
     avatarUrl, updateProfile, dateOfBirth, kycApplicationData,
     fullName, email: profileEmail, phone: profilePhone, initials,
     username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
@@ -124,7 +125,6 @@ export default function AffiliaProAffiliateProfilePage() {
   const [language, setLanguage] = useState("English")
   const [currency, setCurrency] = useState(hookCurrency || "USD - US Dollar")
   const [timezone, setTimezone] = useState("(UTC+06:00) Dhaka, Bangladesh")
-  const [logsCount, setLogsCount] = useState(12)
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false)
   const [isUpdatingVerification, setIsUpdatingVerification] = useState(false)
@@ -134,6 +134,10 @@ export default function AffiliaProAffiliateProfilePage() {
   const [idNumber, setIdNumber] = useState(nationalIdentity || "")
   const [frontDoc, setFrontDoc] = useState(documentFrontUrl || "")
   const [backDoc, setBackDoc] = useState(documentBackUrl || "")
+  const [frontDocName, setFrontDocName] = useState(documentFrontName || "")
+  const [backDocName, setBackDocName] = useState(documentBackName || "")
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<{ url: string, name: string, title: string } | null>(null)
   const frontFileRef = useRef<HTMLInputElement>(null)
   const backFileRef = useRef<HTMLInputElement>(null)
 
@@ -155,8 +159,13 @@ export default function AffiliaProAffiliateProfilePage() {
     try {
       const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
       const compressedBase64 = await compressImageFile(file, 1200, 1200, 0.7);
-      if (side === "front") setFrontDoc(compressedBase64);
-      else setBackDoc(compressedBase64);
+      if (side === "front") {
+        setFrontDoc(compressedBase64);
+        setFrontDocName(file.name);
+      } else {
+        setBackDoc(compressedBase64);
+        setBackDocName(file.name);
+      }
     } catch (err: any) {
       toast.error("Failed to process image.");
     }
@@ -177,16 +186,22 @@ export default function AffiliaProAffiliateProfilePage() {
     try {
       let updatedFront = side === "front" ? "" : frontDoc;
       let updatedBack = side === "back" ? "" : backDoc;
-      
+
       let newDocumentUrl = "";
       if (updatedFront && updatedBack) newDocumentUrl = JSON.stringify([updatedFront, updatedBack]);
       else if (updatedFront) newDocumentUrl = JSON.stringify([updatedFront, ""]);
       else if (updatedBack) newDocumentUrl = JSON.stringify(["", updatedBack]);
-      
+
       await updateProfile({ documentUrl: newDocumentUrl });
+      recordRealActivity("DOCUMENT_DELETED", `Affiliate deleted ${side === 'front' ? 'FRONT_ID' : 'BACK_ID'} document`, { userId: rawUserId, email: profileEmail, name: fullName });
       toast.success("Document deleted");
-      if (side === "front") setFrontDoc("");
-      else setBackDoc("");
+      if (side === "front") {
+        setFrontDoc("");
+        setFrontDocName("");
+      } else {
+        setBackDoc("");
+        setBackDocName("");
+      }
     } catch (err: any) {
       toast.error("Failed to delete document.");
     } finally {
@@ -204,8 +219,14 @@ export default function AffiliaProAffiliateProfilePage() {
       return;
     }
 
-    const currentDocStr = JSON.stringify([frontDoc, backDoc].map(s => s || ""));
-    const dbDocStr = JSON.stringify([documentFrontUrl, documentBackUrl].map(s => s || ""));
+    const currentDocStr = JSON.stringify([
+      { url: frontDoc || "", name: frontDocName || "" },
+      { url: backDoc || "", name: backDocName || "" }
+    ]);
+    const dbDocStr = JSON.stringify([
+      { url: documentFrontUrl || "", name: documentFrontName || "" },
+      { url: documentBackUrl || "", name: documentBackName || "" }
+    ]);
 
     if (
       idType === (governmentIdType || "") &&
@@ -218,16 +239,23 @@ export default function AffiliaProAffiliateProfilePage() {
 
     setIsUpdatingVerification(true);
     try {
-      let newDocumentUrl = "";
-      if (frontDoc && backDoc) newDocumentUrl = JSON.stringify([frontDoc, backDoc]);
-      else if (frontDoc) newDocumentUrl = JSON.stringify([frontDoc, ""]);
-      else if (backDoc) newDocumentUrl = JSON.stringify(["", backDoc]);
-      
+      const newDocumentUrl = currentDocStr;
+
       await updateProfile({
         governmentIdType: idType,
         nationalIdentity: idNumber,
         documentUrl: newDocumentUrl
       });
+
+      if (currentDocStr !== dbDocStr) {
+        if (frontDoc && frontDoc !== documentFrontUrl) {
+          recordRealActivity("DOCUMENT_UPLOADED", "User uploaded FRONT_ID document", { userId: rawUserId, email: profileEmail, name: fullName });
+        }
+        if (backDoc && backDoc !== documentBackUrl) {
+          recordRealActivity("DOCUMENT_UPLOADED", "User uploaded BACK_ID document", { userId: rawUserId, email: profileEmail, name: fullName });
+        }
+      }
+
       recordRealActivity("VERIFICATION_UPDATED", "Affiliate updated Identity Verification", { userId: rawUserId, email: profileEmail, name: fullName });
       toast.success("Verification updated successfully");
     } catch (err: any) {
@@ -265,7 +293,7 @@ export default function AffiliaProAffiliateProfilePage() {
       toast.error("Please provide a valid username.");
       return;
     }
-    
+
     if (
       username === (hookUsername || "") &&
       gender === (hookGender || "") &&
@@ -292,9 +320,9 @@ export default function AffiliaProAffiliateProfilePage() {
       setUsernameError("");
     } catch (e: any) {
       if (e?.message?.toLowerCase().includes("username")) {
-         setUsernameError("username already taken, choose another");
+        setUsernameError("username already taken, choose another");
       } else {
-         toast.error(e?.message || "Failed to update profile.");
+        toast.error(e?.message || "Failed to update profile.");
       }
     } finally {
       setIsUpdatingProfile(false);
@@ -391,30 +419,8 @@ export default function AffiliaProAffiliateProfilePage() {
           </div>
         </div>
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Profile Settings</h1>
-            <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
-              <span className={`h-2 w-2 rounded-full ${getStatusBadgeStyle(status).dot} ${status === 'pending' ? 'animate-pulse' : ''}`} />
-              {getStatusBadgeStyle(status).label}
-            </span>
-            <Link
-              href="/affiliate/profile/affiliate-log"
-              className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-500/20"
-            >
-              Logs
-              {logsCount > 0 && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-slate-300/50 px-1.5 text-[11px] font-bold text-slate-700">
-                  {logsCount}
-                </span>
-              )}
-            </Link>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage your personal information and account settings.
-          </p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4">
+
 
         <div className="flex items-center gap-3">
           {isKycVerified ? (
@@ -433,13 +439,27 @@ export default function AffiliaProAffiliateProfilePage() {
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={handleApplyKycClick}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
-          >
-            {isKycVerified ? "View Application" : kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : "Apply KYC"}
-          </button>
+          <div className="flex flex-col items-end gap-3">
+            <button
+              type="button"
+              onClick={handleApplyKycClick}
+              className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+            >
+              {isKycVerified || kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : kycStatus === "rejected" ? "Re Apply KYC" : "Apply KYC"}
+            </button>
+
+            {(kycStatus === 'pending' || kycStatus === 'submitted' || isKycVerified || kycStatus === 'rejected') && (
+              <div className={`w-full sm:w-auto px-4 py-2 rounded-md flex items-center justify-center gap-2 border ${isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                  : kycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
+                }`}>
+                <span className="font-bold text-[11px] uppercase tracking-wider">Status:</span>
+                <span className="font-black text-xs uppercase tracking-wider">
+                  {isKycVerified ? 'Approved' : kycStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -455,32 +475,12 @@ export default function AffiliaProAffiliateProfilePage() {
               <div className="relative -mt-10 flex flex-col gap-4 bg-white px-4 pb-4 pt-0 sm:flex-row sm:items-end sm:px-6 sm:pb-5">
                 <div className="relative h-16 w-16 shrink-0">
                   <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-4 border-white bg-indigo-500 text-lg font-bold text-white shadow relative">
-                    {isUploadingAvatar && (
-                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 text-white">
-                        <Loader2 className="w-5 h-5 animate-spin text-white" />
-                      </div>
-                    )}
                     {avatarUrl ? (
                       <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
                     ) : (
                       initials
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => avatarFileRef.current?.click()}
-                    title="Change profile photo"
-                    className="absolute bottom-0 right-0 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-white shadow transition-transform hover:scale-110 border border-white"
-                  >
-                    <Camera className="h-3 w-3" />
-                  </button>
-                  <input
-                    ref={avatarFileRef}
-                    type="file"
-                    className="hidden"
-                    accept="image/jpeg,image/png"
-                    onChange={handleAvatarChange}
-                  />
                 </div>
                 <div className="min-w-0 flex-1 pb-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -544,17 +544,18 @@ export default function AffiliaProAffiliateProfilePage() {
                     </label>
                     <input className={inputClass} value={fullName} readOnly />
                   </div>
-                  <div className="sm:col-span-2 relative">
+                  <div className="sm:col-span-2 flex flex-col">
                     <label className={labelClass}>Username</label>
-                    <input 
-                      className={`${inputClass} ${usernameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`} 
-                      value={username} 
-                      onChange={handleUsernameChange} 
+                    <input
+                      className={`${inputClass} ${usernameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+                      value={username}
+                      onChange={handleUsernameChange}
                     />
                     {usernameError && (
-                      <p className="mt-1 text-xs text-red-500 font-medium absolute -bottom-5 left-0">
-                        {usernameError}
-                      </p>
+                      <div className="mt-2 inline-flex items-center gap-1.5 self-start rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 border border-red-200">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span className="capitalize">{usernameError}</span>
+                      </div>
                     )}
                   </div>
                   <div>
@@ -594,9 +595,9 @@ export default function AffiliaProAffiliateProfilePage() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <button 
-                    type="button" 
-                    className={`${primaryBtn} flex items-center justify-center gap-2`} 
+                  <button
+                    type="button"
+                    className={`${primaryBtn} flex items-center justify-center gap-2`}
                     onClick={() => save("Profile")}
                     disabled={isUpdatingProfile}
                   >
@@ -683,9 +684,9 @@ export default function AffiliaProAffiliateProfilePage() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <button 
-                    type="button" 
-                    className={`${outlineBtn} flex items-center justify-center gap-2`} 
+                  <button
+                    type="button"
+                    className={`${outlineBtn} flex items-center justify-center gap-2`}
                     onClick={() => save("Address")}
                     disabled={isUpdatingAddress}
                   >
@@ -732,8 +733,8 @@ export default function AffiliaProAffiliateProfilePage() {
 
               <ul className="space-y-2.5">
                 {[
-                  { name: "ID Front Side", ref: frontFileRef, side: "front" as const, doc: frontDoc, dbUrl: documentFrontUrl },
-                  { name: "ID Back Side", ref: backFileRef, side: "back" as const, doc: backDoc, dbUrl: documentBackUrl },
+                  { name: "ID Front Side", ref: frontFileRef, side: "front" as const, doc: frontDoc, dbUrl: documentFrontUrl, fileName: frontDocName },
+                  { name: "ID Back Side", ref: backFileRef, side: "back" as const, doc: backDoc, dbUrl: documentBackUrl, fileName: backDocName },
                 ].map((f) => (
                   <li
                     key={f.name}
@@ -743,13 +744,17 @@ export default function AffiliaProAffiliateProfilePage() {
                       f.ref.current?.click();
                     }}
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
-                      ID
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600 overflow-hidden">
+                      {f.doc ? (
+                        <img src={f.doc} alt={f.name} className="h-full w-full object-cover" />
+                      ) : (
+                        "ID"
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
                       <p className="truncate text-[11px] text-gray-400">
-                        {f.doc ? (f.doc === f.dbUrl ? `Uploaded ${joiningDate || "on file"}` : "Ready to Update") : "Click to select a JPG/PNG file"}
+                        {f.doc ? (f.doc === f.dbUrl ? `${f.fileName ? f.fileName + " " : ""}Uploaded ${joiningDate || "on file"}` : `${f.fileName ? f.fileName + " " : ""}Ready to Update`) : "Click to select a JPG/PNG file"}
                       </p>
                     </div>
                     {f.doc && (
@@ -757,7 +762,10 @@ export default function AffiliaProAffiliateProfilePage() {
                         <button
                           type="button"
                           className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          onClick={() => window.open(f.doc, "_blank")}
+                          onClick={() => {
+                            setPreviewDoc({ url: f.doc, name: f.fileName, title: f.name });
+                            setPreviewModalOpen(true);
+                          }}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
@@ -775,9 +783,9 @@ export default function AffiliaProAffiliateProfilePage() {
                 ))}
               </ul>
               <div className="mt-auto pt-4 flex justify-end">
-                <button 
-                  type="button" 
-                  className={`${outlineBtn} flex items-center justify-center gap-2`} 
+                <button
+                  type="button"
+                  className={`${outlineBtn} flex items-center justify-center gap-2`}
                   onClick={handleUpdateVerification}
                   disabled={isUpdatingVerification}
                 >
@@ -813,7 +821,8 @@ export default function AffiliaProAffiliateProfilePage() {
                   <dt className="text-gray-500">{row.label}</dt>
                   <dd>
                     {row.badge ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                      <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${getStatusBadgeStyle(status).dot} ${status === 'pending' ? 'animate-pulse' : ''}`} />
                         {getStatusBadgeStyle(status).label}
                       </span>
                     ) : (
@@ -883,6 +892,7 @@ export default function AffiliaProAffiliateProfilePage() {
           </div>
         </aside>
       </div>
+
       <KycApplicationModal
         isOpen={isKycModalOpen}
         onClose={() => setIsKycModalOpen(false)}
@@ -904,6 +914,29 @@ export default function AffiliaProAffiliateProfilePage() {
           kycApplicationData: (user as any)?.kycApplicationData
         }}
       />
+
+      {previewModalOpen && previewDoc && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">{previewDoc.title}</h3>
+                {previewDoc.name && <p className="text-xs text-gray-500 mt-0.5">{previewDoc.name}</p>}
+              </div>
+              <button
+                type="button"
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                onClick={() => setPreviewModalOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 bg-slate-50 rounded-b-2xl flex items-center justify-center">
+              <img src={previewDoc.url} alt={previewDoc.title} className="max-w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-sm border border-gray-200" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

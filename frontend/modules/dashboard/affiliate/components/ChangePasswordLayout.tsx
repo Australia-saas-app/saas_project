@@ -1,99 +1,200 @@
 "use client"
 
 import React, { useState } from "react"
-import { useForm } from "react-hook-form"
-import { Form } from "@/src/components/form/form"
-import { FormInput } from "@/src/components/form/form-input"
-import { FormActions } from "@/src/components/form/FormActions"
-
-type PasswordForm = {
-  currentPassword: string
-  newPassword: string
-  confirmPassword: string
-}
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { useUser } from "@/src/context/user.provider"
+import { changeRegisteredPassword } from "@/src/server/AuthService"
+import { isDemoAuthUser, getUserEmailFromAuthUser } from "@/src/shared/lib/demo-user"
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger"
 
 const ChangePasswordLayout: React.FC = () => {
+  const { user } = useUser()
+  const isDemo = isDemoAuthUser(user)
+  const email = getUserEmailFromAuthUser(user) ?? ""
+  
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
 
-  const form = useForm<PasswordForm>({
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  })
+  const passwordRequirements = [
+    { label: "8+ chars", met: newPassword.length >= 8 },
+    { label: "1 number", met: /[0-9]/.test(newPassword) },
+    { label: "1 uppercase", met: /[A-Z]/.test(newPassword) },
+    { label: "1 special", met: /[^A-Za-z0-9]/.test(newPassword) },
+  ]
 
-  const onSubmit = async (data: PasswordForm) => {
-    const { currentPassword, newPassword, confirmPassword } = data
-    if (!currentPassword || !newPassword || newPassword !== confirmPassword) {
-      setSuccess("")
+  const allReqsMet = passwordRequirements.every((r) => r.met)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (isDemo) {
+      toast.error("Demo account passwords are fixed for testing.")
+      return
+    }
+    if (!email) {
+      toast.error("Unable to resolve your account email.")
+      return
+    }
+    if (!currentPassword) {
+      toast.error("Please enter your current password.")
+      return
+    }
+    if (!allReqsMet) {
+      toast.error("Please meet all password requirements before changing password.")
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirm password do not match.")
       return
     }
 
     setSaving(true)
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 700))
-    setSaving(false)
-    setSuccess("Password changed successfully")
-    form.reset()
+    try {
+      const result = await changeRegisteredPassword({
+        email,
+        currentPassword,
+        newPassword,
+      })
+      if (!result.success) {
+        toast.error(result.message || "Current password is incorrect.")
+        return
+      }
+      // Record Real Activity Log
+      recordRealActivity("PASSWORD_CHANGED", "Account password updated successfully", { email, userId: (user as any)?.id, name: (user as any)?.fullName || (user as any)?.firstName || "User" });
+      toast.success(result.message ?? "Password Changed Successfully")
+      // Clear fields upon successful password update
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (error: any) {
+      toast.error(error?.message || "Current password is incorrect.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="flex justify-center mt-10 md:mt-20 px-4  items-center">
-      <div className="md:w-1/2  w-full  mx-auto bg-white rounded shadow p-6">
-        <h3 className="font-semibold mb-4">Change Password</h3>
+    <div className="flex justify-center mt-10 md:mt-20 px-4 items-center">
+      <div className="w-full rounded-2xl bg-card p-6 shadow-sm md:p-7 md:w-1/2 mx-auto bg-white">
+        <h3 className="text-lg font-bold text-foreground">Change Password</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Use at least 8 characters with a mix of letters and numbers.
+        </p>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <FormInput
-                control={form.control}
-                name="currentPassword"
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          {/* 1. Current Password */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Current password
+            </label>
+            <div className="relative">
+              <input
+                type={showCurrent ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
-                type="password"
-                showPasswordToggle
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
               />
+              <button
+                type="button"
+                onClick={() => setShowCurrent(!showCurrent)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* 2. New Password */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              New password
+            </label>
+            <div className="relative">
+              <input
+                type={showNew ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNew(!showNew)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
 
-            <div>
-              <FormInput
-                control={form.control}
-                name="newPassword"
-                placeholder="New password"
-                type="password"
-                showPasswordToggle
-              />
+            {/* Password Requirements as simple inline row */}
+            <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
+              {passwordRequirements.map((req, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-xs">
+                  {req.met ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-500 shrink-0" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
+                  <span
+                    className={
+                      req.met
+                        ? "font-medium text-emerald-600 dark:text-emerald-500"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {req.label}
+                  </span>
+                </div>
+              ))}
             </div>
+          </div>
 
-            <div>
-              <FormInput
-                control={form.control}
-                name="confirmPassword"
+          {/* 3. Confirm Password */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Confirm new password
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm new password"
-                type="password"
-                showPasswordToggle
+                className="w-full h-11 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all pr-10"
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
+          </div>
 
-            <div className="flex items-center justify-end gap-3">
-              <FormActions
-                onCancel={() => {
-                  form.reset()
-                  setSuccess(null)
-                }}
-                submitLabel="Change My Password"
-                isSubmitting={saving}
-              />
-            </div>
-
-            {success !== null && (
-              <div className={`p-3 rounded text-sm ${success ? "bg-green-50 text-green-700" : "bg-rose-50 text-rose-700"}`}>
-                {success || "Please check fields"}
-              </div>
-            )}
-          </form>
-        </Form>
+          <div className="pt-2 flex justify-end">
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600 disabled:opacity-70 disabled:cursor-not-allowed gap-2"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving ? "Updating..." : "Change My Password"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

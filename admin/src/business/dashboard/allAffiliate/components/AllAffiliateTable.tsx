@@ -194,6 +194,13 @@ const AllAffiliateTable: React.FC = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to delete");
+      
+      // Delete user logs as well
+      await fetch(`/admin/api/user-profile-service/activity/admin/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(e => console.error("Failed to delete user logs:", e));
+
       setItems(prev => prev.filter(u => u.userId !== userId));
       setTotalResults(prev => prev - 1);
       toast.success("Affiliate account permanently deleted.");

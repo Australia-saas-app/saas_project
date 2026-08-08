@@ -29,7 +29,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
-  const { fullName, initials, status } = useProfileDisplay();
+  const { fullName, initials, status, avatarUrl } = useProfileDisplay();
   const isComplete = status === "active" || status === "verified" || status === "approved";
 
   useEffect(() => {
@@ -197,13 +197,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle compact />
-            <button
-              type="button"
-              className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 sm:inline-flex"
-            >
-              <Globe className="h-4 w-4" />
-              English
-            </button>
+
             <NotificationBell viewAllHref="/affiliate/notices" />
 
             <div className="relative ml-1">
@@ -216,7 +210,11 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
                   className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full text-sm font-bold text-white shrink-0 overflow-hidden"
                   style={{ backgroundColor: PRIMARY }}
                 >
-                  {initials}
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                  ) : (
+                    initials
+                  )}
                 </div>
                 <div className="hidden sm:flex flex-col items-start text-left">
                   <span className="text-xs sm:text-sm font-bold leading-tight max-w-[90px] truncate text-gray-900">

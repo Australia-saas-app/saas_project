@@ -33,7 +33,7 @@ const ProfileLayout = () => {
   }
 
   const [activeTab, setActiveTab] = useState<string>(resolveActiveTab)
-  
+
   const { user } = useUser() || {}
   const userId = user ? (("publicId" in user && user.publicId) || ("userId" in user && user.userId) || ("id" in user && user.id)) || "guest" : "guest"
   const userEmail = user && "email" in user ? String(user.email) : ""
@@ -48,7 +48,7 @@ const ProfileLayout = () => {
       setLogCount(userLogs.length)
     }
     fetchLogCount()
-    
+
     window.addEventListener(LOG_ADDED_EVENT, fetchLogCount)
     window.addEventListener("storage", fetchLogCount)
     return () => {
@@ -87,11 +87,10 @@ const ProfileLayout = () => {
             key={tab.id}
             type="button"
             onClick={() => handleTabClick(tab)}
-            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-              activeTab === tab.id
-                ? "bg-[#5D7293] text-white shadow-sm"
-                : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
-            }`}
+            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === tab.id
+              ? "bg-[#5D7293] text-white shadow-sm"
+              : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+              }`}
           >
             {tab.label}
             {tab.id === "affiliate-log" && logCount > 0 && (

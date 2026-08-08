@@ -253,6 +253,12 @@ const AllUserTable: React.FC = () => {
                 throw new Error(errorData.message || "Failed to delete");
             }
             
+            // Delete user logs as well
+            await fetch(`/admin/api/user-profile-service/activity/admin/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(e => console.error("Failed to delete user logs:", e));
+            
             // Invalidate React Query caches for both admin users and kyc queue
             queryClient.invalidateQueries({ queryKey: ["admin-users"] });
             queryClient.invalidateQueries({ queryKey: ["admin", "kyc-queue"] });

@@ -112,4 +112,17 @@ export class ActivityController {
     await this.activityService.deleteAllActivities(req.user.userId);
     return { success: true };
   }
+
+  @Delete('admin/:userId')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Admin: Delete all activity logs for a specific user' })
+  @ApiResponse({
+    status: 200,
+    description: 'All activities deleted successfully for the user',
+  })
+  async deleteUserActivitiesByAdmin(@Param('userId') userId: string) {
+    await this.activityService.deleteAllActivities(userId);
+    return { success: true };
+  }
 }

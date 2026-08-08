@@ -426,9 +426,7 @@ export function useProfileDisplay() {
         if (patch.avatarUrl) {
           recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
         }
-        if (patch.documentUrl) {
-          recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId, email, name: fullName });
-        }
+
         const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
         if (hasOtherUpdates) {
           recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
@@ -437,9 +435,7 @@ export function useProfileDisplay() {
         if (patch.avatarUrl) {
           recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
         }
-        if (patch.documentUrl) {
-          recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId: rawUserId, email, name: fullName });
-        }
+
         const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
         if (hasOtherUpdates) {
           recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
@@ -487,12 +483,26 @@ export function useProfileDisplay() {
   
   let documentFrontUrl = "";
   let documentBackUrl = "";
+  let documentFrontName = "";
+  let documentBackName = "";
   try {
     if (documentUrl.startsWith("[") && documentUrl.endsWith("]")) {
       const parsed = JSON.parse(documentUrl);
       if (Array.isArray(parsed)) {
-        documentFrontUrl = parsed[0] || "";
-        documentBackUrl = parsed[1] || "";
+        const first = parsed[0];
+        const second = parsed[1];
+        if (typeof first === "object" && first !== null) {
+          documentFrontUrl = first.url || "";
+          documentFrontName = first.name || "";
+        } else {
+          documentFrontUrl = first || "";
+        }
+        if (typeof second === "object" && second !== null) {
+          documentBackUrl = second.url || "";
+          documentBackName = second.name || "";
+        } else {
+          documentBackUrl = second || "";
+        }
       }
     } else {
       documentFrontUrl = documentUrl;
@@ -535,6 +545,8 @@ export function useProfileDisplay() {
     documentUrl,
     documentFrontUrl,
     documentBackUrl,
+    documentFrontName,
+    documentBackName,
     fields,
     overrides,
     updateProfile,
