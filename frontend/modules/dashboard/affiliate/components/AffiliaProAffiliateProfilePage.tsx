@@ -369,9 +369,9 @@ export default function AffiliaProAffiliateProfilePage() {
           </div>
 
           {/* Identity + Preferences */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-            <section id="identity" className={cardClass}>
+            <section id="identity" className={`${cardClass} flex flex-col`}>
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
                 <VerifiedBadge />
@@ -405,13 +405,13 @@ export default function AffiliaProAffiliateProfilePage() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-auto pt-4 flex justify-end">
                 <button type="button" className={outlineBtn} onClick={() => toast.message("Verification documents are up to date")}>
                   Update Verification
                 </button>
               </div>
             </section>
-            <section id="preferences" className={cardClass}>
+            <section id="preferences" className={`${cardClass} flex flex-col`}>
               <h2 className="mb-4 text-base font-bold text-gray-900">Language & Currency</h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -439,7 +439,7 @@ export default function AffiliaProAffiliateProfilePage() {
                   </select>
                 </div>
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-auto pt-4 flex justify-end">
                 <button type="button" className={outlineBtn} onClick={() => save("Preferences")}>
                   Update Preferences
                 </button>
@@ -452,7 +452,7 @@ export default function AffiliaProAffiliateProfilePage() {
             <section id="devices" className={`${cardClass} min-w-0`}>
               <h2 className="mb-4 text-base font-bold text-gray-900">Device Management</h2>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] text-left text-xs">
+                <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-400">
                       <th className="pb-2 font-semibold">Device</th>
@@ -552,7 +552,7 @@ export default function AffiliaProAffiliateProfilePage() {
 
         {/* Right rail */}
         <aside className="space-y-5">
-          <div className={cardClass}>
+          <div className={`${cardClass} xl:h-[390px] flex flex-col`}>
             <h2 className="mb-4 text-base font-bold text-gray-900">Account Overview</h2>
             <dl className="space-y-3 text-sm">
               {[
@@ -605,7 +605,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </dl>
           </div>
 
-          <div className={cardClass}>
+          <div className={`${cardClass} xl:h-[305px] flex flex-col justify-center`}>
             <h2 className="mb-3 text-base font-bold text-gray-900">Quick Links</h2>
             <ul className="space-y-1">
               {[
@@ -632,17 +632,17 @@ export default function AffiliaProAffiliateProfilePage() {
           </div>
 
           <div className={cardClass}>
-            <h2 className="mb-4 text-base font-bold text-gray-900">Delete Account</h2>
-            <div className="mb-4 flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
+            <h2 className="mb-3 text-base font-bold text-gray-900">Delete Account</h2>
+            <div className="mb-3 flex gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
               <p>
-                Once you delete your account, there is no going back. Please be certain. All your
-                data, earnings, and statistics will be permanently deleted.
+                Once you delete your account, there is no going back. All your
+                data and earnings will be permanently deleted.
               </p>
             </div>
             <Link
               href="/affiliate/settings/account-delete"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
             >
               <Trash2 className="h-4 w-4" />
               Delete My Account
