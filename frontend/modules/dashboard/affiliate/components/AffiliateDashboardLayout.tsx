@@ -28,7 +28,7 @@ import {
   YAxis,
 } from "recharts"
 import { useUser } from "@/src/context/user.provider"
-import { useProfileDisplay } from "@/src/modules/dashboard/shared/hooks/use-profile-display"
+import { useProfileDisplay, getStatusBadgeStyle } from "@/src/modules/dashboard/shared/hooks/use-profile-display"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import {
   AFFILIATE_ACCOUNT_SUMMARY,
@@ -333,8 +333,8 @@ export default function AffiliateDashboardLayout() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate font-bold text-gray-900">{realName}</p>
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    {account.status}
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                    {getStatusBadgeStyle(status).label}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">{account.title}</p>

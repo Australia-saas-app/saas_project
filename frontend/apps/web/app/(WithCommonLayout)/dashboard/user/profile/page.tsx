@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Profile",
+};
+
 import dynamic from "next/dynamic"
 
 const ProfileLayout = dynamic(

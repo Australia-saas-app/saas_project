@@ -70,7 +70,7 @@ function SettingsSideNav({ activeId }: { activeId: string }) {
           })}
         </ul>
       </nav>
-      <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <p className="text-sm font-bold text-gray-900">Need Help?</p>
         <p className="mt-1 text-xs text-gray-500">Our support team is here for you.</p>
         <Link href="/affiliate/messages" className={`${primaryBtn} mt-3 w-full gap-2 text-xs`}>

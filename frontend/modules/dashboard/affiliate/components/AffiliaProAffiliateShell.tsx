@@ -29,7 +29,8 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
-  const { fullName, initials } = useProfileDisplay();
+  const { fullName, initials, status } = useProfileDisplay();
+  const isComplete = status === "active" || status === "verified" || status === "approved";
 
   useEffect(() => {
     setMobileOpen(false);
@@ -103,6 +104,22 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
           {AFFILIAPRO_AFFILIATE_NAV.map((item) => {
             const Icon = item.icon;
             const showActive = activeItem?.label === item.label && activeItem.href === item.href;
+            const isDisabled = !isComplete && item.href !== "/affiliate/profile";
+
+            if (isDisabled) {
+              return (
+                <li key={item.label}>
+                  <div
+                    title="Account not active"
+                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors opacity-45 cursor-not-allowed select-none bg-transparent text-gray-500"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 opacity-50" />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                </li>
+              );
+            }
+
             return (
               <li key={item.label}>
                 <Link
@@ -111,7 +128,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
                   className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
                     showActive
                       ? "bg-indigo-500 text-white shadow-sm shadow-indigo-500/20"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900:bg-gray-800:text-gray-100"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                   }`}
                 >
                   <Icon
@@ -126,7 +143,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
       </nav>
 
       <div className="shrink-0 p-3">
-        <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 p-4 ring-1 ring-indigo-100">
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-gray-100 shadow-sm">
           <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500 text-white">
             <Crown className="h-4 w-4" />
           </div>
@@ -193,7 +210,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
               <button
                 type="button"
                 onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-1.5 sm:gap-2 pl-0.5 sm:pl-1 pr-2 sm:pr-3 py-1 bg-[#f0f4ff] hover:bg-blue-50 border border-blue-100 rounded-full transition-colors"
+                className="flex items-center gap-1.5 sm:gap-2 pl-0.5 sm:pl-1 pr-2 sm:pr-3 py-1 bg-white hover:bg-gray-50 border border-gray-200 rounded-full transition-colors"
               >
                 <div
                   className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full text-sm font-bold text-white shrink-0 overflow-hidden"
@@ -202,14 +219,14 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
                   {initials}
                 </div>
                 <div className="hidden sm:flex flex-col items-start text-left">
-                  <span className="text-xs sm:text-sm font-bold leading-tight max-w-[90px] truncate">
+                  <span className="text-xs sm:text-sm font-bold leading-tight max-w-[90px] truncate text-gray-900">
                     {fullName}
                   </span>
-                  <span className="text-[10px] capitalize leading-tight opacity-75">
+                  <span className="text-[10px] capitalize leading-tight opacity-75 text-gray-500">
                     Affiliate
                   </span>
                 </div>
-                <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${profileOpen ? "rotate-180" : ""} ml-0.5`} />
+                <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${profileOpen ? "rotate-180" : ""} ml-0.5 text-gray-500`} />
               </button>
 
               {profileOpen && (

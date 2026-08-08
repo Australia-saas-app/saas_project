@@ -227,12 +227,21 @@ export const useLogout = () => {
                 return;
               }
 
-              const isAdminApp =
-                  window.location.port === "3001" ||
-                  window.location.hostname.startsWith("admin.") ||
-                  window.location.pathname.startsWith("/admin") ||
-                  window.location.pathname.startsWith("/account/admin");
-              const targetPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
+              let targetPath = "/account/user/login";
+              
+              if (
+                window.location.port === "3001" ||
+                window.location.hostname.startsWith("admin.") ||
+                window.location.pathname.startsWith("/admin") ||
+                window.location.pathname.startsWith("/account/admin")
+              ) {
+                targetPath = "/account/admin/login";
+              } else if (window.location.pathname.startsWith("/affiliate")) {
+                targetPath = "/account/affiliate/registration";
+              } else if (window.location.pathname.startsWith("/business")) {
+                targetPath = "/account/business/registration";
+              }
+
               window.location.href = targetPath;
             }
         },
@@ -248,7 +257,23 @@ export const useLogout = () => {
                   window.location.href = "/";
                   return;
                 }
-                window.location.href = "/account/user/login";
+
+                let targetPath = "/account/user/login";
+                
+                if (
+                  window.location.port === "3001" ||
+                  window.location.hostname.startsWith("admin.") ||
+                  window.location.pathname.startsWith("/admin") ||
+                  window.location.pathname.startsWith("/account/admin")
+                ) {
+                  targetPath = "/account/admin/login";
+                } else if (window.location.pathname.startsWith("/affiliate")) {
+                  targetPath = "/account/affiliate/registration";
+                } else if (window.location.pathname.startsWith("/business")) {
+                  targetPath = "/account/business/registration";
+                }
+
+                window.location.href = targetPath;
             }
         }
     })

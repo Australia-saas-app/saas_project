@@ -81,7 +81,7 @@ function VerifiedBadge() {
 
 function UnaddedBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
       Not added yet
     </span>
   )
@@ -195,9 +195,11 @@ export default function AffiliaProAffiliateProfilePage() {
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-5">
-          {/* Personal + Contact row */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <section id="personal" className={cardClass}>
+          {/* Main Profile Columns */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+            {/* Left Column: Personal + Identity */}
+            <div className="flex flex-col gap-5">
+              <section id="personal" className={cardClass}>
               <h2 className="mb-4 text-base font-bold text-gray-900">Personal Information</h2>
               <div className="mb-5 flex items-center gap-4">
                 <div className="relative">
@@ -253,95 +255,6 @@ export default function AffiliaProAffiliateProfilePage() {
               </div>
             </section>
 
-            <section id="contact" className={cardClass}>
-              <h2 className="mb-4 text-base font-bold text-gray-900">Contact Information</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className={labelClass}>Email Address</label>
-                  <div className="relative">
-                    <input className={`${inputClass} pr-24`} value={profileEmail || "Not added yet"} readOnly />
-                    {profileEmail && (
-                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
-                        <VerifiedBadge />
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Phone Number</label>
-                  <div className="relative">
-                    <input
-                      className={`${inputClass} pr-24`}
-                      value={profilePhone || "Not added yet"}
-                      readOnly
-                    />
-                    {profilePhone && (
-                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
-                        <VerifiedBadge />
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Telegram Username (Optional)</label>
-                  <input className={inputClass} value={telegram} onChange={(e) => setTelegram(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>WhatsApp Number (Optional)</label>
-                  <input className={inputClass} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button type="button" className={outlineBtn} onClick={() => save("Contact info")}>
-                  Update Contact Info
-                </button>
-              </div>
-            </section>
-          </div>
-
-          {/* Address + Identity */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <section id="address" className={cardClass}>
-              <h2 className="mb-4 text-base font-bold text-gray-900">Address</h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>Country</label>
-                  <select className={inputClass} value={country} onChange={(e) => setCountry(e.target.value)}>
-                    <option>Bangladesh</option>
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>Canada</option>
-                    <option>India</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>State / Division</label>
-                  <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>City</label>
-                  <input className={inputClass} value={city} onChange={(e) => setCity(e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>ZIP / Postal Code</label>
-                  <input className={inputClass} value={zip} onChange={(e) => setZip(e.target.value)} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>Full Address</label>
-                  <textarea
-                    className={`${inputClass} min-h-[88px] resize-y`}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button type="button" className={outlineBtn} onClick={() => save("Address")}>
-                  Update Address
-                </button>
-              </div>
-            </section>
-
             <section id="identity" className={cardClass}>
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
@@ -382,6 +295,83 @@ export default function AffiliaProAffiliateProfilePage() {
                 </button>
               </div>
             </section>
+            </div>
+
+            {/* Right Column: Contact + Address */}
+            <div className="flex flex-col gap-5">
+              <section id="contact" className={cardClass}>
+                <h2 className="mb-4 text-base font-bold text-gray-900">Contact Information</h2>
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Email Address</label>
+                    <div className="relative">
+                      <input className={`${inputClass} pr-24`} value={profileEmail || ""} readOnly />
+                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                        {profileEmail ? <VerifiedBadge /> : <UnaddedBadge />}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Phone Number</label>
+                    <div className="relative">
+                      <input
+                        className={`${inputClass} pr-24`}
+                        value={profilePhone || ""}
+                        readOnly
+                      />
+                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                        {profilePhone ? <VerifiedBadge /> : <UnaddedBadge />}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button type="button" className={outlineBtn} onClick={() => save("Contact info")}>
+                    Update Contact Info
+                  </button>
+                </div>
+              </section>
+              <section id="address" className={cardClass}>
+                <h2 className="mb-4 text-base font-bold text-gray-900">Address</h2>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>Country</label>
+                  <select className={inputClass} value={country} onChange={(e) => setCountry(e.target.value)}>
+                    <option>Bangladesh</option>
+                    <option>United States</option>
+                    <option>United Kingdom</option>
+                    <option>Canada</option>
+                    <option>India</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>State / Division</label>
+                  <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>City</label>
+                  <input className={inputClass} value={city} onChange={(e) => setCity(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>ZIP / Postal Code</label>
+                  <input className={inputClass} value={zip} onChange={(e) => setZip(e.target.value)} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>Full Address</label>
+                  <textarea
+                    className={`${inputClass} min-h-[88px] resize-y`}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button type="button" className={outlineBtn} onClick={() => save("Address")}>
+                  Update Address
+                </button>
+              </div>
+            </section>
+            </div>
           </div>
 
           {/* Preferences + Security */}
@@ -590,7 +580,7 @@ export default function AffiliaProAffiliateProfilePage() {
                     : "—"
                 },
                 { label: "Account Type", value: "Affiliate" },
-                { label: "Status", value: "Active", badge: true },
+                { label: "Status", value: status, badge: true },
                 { 
                   label: "ID", 
                   value: displayUserId
@@ -600,8 +590,8 @@ export default function AffiliaProAffiliateProfilePage() {
                   <dt className="text-gray-500">{row.label}</dt>
                   <dd>
                     {row.badge ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                        {row.value}
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                        {getStatusBadgeStyle(status).label}
                       </span>
                     ) : (
                       <span className="font-semibold text-gray-900">{row.value}</span>
@@ -658,7 +648,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <h2 className="text-base font-bold text-gray-900">Need Help?</h2>
             <p className="mt-1 text-sm text-gray-500">
               If you need help with your account, contact our support team.
