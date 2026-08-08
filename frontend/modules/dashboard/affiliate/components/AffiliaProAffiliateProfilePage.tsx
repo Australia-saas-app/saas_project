@@ -27,7 +27,7 @@ const inputClass =
 const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600"
 const cardClass = "rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6"
 const outlineBtn =
-  "inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
+  "inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600"
 const primaryBtn =
   "inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600"
 
@@ -67,7 +67,7 @@ const DEMO_DEVICES = [
 const ID_FILES = [
   { name: "ID Front Side", file: "nid_front.jpg", date: "Uploaded May 12, 2023" },
   { name: "ID Back Side", file: "nid_back.jpg", date: "Uploaded May 12, 2023" },
-  { name: "Selfie With ID", file: "selfie_id.jpg", date: "Uploaded May 12, 2023" },
+  // { name: "Selfie With ID", file: "selfie_id.jpg", date: "Uploaded May 12, 2023" },
 ]
 
 function VerifiedBadge() {
@@ -195,6 +195,41 @@ export default function AffiliaProAffiliateProfilePage() {
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-5">
+          {/* Profile preview */}
+          <section id="preview" className={cardClass}>
+            <h2 className="mb-4 text-base font-bold text-gray-900">Profile Preview</h2>
+            <div className="overflow-hidden rounded-2xl border border-gray-100">
+              <div className="relative h-36 bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 sm:h-44">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(255,255,255,0.25),transparent_55%)]" />
+              </div>
+              <div className="relative -mt-10 flex flex-col gap-4 bg-white px-4 pb-4 pt-0 sm:flex-row sm:items-end sm:px-6 sm:pb-5">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-indigo-500 text-lg font-bold text-white shadow">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1 pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-lg font-bold text-gray-900">{fullName}</p>
+                    <BadgeCheck className="h-4 w-4 text-indigo-500" />
+                  </div>
+                  <p className="text-sm text-gray-500">Affiliate Marketer</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-3 sm:grid-cols-4 sm:border-t-0 sm:pt-0 sm:pb-1">
+                  {[
+                    { label: "Links Clicks", value: isDemo ? "12,456" : "0" },
+                    { label: "Referrals", value: isDemo ? "1,234" : "0" },
+                    { label: "Earnings", value: isDemo ? "$24,567" : "$0" },
+                    { label: "Conversion Rate", value: isDemo ? "3.45%" : "0%" },
+                  ].map((s) => (
+                    <div key={s.label} className="text-center sm:text-left">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">{s.label}</p>
+                      <p className="text-sm font-bold text-gray-900">{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Main Profile Columns */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
             {/* Left Column: Personal + Identity */}
@@ -241,7 +276,7 @@ export default function AffiliaProAffiliateProfilePage() {
                 <div className="sm:col-span-2">
                   <label className={labelClass}>Bio (Optional)</label>
                   <textarea
-                    className={`${inputClass} min-h-[88px] resize-y`}
+                    className={`${inputClass} min-h-[220px] resize-y`}
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     maxLength={160}
@@ -251,47 +286,6 @@ export default function AffiliaProAffiliateProfilePage() {
               <div className="mt-4 flex justify-end">
                 <button type="button" className={primaryBtn} onClick={() => save("Profile")}>
                   Update Profile
-                </button>
-              </div>
-            </section>
-
-            <section id="identity" className={cardClass}>
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
-                <VerifiedBadge />
-              </div>
-              <dl className="mb-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs text-gray-500">ID Type</dt>
-                  <dd className="font-semibold text-gray-900">National ID Card</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-gray-500">ID Number</dt>
-                  <dd className="font-semibold text-gray-900">{isDemo ? "1234567890" : "—"}</dd>
-                </div>
-              </dl>
-              <ul className="space-y-2.5">
-                {ID_FILES.map((f) => (
-                  <li
-                    key={f.name}
-                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
-                      ID
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
-                      <p className="truncate text-[11px] text-gray-400">
-                        {f.file} · {f.date}
-                      </p>
-                    </div>
-                    <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 flex justify-end">
-                <button type="button" className={outlineBtn} onClick={() => toast.message("Verification documents are up to date")}>
-                  Update Verification
                 </button>
               </div>
             </section>
@@ -374,8 +368,49 @@ export default function AffiliaProAffiliateProfilePage() {
             </div>
           </div>
 
-          {/* Preferences + Security */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {/* Identity + Preferences */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+
+            <section id="identity" className={cardClass}>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
+                <VerifiedBadge />
+              </div>
+              <dl className="mb-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs text-gray-500">ID Type</dt>
+                  <dd className="font-semibold text-gray-900">National ID Card</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-gray-500">ID Number</dt>
+                  <dd className="font-semibold text-gray-900">{isDemo ? "1234567890" : "—"}</dd>
+                </div>
+              </dl>
+              <ul className="space-y-2.5">
+                {ID_FILES.map((f) => (
+                  <li
+                    key={f.name}
+                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600">
+                      ID
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
+                      <p className="truncate text-[11px] text-gray-400">
+                        {f.file} · {f.date}
+                      </p>
+                    </div>
+                    <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex justify-end">
+                <button type="button" className={outlineBtn} onClick={() => toast.message("Verification documents are up to date")}>
+                  Update Verification
+                </button>
+              </div>
+            </section>
             <section id="preferences" className={cardClass}>
               <h2 className="mb-4 text-base font-bold text-gray-900">Language & Currency</h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -410,46 +445,11 @@ export default function AffiliaProAffiliateProfilePage() {
                 </button>
               </div>
             </section>
-
-            <section id="security" className={cardClass}>
-              <h2 className="mb-4 text-base font-bold text-gray-900">Security</h2>
-              <ul className="divide-y divide-gray-100">
-                {[
-                  { label: "Password", value: "••••••••", href: "/affiliate/settings/change-password" },
-                  {
-                    label: "Two-Factor Authentication (2FA)",
-                    value: "Enabled",
-                    valueClass: "text-emerald-600",
-                    href: "/affiliate/settings/account-security",
-                  },
-                  {
-                    label: "Recovery Email",
-                    value: isDemo ? "john.doe.recovery@email.com" : profileEmail || "—",
-                    href: "/affiliate/settings/account-security",
-                  },
-                  {
-                    label: "Recovery Phone",
-                    value: profilePhone || "—",
-                    href: "/affiliate/settings/account-security",
-                  },
-                ].map((row) => (
-                  <li key={row.label} className="flex items-center justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{row.label}</p>
-                      <p className={`truncate text-xs ${row.valueClass || "text-gray-500"}`}>{row.value}</p>
-                    </div>
-                    <Link href={row.href} className={outlineBtn}>
-                      {row.label.includes("2FA") ? "Manage" : "Change"}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
           </div>
 
-          {/* Devices + Delete */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <section id="devices" className={cardClass}>
+          {/* Devices + Security */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+            <section id="devices" className={`${cardClass} min-w-0`}>
               <h2 className="mb-4 text-base font-bold text-gray-900">Device Management</h2>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[420px] text-left text-xs">
@@ -512,59 +512,42 @@ export default function AffiliaProAffiliateProfilePage() {
               </Link>
             </section>
 
-            <section id="delete" className={cardClass}>
-              <h2 className="mb-4 text-base font-bold text-gray-900">Delete Account</h2>
-              <div className="mb-4 flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
-                <p>
-                  Once you delete your account, there is no going back. Please be certain. All your
-                  data, earnings, and statistics will be permanently deleted.
-                </p>
-              </div>
-              <Link
-                href="/affiliate/settings/account-delete"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete My Account
-              </Link>
+            <section id="security" className={cardClass}>
+              <h2 className="mb-4 text-base font-bold text-gray-900">Security</h2>
+              <ul className="divide-y divide-gray-100">
+                {[
+                  { label: "Password", value: "••••••••", href: "/affiliate/settings/change-password" },
+                  {
+                    label: "Two-Factor Authentication (2FA)",
+                    value: "Enabled",
+                    valueClass: "text-emerald-600",
+                    href: "/affiliate/settings/account-security",
+                  },
+                  {
+                    label: "Recovery Email",
+                    value: isDemo ? "john.doe.recovery@email.com" : profileEmail || "—",
+                    href: "/affiliate/settings/account-security",
+                  },
+                  {
+                    label: "Recovery Phone",
+                    value: profilePhone || "—",
+                    href: "/affiliate/settings/account-security",
+                  },
+                ].map((row) => (
+                  <li key={row.label} className="flex items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{row.label}</p>
+                      <p className={`truncate text-xs ${row.valueClass || "text-gray-500"}`}>{row.value}</p>
+                    </div>
+                    <Link href={row.href} className={outlineBtn}>
+                      {row.label.includes("2FA") ? "Manage" : "Change"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </section>
           </div>
 
-          {/* Profile preview */}
-          <section id="preview" className={cardClass}>
-            <h2 className="mb-4 text-base font-bold text-gray-900">Profile Preview</h2>
-            <div className="overflow-hidden rounded-2xl border border-gray-100">
-              <div className="relative h-36 bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 sm:h-44">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(255,255,255,0.25),transparent_55%)]" />
-              </div>
-              <div className="relative -mt-10 flex flex-col gap-4 bg-white px-4 pb-4 pt-0 sm:flex-row sm:items-end sm:px-6 sm:pb-5">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-indigo-500 text-lg font-bold text-white shadow">
-                  {initials}
-                </div>
-                <div className="min-w-0 flex-1 pb-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-bold text-gray-900">{fullName}</p>
-                    <BadgeCheck className="h-4 w-4 text-indigo-500" />
-                  </div>
-                  <p className="text-sm text-gray-500">Affiliate Marketer</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-3 sm:grid-cols-4 sm:border-t-0 sm:pt-0 sm:pb-1">
-                  {[
-                    { label: "Links Clicks", value: isDemo ? "12,456" : "0" },
-                    { label: "Referrals", value: isDemo ? "1,234" : "0" },
-                    { label: "Earnings", value: isDemo ? "$24,567" : "$0" },
-                    { label: "Conversion Rate", value: isDemo ? "3.45%" : "0%" },
-                  ].map((s) => (
-                    <div key={s.label} className="text-center sm:text-left">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">{s.label}</p>
-                      <p className="text-sm font-bold text-gray-900">{s.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
 
         {/* Right rail */}
@@ -648,6 +631,23 @@ export default function AffiliaProAffiliateProfilePage() {
             </ul>
           </div>
 
+          <div className={cardClass}>
+            <h2 className="mb-4 text-base font-bold text-gray-900">Delete Account</h2>
+            <div className="mb-4 flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
+              <p>
+                Once you delete your account, there is no going back. Please be certain. All your
+                data, earnings, and statistics will be permanently deleted.
+              </p>
+            </div>
+            <Link
+              href="/affiliate/settings/account-delete"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete My Account
+            </Link>
+          </div>
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <h2 className="text-base font-bold text-gray-900">Need Help?</h2>
             <p className="mt-1 text-sm text-gray-500">

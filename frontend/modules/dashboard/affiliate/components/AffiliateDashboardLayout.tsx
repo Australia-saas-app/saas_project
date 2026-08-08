@@ -102,7 +102,7 @@ function initials(name: string) {
 export default function AffiliateDashboardLayout() {
   const { user } = useUser()
   const { demoOrEmpty } = useIsDemoAccount()
-  const { fullName, initials, displayUserId } = useProfileDisplay()
+  const { fullName, initials, displayUserId, status } = useProfileDisplay()
   const kpis = demoOrEmpty(AFFILIATE_KPI, EMPTY_AFFILIATE_KPI)
   const chart = demoOrEmpty(AFFILIATE_EARNINGS_CHART, [] as AffiliateEarningsPoint[])
   const links = demoOrEmpty(TOP_PERFORMING_LINKS, [] as TopLinkRow[])
