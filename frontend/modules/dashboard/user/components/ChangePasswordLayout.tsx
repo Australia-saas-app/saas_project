@@ -80,6 +80,11 @@ const ChangePasswordLayout = () => {
       return
     }
 
+    if (currentPassword === newPassword) {
+      setMessage({ type: "error", text: "New password must be different from old password." })
+      return
+    }
+
     if (newPassword.length < 6) {
       setMessage({ type: "error", text: "New password must be at least 6 characters." })
       return

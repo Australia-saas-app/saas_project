@@ -43,33 +43,38 @@ export default function AccountSecurityLayout() {
 
   const persist = async (nextEnabled: boolean) => {
     setSaving(true);
-    setEnabled(nextEnabled);
     const selectedMethod = method || verifyOptions[0] || "";
-    saveSecuritySettings({
-      twoFactorEnabled: nextEnabled,
-      twoFactorMethod: selectedMethod,
-    }, email);
-
-    // Record Real Activity Log
-    recordRealActivity(
-      nextEnabled ? "TWO_FACTOR_ENABLED" : "TWO_FACTOR_DISABLED",
-      nextEnabled
-        ? `Enabled two-factor authentication via ${selectedMethod}`
-        : "Disabled two-factor authentication",
-      { email, userId: (user as any)?.id }
-    );
 
     try {
       await updateProfile({
         twoFactorEnabled: nextEnabled,
         twoFactorMethod: selectedMethod,
       } as any);
-    } catch { }
-    setSaving(false);
-    setModalAction(null);
-    toast.success(
-      nextEnabled ? "Two-factor authentication enabled" : "Two-factor authentication disabled"
-    );
+
+      setEnabled(nextEnabled);
+      saveSecuritySettings({
+        twoFactorEnabled: nextEnabled,
+        twoFactorMethod: selectedMethod,
+      }, email);
+
+      // Record Real Activity Log
+      recordRealActivity(
+        nextEnabled ? "TWO_FACTOR_ENABLED" : "TWO_FACTOR_DISABLED",
+        nextEnabled
+          ? `Enabled two-factor authentication via ${selectedMethod}`
+          : "Disabled two-factor authentication",
+        { email, userId: (user as any)?.id }
+      );
+
+      setModalAction(null);
+      toast.success(
+        nextEnabled ? "Two-factor authentication enabled" : "Two-factor authentication disabled"
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update 2FA settings.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

@@ -54,6 +54,10 @@ export default function ChangePasswordLayout() {
       toast.error("New password and confirm password do not match.")
       return
     }
+    if (currentPassword === newPassword) {
+      toast.error("New password must be different from old password.")
+      return
+    }
 
     setSaving(true)
     try {

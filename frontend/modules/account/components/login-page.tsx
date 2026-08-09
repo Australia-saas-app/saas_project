@@ -274,13 +274,9 @@ export function LoginPage({
       badge="Secure access"
     >
 
-      {/* OTP Verification Modal Overlay */}
-      {(is2faStep || isNewDeviceStep) && typeof window !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[4px] p-4 overflow-y-auto">
-          <div
-            style={{ width: "420px", maxWidth: "calc(100vw - 32px)" }}
-            className="bg-card rounded-2xl shadow-2xl p-6 sm:p-7 border border-border animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[90vh] overflow-y-auto"
-          >
+      {/* OTP Verification Step (Inline) */}
+      {(is2faStep || isNewDeviceStep) ? (
+        <div className="flex flex-col animate-in fade-in zoom-in-95 duration-200 w-full max-w-md mx-auto">
             <div className="flex items-center gap-3 border-b border-border pb-4 mb-5">
               <button
                 type="button"
@@ -348,11 +344,8 @@ export function LoginPage({
                 <span>{loginMutation.isPending ? "Verifying & Signing in..." : "Verify & Sign in"}</span>
               </button>
             </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
+        </div>
+      ) : (
       <>
           <div className="mb-2">
             <h3 className="hidden text-xl font-bold tracking-tight text-foreground lg:block">
@@ -424,6 +417,7 @@ export function LoginPage({
             onClose={() => loginMutation.reset()} 
           />
         </>
+      )}
 
       {showModalReason && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">

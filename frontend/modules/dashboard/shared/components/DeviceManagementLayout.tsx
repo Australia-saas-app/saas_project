@@ -42,11 +42,12 @@ export default function DeviceManagementLayout() {
   const [devices, setDevices] = useState(DEMO_DEVICES)
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
-      <h2 className="mb-4 text-base font-bold text-gray-900">Device Management</h2>
-      <p className="mb-6 text-sm text-gray-500">
-        Review the devices currently signed into your account. Remove any devices you don't recognize.
-      </p>
+    <div className="flex justify-center mt-10 md:mt-20 px-4 items-start">
+      <div className="w-fit min-w-[320px] max-w-4xl rounded-2xl bg-card p-6 shadow-sm md:p-7 mx-auto bg-white border border-gray-100">
+        <h2 className="mb-4 text-base font-bold text-gray-900">Device Management</h2>
+        <p className="mb-6 text-sm text-gray-500 max-w-xl">
+          Review the devices currently signed into your account. Remove any devices you don't recognize.
+        </p>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
@@ -101,6 +102,7 @@ export default function DeviceManagementLayout() {
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   )
 }

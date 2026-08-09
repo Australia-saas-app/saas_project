@@ -660,25 +660,25 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       {/* Full Image Preview Popup Modal */}
       {previewModalOpen && documentUrl && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="relative max-w-3xl w-full bg-card rounded-2xl overflow-hidden border border-border shadow-2xl p-5 flex flex-col items-center">
+          <div className="relative w-fit min-w-[300px] max-w-3xl flex flex-col max-h-[90vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl p-5 items-center">
             <button
               onClick={() => setPreviewModalOpen(false)}
-              className="absolute top-3 right-3 p-2 text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted rounded-full transition-colors"
+              className="absolute top-3 right-3 p-2 text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted rounded-full transition-colors z-10"
             >
               <X className="w-5 h-5" />
             </button>
-            <h4 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+            <h4 className="shrink-0 text-sm font-bold text-foreground mb-4 flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Identity Document / Passport Preview
             </h4>
-            <div className="w-full max-h-[75vh] overflow-y-auto space-y-4 rounded-xl border border-border bg-black/5 p-4">
+            <div className="w-full overflow-y-auto space-y-4 rounded-xl border border-border bg-black/5 p-4 flex-1">
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold uppercase text-muted-foreground mb-2">Front ID</span>
-                <img src={parsedDocs.front} alt="Front Document Full View" className="w-full object-contain rounded-lg" />
+                <img src={parsedDocs.front} alt="Front Document Full View" className="max-w-full h-auto object-contain rounded-lg" />
               </div>
               {parsedDocs.isDual && (
                 <div className="flex flex-col items-center pt-4 border-t border-border">
                   <span className="text-xs font-bold uppercase text-muted-foreground mb-2">Back ID</span>
-                  <img src={parsedDocs.back} alt="Back Document Full View" className="w-full object-contain rounded-lg" />
+                  <img src={parsedDocs.back} alt="Back Document Full View" className="max-w-full h-auto object-contain rounded-lg" />
                 </div>
               )}
             </div>

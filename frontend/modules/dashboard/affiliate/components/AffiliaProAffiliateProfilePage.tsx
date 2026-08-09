@@ -318,7 +318,6 @@ export default function AffiliaProAffiliateProfilePage() {
       if (currency !== (hookCurrency || "USD - US Dollar")) patch.currency = currency;
 
       await updateProfile(patch);
-      recordRealActivity("PROFILE_UPDATED", "Affiliate updated Personal Information", { userId: rawUserId, email: profileEmail, name: fullName });
       toast.success("Personal Information Updated Successfully");
       setUsernameError("");
     } catch (e: any) {
@@ -372,7 +371,6 @@ export default function AffiliaProAffiliateProfilePage() {
           address
         }
       });
-      recordRealActivity("ADDRESS_UPDATED", "Affiliate updated Address information", { userId: rawUserId, email: profileEmail, name: fullName });
       toast.success("Address Updated Successfully");
     } catch (e: any) {
       toast.error(e?.message || "Failed to update address.");
@@ -927,8 +925,8 @@ export default function AffiliaProAffiliateProfilePage() {
 
       {previewModalOpen && previewDoc && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div className="w-fit min-w-[300px] max-w-3xl flex flex-col max-h-[90vh] rounded-2xl bg-white shadow-2xl">
+            <div className="shrink-0 flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-gray-900">{previewDoc.title}</h3>
                 {previewDoc.name && <p className="text-xs text-gray-500 mt-0.5">{previewDoc.name}</p>}
@@ -941,8 +939,8 @@ export default function AffiliaProAffiliateProfilePage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 bg-slate-50 rounded-b-2xl flex items-center justify-center">
-              <img src={previewDoc.url} alt={previewDoc.title} className="max-w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-sm border border-gray-200" />
+            <div className="p-6 bg-slate-50 rounded-b-2xl overflow-auto flex justify-center">
+              <img src={previewDoc.url} alt={previewDoc.title} className="max-w-full h-auto object-contain rounded-lg shadow-sm border border-gray-200" />
             </div>
           </div>
         </div>

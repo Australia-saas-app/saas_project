@@ -22,6 +22,7 @@ import {
   UserStatus,
   KycStatus,
   TwoFactorMethod,
+  Gender,
 } from '../../entities/user.entity';
 import { Admin } from '../../entities/admin.entity';
 import { KycApplication } from '../../entities/kyc-application.entity';
@@ -960,9 +961,26 @@ export class AuthService {
 
     assignIf('profilePhoto', dto.profilePhoto);
     assignIf('fullName', dto.fullName);
-    assignIf('username', dto.username);
+    if (dto.username !== undefined && dto.username !== user.username) {
+      if (dto.username) {
+        const existing = await this.userRepository.findOne({ where: { username: dto.username } });
+        if (existing && existing.userId !== user.userId) {
+          throw new BadRequestException('Username is already taken');
+        }
+      }
+      user.username = dto.username || (null as unknown as string);
+    }
     assignIf('bio', dto.bio);
-    assignIf('gender', dto.gender);
+    if (dto.gender !== undefined) {
+      if (dto.gender === '' || dto.gender === null) {
+        user.gender = null as unknown as Gender;
+      } else {
+        const normalizedGender = String(dto.gender).toLowerCase().trim() as Gender;
+        if (Object.values(Gender).includes(normalizedGender)) {
+          user.gender = normalizedGender;
+        }
+      }
+    }
     assignIf('nationality', dto.nationality);
     assignIf('permanentAddress', dto.permanentAddress);
     assignIf('governmentId', dto.governmentId);
@@ -970,7 +988,13 @@ export class AuthService {
     assignIf('idDocument', dto.idDocument);
     assignIf('phone', dto.phone);
     assignIf('email', dto.email);
-    assignIf('currency', dto.currency);
+    if (dto.currency !== undefined) {
+      if (dto.currency) {
+        user.currency = String(dto.currency).split(' ')[0].substring(0, 10).trim(); // Prevent varchar(10) overflow and extract ISO code
+      } else {
+        user.currency = 'USD';
+      }
+    }
     assignIf('passportNumber', dto.passportNumber);
     assignIf('twoFactorEnabled', dto.twoFactorEnabled);
 
@@ -1418,6 +1442,10 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Incorrect old password');
+    }
+
+    if (oldPassword === newPassword) {
+      throw new BadRequestException('New password must be different from old password');
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
