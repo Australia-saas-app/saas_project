@@ -42,40 +42,40 @@ export default function DeviceManagementLayout() {
   const [devices, setDevices] = useState(DEMO_DEVICES)
 
   return (
-    <div className="flex justify-center mt-10 md:mt-20 px-4 items-start">
-      <div className="w-fit min-w-[320px] max-w-4xl rounded-2xl bg-card p-6 shadow-sm md:p-7 mx-auto bg-white border border-gray-100">
-        <h2 className="mb-4 text-base font-bold text-gray-900">Device Management</h2>
-        <p className="mb-6 text-sm text-gray-500 max-w-xl">
+    <div className="mt-4 md:mt-8">
+      <div className="w-full max-w-3xl rounded-2xl bg-card p-6 shadow-sm md:p-7 border border-border">
+        <h2 className="mb-4 text-base font-bold text-card-foreground">Device Management</h2>
+        <p className="mb-6 text-sm text-muted-foreground max-w-xl">
           Review the devices currently signed into your account. Remove any devices you don't recognize.
         </p>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
-            <tr className="border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-400">
+            <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
               <th className="pb-2 font-semibold">Device</th>
               <th className="pb-2 font-semibold">Location</th>
               <th className="pb-2 font-semibold">Last Active</th>
               <th className="pb-2 font-semibold">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-border">
             {devices.map((d) => {
               const Icon = d.icon
               return (
-                <tr key={d.id} className="text-gray-700">
+                <tr key={d.id} className="text-card-foreground">
                   <td className="py-3 pr-2">
                     <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-gray-400" />
+                      <Icon className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="font-semibold text-gray-900">{d.name}</p>
-                        <p className="text-[11px] text-gray-400">{d.detail}</p>
+                        <p className="font-semibold text-card-foreground">{d.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{d.detail}</p>
                       </div>
                     </div>
                   </td>
                   <td className="py-3 pr-2">
                     <p>{d.location}</p>
-                    <p className="text-[11px] text-gray-400">{d.ip}</p>
+                    <p className="text-[11px] text-muted-foreground">{d.ip}</p>
                   </td>
                   <td className="py-3 pr-2">{d.lastActive}</td>
                   <td className="py-3">

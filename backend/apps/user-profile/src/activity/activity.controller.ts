@@ -58,6 +58,13 @@ export class ActivityController {
     );
   }
 
+  @Delete('internal/:userId')
+  @ApiOperation({ summary: 'Internal backend-to-backend activity deletion' })
+  async deleteInternalActivities(@Param('userId') userId: string) {
+    await this.activityService.deleteAllActivities(userId);
+    return { success: true };
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')

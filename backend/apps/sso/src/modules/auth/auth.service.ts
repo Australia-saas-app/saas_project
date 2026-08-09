@@ -812,7 +812,7 @@ export class AuthService {
         'employees', 'blogs', 'files', 'folders', 'file_shares', 'file_versions', 'real_estate_properties',
         'contacts', 'branches', 'notification_schedules', 'notification_channels', 'technical_services',
         'technical_categories', 'projects', 'project_messages', 'project_tasks', 'blog_tags', 'blog_categories',
-        'order_status_history', 'construction_categories', 'construction_services'
+        'order_status_history', 'construction_categories', 'construction_services', 'kyc_application'
       ];
 
       // Helper to safely execute a query without aborting the main transaction on error
@@ -850,6 +850,16 @@ export class AuthService {
         await safeDelete(`DELETE FROM "blogs" WHERE "authorId" = $1`, [user.id]);
         await safeDelete(`DELETE FROM "employees" WHERE "managerId" = $1`, [user.userId]);
         await safeDelete(`DELETE FROM "employees" WHERE "managerId" = $1`, [user.id]);
+      }
+
+      // Hard delete all MongoDB Activity Logs internally
+      try {
+        const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
+        await fetch(`${userProfileUrl}/activity/internal/${user.userId}`, {
+          method: 'DELETE',
+        }).catch(e => console.error("Internal log delete warning", e));
+      } catch (err) {
+        console.error("Failed to delete MongoDB logs", err);
       }
 
       // Permanent hard delete of user entity from database
@@ -923,7 +933,7 @@ export class AuthService {
 
     if (user.accountType === AccountType.AFFILIATE) {
       const dobStr =
-        dto.dateOfBirth || (user.dateOfBirth && user.dateOfBirth.toISOString());
+        dto.dateOfBirth || (user.dateOfBirth ? new Date(user.dateOfBirth).toISOString() : null);
       if (dobStr) {
         const birthDate = new Date(dobStr);
         const age = Math.floor(
@@ -939,7 +949,7 @@ export class AuthService {
 
     if (user.accountType === AccountType.BUSINESS) {
       const dobStr =
-        dto.dateOfBirth || (user.dateOfBirth && user.dateOfBirth.toISOString());
+        dto.dateOfBirth || (user.dateOfBirth ? new Date(user.dateOfBirth).toISOString() : null);
       if (dobStr) {
         const birthDate = new Date(dobStr);
         const age = Math.floor(

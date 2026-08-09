@@ -63,7 +63,7 @@ export default function AccountSecurityLayout() {
         nextEnabled
           ? `Enabled two-factor authentication via ${selectedMethod}`
           : "Disabled two-factor authentication",
-        { email, userId: (user as any)?.id }
+        { email, name: (user as any)?.fullName || (user as any)?.firstName, userId: (user as any)?.id }
       );
 
       setModalAction(null);
