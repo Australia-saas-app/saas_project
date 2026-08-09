@@ -419,12 +419,16 @@ export class AuthService {
 
       const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'Unknown IP';
       const actualIp = clientIp.split(',')[0].trim();
-      const deviceIdentifier = loginDto.deviceId ? loginDto.deviceId : actualIp;
+      const deviceIdentifier = loginDto.deviceId || 'unknown-device';
+
+      if (deviceIdentifier === 'unknown-device') {
+        throw new BadRequestException('Device ID is required for secure login');
+      }
 
       if (!user.trustedIps || user.trustedIps.length === 0) {
-        user.trustedIps = Array.from(new Set([deviceIdentifier, actualIp]));
+        user.trustedIps = Array.from(new Set([deviceIdentifier]));
         await this.userRepository.save(user);
-      } else if (!user.trustedIps.includes(deviceIdentifier) && !user.trustedIps.includes(actualIp)) {
+      } else if (!user.trustedIps.includes(deviceIdentifier)) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
 
         if (loginDto.otp) {
@@ -432,7 +436,7 @@ export class AuthService {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          user.trustedIps = Array.from(new Set([...user.trustedIps, deviceIdentifier, actualIp]));
+          user.trustedIps = Array.from(new Set([...user.trustedIps, deviceIdentifier]));
           await this.userRepository.save(user);
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);
@@ -956,6 +960,8 @@ export class AuthService {
 
     assignIf('profilePhoto', dto.profilePhoto);
     assignIf('fullName', dto.fullName);
+    assignIf('username', dto.username);
+    assignIf('bio', dto.bio);
     assignIf('gender', dto.gender);
     assignIf('nationality', dto.nationality);
     assignIf('permanentAddress', dto.permanentAddress);

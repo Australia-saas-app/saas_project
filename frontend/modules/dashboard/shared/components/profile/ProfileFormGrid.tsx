@@ -580,19 +580,28 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
                   <button
                     type="button"
                     onClick={async () => {
-                      setDocumentUrl("");
-                      setGovernmentIdType("");
-                      updateProfile({ documentUrl: "", governmentIdType: "" });
-                      if (rawUserId) {
-                        clearProfileDocuments(rawUserId);
-                        saveProfileOverrides(rawUserId, { documentUrl: "", governmentIdType: "" });
+                      try {
+                        const res = await completeUserProfile({ idDocument: "", governmentIdType: "" });
+                        if (res && res.success === false) {
+                          throw new Error(res.message || "Failed to update database");
+                        }
+                        
+                        setDocumentUrl("");
+                        setGovernmentIdType("");
+                        updateProfile({ documentUrl: "", governmentIdType: "" });
+                        if (rawUserId) {
+                          clearProfileDocuments(rawUserId);
+                          saveProfileOverrides(rawUserId, { documentUrl: "", governmentIdType: "" });
+                        }
+                        
+                        if (typeof window !== "undefined") {
+                          window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
+                        }
+                        onDocumentChange?.();
+                        toast.success("Document removed successfully");
+                      } catch (error: any) {
+                        toast.error(`Failed to remove document: ${error?.message || "Unknown error"}`);
                       }
-                      await completeUserProfile({ idDocument: "", governmentIdType: "" }).catch(() => undefined);
-                      if (typeof window !== "undefined") {
-                        window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-                      }
-                      onDocumentChange?.();
-                      toast.success("Document removed successfully");
                     }}
                     className="inline-flex flex-1 md:flex-none items-center justify-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all"
                     title="Remove Document"

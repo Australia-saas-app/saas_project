@@ -11,7 +11,7 @@ export const ProfileTabs = [
   { id: "profile", label: "Profile", component: ProfilePageLayout, url: PROFILE_BASE },
   {
     id: "affiliate-log",
-    label: "Affiliate log",
+    label: "Logs",
     component: AffiliateLogLayout,
     url: `${PROFILE_BASE}/affiliate-log`,
   },

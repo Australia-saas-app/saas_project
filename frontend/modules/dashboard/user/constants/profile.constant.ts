@@ -3,7 +3,7 @@ export const SETTINGS_BASE = "/user/settings"
 
 export const ProfileTabs = [
   { id: "profile", label: "Profile", url: PROFILE_BASE },
-  { id: "user-log", label: "User log", url: `${PROFILE_BASE}/user-log` },
+  { id: "user-log", label: "Logs", url: `${PROFILE_BASE}/user-log` },
 ] as const
 
 export const SettingsTabs = [

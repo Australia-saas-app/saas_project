@@ -119,8 +119,14 @@ export class User {
   })
   roles: Role[];
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   fullName: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true, unique: true })
+  username: string;
+
+  @Column({ type: 'text', nullable: true })
+  bio: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   email: string;

@@ -678,6 +678,8 @@ export class AuthService {
 
     assignIf('profilePhoto', dto.profilePhoto);
     assignIf('fullName', dto.fullName);
+    assignIf('username', dto.username);
+    assignIf('bio', dto.bio);
     assignIf('gender', dto.gender);
     assignIf('nationality', dto.nationality);
     assignIf('permanentAddress', dto.permanentAddress);

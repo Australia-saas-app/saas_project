@@ -24,6 +24,8 @@ export class CompleteProfileDto {
   // Common
   @IsOptional() @IsString() profilePhoto?: string;
   @IsOptional() @IsString() fullName?: string;
+  @IsOptional() @IsString() username?: string;
+  @IsOptional() @IsString() bio?: string;
   @IsOptional() @IsDateString() dateOfBirth?: string;
   @IsOptional() @IsString() gender?: string;
   @IsOptional() @IsString() nationality?: string;

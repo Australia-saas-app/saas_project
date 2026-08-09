@@ -12,7 +12,7 @@ export const ProfileTabs = [
   { id: "profile", label: "Profile", component: ProfilePageLayout, url: PROFILE_BASE },
   {
     id: "business-log",
-    label: "Business log",
+    label: "Logs",
     component: BusinessLogLayout,
     url: `${PROFILE_BASE}/business-log`,
   },

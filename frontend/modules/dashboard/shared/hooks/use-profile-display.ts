@@ -376,27 +376,6 @@ export function useProfileDisplay() {
   )
 
   const updateProfile = async (patch: ProfileDataPatch) => {
-    saveProfileOverrides(rawUserId, patch)
-    setRevision((n) => n + 1)
-    
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-      
-      // Broadcast across tabs via BroadcastChannel
-      try {
-        if ("BroadcastChannel" in window) {
-          const bc = new BroadcastChannel("vero_channel");
-          bc.postMessage({ type: "vero:profile_updated", userId: rawUserId });
-          bc.close();
-        }
-      } catch {}
-
-      // Broadcast across tabs via Storage Event
-      try {
-        localStorage.setItem("vero_profile_sync", JSON.stringify({ userId: rawUserId, timestamp: Date.now() }));
-      } catch {}
-    }
-    
     try {
       if (!isDemo) {
         const payload: Record<string, any> = {};
@@ -441,6 +420,29 @@ export function useProfileDisplay() {
           recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
         }
       }
+
+      // ONLY save to cache if the API request succeeds or if we are in demo mode
+      saveProfileOverrides(rawUserId, patch);
+      setRevision((n) => n + 1);
+      
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
+        
+        // Broadcast across tabs via BroadcastChannel
+        try {
+          if ("BroadcastChannel" in window) {
+            const bc = new BroadcastChannel("vero_channel");
+            bc.postMessage({ type: "vero:profile_updated", userId: rawUserId });
+            bc.close();
+          }
+        } catch {}
+
+        // Broadcast across tabs via Storage Event
+        try {
+          localStorage.setItem("vero_profile_sync", JSON.stringify({ userId: rawUserId, timestamp: Date.now() }));
+        } catch {}
+      }
+
     } catch (e) {
       console.error("Failed to sync profile to backend", e);
       throw e;

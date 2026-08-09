@@ -406,7 +406,7 @@ export default function AffiliaProAffiliateProfilePage() {
     if (!nationality) missingFields.push("Nationality");
     if (!nationalIdentity) missingFields.push("ID Number");
     if (!documentFrontUrl) missingFields.push("Front ID Document");
-    if (!documentBackUrl) missingFields.push("Back ID Document");
+    if (idType !== "Passport" && !documentBackUrl) missingFields.push("Back ID Document");
     if (!avatarUrl) missingFields.push("Profile Photo");
 
     if (missingFields.length > 0) {
@@ -577,10 +577,10 @@ export default function AffiliaProAffiliateProfilePage() {
                     </label>
                     <select className={inputClass} value={gender} onChange={(e) => setGender(e.target.value)}>
                       <option value="Select" disabled>Select</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                      <option value="Prefer not to say">Prefer not to say</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="">Prefer not to say</option>
                     </select>
                   </div>
                   <div>
@@ -909,23 +909,20 @@ export default function AffiliaProAffiliateProfilePage() {
       <KycApplicationModal
         isOpen={isKycModalOpen}
         onClose={() => setIsKycModalOpen(false)}
+        user={{
+          ...user,
+          fullName, email: profileEmail, phone: profilePhone,
+          nationality, nationalIdentity: idNumber, governmentIdType: idType, dateOfBirth,
+          permanentAddress: { country, city, state, zipCode: zip, address },
+          avatarUrl, profilePhoto: avatarUrl,
+          documentUrl, 
+          documentFrontUrl, 
+          documentBackUrl,
+          updateProfile
+        }}
         kycStatus={kycStatus}
         isKycVerified={isKycVerified}
         onSuccess={() => window.location.reload()}
-        user={{
-          rawUserId,
-          displayUserId: rawUserId,
-          fullName,
-          email: profileEmail,
-          nationality,
-          nationalIdentity,
-          governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
-          avatarUrl,
-          documentUrl,
-          documentFrontUrl,
-          documentBackUrl,
-          kycApplicationData: (user as any)?.kycApplicationData
-        }}
       />
 
       {previewModalOpen && previewDoc && (

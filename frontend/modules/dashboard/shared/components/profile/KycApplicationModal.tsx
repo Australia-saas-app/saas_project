@@ -294,10 +294,8 @@ export default function KycApplicationModal({
               return addr || {};
             })();
             const displayAccountType = (() => {
-              const rawType = String(snap.accountType || user.accountType || user.accountLabel || user.role || "user").toLowerCase();
-              if (rawType.includes("agency") || rawType.includes("affiliate")) return "Affiliate";
-              if (rawType.includes("business")) return "Business";
-              return "User";
+              const rawAccountType = String(snap.accountType || user.accountType || user.accountLabel || user.role || "user");
+              return rawAccountType.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
             })();
             const displayAppliedAt = snap.appliedAt ? new Date(snap.appliedAt).toLocaleDateString() : new Date().toLocaleDateString();
 

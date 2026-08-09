@@ -166,13 +166,23 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
     if (!userId || deletingId) return;
 
     setDeletingId(doc.id);
+    const prevDocuments = [...documents];
     setDocuments(prev => prev.filter(d => d.id !== doc.id));
 
     try {
       const currentUrl = dbDocumentUrl || "";
       const updatedDocUrl = computeUrlAfterDelete(currentUrl, doc.id);
 
-      // Save local overrides
+      // Save to DB via completeUserProfile FIRST
+      const res = await completeUserProfile({
+        idDocument: updatedDocUrl || null,
+      });
+
+      if (res && res.success === false) {
+        throw new Error(res.message || "Failed to update database");
+      }
+
+      // Save local overrides only if DB save succeeded
       saveProfileOverrides(userId, { documentUrl: updatedDocUrl });
 
       // If all documents deleted, clear local documents storage
@@ -180,11 +190,6 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
         clearProfileDocuments(userId);
         setDocuments([]);
       }
-
-      // Save to DB via completeUserProfile
-      await completeUserProfile({
-        idDocument: updatedDocUrl || null,
-      }).catch(() => undefined);
 
       let docLabel = "KYC identification";
       if (doc.type === "FRONT ID") docLabel = "FRONT_ID";
@@ -199,9 +204,11 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
 
       onRemove?.();
       toast.success(`${doc.name} successfully deleted`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete document", error);
-      toast.error(`Failed to delete ${doc.name}`);
+      toast.error(`Failed to delete ${doc.name}: ${error?.message || "Unknown error"}`);
+      // Revert the optimistic UI deletion
+      setDocuments(prevDocuments);
     } finally {
       setDeletingId(null);
     }
@@ -249,9 +256,19 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
       const updatedDocUrl = computeUpdatedDocUrl(dbDocumentUrl || "", newFileUrl, uploadSlot);
 
       // Persist to DB & local overrides
-      await completeUserProfile({ idDocument: updatedDocUrl }).catch(() => undefined);
-      saveProfileOverrides(userId, { documentUrl: updatedDocUrl });
-      setProfileDocument(userId, doc);
+      try {
+        const res = await completeUserProfile({ idDocument: updatedDocUrl });
+        if (res && res.success === false) {
+          throw new Error(res.message || "Failed to update database");
+        }
+        
+        saveProfileOverrides(userId, { documentUrl: updatedDocUrl });
+        setProfileDocument(userId, doc);
+      } catch (err: any) {
+        console.error("Upload failed", err);
+        toast.error(`Failed to upload ${docName}: ${err?.message || "Unknown error"}`);
+        return;
+      }
 
       recordRealActivity("DOCUMENT_UPLOADED", "User uploaded KYC identification document", { userId });
 
