@@ -69,7 +69,10 @@ export function LoginPage({
     reason === "session_superseded" || reason === "inactivity" ? reason : null
   );
 
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    setIsMounted(true);
     if (reason === "session_superseded" || reason === "inactivity") {
       setShowModalReason(reason);
     }
@@ -419,8 +422,8 @@ export function LoginPage({
         </>
       )}
 
-      {showModalReason && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 overflow-y-auto">
+      {isMounted && showModalReason && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[4px] p-4 overflow-y-auto">
           <div
             style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
             className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
@@ -449,7 +452,8 @@ export function LoginPage({
               OK
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </AuthShell>
   );

@@ -35,9 +35,10 @@ export function SessionSync() {
           window.location.hostname.startsWith("admin.") ||
           window.location.pathname.startsWith("/admin") ||
           window.location.pathname.startsWith("/account/admin"));
+      const roleStr = String((user as any)?.role || "").toLowerCase();
       let rolePath = "user";
-      if ((user as any)?.role === "business") rolePath = "business";
-      if ((user as any)?.role === "affiliate") rolePath = "affiliate";
+      if (roleStr === "business" || roleStr === "seller") rolePath = "business";
+      if (roleStr === "affiliate") rolePath = "affiliate";
 
       const targetPath = isAdminApp ? `/account/admin/login?reason=${reason}` : `/account/${rolePath}/login?reason=${reason}`;
       window.location.href = targetPath;
