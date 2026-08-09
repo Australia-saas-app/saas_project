@@ -54,7 +54,7 @@ export default function Header() {
     let accountType = "user";
     try {
       if (user) {
-        accountType = (user as any)?.accountType || "user";
+        accountType = ((user as any)?.accountType || (user as any)?.role || "user").toLowerCase();
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
         await recordRealActivity(
           "USER_LOGOUT",
@@ -77,7 +77,15 @@ export default function Header() {
         sessionStorage.setItem("manual_logout", "true");
       } catch {}
 
-      window.location.href = "/";
+      let cleanPath = "/account/user/login";
+      if (accountType === "admin") {
+        cleanPath = "/account/admin/login";
+      } else if (accountType === "affiliate") {
+        cleanPath = "/account/affiliate/login";
+      } else if (accountType === "business") {
+        cleanPath = "/account/business/login";
+      }
+      window.location.href = cleanPath;
     }
   };
 

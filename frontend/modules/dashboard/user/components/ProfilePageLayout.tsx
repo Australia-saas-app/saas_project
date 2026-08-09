@@ -12,7 +12,7 @@ import { useUser } from "@/src/shared/context/user.provider";
 
 export default function ProfilePageLayout() {
   const { refreshUser } = useUser() || {};
-  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, nationalIdentity, permanentAddress, kycApplicationData } = useProfileDisplay();
+  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -207,6 +207,7 @@ export default function ProfilePageLayout() {
           email,
           nationality,
           dateOfBirth,
+          gender,
           nationalIdentity,
           governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
           permanentAddress,

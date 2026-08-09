@@ -118,7 +118,7 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
           window.location.pathname.startsWith("/admin") ||
           window.location.pathname.startsWith("/account/admin");
       
-      const accountType = (user as any)?.accountType || "user";
+      const accountType = ((user as any)?.accountType || (user as any)?.role || "user").toLowerCase();
       let targetPath = "/account/user/login?reason=inactivity";
       if (isAdminApp) {
         targetPath = "/account/admin/login?reason=inactivity";

@@ -311,7 +311,7 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
             >
               {/* Preview */}
               {isImage && fileUrl ? (
-                <a href={fileUrl} target="_blank" rel="noreferrer" className="block relative">
+                <div className="block relative">
                   <div className="h-36 w-full bg-muted overflow-hidden">
                     <img
                       src={fileUrl}
@@ -319,7 +319,7 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
                       className="h-full w-full object-cover hover:scale-105 transition-transform duration-200"
                     />
                   </div>
-                </a>
+                </div>
               ) : (
                 <div className="h-36 w-full bg-muted/40 flex items-center justify-center">
                   {isPdf(fileUrl) ? (

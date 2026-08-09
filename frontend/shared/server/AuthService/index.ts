@@ -427,6 +427,7 @@ export const getCurrentUser = async () => {
           createdAt,
           publicId,
           internalId,
+          gender,
         } = data.data;
         // Merge only DB-sourced fields; don't overwrite JWT claims
         if (profilePhoto !== undefined) merged.profilePhoto = profilePhoto;
@@ -447,6 +448,7 @@ export const getCurrentUser = async () => {
         if (twoFactorEnabled !== undefined) merged.twoFactorEnabled = twoFactorEnabled;
         if (twoFactorMethod !== undefined) merged.twoFactorMethod = twoFactorMethod;
         if (createdAt !== undefined) merged.createdAt = createdAt;
+        if (gender !== undefined) merged.gender = gender;
         if (publicId !== undefined) {
           merged.userId = publicId;
           merged.publicId = publicId;

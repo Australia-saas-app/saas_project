@@ -29,7 +29,7 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
     let accountType = "user";
     try {
       if (user) {
-        accountType = (user as any)?.accountType || "user";
+        accountType = ((user as any)?.accountType || (user as any)?.role || "user").toLowerCase();
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
         await recordRealActivity(
           "USER_LOGOUT",

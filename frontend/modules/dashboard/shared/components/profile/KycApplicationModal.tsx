@@ -62,6 +62,7 @@ export default function KycApplicationModal({
         const snapData = {
           fullName: user.fullName,
           email: user.email,
+          gender: user.gender,
           nationality: user.nationality,
           governmentId: user.nationalIdentity || user.governmentId,
           governmentIdType: user.governmentIdType || (getProfileOverrides(uid) as any).governmentIdType || "NID",
@@ -159,7 +160,7 @@ export default function KycApplicationModal({
     if (!front) front = docUrl || "";
 
     const imgClass =
-      "w-full h-full object-contain hover:scale-105 transition-transform duration-200 cursor-pointer";
+      "w-full h-full object-contain hover:scale-105 transition-transform duration-200";
     const wrapClass =
       "rounded-xl border border-border dark:border-slate-700 overflow-hidden bg-muted dark:bg-slate-800/60 aspect-video w-full";
 
@@ -178,9 +179,9 @@ export default function KycApplicationModal({
           </a>
         </div>
       ) : (
-        <a href={src} target="_blank" rel="noreferrer" className="block h-full">
+        <div className="block h-full">
           <img src={src} alt={alt} className={imgClass} />
-        </a>
+        </div>
       );
 
     if (front && back) {
@@ -272,6 +273,9 @@ export default function KycApplicationModal({
             const displayDob = isViewMode
               ? (snap.dateOfBirth || "N/A")
               : (snap.dateOfBirth || user.dateOfBirth);
+            const displayGender = isViewMode
+              ? (snap.gender || "N/A")
+              : (snap.gender || user.gender);
             const displayPermAddress = (() => {
               let addr = isViewMode
                 ? snap.permanentAddress
@@ -320,6 +324,7 @@ export default function KycApplicationModal({
                       { label: "Full Name", value: displayFullName },
                       { label: "Email Address", value: displayEmail },
                       { label: "Account Type", value: displayAccountType },
+                      { label: "Gender", value: displayGender },
                       { label: "Nationality", value: displayNationality },
                       { label: "Government ID Type", value: displayGovtIdType },
                       { label: "Government ID", value: displayGovtId },
@@ -358,11 +363,10 @@ export default function KycApplicationModal({
                         KYC Application ID
                       </span>
                       <p className="font-mono font-bold text-foreground text-sm">
-                        {user.displayUserId
-                          ? `KYC-${user.displayUserId}`
-                          : user.rawUserId
-                          ? `KYC-${user.rawUserId}`
-                          : "N/A"}
+                        {(() => {
+                          const id = user.displayUserId || user.rawUserId || user.id;
+                          return id ? `KYC-${id}` : "N/A";
+                        })()}
                       </p>
                     </div>
 

@@ -906,6 +906,7 @@ export class AuthService {
         profilePhoto: user.profilePhoto,
         idDocument: user.idDocument,
         nationality: user.nationality,
+        gender: user.gender,
         dateOfBirth: user.dateOfBirth,
         governmentId: user.governmentId,
         governmentIdType: user.governmentIdType,

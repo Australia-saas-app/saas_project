@@ -162,6 +162,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             const govtIdType = snap.governmentIdType || user.governmentIdType || "NID";
             const govtId = snap.governmentId || user.governmentId || user.nationalIdentity;
             const dob = snap.dateOfBirth || user.dateOfBirth;
+            const gender = snap.gender || user.gender;
             const address = (() => {
               let addr = snap.permanentAddress || user.permanentAddress;
               if (typeof addr === "string") {
@@ -197,7 +198,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   <div className="flex-1 space-y-4 relative z-10">
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Account ID</span>
-                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-base">{user.userId || user.publicId || user.id || "N/A"}</p>
+                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-base">{user.displayUserId || user.userId || user.publicId || user.id || "N/A"}</p>
                     </div>
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Full Name</span>
@@ -210,6 +211,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Account Type</span>
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{accountType}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Gender</span>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{gender || "N/A"}</p>
                     </div>
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Nationality</span>
@@ -245,7 +250,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     <div className="text-center md:text-right">
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>
                       <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm">
-                        {user.userId ? `KYC-${user.userId}` : (user.id ? `KYC-${user.id}` : "N/A")}
+                        {(() => {
+                          const id = user.displayUserId || user.userId || user.id;
+                          return id ? `KYC-${id}` : "N/A";
+                        })()}
                       </p>
                     </div>
                     <div className="text-center md:text-right">
@@ -321,17 +329,13 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-500 uppercase">Front ID</p>
                       <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full">
-                        <a href={front} target="_blank" rel="noreferrer">
-                          <img src={front} alt="Front ID Document" className="w-full h-full object-contain p-1" />
-                        </a>
+                          <img src={front} alt="Front ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                       </div>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-500 uppercase">Back ID</p>
                       <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full">
-                        <a href={back} target="_blank" rel="noreferrer">
-                          <img src={back} alt="Back ID Document" className="w-full h-full object-contain p-1" />
-                        </a>
+                          <img src={back} alt="Back ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                       </div>
                     </div>
                   </div>
@@ -346,9 +350,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                       <span className="text-sm font-medium">PDF Document</span>
                     </div>
                   ) : (
-                    <a href={docUrl} target="_blank" rel="noreferrer">
-                      <img src={docUrl} alt="ID Document" className="w-full h-full object-contain p-1" />
-                    </a>
+                      <img src={docUrl} alt="ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                   )}
                 </div>
               );
