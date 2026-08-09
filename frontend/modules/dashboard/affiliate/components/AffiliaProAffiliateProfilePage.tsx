@@ -26,7 +26,7 @@ import KycApplicationModal from "../../shared/components/profile/KycApplicationM
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 import SelectDropdown from "@/src/shared/components/SelectDropdown"
-import { ALL_COUNTRIES } from "@/src/shared/constants/countries"
+import { ALL_COUNTRIES, ALL_NATIONALITIES } from "@/src/shared/constants/countries"
 import { recordRealActivity, getLogsForUser, LOG_ADDED_EVENT } from "@/src/shared/lib/real-activity-logger"
 
 const inputClass =
@@ -68,7 +68,7 @@ export default function AffiliaProAffiliateProfilePage() {
   const { isDemo } = useIsDemoAccount()
   const {
     rawUserId, displayUserId, isActive, status, isKycVerified, kycStatus,
-    documentUrl, documentFrontUrl, documentBackUrl, documentFrontName, documentBackName, nationality, nationalIdentity,
+    documentUrl, documentFrontUrl, documentBackUrl, documentFrontName, documentBackName, nationality: hookNationality, nationalIdentity,
     avatarUrl, updateProfile, dateOfBirth, kycApplicationData,
     fullName, email: profileEmail, phone: profilePhone, initials,
     username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
@@ -109,6 +109,7 @@ export default function AffiliaProAffiliateProfilePage() {
 
   const [username, setUsername] = useState(hookUsername || (isDemo ? "johndoe_affiliate" : ""))
   const [gender, setGender] = useState(hookGender || "Select")
+  const [nationality, setNationality] = useState(hookNationality || "")
   const [dob, setDob] = useState(dateOfBirth || (isDemo ? "1990-05-15" : ""))
   const [bio, setBio] = useState(
     hookBio || (isDemo ? "Affiliate marketer and digital entrepreneur." : "")
@@ -299,7 +300,8 @@ export default function AffiliaProAffiliateProfilePage() {
 
     if (
       username === (hookUsername || "") &&
-      gender === (hookGender || "") &&
+      gender === (hookGender || "Select") &&
+      nationality === (hookNationality || "") &&
       dob === (dateOfBirth || "") &&
       bio === (hookBio || "") &&
       currency === (hookCurrency || "USD - US Dollar")
@@ -312,7 +314,8 @@ export default function AffiliaProAffiliateProfilePage() {
     try {
       const patch: any = {};
       if (username !== (hookUsername || "")) patch.username = username;
-      if (gender !== (hookGender || "")) patch.gender = gender;
+      if (gender !== (hookGender || "Select")) patch.gender = gender;
+      if (nationality !== (hookNationality || "")) patch.nationality = nationality;
       if (dob !== (dateOfBirth || "")) patch.dateOfBirth = dob;
       if (bio !== (hookBio || "")) patch.bio = bio;
       if (currency !== (hookCurrency || "USD - US Dollar")) patch.currency = currency;
@@ -587,7 +590,19 @@ export default function AffiliaProAffiliateProfilePage() {
                     </label>
                     <input type="date" className={inputClass} value={dob} onChange={(e) => setDob(e.target.value)} />
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-1">
+                    <label className={labelClass}>
+                      Nationality <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <SelectDropdown
+                      value={nationality}
+                      onChange={setNationality}
+                      placeholder="Select nationality..."
+                      required
+                      options={ALL_NATIONALITIES.map((nat: string) => ({ label: nat, value: nat }))}
+                    />
+                  </div>
+                  <div className="sm:col-span-1">
                     <label className={labelClass}>Currency</label>
                     <select className={inputClass} value={currency} onChange={(e) => setCurrency(e.target.value)}>
                       <option>USD - US Dollar</option>

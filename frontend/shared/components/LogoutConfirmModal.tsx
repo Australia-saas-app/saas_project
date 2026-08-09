@@ -14,7 +14,7 @@ interface LogoutConfirmModalProps {
 }
 
 export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutConfirmModalProps) {
-  const { setUser } = useUser();
+  const { user, setUser } = useUser();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -26,13 +26,17 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    let accountType = "user";
     try {
-      const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
-      await recordRealActivity(
-        "USER_LOGOUT",
-        "User logged out successfully",
-        { userId: (setUser as any)?.userId || "user" }
-      ).catch(() => undefined);
+      if (user) {
+        accountType = (user as any)?.accountType || "user";
+        const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
+        await recordRealActivity(
+          "USER_LOGOUT",
+          "User logged out successfully",
+          { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
+        ).catch(() => undefined);
+      }
       await logout();
       setUser(null);
     } catch (error) {
@@ -81,7 +85,14 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
         window.location.pathname.startsWith("/admin") ||
         window.location.pathname.startsWith("/account/admin");
 
-      const cleanPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
+      let cleanPath = "/account/user/login";
+      if (isAdminApp) {
+        cleanPath = "/account/admin/login";
+      } else if (accountType === "affiliate") {
+        cleanPath = "/account/affiliate/login";
+      } else if (accountType === "business") {
+        cleanPath = "/account/business/login";
+      }
       window.location.href = cleanPath;
     }
   };

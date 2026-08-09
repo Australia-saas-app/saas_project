@@ -51,8 +51,10 @@ export default function Header() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    let accountType = "user";
     try {
       if (user) {
+        accountType = (user as any)?.accountType || "user";
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
         await recordRealActivity(
           "USER_LOGOUT",
@@ -75,20 +77,7 @@ export default function Header() {
         sessionStorage.setItem("manual_logout", "true");
       } catch {}
 
-      const isLandingPage = pathname === "/" || pathname === "";
-      if (isLandingPage) {
-        window.location.href = "/";
-        return;
-      }
-
-      const isAdminApp =
-        window.location.port === "3001" ||
-        window.location.hostname.startsWith("admin.") ||
-        window.location.pathname.startsWith("/admin") ||
-        window.location.pathname.startsWith("/account/admin");
-
-      const cleanPath = isAdminApp ? "/account/admin/login" : "/account/user/login";
-      window.location.href = cleanPath;
+      window.location.href = "/";
     }
   };
 

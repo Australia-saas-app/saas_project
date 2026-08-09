@@ -118,7 +118,15 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
           window.location.pathname.startsWith("/admin") ||
           window.location.pathname.startsWith("/account/admin");
       
-      const targetPath = isAdminApp ? "/account/admin/login?reason=inactivity" : "/?reason=inactivity";
+      const accountType = (user as any)?.accountType || "user";
+      let targetPath = "/account/user/login?reason=inactivity";
+      if (isAdminApp) {
+        targetPath = "/account/admin/login?reason=inactivity";
+      } else if (accountType === "affiliate") {
+        targetPath = "/account/affiliate/login?reason=inactivity";
+      } else if (accountType === "business") {
+        targetPath = "/account/business/login?reason=inactivity";
+      }
       window.location.href = targetPath;
     }
   }, [user]);
