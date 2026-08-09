@@ -35,7 +35,19 @@ export default function DashboardVerificationGate({ children }: { children: Reac
         window.location.replace("/account/user/login");
       } else {
         const returnUrl = encodeURIComponent(pathname || "/dashboard");
-        window.location.replace(`/account/user/login?redirect=${returnUrl}`);
+        const currentUrl = new URL(window.location.href);
+        const reason = currentUrl.searchParams.get("reason");
+        
+        let rolePath = "user";
+        if (pathname.includes("/dashboard/business")) rolePath = "business";
+        if (pathname.includes("/dashboard/affiliate")) rolePath = "affiliate";
+        if (pathname.includes("/admin")) rolePath = "admin";
+        
+        const loginUrl = rolePath === "admin" 
+          ? `/account/admin/login?redirect=${returnUrl}${reason ? `&reason=${reason}` : ""}`
+          : `/account/${rolePath}/login?redirect=${returnUrl}${reason ? `&reason=${reason}` : ""}`;
+          
+        window.location.replace(loginUrl);
       }
     }
     return (

@@ -9,7 +9,14 @@ export function useRequireAuth() {
   const router = useRouter()
   const pathname = usePathname()
 
-  const loginUrl = `/account/user/login?redirect=${encodeURIComponent(pathname)}`
+  let rolePath = "user";
+  if (pathname.includes("/dashboard/business")) rolePath = "business";
+  if (pathname.includes("/dashboard/affiliate")) rolePath = "affiliate";
+  if (pathname.includes("/admin")) rolePath = "admin";
+  
+  const loginUrl = rolePath === "admin"
+    ? `/account/admin/login?redirect=${encodeURIComponent(pathname)}`
+    : `/account/${rolePath}/login?redirect=${encodeURIComponent(pathname)}`;
 
   const requireAuth = useCallback(
     (action: () => void) => {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Loader2, Trash2, X } from "lucide-react";
+import { Loader2, Trash2, X, Shield } from "lucide-react";
 
 interface BackendUser {
   userId: string;
@@ -43,7 +43,8 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
 
   const fullName = user.fullName || "User";
   const email = user.email || user.phone || "No Email/Phone";
-  const role = String(user.accountType || user.role || "USER").toUpperCase();
+  const rawRole = String(user.accountType || user.role || "USER");
+  const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
   const createdAt = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "NA";
   const currentStatus = (user.status || "PENDING").toUpperCase();
 
@@ -134,9 +135,14 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
                   <span className="text-slate-400 font-semibold text-xs block">Email</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{email}</span>
                 </div>
-                <div>
-                  <span className="text-slate-400 font-semibold text-xs block">Role</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">{role}</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                    <Shield className="w-5 h-5 text-slate-500" />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-semibold text-xs block">Account Type</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{role}</span>
+                  </div>
                 </div>
                 <div>
                   <span className="text-slate-400 font-semibold text-xs block">Created At</span>

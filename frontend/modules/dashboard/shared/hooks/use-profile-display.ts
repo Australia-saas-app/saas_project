@@ -400,17 +400,17 @@ export function useProfileDisplay() {
     try {
       if (!isDemo) {
         const payload: Record<string, any> = {};
-        if (patch.fullName) payload.fullName = patch.fullName;
-        if (patch.dateOfBirth) payload.dateOfBirth = patch.dateOfBirth;
-        if (patch.nationality) payload.nationality = patch.nationality;
-        if (patch.nationalIdentity) payload.governmentId = patch.nationalIdentity;
-        if ((patch as any).governmentIdType) payload.governmentIdType = (patch as any).governmentIdType;
-        if ((patch as any).permanentAddress) payload.permanentAddress = (patch as any).permanentAddress;
-        if (patch.documentUrl) payload.idDocument = patch.documentUrl;
-        if (patch.avatarUrl) payload.profilePhoto = patch.avatarUrl;
-        if (patch.currency) payload.currency = patch.currency;
-        if (patch.phone) payload.phone = patch.phone;
-        if (patch.accountType) payload.accountType = String(patch.accountType).toLowerCase();
+        if (patch.fullName !== undefined) payload.fullName = patch.fullName;
+        if (patch.dateOfBirth !== undefined) payload.dateOfBirth = patch.dateOfBirth;
+        if (patch.nationality !== undefined) payload.nationality = patch.nationality;
+        if (patch.nationalIdentity !== undefined) payload.governmentId = patch.nationalIdentity;
+        if ((patch as any).governmentIdType !== undefined) payload.governmentIdType = (patch as any).governmentIdType;
+        if ((patch as any).permanentAddress !== undefined) payload.permanentAddress = (patch as any).permanentAddress;
+        if (patch.documentUrl !== undefined) payload.idDocument = patch.documentUrl;
+        if (patch.avatarUrl !== undefined) payload.profilePhoto = patch.avatarUrl;
+        if (patch.currency !== undefined) payload.currency = patch.currency;
+        if (patch.phone !== undefined) payload.phone = patch.phone;
+        if (patch.accountType !== undefined) payload.accountType = String(patch.accountType).toLowerCase();
         if ((patch as any).twoFactorEnabled !== undefined) payload.twoFactorEnabled = (patch as any).twoFactorEnabled;
         if ((patch as any).twoFactorMethod !== undefined) payload.twoFactorMethod = (patch as any).twoFactorMethod;
         if (patch.username !== undefined) payload.username = patch.username;

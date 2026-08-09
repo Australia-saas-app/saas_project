@@ -91,6 +91,7 @@ const AllBusinessTable: React.FC = () => {
         let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
           userId: u.userId || u.id,
           businessId: u.userId || (u.id || '').slice(0,5),
+          accountType: u.accountType || 'business',
           fullName: u.businessName || u.fullName || 'Unknown Business',
           email: u.email,
           phone: u.phone,

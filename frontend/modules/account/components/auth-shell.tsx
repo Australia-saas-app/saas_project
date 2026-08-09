@@ -23,7 +23,7 @@ export function AuthShell({
   wide = false,
 }: AuthShellProps) {
   return (
-    <div className="grid flex-1 lg:grid-cols-[1fr_1.05fr]">
+    <div className="grid min-h-[100dvh] flex-1 lg:grid-cols-[1fr_1.05fr]">
       {/* Brand panel — homepage navy/blue palette */}
       <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#06153A] via-[#1D4ED8] to-[#2563EB] lg:flex lg:flex-col lg:justify-between lg:p-12">
         <div

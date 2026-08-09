@@ -188,9 +188,12 @@ export default function AffiliaProAffiliateProfilePage() {
       let updatedBack = side === "back" ? "" : backDoc;
 
       let newDocumentUrl = "";
-      if (updatedFront && updatedBack) newDocumentUrl = JSON.stringify([updatedFront, updatedBack]);
-      else if (updatedFront) newDocumentUrl = JSON.stringify([updatedFront, ""]);
-      else if (updatedBack) newDocumentUrl = JSON.stringify(["", updatedBack]);
+      if (updatedFront || updatedBack) {
+        newDocumentUrl = JSON.stringify([
+          { url: updatedFront, name: side === "front" ? "" : frontDocName },
+          { url: updatedBack, name: side === "back" ? "" : backDocName }
+        ]);
+      }
 
       await updateProfile({ documentUrl: newDocumentUrl });
       recordRealActivity("DOCUMENT_DELETED", `Affiliate deleted ${side === 'front' ? 'FRONT_ID' : 'BACK_ID'} document`, { userId: rawUserId, email: profileEmail, name: fullName });
@@ -396,8 +399,18 @@ export default function AffiliaProAffiliateProfilePage() {
       return;
     }
 
-    if (!fullName || (!profilePhone && !profileEmail) || !dob || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
-      toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
+    const missingFields: string[] = [];
+    if (!fullName) missingFields.push("Full Name");
+    if (!profilePhone && !profileEmail) missingFields.push("Phone or Email");
+    if (!dob) missingFields.push("Date of Birth");
+    if (!nationality) missingFields.push("Nationality");
+    if (!nationalIdentity) missingFields.push("ID Number");
+    if (!documentFrontUrl) missingFields.push("Front ID Document");
+    if (!documentBackUrl) missingFields.push("Back ID Document");
+    if (!avatarUrl) missingFields.push("Profile Photo");
+
+    if (missingFields.length > 0) {
+      toast.error(`Please complete the following missing fields before applying for KYC: ${missingFields.join(', ')}`);
       return;
     }
 
@@ -463,10 +476,10 @@ export default function AffiliaProAffiliateProfilePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-5">
+      <div className="flex flex-col xl:grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="contents xl:block xl:min-w-0 xl:space-y-5">
           {/* Profile preview */}
-          <section id="preview" className={`${cardClass} xl:h-[318px]`}>
+          <section id="preview" className={`${cardClass} order-1 xl:order-none xl:h-[318px] w-full`}>
             <h2 className="mb-4 text-base font-bold text-gray-900">Profile Preview</h2>
             <div className="overflow-hidden rounded-2xl border border-gray-100">
               <div className="relative h-36 bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 sm:h-44">
@@ -507,7 +520,7 @@ export default function AffiliaProAffiliateProfilePage() {
           </section>
 
           {/* Main Profile Columns */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="order-4 xl:order-none w-full grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
             {/* Left Column: Personal + Identity */}
             <div className="flex flex-col gap-5">
               <section id="personal" className={cardClass}>
@@ -799,8 +812,8 @@ export default function AffiliaProAffiliateProfilePage() {
         </div>
 
         {/* Right rail */}
-        <aside className="space-y-5">
-          <div className={`${cardClass} xl:h-[318px] flex flex-col`}>
+        <aside className="contents xl:block xl:space-y-5">
+          <div className={`${cardClass} xl:h-[318px] flex flex-col order-2 xl:order-none w-full`}>
             <h2 className="mb-4 text-base font-bold text-gray-900">Account Overview</h2>
             <dl className="space-y-3 text-sm">
               {[
@@ -854,7 +867,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </dl>
           </div>
 
-          <div className={`${cardClass} flex flex-col justify-center`}>
+          <div className={`${cardClass} flex flex-col justify-center order-3 xl:order-none w-full`}>
             <h2 className="mb-3 text-base font-bold text-gray-900">Quick Links</h2>
             <ul className="space-y-1">
               {[
@@ -880,7 +893,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm order-5 xl:order-none w-full">
             <h2 className="text-base font-bold text-gray-900">Need Help?</h2>
             <p className="mt-1 text-sm text-gray-500">
               If you need help with your account, contact our support team.

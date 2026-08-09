@@ -93,6 +93,7 @@ const AllAffiliateTable: React.FC = () => {
         let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
           userId: u.userId || u.id,
           affiliateId: u.userId || (u.id || '').slice(0,5),
+          accountType: u.accountType || 'affiliate',
           fullName: u.fullName || 'Unknown',
           email: u.email,
           phone: u.phone,

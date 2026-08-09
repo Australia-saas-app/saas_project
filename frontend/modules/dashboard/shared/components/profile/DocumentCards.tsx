@@ -186,7 +186,11 @@ export default function DocumentCards({ userId, dbDocumentUrl, onUpload, onRemov
         idDocument: updatedDocUrl || null,
       }).catch(() => undefined);
 
-      recordRealActivity("DOCUMENT_DELETED", "User deleted KYC identification document", { userId });
+      let docLabel = "KYC identification";
+      if (doc.type === "FRONT ID") docLabel = "FRONT_ID";
+      if (doc.type === "BACK ID") docLabel = "BACK_ID";
+
+      recordRealActivity("DOCUMENT_DELETED", `User deleted ${docLabel} document`, { userId });
 
       // Trigger global event so previews everywhere update instantly
       if (typeof window !== "undefined") {
