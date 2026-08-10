@@ -464,13 +464,15 @@ export function useProfileDisplay() {
   const dbKycStatus = (user && "kycStatus" in user && user.kycStatus) ? String(user.kycStatus).toLowerCase() : "none";
   const overrideKyc = (overrides.kycStatus ? String(overrides.kycStatus).toLowerCase() : "");
 
-  const kycStatus = (
-    overrideKyc && overrideKyc !== "none" 
-      ? overrideKyc 
-      : dbKycStatus !== "none" 
-        ? dbKycStatus 
-        : "none"
-  ).toLowerCase();
+  let kycStatus = "none";
+  if (dbKycStatus === "approved" || dbKycStatus === "rejected") {
+    // Definitive admin actions ALWAYS override local optimistic updates
+    kycStatus = dbKycStatus;
+  } else if (overrideKyc && overrideKyc !== "none") {
+    kycStatus = overrideKyc;
+  } else if (dbKycStatus !== "none") {
+    kycStatus = dbKycStatus;
+  }
 
   const twoFactorEnabled =
     (overrides as any).twoFactorEnabled !== undefined

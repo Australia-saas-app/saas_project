@@ -33,7 +33,7 @@ export default function KycQueuePage() {
     queryKey: ["kyc-users", token],
     queryFn: async () => {
       if (!token) return [];
-      const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
+      const response = await fetch('/admin/api/sso/auth/admin/users?limit=all&hasKyc=true', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Network error');

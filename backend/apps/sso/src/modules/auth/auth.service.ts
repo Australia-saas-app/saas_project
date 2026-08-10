@@ -1128,6 +1128,10 @@ export class AuthService {
         qb.andWhere('user.currency = :currency', { currency: query.currency });
       }
 
+      if (query.hasKyc === 'true' || query.hasKyc === true) {
+        qb.andWhere("user.kycStatus IS NOT NULL AND user.kycStatus != 'none'");
+      }
+
       if (query.startDate) {
         qb.andWhere('user.createdAt >= :startDate', { startDate: new Date(query.startDate) });
       }
@@ -1143,12 +1147,22 @@ export class AuthService {
       }
       const users = await qb.getMany();
 
-      const userIds = users.map(u => u.userId).filter(Boolean);
+      const kycUserIds = users
+        .filter((u) => u.kycStatus && String(u.kycStatus).toLowerCase() !== 'none')
+        .map((u) => u.userId)
+        .filter(Boolean);
+
       let kycRecords: KycApplication[] = [];
-      if (userIds.length > 0) {
-        kycRecords = await this.kycApplicationRepository.find({
-          where: { userId: In(userIds) }
-        });
+      if (kycUserIds.length > 0) {
+        // Fetch in chunks of 500 to avoid Postgres IN clause limits
+        const chunkSize = 500;
+        for (let i = 0; i < kycUserIds.length; i += chunkSize) {
+          const chunk = kycUserIds.slice(i, i + chunkSize);
+          const records = await this.kycApplicationRepository.find({
+            where: { userId: In(chunk) }
+          });
+          kycRecords = kycRecords.concat(records);
+        }
       }
 
       const sanitizedUsers = users.map((user) => {

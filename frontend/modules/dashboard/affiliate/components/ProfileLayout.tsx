@@ -101,9 +101,9 @@ const ProfileLayout = () => {
 
         {/* Status Badge */}
         {activeTab === 'profile' && (displayKycStatus === 'pending' || displayKycStatus === 'submitted' || isKycVerified || displayKycStatus === 'rejected') && (
-          <div className={`px-2 py-1 rounded-md flex items-center gap-1.5 border mt-1 shrink-0 ${isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
-              : displayKycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700'
-                : 'bg-amber-500/10 border-amber-500/20 text-amber-700'
+          <div className={`px-2 py-1 rounded-md flex items-center gap-1.5 border mt-1 shrink-0 ${isKycVerified ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400'
+              : displayKycStatus === 'rejected' ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400'
+                : 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-500/10 dark:border-yellow-500/20 dark:text-yellow-400'
             }`}>
             <span className="font-bold text-[9px] uppercase tracking-wider">Status:</span>
             <span className="font-black text-[9px] uppercase tracking-wider">
