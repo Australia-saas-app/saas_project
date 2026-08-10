@@ -155,7 +155,13 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
           {/* Details grid */}
           {(() => {
-            const snap = user.kycApplicationData || {};
+            const snap = (() => {
+              const d = user.kycApplicationData || {};
+              if (typeof d === "string") {
+                try { return JSON.parse(d); } catch { return {}; }
+              }
+              return d;
+            })();
             const fullName = snap.fullName || user.fullName;
             const email = snap.email || user.email || user.phone;
             const nationality = snap.nationality || user.nationality;
@@ -238,8 +244,8 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   <div className="flex-1 space-y-4 w-full">
                     <div className="flex justify-center md:justify-end mb-4">
                       <div className="h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
-                        {user.profilePhoto || user.avatarUrl ? (
-                          <img src={user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                        {(snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl) ? (
+                          <img src={snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-slate-300 dark:text-slate-600 font-bold text-2xl">
                             {(fullName || "U").charAt(0).toUpperCase()}
@@ -301,10 +307,16 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           <div className="mb-4 relative z-10">
             <h4 className="font-bold text-md text-slate-800 dark:text-slate-100 mb-3">Attached Documents</h4>
             {(() => {
-              const snap = user.kycApplicationData || {};
+              const snap = (() => {
+                const d = user.kycApplicationData || {};
+                if (typeof d === "string") {
+                  try { return JSON.parse(d); } catch { return {}; }
+                }
+                return d;
+              })();
               const rawDocUrl = snap.idDocument || snap.documentUrl || user.idDocument || user.documentUrl;
               
-              if (!rawDocUrl) {
+              if (!rawDocUrl && !snap.documentFrontUrl && !user.documentFrontUrl) {
                 return (
                   <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
                     <ShieldAlert className="h-4 w-4" />
@@ -381,13 +393,25 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               </span>
               <p className="font-serif italic font-bold text-xl text-blue-600 dark:text-blue-500 tracking-wide border-b-2 border-blue-600/40 pb-1 px-6 inline-block">
                 {(() => {
-                  const snap = user.kycApplicationData || {};
+                  const snap = (() => {
+                    const d = user.kycApplicationData || {};
+                    if (typeof d === "string") {
+                      try { return JSON.parse(d); } catch { return {}; }
+                    }
+                    return d;
+                  })();
                   return snap.fullName || user.fullName || "Applicant Signature";
                 })()}
               </p>
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-1">
                 Verified Digital Signee — {(() => {
-                  const snap = user.kycApplicationData || {};
+                  const snap = (() => {
+                    const d = user.kycApplicationData || {};
+                    if (typeof d === "string") {
+                      try { return JSON.parse(d); } catch { return {}; }
+                    }
+                    return d;
+                  })();
                   return snap.email || user.email || snap.fullName || user.fullName;
                 })()}
               </p>

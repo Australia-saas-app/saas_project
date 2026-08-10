@@ -22,7 +22,7 @@ async function handleProxy(req: NextRequest, props: { params: Promise<{ path: st
   const params = await props.params;
   const pathString = params.path.join('/');
   const backendUrl =
-    process.env.USER_PROFILE_BACKEND_URL || 'http://localhost:3005/user-profile-service';
+    process.env.USER_PROFILE_BACKEND_URL || (process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/user-profile-service` : 'http://saas-backend:3001/user-profile-service');
 
   const searchParams = req.nextUrl.search;
   const targetUrl = `${backendUrl}/${pathString}${searchParams}`;

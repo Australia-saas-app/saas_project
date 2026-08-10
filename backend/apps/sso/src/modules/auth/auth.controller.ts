@@ -187,7 +187,8 @@ export class AuthController {
     if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
-    return this.authService.updateUserStatus(userId, body.status, body.reason || 'Status changed', (req.user as any).email);
+    const ipAddress = req.ip || req.headers?.['x-forwarded-for'] || '127.0.0.1';
+    return this.authService.updateUserStatus(userId, body.status, body.reason || 'Status changed', (req.user as any).email, typeof ipAddress === 'string' ? ipAddress : ipAddress[0]);
   }
 
   @Patch('admin/users/:userId/kyc-status')
@@ -200,7 +201,8 @@ export class AuthController {
     if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
       throw new ForbiddenException('Admin access required');
     }
-    return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email);
+    const ipAddress = req.ip || req.headers?.['x-forwarded-for'] || '127.0.0.1';
+    return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email, typeof ipAddress === 'string' ? ipAddress : ipAddress[0]);
   }
 
   @Post('users/:userId/kyc/apply')

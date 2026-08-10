@@ -1237,7 +1237,7 @@ export class AuthService {
     };
   }
 
-  async updateUserStatus(userId: string, status: string, reason: string, adminEmail: string | undefined) {
+  async updateUserStatus(userId: string, status: string, reason: string, adminEmail: string | undefined, ipAddress: string = '127.0.0.1') {
     status = status.toLowerCase();
     if (status === 'suspend') status = 'suspended';
     if (status === 'block') status = 'blocked';
@@ -1277,7 +1277,8 @@ export class AuthService {
           action: 'ACCOUNT_STATUS_CHANGED',
           resource: `Account status updated to ${status} by administrator`,
           details: { userId: user.userId, email: user.email, name: user.fullName, newStatus: status, changedBy: adminEmail },
-          userAgent: 'Admin Backend'
+          userAgent: 'Admin Backend',
+          ipAddress
         })
       }).catch(() => undefined);
     } catch { }
@@ -1297,7 +1298,7 @@ export class AuthService {
     };
   }
 
-  async updateKycStatus(userId: string, kycStatus: string, reason: string, adminEmail: string | undefined) {
+  async updateKycStatus(userId: string, kycStatus: string, reason: string, adminEmail: string | undefined, ipAddress: string = '127.0.0.1') {
     const user = await this.findUserByAnyId(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -1322,7 +1323,8 @@ export class AuthService {
           action: kycStatus === 'approved' ? 'KYC_APPROVED' : 'KYC_REJECTED',
           resource: `KYC application ${kycStatus} by administrator`,
           details: { userId: user.userId, email: user.email, name: user.fullName, kycStatus, reason, changedBy: adminEmail },
-          userAgent: 'Admin Backend'
+          userAgent: 'Admin Backend',
+          ipAddress
         })
       }).catch(() => undefined);
     } catch { }

@@ -69,6 +69,8 @@ export default function KycApplicationModal({
           dateOfBirth: user.dateOfBirth,
           permanentAddress: user.permanentAddress,
           idDocument: user.documentUrl || user.idDocument,
+          documentFrontUrl: user.documentFrontUrl,
+          documentBackUrl: user.documentBackUrl,
           avatarUrl: user.avatarUrl || user.profilePhoto,
           appliedAt: new Date().toISOString(),
         };
@@ -125,7 +127,13 @@ export default function KycApplicationModal({
 
   /* ---- Document rendering helper ---- */
   const renderDocuments = () => {
-    const snap = user.kycApplicationData || {};
+    const snap = (() => {
+      const d = user.kycApplicationData || {};
+      if (typeof d === "string") {
+        try { return JSON.parse(d); } catch { return {}; }
+      }
+      return d;
+    })();
     // In view mode, ONLY use documents from the saved snapshot
     const docUrl = isViewMode
       ? (snap.idDocument || snap.documentUrl || null)
@@ -260,7 +268,13 @@ export default function KycApplicationModal({
 
           {/* Details grid */}
           {(() => {
-            const snap = user.kycApplicationData || {};
+            const snap = (() => {
+              const d = user.kycApplicationData || {};
+              if (typeof d === "string") {
+                try { return JSON.parse(d); } catch { return {}; }
+              }
+              return d;
+            })();
             // In view mode (pending/approved/rejected), ONLY show data from the saved snapshot.
             // Never fall back to live profile — changes to profile must NOT affect the frozen application.
             const displayFullName = isViewMode ? (snap.fullName || "N/A") : (snap.fullName || user.fullName);

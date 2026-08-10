@@ -20,6 +20,12 @@ async function handleProxy(req: NextRequest, props: { params: Promise<{ path: st
       }
     });
 
+    // Forward the real IP
+    const clientIp = req.headers.get('x-forwarded-for') || (req as any).ip || '127.0.0.1';
+    if (!headers.has('x-forwarded-for')) {
+      headers.set('x-forwarded-for', clientIp);
+    }
+
     const init: RequestInit = {
       method: req.method,
       headers,

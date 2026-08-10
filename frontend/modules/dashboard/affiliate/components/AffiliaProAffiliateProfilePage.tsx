@@ -483,9 +483,9 @@ export default function AffiliaProAffiliateProfilePage() {
                     {isKycVerified && (
                       <div className="group relative flex items-center">
                         <BadgeCheck className="h-4 w-4 text-blue-500" />
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] font-medium text-white shadow-sm z-50">
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 dark:bg-slate-100 px-2 py-1 text-[10px] font-medium text-white dark:text-slate-900 shadow-sm z-50">
                           Account Verified
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800 dark:border-t-slate-100" />
                         </div>
                       </div>
                     )}
