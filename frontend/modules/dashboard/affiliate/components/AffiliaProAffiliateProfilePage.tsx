@@ -714,7 +714,7 @@ export default function AffiliaProAffiliateProfilePage() {
           </div>
 
           {/* Identity Verification */}
-          <div className="grid grid-cols-1 gap-5">
+          <div className="grid grid-cols-1 gap-5 order-5 xl:order-none w-full">
             <section id="identity" className={`${cardClass} flex flex-col`}>
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
@@ -896,7 +896,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm order-5 xl:order-none w-full">
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm order-6 xl:order-none w-full">
             <h2 className="text-base font-bold text-gray-900">Need Help?</h2>
             <p className="mt-1 text-sm text-gray-500">
               If you need help with your account, contact our support team.

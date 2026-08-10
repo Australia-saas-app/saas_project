@@ -9,7 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, DeepPartial, DataSource } from 'typeorm';
+import { Repository, FindOptionsWhere, DeepPartial, DataSource, In } from 'typeorm';
 import { QueryFailedError } from 'typeorm/error/QueryFailedError';
 import { Request } from 'express';
 import * as bcrypt from 'bcrypt';
@@ -1143,8 +1143,20 @@ export class AuthService {
       }
       const users = await qb.getMany();
 
+      const userIds = users.map(u => u.userId).filter(Boolean);
+      let kycRecords: KycApplication[] = [];
+      if (userIds.length > 0) {
+        kycRecords = await this.kycApplicationRepository.find({
+          where: { userId: In(userIds) }
+        });
+      }
+
       const sanitizedUsers = users.map((user) => {
         const { password, ...rest } = user as any;
+        const kyc = kycRecords.find(k => k.userId === user.userId);
+        if (kyc && kyc.applicationData) {
+          rest.kycApplicationData = kyc.applicationData;
+        }
         return rest;
       });
 
@@ -1231,6 +1243,12 @@ export class AuthService {
     }
 
     const { password, ...sanitizedUser } = user as any;
+    
+    const kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+    if (kycRecord && kycRecord.applicationData) {
+      sanitizedUser.kycApplicationData = kycRecord.applicationData;
+    }
+
     return {
       success: true,
       data: sanitizedUser,
