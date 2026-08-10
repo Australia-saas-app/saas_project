@@ -406,18 +406,28 @@ export function useProfileDisplay() {
           recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
         }
 
-        const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
-        if (hasOtherUpdates) {
-          recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
+        const hasAddressUpdates = patch.permanentAddress !== undefined;
+        const hasPersonalUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'nationalIdentity' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted' && k !== 'permanentAddress');
+        
+        if (hasAddressUpdates) {
+          recordRealActivity("PROFILE_UPDATED", "User updated account address information", { userId: rawUserId, email, name: fullName });
+        }
+        if (hasPersonalUpdates) {
+          recordRealActivity("PROFILE_UPDATED", "User updated account personal information", { userId: rawUserId, email, name: fullName });
         }
       } else {
         if (patch.avatarUrl) {
           recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
         }
 
-        const hasOtherUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted');
-        if (hasOtherUpdates) {
-          recordRealActivity("PROFILE_UPDATED", "User updated account profile information", { userId: rawUserId, email, name: fullName });
+        const hasAddressUpdates = patch.permanentAddress !== undefined;
+        const hasPersonalUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'nationalIdentity' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted' && k !== 'permanentAddress');
+        
+        if (hasAddressUpdates) {
+          recordRealActivity("PROFILE_UPDATED", "User updated account address information", { userId: rawUserId, email, name: fullName });
+        }
+        if (hasPersonalUpdates) {
+          recordRealActivity("PROFILE_UPDATED", "User updated account personal information", { userId: rawUserId, email, name: fullName });
         }
       }
 

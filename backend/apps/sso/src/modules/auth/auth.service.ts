@@ -427,9 +427,9 @@ export class AuthService {
       }
 
       if (!user.trustedIps || user.trustedIps.length === 0) {
-        user.trustedIps = Array.from(new Set([deviceIdentifier]));
+        user.trustedIps = Array.from(new Set([deviceIdentifier, actualIp]));
         await this.userRepository.save(user);
-      } else if (!user.trustedIps.includes(deviceIdentifier)) {
+      } else if (!user.trustedIps.includes(deviceIdentifier) && !user.trustedIps.includes(actualIp)) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
 
         if (loginDto.otp) {
@@ -437,7 +437,7 @@ export class AuthService {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          user.trustedIps = Array.from(new Set([...user.trustedIps, deviceIdentifier]));
+          user.trustedIps = Array.from(new Set([...user.trustedIps, deviceIdentifier, actualIp]));
           await this.userRepository.save(user);
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);
@@ -1341,7 +1341,7 @@ export class AuthService {
     };
   }
 
-  async applyForKyc(userId: string) {
+  async applyForKyc(userId: string, clientApplicationData?: any) {
     const user = await this.findUserByAnyId(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -1381,16 +1381,18 @@ export class AuthService {
     // ── NONE or REJECTED — snapshot current profile into kyc_application table ─
     const isResubmission = user.kycStatus === KycStatus.REJECTED;
     const applicationData = {
-      fullName: user.fullName,
-      email: user.email,
-      gender: (user as any).gender,
-      nationality: user.nationality,
-      governmentId: user.governmentId || (user as any).nationalIdentity,
-      governmentIdType: user.governmentIdType || 'NID',
-      dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
-      permanentAddress: user.permanentAddress || { country: '', city: '', state: '', zipCode: '', address: '' },
-      idDocument: user.idDocument,
-      avatarUrl: user.profilePhoto || (user as any).avatarUrl,
+      fullName: clientApplicationData?.fullName || user.fullName,
+      email: clientApplicationData?.email || user.email,
+      gender: clientApplicationData?.gender || (user as any).gender,
+      nationality: clientApplicationData?.nationality || user.nationality,
+      governmentId: clientApplicationData?.governmentId || user.governmentId || (user as any).nationalIdentity,
+      governmentIdType: clientApplicationData?.governmentIdType || user.governmentIdType || 'NID',
+      dateOfBirth: clientApplicationData?.dateOfBirth || (user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : ''),
+      permanentAddress: clientApplicationData?.permanentAddress || user.permanentAddress || { country: '', city: '', state: '', zipCode: '', address: '' },
+      idDocument: clientApplicationData?.idDocument || clientApplicationData?.documentUrl || user.idDocument,
+      documentFrontUrl: clientApplicationData?.documentFrontUrl || (user as any).documentFrontUrl,
+      documentBackUrl: clientApplicationData?.documentBackUrl || (user as any).documentBackUrl,
+      avatarUrl: clientApplicationData?.avatarUrl || user.profilePhoto || (user as any).avatarUrl,
       appliedAt: new Date().toISOString(),
       ...(isResubmission ? { resubmittedAt: new Date().toISOString() } : {}),
     };

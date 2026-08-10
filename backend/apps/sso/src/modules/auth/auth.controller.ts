@@ -209,6 +209,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   applyForKyc(
     @Param('userId') userId: string,
+    @Body() body: any,
     @Request() req: any,
   ) {
     const authUserId = req.user?.userId || req.user?.id || req.user?.sub;
@@ -222,7 +223,7 @@ export class AuthController {
     ) {
        throw new ForbiddenException('You can only apply for your own KYC');
     }
-    return this.authService.applyForKyc(targetId || authUserId);
+    return this.authService.applyForKyc(targetId || authUserId, body);
   }
 
   @Patch('change-password')

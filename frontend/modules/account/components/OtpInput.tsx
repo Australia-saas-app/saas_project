@@ -67,7 +67,7 @@ export function OtpInput({ value, onChange, length = 6, disabled = false }: OtpI
   };
 
   return (
-    <div className="flex justify-between gap-2 sm:gap-3 w-full max-w-[360px] mx-auto">
+    <div className="flex justify-between gap-1.5 sm:gap-3 w-full max-w-[360px] mx-auto">
       {Array.from({ length }).map((_, index) => {
         const char = value[index] || "";
         return (
@@ -84,7 +84,7 @@ export function OtpInput({ value, onChange, length = 6, disabled = false }: OtpI
             onKeyDown={(e) => handleKeyDown(e, index)}
             onPaste={handlePaste}
             disabled={disabled}
-            className={`w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold rounded-xl 
+            className={`w-9 h-11 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold rounded-xl 
               bg-background border-2 border-border/50 shadow-sm
               focus:border-primary focus:ring-4 focus:ring-primary/20 
               transition-all duration-200 

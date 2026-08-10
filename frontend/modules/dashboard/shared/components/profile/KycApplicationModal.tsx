@@ -54,26 +54,26 @@ export default function KycApplicationModal({
     setIsApplying(true);
     try {
       const targetUid = user.userId || user.id || user.rawUserId || "self";
-      const res = await applyForKyc(targetUid);
+      const uid = user.rawUserId || targetUid;
+      const snapData = {
+        fullName: user.fullName,
+        email: user.email,
+        gender: user.gender,
+        nationality: user.nationality,
+        governmentId: user.nationalIdentity || user.governmentId,
+        governmentIdType: user.governmentIdType || (getProfileOverrides(uid) as any).governmentIdType || "NID",
+        dateOfBirth: user.dateOfBirth,
+        permanentAddress: user.permanentAddress,
+        idDocument: user.documentUrl || user.idDocument,
+        documentFrontUrl: user.documentFrontUrl,
+        documentBackUrl: user.documentBackUrl,
+        avatarUrl: user.avatarUrl || user.profilePhoto,
+        appliedAt: new Date().toISOString(),
+      };
+      const res = await applyForKyc(targetUid, snapData);
       if (res && res.success !== false) {
         toast.success("KYC Application submitted successfully!");
 
-        const uid = user.rawUserId || targetUid;
-        const snapData = {
-          fullName: user.fullName,
-          email: user.email,
-          gender: user.gender,
-          nationality: user.nationality,
-          governmentId: user.nationalIdentity || user.governmentId,
-          governmentIdType: user.governmentIdType || (getProfileOverrides(uid) as any).governmentIdType || "NID",
-          dateOfBirth: user.dateOfBirth,
-          permanentAddress: user.permanentAddress,
-          idDocument: user.documentUrl || user.idDocument,
-          documentFrontUrl: user.documentFrontUrl,
-          documentBackUrl: user.documentBackUrl,
-          avatarUrl: user.avatarUrl || user.profilePhoto,
-          appliedAt: new Date().toISOString(),
-        };
         saveProfileOverrides(uid, { kycStatus: "pending", kycApplicationData: snapData, resubmitted: true, unverifiedByAdmin: false });
         if (user.updateProfile) {
           await user.updateProfile({ kycStatus: "pending", kycApplicationData: snapData }).catch(() => {});

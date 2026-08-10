@@ -607,11 +607,11 @@ export const completeUserProfile = async (payload: Record<string, any>) => {
   }
 };
 
-export const applyForKyc = async (userId: string) => {
+export const applyForKyc = async (userId: string, applicationData?: any) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   try {
-    const { data } = await axiosInstance.post(`/sso/auth/users/${userId}/kyc/apply`, {}, {
+    const { data } = await axiosInstance.post(`/sso/auth/users/${userId}/kyc/apply`, applicationData || {}, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     return data;

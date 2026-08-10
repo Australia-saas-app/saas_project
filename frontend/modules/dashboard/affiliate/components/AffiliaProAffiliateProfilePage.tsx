@@ -423,14 +423,14 @@ export default function AffiliaProAffiliateProfilePage() {
     <div className="space-y-5 pb-4">
       {/* Top Row: Pill and Action Buttons (Pulled up to align with tabs) */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:-mt-[70px] mb-6 relative z-10 pointer-events-none">
-        <div className="flex items-center gap-3 pointer-events-none">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pointer-events-none w-full sm:w-auto">
           {isKycVerified ? (
-            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 shrink-0">
+            <span className="flex items-center justify-center sm:justify-start w-full sm:w-auto gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 shrink-0">
               <BadgeCheck className="h-4 w-4" />
               Verified Account
             </span>
           ) : (
-            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 shrink-0">
+            <span className="flex items-center justify-center sm:justify-start w-full sm:w-auto gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 shrink-0">
               Unverified Account
             </span>
           )}
