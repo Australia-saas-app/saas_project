@@ -214,7 +214,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     </div>
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Gender</span>
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{gender || "N/A"}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base capitalize">{gender || "N/A"}</p>
                     </div>
                     <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Nationality</span>

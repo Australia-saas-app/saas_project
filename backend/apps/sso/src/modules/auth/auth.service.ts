@@ -1381,6 +1381,7 @@ export class AuthService {
     const applicationData = {
       fullName: user.fullName,
       email: user.email,
+      gender: (user as any).gender,
       nationality: user.nationality,
       governmentId: user.governmentId || (user as any).nationalIdentity,
       governmentIdType: user.governmentIdType || 'NID',

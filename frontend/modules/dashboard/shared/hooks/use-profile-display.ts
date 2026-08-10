@@ -455,9 +455,11 @@ export function useProfileDisplay() {
   const overrideKyc = (overrides.kycStatus ? String(overrides.kycStatus).toLowerCase() : "");
 
   const kycStatus = (
-    dbKycStatus === "approved" || dbKycStatus === "rejected" || dbKycStatus === "submitted" || dbKycStatus === "pending"
-      ? dbKycStatus
-      : (overrideKyc && overrideKyc !== "none" ? overrideKyc : (dbKycStatus !== "none" ? dbKycStatus : "none"))
+    overrideKyc && overrideKyc !== "none" 
+      ? overrideKyc 
+      : dbKycStatus !== "none" 
+        ? dbKycStatus 
+        : "none"
   ).toLowerCase();
 
   const twoFactorEnabled =

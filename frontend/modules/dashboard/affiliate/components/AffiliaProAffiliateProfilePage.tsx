@@ -420,32 +420,12 @@ export default function AffiliaProAffiliateProfilePage() {
 
   return (
     <div className="space-y-5 pb-4">
-      {kycStatus === 'rejected' && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
-            <div>
-              <h4 className="text-sm font-semibold text-red-700">Account Unverified by Admin</h4>
-              <p className="mt-1 text-sm text-red-600/90">
-                Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4">
-
-
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-end gap-3">
           {isKycVerified ? (
             <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600">
               <BadgeCheck className="h-4 w-4" />
               Verified Account
-            </span>
-          ) : kycStatus === "pending" || kycStatus === "submitted" ? (
-            <span className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2 text-sm font-medium text-amber-600">
-              <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-              Pending Verification
             </span>
           ) : (
             <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600">
@@ -453,32 +433,44 @@ export default function AffiliaProAffiliateProfilePage() {
             </span>
           )}
 
-          <div className="flex flex-col items-end gap-3">
-            <button
-              type="button"
-              onClick={handleApplyKycClick}
-              className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
-            >
-              {isKycVerified || kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : kycStatus === "rejected" ? "Re Apply KYC" : "Apply KYC"}
-            </button>
+          <button
+            type="button"
+            onClick={handleApplyKycClick}
+            className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+          >
+            {isKycVerified || kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : kycStatus === "rejected" ? "Re Apply KYC" : "Apply KYC"}
+          </button>
 
-            {(kycStatus === 'pending' || kycStatus === 'submitted' || isKycVerified || kycStatus === 'rejected') && (
-              <div className={`w-full sm:w-auto px-4 py-2 rounded-md flex items-center justify-center gap-2 border ${isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                  : kycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400'
-                    : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
-                }`}>
-                <span className="font-bold text-[11px] uppercase tracking-wider">Status:</span>
-                <span className="font-black text-xs uppercase tracking-wider">
-                  {isKycVerified ? 'Approved' : kycStatus === 'rejected' ? 'Rejected' : 'Pending'}
-                </span>
-              </div>
-            )}
-          </div>
+          {(kycStatus === 'pending' || kycStatus === 'submitted' || isKycVerified || kycStatus === 'rejected') && (
+            <div className={`w-full sm:w-auto px-4 py-2 rounded-md flex items-center justify-center gap-2 border ${
+              isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                : kycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400'
+                  : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
+              }`}>
+              <span className="font-bold text-[11px] uppercase tracking-wider">Status:</span>
+              <span className="font-black text-xs uppercase tracking-wider">
+                {isKycVerified ? 'Approved' : kycStatus === 'rejected' ? 'Rejected' : 'Pending'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex flex-col xl:grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="contents xl:block xl:min-w-0 xl:space-y-5">
+          {kycStatus === 'rejected' && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 mb-5">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-semibold text-red-700">Account Unverified by Admin</h4>
+                  <p className="mt-1 text-sm text-red-600/90">
+                    Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Profile preview */}
           <section id="preview" className={`${cardClass} order-1 xl:order-none xl:h-[318px] w-full`}>
             <h2 className="mb-4 text-base font-bold text-gray-900">Profile Preview</h2>
@@ -499,7 +491,15 @@ export default function AffiliaProAffiliateProfilePage() {
                 <div className="min-w-0 flex-1 pb-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-lg font-bold text-gray-900">{fullName}</p>
-                    <BadgeCheck className="h-4 w-4 text-indigo-500" />
+                    {isKycVerified && (
+                      <div className="group relative flex items-center">
+                        <BadgeCheck className="h-4 w-4 text-emerald-500" />
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-[10px] font-medium text-white shadow-sm z-50">
+                          Account Verified
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <p className="text-sm text-gray-500">Affiliate Marketer</p>
                 </div>
@@ -935,7 +935,7 @@ export default function AffiliaProAffiliateProfilePage() {
         }}
         kycStatus={kycStatus}
         isKycVerified={isKycVerified}
-        onSuccess={() => window.location.reload()}
+        onSuccess={() => setIsKycModalOpen(false)}
       />
 
       {previewModalOpen && previewDoc && (

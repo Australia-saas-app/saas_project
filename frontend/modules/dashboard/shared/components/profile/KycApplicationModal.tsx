@@ -78,11 +78,11 @@ export default function KycApplicationModal({
         }
 
         // Record Real Activity Log
-        recordRealActivity(
+        await recordRealActivity(
           "KYC_SUBMITTED",
           "Submitted KYC verification application documents for review",
           { email: user.email, userId: uid, name: user.fullName || user.firstName || "User" }
-        );
+        ).catch(() => {});
 
         // Broadcast to admin side and other tabs
         if (typeof window !== "undefined") {
