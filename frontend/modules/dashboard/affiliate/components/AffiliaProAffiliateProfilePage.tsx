@@ -420,8 +420,8 @@ export default function AffiliaProAffiliateProfilePage() {
 
   return (
     <div className="space-y-5 pb-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4">
-        <div className="flex flex-col items-end gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end sm:-mt-[70px] mb-6 relative z-10 pointer-events-none">
+        <div className="flex flex-row items-center gap-3 pointer-events-auto">
           {isKycVerified ? (
             <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600">
               <BadgeCheck className="h-4 w-4" />

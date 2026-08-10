@@ -273,9 +273,12 @@ export default function KycApplicationModal({
             const displayDob = isViewMode
               ? (snap.dateOfBirth || "N/A")
               : (snap.dateOfBirth || user.dateOfBirth);
-            const displayGender = isViewMode
+            const rawGender = isViewMode
               ? (snap.gender || "N/A")
               : (snap.gender || user.gender);
+            const displayGender = rawGender && rawGender !== "N/A" 
+              ? rawGender.charAt(0).toUpperCase() + rawGender.slice(1) 
+              : "N/A";
             const displayPermAddress = (() => {
               let addr = isViewMode
                 ? snap.permanentAddress

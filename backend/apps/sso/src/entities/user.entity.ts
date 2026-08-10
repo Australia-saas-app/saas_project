@@ -183,8 +183,7 @@ export class User {
   status: UserStatus;
 
   @Column({
-    type: 'enum',
-    enum: KycStatus,
+    type: 'varchar',
     default: KycStatus.NONE,
   })
   kycStatus: KycStatus;
