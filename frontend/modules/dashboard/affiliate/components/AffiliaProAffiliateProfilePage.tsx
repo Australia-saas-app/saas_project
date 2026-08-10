@@ -420,15 +420,16 @@ export default function AffiliaProAffiliateProfilePage() {
 
   return (
     <div className="space-y-5 pb-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end sm:-mt-[70px] mb-6 relative z-10 pointer-events-none">
-        <div className="flex flex-row items-center gap-3 pointer-events-auto">
+      {/* Top Row: Pill and Action Buttons (Pulled up to align with tabs) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:-mt-[70px] mb-6 relative z-10 pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-3">
           {isKycVerified ? (
-            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600">
+            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 shrink-0">
               <BadgeCheck className="h-4 w-4" />
               Verified Account
             </span>
           ) : (
-            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600">
+            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 shrink-0">
               Unverified Account
             </span>
           )}
@@ -436,23 +437,10 @@ export default function AffiliaProAffiliateProfilePage() {
           <button
             type="button"
             onClick={handleApplyKycClick}
-            className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all"
+            className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-all shrink-0"
           >
             {isKycVerified || kycStatus === "pending" || kycStatus === "submitted" ? "View Application" : kycStatus === "rejected" ? "Re Apply KYC" : "Apply KYC"}
           </button>
-
-          {(kycStatus === 'pending' || kycStatus === 'submitted' || isKycVerified || kycStatus === 'rejected') && (
-            <div className={`w-full sm:w-auto px-4 py-2 rounded-md flex items-center justify-center gap-2 border ${
-              isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                : kycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400'
-                  : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
-              }`}>
-              <span className="font-bold text-[11px] uppercase tracking-wider">Status:</span>
-              <span className="font-black text-xs uppercase tracking-wider">
-                {isKycVerified ? 'Approved' : kycStatus === 'rejected' ? 'Rejected' : 'Pending'}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -931,6 +919,7 @@ export default function AffiliaProAffiliateProfilePage() {
           documentUrl, 
           documentFrontUrl, 
           documentBackUrl,
+          kycApplicationData,
           updateProfile
         }}
         kycStatus={kycStatus}

@@ -316,7 +316,7 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
       <Form {...form}>
         <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
           <div className="relative w-full">
-            <div className={`space-y-6 transition-all duration-300 ${step === 4 ? "blur-[3px] pointer-events-none opacity-40 select-none" : ""}`}>
+            <div className={`space-y-6 ${step === 4 ? "blur-[3px] pointer-events-none opacity-40 select-none" : ""}`}>
               <div className="mb-2">
                 <h3 className="hidden text-xl font-bold tracking-tight text-foreground lg:block">
                   {SIGNUP_TITLES[accountType]}
@@ -434,7 +434,7 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
 
             {step === 4 && (
               <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
-                <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-[0_8px_30px_rgba(0,0,0,0.12)] bg-card/95 backdrop-blur animate-in fade-in zoom-in-95 duration-300">
+                <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-[0_8px_30px_rgba(0,0,0,0.12)] bg-card/95 backdrop-blur">
                   <h4 className="text-xl font-bold text-foreground mb-4">Account Ready</h4>
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-left space-y-2 mb-4">
                     <p className="text-sm font-medium text-foreground">

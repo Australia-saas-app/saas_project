@@ -301,8 +301,10 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           <div className="mb-4 relative z-10">
             <h4 className="font-bold text-md text-slate-800 dark:text-slate-100 mb-3">Attached Documents</h4>
             {(() => {
-              const docUrl = user.idDocument || user.documentUrl;
-              if (!docUrl) {
+              const snap = user.kycApplicationData || {};
+              const rawDocUrl = snap.idDocument || snap.documentUrl || user.idDocument || user.documentUrl;
+              
+              if (!rawDocUrl) {
                 return (
                   <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
                     <ShieldAlert className="h-4 w-4" />
@@ -311,17 +313,29 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 );
               }
 
-              let front = user.documentFrontUrl || "";
-              let back = user.documentBackUrl || "";
-              try {
-                if (!front && !back && docUrl && docUrl.startsWith("[") && docUrl.endsWith("]")) {
-                  const parsed = JSON.parse(docUrl);
-                  if (Array.isArray(parsed) && parsed.length >= 2) {
-                    front = parsed[0];
-                    back = parsed[1];
+              let front = snap.documentFrontUrl || user.documentFrontUrl || "";
+              let back = snap.documentBackUrl || user.documentBackUrl || "";
+              
+              let parsedDocUrl = rawDocUrl;
+
+              if (Array.isArray(rawDocUrl)) {
+                if (!front && rawDocUrl.length > 0) front = rawDocUrl[0] || "";
+                if (!back && rawDocUrl.length > 1) back = rawDocUrl[1] || "";
+              } else if (typeof rawDocUrl === "string") {
+                try {
+                  if (!front && !back && rawDocUrl.startsWith("[") && rawDocUrl.endsWith("]")) {
+                    const parsed = JSON.parse(rawDocUrl);
+                    if (Array.isArray(parsed) && parsed.length >= 2) {
+                      front = parsed[0];
+                      back = parsed[1];
+                      parsedDocUrl = parsed[0]; // fallback for single doc view
+                    } else if (Array.isArray(parsed) && parsed.length === 1) {
+                      front = parsed[0];
+                      parsedDocUrl = parsed[0];
+                    }
                   }
-                }
-              } catch (e) { }
+                } catch (e) { }
+              }
 
               if (front && back) {
                 return (
@@ -342,15 +356,17 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 );
               }
 
+              const docStr = (typeof parsedDocUrl === "string" ? parsedDocUrl : "");
+              
               return (
                 <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full max-w-md">
-                  {docUrl.toLowerCase().endsWith(".pdf") ? (
-                    <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12">
+                  {docStr.toLowerCase().endsWith(".pdf") ? (
+                    <a href={docStr} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12 hover:text-primary transition-colors cursor-pointer w-full h-full">
                       <FileText className="h-12 w-12 mb-2" />
-                      <span className="text-sm font-medium">PDF Document</span>
-                    </div>
+                      <span className="text-sm font-medium underline">Open PDF Document</span>
+                    </a>
                   ) : (
-                      <img src={docUrl} alt="ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
+                      <img src={docStr} alt="ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                   )}
                 </div>
               );

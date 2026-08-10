@@ -145,27 +145,36 @@ export default function KycApplicationModal({
 
     let front = snap.documentFrontUrl || (isViewMode ? "" : user.documentFrontUrl) || "";
     let back = snap.documentBackUrl || (isViewMode ? "" : user.documentBackUrl) || "";
-    try {
-      if (!front && !back && docUrl?.startsWith("[") && docUrl?.endsWith("]")) {
-        const parsed = JSON.parse(docUrl);
-        if (Array.isArray(parsed) && parsed.length >= 2) {
-          front = parsed[0];
-          back = parsed[1];
-        } else if (Array.isArray(parsed) && parsed.length === 1) {
-          front = parsed[0];
+    
+    if (Array.isArray(docUrl)) {
+      if (!front && docUrl.length > 0) front = docUrl[0] || "";
+      if (!back && docUrl.length > 1) back = docUrl[1] || "";
+    } else if (typeof docUrl === "string") {
+      try {
+        if (!front && !back && docUrl.startsWith("[") && docUrl.endsWith("]")) {
+          const parsed = JSON.parse(docUrl);
+          if (Array.isArray(parsed) && parsed.length >= 2) {
+            front = parsed[0];
+            back = parsed[1];
+          } else if (Array.isArray(parsed) && parsed.length === 1) {
+            front = parsed[0];
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
-    if (!front) front = docUrl || "";
+    if (!front) {
+      front = (typeof docUrl === "string" ? docUrl : "") || "";
+    }
 
     const imgClass =
       "w-full h-full object-contain hover:scale-105 transition-transform duration-200";
     const wrapClass =
       "rounded-xl border border-border dark:border-slate-700 overflow-hidden bg-muted dark:bg-slate-800/60 aspect-video w-full";
 
-    const renderImg = (src: string, alt: string) =>
-      src.toLowerCase().endsWith(".pdf") ? (
+    const renderImg = (src: any, alt: string) => {
+      if (typeof src !== "string" || !src) return null;
+      return src.toLowerCase().endsWith(".pdf") ? (
         <div className="flex flex-col items-center justify-center h-full py-8 text-muted-foreground">
           <FileText className="h-10 w-10 mb-2" />
           <span className="text-sm font-medium">PDF Document</span>
@@ -183,6 +192,7 @@ export default function KycApplicationModal({
           <img src={src} alt={alt} className={imgClass} />
         </div>
       );
+    };
 
     if (front && back) {
       return (
@@ -276,9 +286,7 @@ export default function KycApplicationModal({
             const rawGender = isViewMode
               ? (snap.gender || "N/A")
               : (snap.gender || user.gender);
-            const displayGender = rawGender && rawGender !== "N/A" 
-              ? rawGender.charAt(0).toUpperCase() + rawGender.slice(1) 
-              : "N/A";
+            const displayGender = rawGender || "N/A";
             const displayPermAddress = (() => {
               let addr = isViewMode
                 ? snap.permanentAddress
@@ -337,7 +345,7 @@ export default function KycApplicationModal({
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
                           {label}
                         </span>
-                        <p className={`font-bold text-foreground text-sm sm:text-base ${label === "Account ID" ? "font-mono" : ""}`}>{value || "N/A"}</p>
+                        <p className={`font-bold text-foreground text-sm sm:text-base ${label === "Account ID" ? "font-mono" : ""} ${label === "Gender" ? "capitalize" : ""}`}>{value || "N/A"}</p>
                       </div>
                     ))}
                   </div>

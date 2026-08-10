@@ -530,7 +530,7 @@ export function useProfileDisplay() {
     nationalIdentity,
     governmentIdType,
     permanentAddress,
-    kycApplicationData: (user as any)?.kycApplicationData || null,
+    kycApplicationData: overrides.kycApplicationData || (user as any)?.kycApplicationData || null,
     currency,
     joiningDate,
     avatarUrl,

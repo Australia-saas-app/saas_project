@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Code2,
   RotateCcw,
+  User,
 } from "lucide-react"
 import { formatAccountIdLabel } from "@/src/shared/lib/demo-user"
 import UserAccountMenu from "./UserAccountMenu"
@@ -64,6 +65,7 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
   const menuItems = !isAffiliate && !isBusiness
     ? [
         { label: t.dashboard.user.dashboard, icon: LayoutDashboard, href: `${dashboardPrefix}/dashboard` },
+        { label: t.dashboard.user.profile, icon: User, href: `${dashboardPrefix}/profile` },
         { label: t.dashboard.user.wallet, icon: Wallet, href: `${dashboardPrefix}/wallet` },
         { label: t.dashboard.user.earnings, icon: Activity, href: `${dashboardPrefix}/earnings` },
         { label: t.dashboard.user.orders, icon: Package, href: `${dashboardPrefix}/orders` },

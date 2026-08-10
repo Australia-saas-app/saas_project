@@ -75,11 +75,43 @@ const ProfileLayout = () => {
     router.push(tab.url)
   }
 
+  useEffect(() => {
+    const handleKycUpdated = (e: any) => {
+      if (e.detail?.kycStatus) {
+        setKycStatus(e.detail.kycStatus);
+      }
+    };
+    window.addEventListener("vero:kyc_updated", handleKycUpdated);
+    return () => window.removeEventListener("vero:kyc_updated", handleKycUpdated);
+  }, []);
+
+  const kycStatus = user && "kycStatus" in user ? user.kycStatus : "none";
+  const [localKycStatus, setKycStatus] = useState<string | null>(null);
+  
+  const displayKycStatus = localKycStatus || kycStatus || "none";
+  const isKycVerified = displayKycStatus === "approved" || (user && "status" in user && user.status === "verified");
+
   return (
     <div className="flex flex-col w-full">
-      <div className="mb-2">
-        <h1 className="text-xl font-semibold text-gray-900">Affiliate Profile</h1>
-        <p className="text-sm text-gray-500 mt-1">View and manage your affiliate account and logs.</p>
+      <div className="mb-2 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Affiliate Profile</h1>
+          <p className="text-sm text-gray-500 mt-1">View and manage your affiliate account and logs.</p>
+        </div>
+        
+        {/* Status Badge */}
+        {(displayKycStatus === 'pending' || displayKycStatus === 'submitted' || isKycVerified || displayKycStatus === 'rejected') && (
+          <div className={`px-2 py-1 rounded-md flex items-center gap-1.5 border mt-1 shrink-0 ${
+            isKycVerified ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
+              : displayKycStatus === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-700'
+                : 'bg-amber-500/10 border-amber-500/20 text-amber-700'
+            }`}>
+            <span className="font-bold text-[9px] uppercase tracking-wider">Status:</span>
+            <span className="font-black text-[9px] uppercase tracking-wider">
+              {isKycVerified ? 'Approved' : displayKycStatus === 'rejected' ? 'Rejected' : 'Pending'}
+            </span>
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap gap-3 mb-6">
         {ProfileTabs.map((tab) => (
