@@ -113,7 +113,7 @@ const ProfileLayout = () => {
           </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6 relative z-20 pointer-events-auto">
         {ProfileTabs.map((tab) => (
           <button
             key={tab.id}

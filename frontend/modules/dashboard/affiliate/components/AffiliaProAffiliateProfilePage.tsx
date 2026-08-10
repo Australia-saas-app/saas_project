@@ -72,7 +72,8 @@ export default function AffiliaProAffiliateProfilePage() {
     avatarUrl, updateProfile, dateOfBirth, kycApplicationData,
     fullName, email: profileEmail, phone: profilePhone, initials,
     username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
-    permanentAddress, governmentIdType, joiningDate
+    permanentAddress, governmentIdType, joiningDate,
+    hasCustomAvatar
   } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
@@ -408,7 +409,7 @@ export default function AffiliaProAffiliateProfilePage() {
     if (!nationalIdentity) missingFields.push("ID Number");
     if (!documentFrontUrl) missingFields.push("Front ID Document");
     if (idType !== "Passport" && !documentBackUrl) missingFields.push("Back ID Document");
-    if (!avatarUrl) missingFields.push("Profile Photo");
+    if (!hasCustomAvatar) missingFields.push("Profile Photo");
 
     if (missingFields.length > 0) {
       toast.error(`Please complete the following missing fields before applying for KYC: ${missingFields.join(', ')}`);
@@ -424,12 +425,12 @@ export default function AffiliaProAffiliateProfilePage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:-mt-[70px] mb-6 relative z-10 pointer-events-none">
         <div className="flex items-center gap-3 pointer-events-none">
           {isKycVerified ? (
-            <span className="pointer-events-auto flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 shrink-0">
+            <span className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-600 shrink-0">
               <BadgeCheck className="h-4 w-4" />
               Verified Account
             </span>
           ) : (
-            <span className="pointer-events-auto flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 shrink-0">
+            <span className="flex items-center gap-2 rounded-lg bg-slate-500/10 border border-slate-500/20 px-4 py-2 text-sm font-medium text-slate-600 shrink-0">
               Unverified Account
             </span>
           )}
@@ -744,6 +745,7 @@ export default function AffiliaProAffiliateProfilePage() {
 
               <input type="file" ref={frontFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "front")} />
               <input type="file" ref={backFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "back")} />
+              <input type="file" ref={avatarFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={handleAvatarChange} />
 
               <ul className="space-y-2.5">
                 {[
