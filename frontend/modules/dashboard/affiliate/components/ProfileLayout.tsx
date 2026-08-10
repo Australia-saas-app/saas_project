@@ -113,13 +113,13 @@ const ProfileLayout = () => {
           </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-3 mb-6 relative z-20 pointer-events-auto">
+      <div className="flex flex-wrap gap-3 mb-6 relative z-20 pointer-events-none">
         {ProfileTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => handleTabClick(tab)}
-            className={`px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === tab.id
+            className={`pointer-events-auto px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === tab.id
               ? "bg-[#5D7293] text-white shadow-sm"
               : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
               }`}

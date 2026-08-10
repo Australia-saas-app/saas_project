@@ -62,7 +62,6 @@ export default function AffiliateLogLayout() {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      await new Promise((res) => setTimeout(res, 500));
       let userLogs = await getLogsForUser(userId);
       if (userLogs.length === 0 && userId !== userEmail) {
         userLogs = await getLogsForUser(userEmail);
@@ -78,7 +77,6 @@ export default function AffiliateLogLayout() {
   const confirmDeleteLog = async (id: string) => {
     setIsDeletingSingle(id);
     try {
-      await new Promise((res) => setTimeout(res, 400));
       await deleteSingleLog(userId, id);
       const updated = await getLogsForUser(userId);
       setLogs(updated);
@@ -93,7 +91,6 @@ export default function AffiliateLogLayout() {
   const handleDeleteAllLogs = async () => {
     setIsDeletingAll(true);
     try {
-      await new Promise((res) => setTimeout(res, 500));
       await deleteAllLogs(userId);
       if (userId !== userEmail) {
         await deleteAllLogs(userEmail);
