@@ -461,7 +461,7 @@ export default function AffiliaProAffiliateProfilePage() {
             </div>
           )}
           {/* Profile preview */}
-          <section id="preview" className={`${cardClass} order-1 xl:order-none xl:h-[318px] w-full`}>
+          <section id="preview" className={`${cardClass} order-1 xl:order-none w-full xl:min-h-[318px]`}>
             <h2 className="mb-4 text-base font-bold text-gray-900">Profile Preview</h2>
             <div className="overflow-hidden rounded-2xl border border-gray-100">
               <div className="relative h-36 bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 sm:h-44">
@@ -504,6 +504,50 @@ export default function AffiliaProAffiliateProfilePage() {
                       <p className="text-sm font-bold text-gray-900">{s.value}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+              
+              {/* Level Progress */}
+              <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-6 py-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Level Progress</h3>
+                  <span className="text-[13px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{isDemo ? "3 of 6 levels completed" : "0 of 6 levels completed"}</span>
+                </div>
+                
+                <div className="relative pb-5 px-1 mt-2">
+                  {/* Background Track */}
+                  <div className="absolute top-[9px] left-0 w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                  {/* Progress Fill */}
+                  <div className={`absolute top-[9px] left-0 h-2 bg-[#1355D4] rounded-full transition-all duration-500 ${isDemo ? 'w-[50%]' : 'w-[0%]'}`}></div>
+                  
+                  {/* Nodes */}
+                  <div className="relative flex justify-between z-10">
+                    {[1, 2, 3, 4, 5, 6].map((level) => {
+                      const isCompleted = isDemo ? level <= 3 : false;
+                      const isCurrent = isDemo ? level === 4 : level === 1;
+                      
+                      return (
+                        <div key={level} className="flex flex-col items-center group cursor-default">
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm transition-colors ${
+                            isCompleted 
+                              ? 'bg-[#1355D4] border-[#1355D4]' 
+                              : isCurrent 
+                                ? 'bg-white dark:bg-slate-900 border-[#1355D4]' 
+                                : 'bg-slate-200 dark:bg-slate-700 border-slate-200 dark:border-slate-700'
+                          }`}>
+                            {isCompleted && <BadgeCheck className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`absolute top-6 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
+                            isCompleted ? 'text-slate-800 dark:text-slate-200' : 
+                            isCurrent ? 'text-[#1355D4]' : 
+                            'text-slate-400 dark:text-slate-500'
+                          }`}>
+                            Level {level}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -876,7 +920,6 @@ export default function AffiliaProAffiliateProfilePage() {
               {[
                 { label: "Change Password", href: "/affiliate/settings/change-password", icon: KeyRound },
                 { label: "Two-Factor Authentication", href: "/affiliate/settings/account-security", icon: Shield },
-                { label: "Manage Devices", href: "/affiliate/settings/device-management", icon: Monitor },
                 { label: "Download My Data", href: "/affiliate/messages", icon: Download },
               ].map((item) => {
                 const Icon = item.icon

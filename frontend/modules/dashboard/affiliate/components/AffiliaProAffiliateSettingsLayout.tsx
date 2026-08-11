@@ -18,7 +18,6 @@ import DeviceManagementLayout from "@/src/modules/dashboard/shared/components/De
 const SETTINGS_NAV = [
   { id: "password", label: "Change Password", href: "/affiliate/settings/change-password", icon: KeyRound },
   { id: "security", label: "Security", href: "/affiliate/settings/account-security", icon: Shield },
-  { id: "device-management", label: "Device Management", href: "/affiliate/settings/device-management", icon: Monitor },
   { id: "account", label: "Account", href: "/affiliate/settings/account-delete", icon: Trash2 },
 ] as const
 
@@ -70,7 +69,6 @@ function SettingsSideNav({ activeId }: { activeId: string }) {
 
 function resolveActiveId(pathname: string) {
   if (pathname.includes("/account-security")) return "security"
-  if (pathname.includes("/device-management")) return "device-management"
   if (pathname.includes("/account-delete")) return "account"
   return "password" // Default
 }
@@ -82,7 +80,6 @@ export default function AffiliaProAffiliateSettingsLayout() {
 
   let panel: React.ReactNode = <ChangePasswordLayout />
   if (activeId === "security") panel = <AccountSecurityLayout />
-  if (activeId === "device-management") panel = <DeviceManagementLayout />
   if (activeId === "account") panel = <AccountDeleteLayout />
 
   return (
