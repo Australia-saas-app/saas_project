@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { ProfileTabs } from "../constants/profile.constant"
 import { getLogsForUser, LOG_ADDED_EVENT } from "@/src/shared/lib/real-activity-logger"
 import { useUser } from "@/src/context/user.provider"
+import { useProfileDisplay } from "../../shared/hooks/use-profile-display"
 
 const TabLoading = () => (
   <div className="flex items-center justify-center py-16 text-sm text-gray-500">
@@ -35,6 +36,8 @@ const ProfileLayout = () => {
   const [activeTab, setActiveTab] = useState<string>(resolveActiveTab)
 
   const { user } = useUser() || {}
+  const { kycStatus: displayKycStatus, isKycVerified } = useProfileDisplay();
+
   const userId = user ? (("publicId" in user && user.publicId) || ("userId" in user && user.userId) || ("id" in user && user.id)) || "guest" : "guest"
   const userEmail = user && "email" in user ? String(user.email) : ""
   const [logCount, setLogCount] = useState(0)
@@ -74,22 +77,6 @@ const ProfileLayout = () => {
     setActiveTab(tab.id)
     router.push(tab.url)
   }
-
-  useEffect(() => {
-    const handleKycUpdated = (e: any) => {
-      if (e.detail?.kycStatus) {
-        setKycStatus(e.detail.kycStatus);
-      }
-    };
-    window.addEventListener("vero:kyc_updated", handleKycUpdated);
-    return () => window.removeEventListener("vero:kyc_updated", handleKycUpdated);
-  }, []);
-
-  const kycStatus = user && "kycStatus" in user ? user.kycStatus : "none";
-  const [localKycStatus, setKycStatus] = useState<string | null>(null);
-
-  const displayKycStatus = localKycStatus || kycStatus || "none";
-  const isKycVerified = displayKycStatus === "approved" || (user && "status" in user && user.status === "verified");
 
   return (
     <div className="flex flex-col w-full">

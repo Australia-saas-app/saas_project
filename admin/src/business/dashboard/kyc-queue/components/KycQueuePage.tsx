@@ -43,6 +43,7 @@ export default function KycQueuePage() {
     enabled: !!token,
     staleTime: 30 * 1000,      // cache for 30s — avoids spinner on every page visit
     refetchOnWindowFocus: false, // don't re-fetch just because user switches tabs
+    refetchInterval: 5000,
   });
 
   // Auto-refetch and apply optimistic updates when an admin approves / rejects a KYC application or a user submits
