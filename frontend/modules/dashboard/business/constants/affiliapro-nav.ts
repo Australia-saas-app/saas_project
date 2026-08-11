@@ -95,7 +95,7 @@ export const AFFILIAPRO_NAV_GROUPS: AffiliaProNavGroup[] = [
     label: "Tools",
     items: [
       { label: "Postback & API", href: "/business/technical", icon: Code2 },
-      { label: "Integration", href: "/business/profile", icon: Plug },
+      { label: "Integration", href: "/business/integration", icon: Plug },
       { label: "Audit Logs", href: "/business/profile/business-log", icon: ScrollText },
     ],
   },

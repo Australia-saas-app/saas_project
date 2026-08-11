@@ -38,7 +38,6 @@ export default function BusinessProfilePageLayout() {
               completedCount: 0,
             }
       }
-      showDocumentButton
       showDocuments
     />
   )

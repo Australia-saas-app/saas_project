@@ -12,6 +12,8 @@ import { useLogout } from "@/src/hooks/auth.hook";
 import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
 import { ThemeToggle } from "@/src/shared/components/ThemeToggle";
 import { AFFILIAPRO_NAV_GROUPS } from "../constants/affiliapro-nav";
+import { useProfileDisplay } from "@/src/modules/dashboard/shared/hooks/use-profile-display";
+import { ChevronDown } from "lucide-react";
 
 const PRIMARY = "#6366F1";
 
@@ -46,9 +48,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
-
-  const name = displayNameFromUser(user, isLoading);
-  const initials = initialsFromName(name);
+  const { fullName, initials, avatarUrl } = useProfileDisplay();
 
   useEffect(() => {
     setMobileOpen(false);
@@ -203,18 +203,27 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
               <button
                 type="button"
                 onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-2.5 rounded-xl py-1.5 pr-2 pl-1.5 hover:bg-muted"
+                className="flex items-center gap-1.5 sm:gap-2 pl-0.5 sm:pl-1 pr-2 sm:pr-3 py-1 bg-white hover:bg-gray-50 border border-gray-200 rounded-full transition-colors"
               >
-                <span
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white"
+                <div
+                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full text-sm font-bold text-white shrink-0 overflow-hidden"
                   style={{ backgroundColor: PRIMARY }}
                 >
-                  {initials}
-                </span>
-                <span className="hidden min-w-0 text-left md:block">
-                  <span className="block truncate text-sm font-semibold text-foreground">{name}</span>
-                  <span className="block text-[11px] text-muted-foreground">Business Account</span>
-                </span>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div className="hidden sm:flex flex-col items-start text-left">
+                  <span className="text-xs sm:text-sm font-bold leading-tight max-w-[90px] truncate text-gray-900">
+                    {fullName}
+                  </span>
+                  <span className="text-[10px] capitalize leading-tight opacity-75 text-gray-500">
+                    Business Account
+                  </span>
+                </div>
+                <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${profileOpen ? "rotate-180" : ""} ml-0.5 text-gray-500`} />
               </button>
 
               {profileOpen && (

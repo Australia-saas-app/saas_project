@@ -35,7 +35,7 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData } =
     useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
@@ -52,8 +52,18 @@ export default function RoleProfileCard({
     }
 
     // Validate if profile is complete
-    if (!fullName || !phone || !dateOfBirth || !nationality || !nationalIdentity || !documentFrontUrl || !documentBackUrl || !avatarUrl) {
-      toast.error("Please complete the profile and upload both Front and Back ID documents before applying for KYC.");
+    const missingFields: string[] = [];
+    if (!fullName) missingFields.push("Full Name");
+    if (!phone && !email) missingFields.push("Phone or Email");
+    if (!dateOfBirth) missingFields.push("Date of Birth");
+    if (!nationality) missingFields.push("Nationality");
+    if (!nationalIdentity) missingFields.push("National Identity");
+    if (!documentFrontUrl) missingFields.push("ID Document Front");
+    if (!documentBackUrl) missingFields.push("ID Document Back");
+    if (!hasCustomAvatar) missingFields.push("Profile Photo");
+
+    if (missingFields.length > 0) {
+      toast.error(`Please complete the following fields before applying for KYC: ${missingFields.join(', ')}`);
       return;
     }
 
