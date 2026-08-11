@@ -162,6 +162,8 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               }
               return d;
             })();
+            const isLegacyApp = Object.keys(snap).length === 0;
+            
             const fullName = snap.fullName || user.fullName;
             const email = snap.email || user.email || user.phone;
             const nationality = snap.nationality || user.nationality;

@@ -399,9 +399,14 @@ export const getCurrentUser = async () => {
     // Fetch fresh DB data (profilePhoto, idDocument, kycStatus, nationality, etc.)
     // The cookie strips heavy fields so we MUST call /me to get them on every page load.
     try {
-      const { data } = await axiosInstance.get("/sso/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 60000,
+        const { data } = await axiosInstance.get(`/sso/auth/me?t=${Date.now()}`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          timeout: 60000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
       });

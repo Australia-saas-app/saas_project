@@ -134,11 +134,14 @@ export default function KycApplicationModal({
       }
       return d;
     })();
-    // In view mode, ONLY use documents from the saved snapshot
-    const docUrl = isViewMode
+    // In view mode, ONLY use documents from the saved snapshot (unless it's a legacy app)
+    const isLegacyApp = Object.keys(snap).length === 0;
+    const useFallback = !isViewMode || isLegacyApp;
+
+    const docUrl = !useFallback
       ? (snap.idDocument || snap.documentUrl || null)
-      : user.documentUrl;
-    const hasFrontDoc = isViewMode
+      : (user.documentUrl || user.idDocument);
+    const hasFrontDoc = !useFallback
       ? Boolean(docUrl || snap.documentFrontUrl)
       : Boolean(docUrl || user.documentFrontUrl);
 
@@ -151,8 +154,8 @@ export default function KycApplicationModal({
       );
     }
 
-    let front = (isViewMode ? snap.documentFrontUrl : user.documentFrontUrl) || "";
-    let back = (isViewMode ? snap.documentBackUrl : user.documentBackUrl) || "";
+    let front = (!useFallback ? snap.documentFrontUrl : user.documentFrontUrl) || "";
+    let back = (!useFallback ? snap.documentBackUrl : user.documentBackUrl) || "";
     
     if (Array.isArray(docUrl)) {
       if (!front && docUrl.length > 0) front = docUrl[0] || "";
@@ -277,10 +280,15 @@ export default function KycApplicationModal({
             })();
             // In view mode (pending/approved/rejected), ONLY show data from the saved snapshot.
             // Never fall back to live profile — changes to profile must NOT affect the frozen application.
-            const displayFullName = isViewMode ? (snap.fullName || "N/A") : (user.fullName || "N/A");
-            const displayEmail = isViewMode ? (snap.email || "N/A") : (user.email || "N/A");
-            const displayNationality = isViewMode ? (snap.nationality || "N/A") : (user.nationality || "N/A");
-            const displayGovtIdType = isViewMode
+            // EXCEPT for legacy applications that were submitted before the snapshot feature was added (snap is empty).
+            const isLegacyApp = Object.keys(snap).length === 0;
+            const useFallback = !isViewMode || isLegacyApp;
+
+            const displayFullName = useFallback ? (user.fullName || "N/A") : (snap.fullName || "N/A");
+            const displayEmail = useFallback ? (user.email || "N/A") : (snap.email || "N/A");
+            const displayNationality = useFallback ? (user.nationality || "N/A") : (snap.nationality || "N/A");
+            const displayGovtIdType = !useFallback
+
               ? (snap.governmentIdType || "Not Selected")
               : (user.governmentIdType || (() => {
                   if (typeof window !== "undefined") {
@@ -291,18 +299,19 @@ export default function KycApplicationModal({
                   }
                   return undefined;
                 })() || "Not Selected");
-            const displayGovtId = isViewMode
+            const displayGovtId = !useFallback
               ? (snap.governmentId || "N/A")
               : (user.nationalIdentity || user.governmentId || "N/A");
-            const displayDob = isViewMode
+            const displayDob = !useFallback
               ? (snap.dateOfBirth || "N/A")
               : (user.dateOfBirth || "N/A");
-            const rawGender = isViewMode
+            const rawGender = !useFallback
               ? (snap.gender || "N/A")
               : (user.gender || "N/A");
+
             const displayGender = rawGender || "N/A";
             const displayPermAddress = (() => {
-              let addr = isViewMode
+              let addr = !useFallback
                 ? snap.permanentAddress
                 : (user.permanentAddress || (() => {
                     if (typeof window !== "undefined") {
@@ -369,9 +378,9 @@ export default function KycApplicationModal({
                     {/* Profile photo */}
                     <div className="flex sm:justify-end mb-4">
                       <div className="h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
-                        {(isViewMode ? (snap.avatarUrl || snap.profilePhoto) : (user.avatarUrl || user.profilePhoto)) ? (
+                        {(!useFallback ? (snap.avatarUrl || snap.profilePhoto) : (user.avatarUrl || user.profilePhoto)) ? (
                           <img
-                            src={isViewMode ? (snap.avatarUrl || snap.profilePhoto) : (user.avatarUrl || user.profilePhoto)}
+                            src={!useFallback ? (snap.avatarUrl || snap.profilePhoto) : (user.avatarUrl || user.profilePhoto)}
                             alt="Profile"
                             className="h-full w-full object-cover"
                           />
