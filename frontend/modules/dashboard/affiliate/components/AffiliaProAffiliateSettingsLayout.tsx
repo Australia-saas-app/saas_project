@@ -10,7 +10,7 @@ import {
   Monitor,
   Headset,
 } from "lucide-react"
-import ChangePasswordLayout from "./ChangePasswordLayout"
+import ChangePasswordLayout from "@/src/modules/dashboard/shared/components/ChangePasswordLayout"
 import AccountSecurityLayout from "@/src/modules/dashboard/shared/components/AccountSecurityLayout"
 import AccountDeleteLayout from "@/src/modules/dashboard/shared/components/AccountDeleteLayout"
 import DeviceManagementLayout from "@/src/modules/dashboard/shared/components/DeviceManagementLayout"

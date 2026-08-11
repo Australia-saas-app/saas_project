@@ -508,17 +508,17 @@ export default function AffiliaProAffiliateProfilePage() {
               </div>
               
               {/* Level Progress */}
-              <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-6 py-5">
+              <div className="px-6 py-5 pb-8">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Level Progress</h3>
-                  <span className="text-[13px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{isDemo ? "3 of 6 levels completed" : "0 of 6 levels completed"}</span>
+                  <span className="text-[13px] text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">{isDemo ? "3 of 6 levels completed" : "0 of 6 levels completed"}</span>
                 </div>
                 
-                <div className="relative pb-5 px-1 mt-2">
+                <div className="relative px-1 mt-2">
                   {/* Background Track */}
                   <div className="absolute top-[9px] left-0 w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
                   {/* Progress Fill */}
-                  <div className={`absolute top-[9px] left-0 h-2 bg-[#1355D4] rounded-full transition-all duration-500 ${isDemo ? 'w-[50%]' : 'w-[0%]'}`}></div>
+                  <div className={`absolute top-[9px] left-0 h-2 bg-[#1355D4] dark:bg-blue-500 rounded-full transition-all duration-500 ${isDemo ? 'w-[50%]' : 'w-[0%]'}`}></div>
                   
                   {/* Nodes */}
                   <div className="relative flex justify-between z-10">
@@ -530,17 +530,17 @@ export default function AffiliaProAffiliateProfilePage() {
                         <div key={level} className="flex flex-col items-center group cursor-default">
                           <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm transition-colors ${
                             isCompleted 
-                              ? 'bg-[#1355D4] border-[#1355D4]' 
+                              ? 'bg-[#1355D4] border-[#1355D4] dark:bg-blue-500 dark:border-blue-500' 
                               : isCurrent 
-                                ? 'bg-white dark:bg-slate-900 border-[#1355D4]' 
+                                ? 'bg-white dark:bg-slate-900 border-[#1355D4] dark:border-blue-500' 
                                 : 'bg-slate-200 dark:bg-slate-700 border-slate-200 dark:border-slate-700'
                           }`}>
                             {isCompleted && <BadgeCheck className="w-2.5 h-2.5 text-white" />}
                           </div>
                           <span className={`absolute top-6 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
                             isCompleted ? 'text-slate-800 dark:text-slate-200' : 
-                            isCurrent ? 'text-[#1355D4]' : 
-                            'text-slate-400 dark:text-slate-500'
+                            isCurrent ? 'text-[#1355D4] dark:text-blue-400' : 
+                            'text-slate-400 dark:text-slate-400'
                           }`}>
                             Level {level}
                           </span>

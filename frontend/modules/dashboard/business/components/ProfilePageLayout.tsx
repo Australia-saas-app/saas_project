@@ -471,34 +471,13 @@ export default function ProfilePageLayout() {
                 ) : (
                   initials
                 )}
-                <button 
-                  onClick={() => avatarFileRef.current?.click()}
-                  className="absolute bottom-1 right-1 rounded-full bg-blue-600 p-1.5 text-white shadow-md border-2 border-white hover:bg-blue-700 transition-colors"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex flex-col items-center">
-                <button onClick={() => avatarFileRef.current?.click()} className="text-[13px] font-semibold text-blue-600 hover:underline">Change Photo</button>
-                <button 
-                  onClick={async () => {
-                    if (avatarUrl) {
-                      await updateProfile({ avatarUrl: "" });
-                      if (refreshUser) refreshUser();
-                      toast.success("Profile photo removed");
-                    }
-                  }} 
-                  className="text-xs font-medium text-red-500 hover:underline mt-0.5"
-                >
-                  Remove
-                </button>
               </div>
             </div>
             
             {/* Middle: Info */}
             <div className="flex-1 flex flex-col justify-center min-w-0">
               <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-3xl font-serif font-bold text-slate-900 dark:text-white tracking-tight">{fullName}</h2>
+                <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{fullName}</h2>
                 {isKycVerified && <BadgeCheck className="w-6 h-6 text-blue-600 fill-blue-600 text-white" />}
               </div>
               
@@ -552,8 +531,8 @@ export default function ProfilePageLayout() {
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                   {(() => {
-                    const reqFields = [!!fullName, !!(profileEmail || profilePhone), !!dateOfBirth, !!nationality, !!nationalIdentity, !!documentFrontUrl, !!hasCustomAvatar];
-                    if (idType !== "Passport") reqFields.push(!!documentBackUrl);
+                    const reqFields = [!!fullName, !!(profileEmail || profilePhone), !!dob, !!nationality, !!idNumber, !!frontDoc, !!hasCustomAvatar];
+                    if (idType !== "Passport") reqFields.push(!!backDoc);
                     const filled = reqFields.filter(Boolean).length;
                     const pct = Math.round((filled / reqFields.length) * 100);
                     return (
@@ -580,17 +559,17 @@ export default function ProfilePageLayout() {
             </div>
             
             {/* Bottom: Level Progress */}
-            <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-6 py-5">
+            <div className="px-6 py-5 pb-8">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Level Progress</h3>
-                <span className="text-[13px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{isDemo ? "5 of 6 levels completed" : "0 of 6 levels completed"}</span>
+                <span className="text-[13px] text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">{isDemo ? "5 of 6 levels completed" : "0 of 6 levels completed"}</span>
               </div>
               
-              <div className="relative pb-5 px-1 mt-2">
+              <div className="relative px-1 mt-2">
                 {/* Background Track */}
                 <div className="absolute top-[9px] left-0 w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
                 {/* Progress Fill */}
-                <div className={`absolute top-[9px] left-0 h-2 bg-[#1355D4] rounded-full transition-all duration-500 ${isDemo ? 'w-[80%]' : 'w-[0%]'}`}></div>
+                <div className={`absolute top-[9px] left-0 h-2 bg-[#1355D4] dark:bg-blue-500 rounded-full transition-all duration-500 ${isDemo ? 'w-[80%]' : 'w-[0%]'}`}></div>
                 
                 {/* Nodes */}
                 <div className="relative flex justify-between z-10">
@@ -603,17 +582,17 @@ export default function ProfilePageLayout() {
                       <div key={level} className="flex flex-col items-center group cursor-default">
                         <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm transition-colors ${
                           isCompleted 
-                            ? 'bg-[#1355D4] border-[#1355D4]' 
+                            ? 'bg-[#1355D4] border-[#1355D4] dark:bg-blue-500 dark:border-blue-500' 
                             : isCurrent 
-                              ? 'bg-white dark:bg-slate-900 border-[#1355D4]' 
+                              ? 'bg-white dark:bg-slate-900 border-[#1355D4] dark:border-blue-500' 
                               : 'bg-slate-200 dark:bg-slate-700 border-slate-200 dark:border-slate-700'
                         }`}>
                           {isCompleted && <BadgeCheck className="w-2.5 h-2.5 text-white" />}
                         </div>
                         <span className={`absolute top-6 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
                           isCompleted ? 'text-slate-800 dark:text-slate-200' : 
-                          isCurrent ? 'text-[#1355D4]' : 
-                          'text-slate-400 dark:text-slate-500'
+                          isCurrent ? 'text-[#1355D4] dark:text-blue-400' : 
+                          'text-slate-400 dark:text-slate-400'
                         }`}>
                           {level}
                         </span>
