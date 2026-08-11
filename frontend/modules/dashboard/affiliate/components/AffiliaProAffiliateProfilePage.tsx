@@ -510,7 +510,7 @@ export default function AffiliaProAffiliateProfilePage() {
               {/* Level Progress */}
               <div className="px-6 py-5 pb-8">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Level Progress</h3>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-300">Level Progress</h3>
                   <span className="text-[13px] text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">{isDemo ? "3 of 6 levels completed" : "0 of 6 levels completed"}</span>
                 </div>
                 

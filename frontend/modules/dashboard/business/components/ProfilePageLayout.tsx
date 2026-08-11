@@ -445,9 +445,8 @@ export default function ProfilePageLayout() {
         </div>
       </div>
 
-      <div className="flex flex-col xl:grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="contents xl:block xl:min-w-0 xl:space-y-5">
-          {kycStatus === 'rejected' && (
+      <div className="space-y-5">
+        {kycStatus === 'rejected' && (
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 mb-5">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
@@ -522,21 +521,21 @@ export default function ProfilePageLayout() {
               
               {/* SVG Circular Progress */}
               <div className="relative w-28 h-28 self-start md:ml-4">
-                <svg className="w-full h-full -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
-                  <path
-                    className="text-slate-100 dark:text-slate-800"
-                    strokeWidth="3.5"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {(() => {
-                    const reqFields = [!!fullName, !!(profileEmail || profilePhone), !!dob, !!nationality, !!idNumber, !!frontDoc, !!hasCustomAvatar];
-                    if (idType !== "Passport") reqFields.push(!!backDoc);
-                    const filled = reqFields.filter(Boolean).length;
-                    const pct = Math.round((filled / reqFields.length) * 100);
-                    return (
-                      <>
+                {(() => {
+                  const reqFields = [!!dob, !!nationality, !!idNumber, !!frontDoc, !!hasCustomAvatar];
+                  if (idType !== "Passport") reqFields.push(!!backDoc);
+                  const filled = reqFields.filter(Boolean).length;
+                  const pct = Math.round((filled / reqFields.length) * 100);
+                  return (
+                    <>
+                      <svg className="w-full h-full -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
+                        <path
+                          className="text-slate-100 dark:text-slate-800"
+                          strokeWidth="3.5"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
                         <path
                           className="text-[#1355D4]"
                           strokeWidth="3.5"
@@ -546,14 +545,14 @@ export default function ProfilePageLayout() {
                           fill="none"
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pt-0.5">
-                          <span className="text-xl font-extrabold text-slate-900 dark:text-white leading-none tracking-tight">{pct}%</span>
-                          <span className="text-[9.5px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">Complete</span>
-                        </div>
-                      </>
-                    )
-                  })()}
-                </svg>
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pt-0.5 pointer-events-none">
+                        <span className="text-xl font-extrabold text-slate-900 dark:text-white leading-none tracking-tight">{pct}%</span>
+                        <span className="text-[9.5px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">Complete</span>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
               </div>
             </div>
@@ -561,7 +560,7 @@ export default function ProfilePageLayout() {
             {/* Bottom: Level Progress */}
             <div className="px-6 py-5 pb-8">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Level Progress</h3>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-300">Level Progress</h3>
                 <span className="text-[13px] text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">{isDemo ? "5 of 6 levels completed" : "0 of 6 levels completed"}</span>
               </div>
               
@@ -603,8 +602,11 @@ export default function ProfilePageLayout() {
               </div>
             </div>
           </section>
+        </div>
 
-          {/* Main Profile Columns */}
+        <div className="flex flex-col xl:grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+          <div className="contents xl:block xl:min-w-0 xl:space-y-5">
+            {/* Main Profile Columns */}
           <div className="order-4 xl:order-none w-full grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
             {/* Left Column: Personal + Identity */}
             <div className="flex flex-col gap-5">
@@ -911,60 +913,6 @@ export default function ProfilePageLayout() {
 
         {/* Right rail */}
         <aside className="contents xl:block xl:space-y-5">
-          <div className={`${cardClass} xl:h-[318px] flex flex-col order-2 xl:order-none w-full`}>
-            <h2 className="mb-4 text-base font-bold text-gray-900">Account Overview</h2>
-            <dl className="space-y-3 text-sm">
-              {[
-                {
-                  label: "Member Since",
-                  value: user && "createdAt" in user && user.createdAt
-                    ? new Date(user.createdAt as string).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
-                    : "—"
-                },
-                { label: "Account Type", value: "Business" },
-                { label: "Status", value: status, badge: true },
-                {
-                  label: "ID",
-                  value: displayUserId
-                },
-              ].map((row) => (
-                <div key={row.label} className="flex items-center justify-between gap-2">
-                  <dt className="text-gray-500">{row.label}</dt>
-                  <dd>
-                    {row.badge ? (
-                      <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${getStatusBadgeStyle(status).dot} ${status === 'pending' ? 'animate-pulse' : ''}`} />
-                        {getStatusBadgeStyle(status).label}
-                      </span>
-                    ) : (
-                      <span className="font-semibold text-gray-900">{row.value}</span>
-                    )}
-                  </dd>
-                </div>
-              ))}
-              <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
-                <dt className="text-gray-500">Email</dt>
-                <dd>
-                  {profileEmail ? (
-                    <VerifiedBadge />
-                  ) : (
-                    <UnaddedBadge />
-                  )}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-gray-500">Phone</dt>
-                <dd>
-                  {profilePhone ? (
-                    <VerifiedBadge />
-                  ) : (
-                    <UnaddedBadge />
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
           <div className={`${cardClass} flex flex-col justify-center order-3 xl:order-none w-full`}>
             <h2 className="mb-3 text-base font-bold text-gray-900">Quick Links</h2>
             <ul className="space-y-1">
