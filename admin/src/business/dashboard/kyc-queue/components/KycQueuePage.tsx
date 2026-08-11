@@ -73,12 +73,14 @@ export default function KycQueuePage() {
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       processUpdate(detail?.userId, detail?.kycStatus);
+      refetch();
     };
 
     const handleUserStatusUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.userId) {
-        processUpdate(detail.userId, detail.kycStatus);
+        processUpdate(detail.userId, detail.kycStatus || 'pending');
+        refetch();
       }
     };
 
@@ -95,7 +97,10 @@ export default function KycQueuePage() {
             event.data?.type === "vero:user_status_updated" ||
             event.data?.type === "vero:kyc_submitted"
           ) {
-            processUpdate(event.data.userId, event.data.kycStatus);
+            if (event.data?.userId) {
+              processUpdate(event.data.userId, event.data.kycStatus || 'pending');
+            }
+            refetch();
           }
         };
       }
@@ -105,7 +110,10 @@ export default function KycQueuePage() {
       if ((e.key === "vero_kyc_sync" || e.key === "vero_profile_sync") && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          processUpdate(parsed.userId, parsed.kycStatus);
+          if (parsed.userId) {
+            processUpdate(parsed.userId, parsed.kycStatus || 'pending');
+          }
+          refetch();
         } catch {}
       }
     };

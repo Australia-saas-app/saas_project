@@ -274,7 +274,9 @@ export default function RoleProfileCard({
         onClose={() => setIsKycModalOpen(false)}
         kycStatus={effectiveKycStatus}
         isKycVerified={effectiveIsKycVerified}
-        onSuccess={() => {
+        onSuccess={async () => {
+          await updateProfile({ kycStatus: "pending" });
+          if (refreshUser) await refreshUser().catch(() => {});
         }}
         user={{
           rawUserId,
