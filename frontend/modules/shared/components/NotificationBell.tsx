@@ -85,10 +85,12 @@ export function NotificationBell({
 
           <ul className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
-              <li
-                className={`px-4 py-8 text-center text-sm ${isDark ? "text-slate-400" : "text-gray-500"}`}
-              >
-                {emptyLabel}
+              <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ${isDark ? "bg-white/5 text-slate-500" : "bg-gray-50 text-gray-400"}`}>
+                  <Bell className="h-6 w-6 opacity-50" />
+                </div>
+                <p className={`text-sm font-medium ${isDark ? "text-slate-300" : "text-gray-600"}`}>No notifications yet</p>
+                <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{emptyLabel}</p>
               </li>
             ) : (
               notifications.map((item) => (

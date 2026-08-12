@@ -1366,6 +1366,7 @@ export class AuthService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userIds: [user.userId],
           type: `KYC_${kycStatus.toUpperCase()}`,
           title: 'KYC Application Update',
           message: kycStatus === 'approved' ? 'Your KYC application has been approved' : 'Your KYC application has been rejected',

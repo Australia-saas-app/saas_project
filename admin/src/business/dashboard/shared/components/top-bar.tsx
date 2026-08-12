@@ -7,6 +7,7 @@ import { useAppDispatch, useAppSelector } from "@/src/core/store/hooks"
 import { logout } from "@/src/core/store/slices/authSlice"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
+import { NotificationBell } from "@/src/shared/components/NotificationBell"
 
 interface TopBarProps {
   onMenuClick?: () => void
@@ -79,90 +80,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           {/* Icons */}
           <div className="flex items-center gap-2">
             {/* Notification Dropdown */}
-            <div className="relative" ref={notifRef}>
-              <button 
-                onClick={() => {
-                  setIsNotifOpen(!isNotifOpen)
-                  setIsDropdownOpen(false)
-                }}
-                className={`relative p-2 rounded-full transition-colors ${isNotifOpen ? 'bg-amber-100 text-amber-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100'}`}
-              >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white border-2 border-white dark:border-gray-900">
-                  2
-                </span>
-              </button>
-              
-              {isNotifOpen && (
-                <div className="absolute right-0 mt-2 w-[340px] bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[100]">
-                  <div className="p-5 flex justify-between items-start border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-800 dark:text-white">Notifications</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">2 unread</p>
-                    </div>
-                    <button onClick={() => setIsNotifOpen(false)} className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors mt-0.5">
-                      <X size={16} />
-                    </button>
-                  </div>
-                  
-                  <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                    {/* Item 1 */}
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 cursor-pointer flex gap-4 relative transition-colors group">
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-500/20 shadow-sm">
-                        <MessageSquare size={18} strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1 pr-4">
-                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">New message from Liam Anderson</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Hi, I need help with my account</p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-medium">02:40 AM</p>
-                      </div>
-                      <div className="absolute right-4 top-5 w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></div>
-                    </div>
-
-                    {/* Item 2 */}
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 cursor-pointer flex gap-4 relative transition-colors group">
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-500/20 shadow-sm">
-                        <MessageSquare size={18} strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1 pr-4">
-                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">New message from Lucas Williams</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Do you have any promotional offers?</p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-medium">02:30 AM</p>
-                      </div>
-                      <div className="absolute right-4 top-5 w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></div>
-                    </div>
-
-                    {/* Item 3 */}
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 cursor-pointer flex gap-4 transition-colors group">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
-                        <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] border-2 border-white dark:border-slate-800"></div>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Sophia Chen is now online</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">User is online</p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-medium">02:15 AM</p>
-                      </div>
-                    </div>
-
-                    {/* Item 4 */}
-                    <div className="p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 cursor-pointer flex gap-4 transition-colors group">
-                      <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-500/20 shadow-sm">
-                        <PhoneMissed size={18} strokeWidth={2} />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-rose-500 dark:group-hover:text-rose-400 transition-colors">Missed voice call from Grace Miller</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Missed call</p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-medium">12:45 AM</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 text-center border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-                    <button className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 transition-all hover:scale-105">Mark all as read</button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <NotificationBell variant="light" />
 
             {/* Chat Icon (Routing only) */}
             <button 

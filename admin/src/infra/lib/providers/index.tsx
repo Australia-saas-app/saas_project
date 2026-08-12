@@ -38,6 +38,8 @@ function HydrationWrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+import { NotificationProvider } from "@/src/shared/context/notification.provider";
+
 export interface ProvidersProps {
   children: React.ReactNode;
 }
@@ -48,9 +50,11 @@ export function Providers({ children }: ProvidersProps) {
       <HydrationWrapper>
         <QueryClientProvider client={queryClient}>
           <UserProvider>
-            <Toaster position="top-right" richColors duration={5000} />
+            <NotificationProvider>
+              <Toaster position="top-right" richColors duration={5000} />
 
-            {children}
+              {children}
+            </NotificationProvider>
           </UserProvider>
         </QueryClientProvider>
       </HydrationWrapper>
