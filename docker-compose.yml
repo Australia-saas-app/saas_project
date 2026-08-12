@@ -198,6 +198,31 @@ services:
     networks:
       - saas_network
 
+  saas-backend-notification:
+    build:
+      context: ./backend/apps/notification
+      dockerfile: Dockerfile
+    container_name: saas-backend-notification
+    environment:
+      - NODE_ENV=production
+      - PORT=3014
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=admin
+      - DB_PASSWORD=adminpassword
+      - DB_NAME=saas_db
+      - REDIS_HOST=saas-redis
+      - REDIS_PORT=6379
+    env_file:
+      - ./backend/config/sso-keys.conf
+    depends_on:
+      - saas-postgres
+      - saas-redis
+      - saas-backend-sso
+    restart: always
+    networks:
+      - saas_network
+
   # ==========================================
   # 5. DATABASE & INFRASTRUCTURE
   # ==========================================

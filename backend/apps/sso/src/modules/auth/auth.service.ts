@@ -1460,7 +1460,7 @@ export class AuthService {
 
     try {
       // Trigger real-time notification to ADMINs
-      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
+      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://saas-backend-notification:3014/notification-service/internal/notifications';
       const safeAccType = (user.accountType || 'user').toLowerCase();
       const capitalizedType = safeAccType.charAt(0).toUpperCase() + safeAccType.slice(1);
       
