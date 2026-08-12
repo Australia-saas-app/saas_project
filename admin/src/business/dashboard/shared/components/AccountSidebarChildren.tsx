@@ -36,7 +36,8 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
       try {
         // Use limit=all to count all pending KYC applications without pagination limit
         const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-cache' },
+          cache: 'no-store'
         })
         if (!response.ok) return
         const resData = await response.json()

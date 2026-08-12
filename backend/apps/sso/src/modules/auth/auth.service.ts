@@ -1362,17 +1362,18 @@ export class AuthService {
 
       // Trigger real-time notification to the user
       const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
+      const safeAccountType = (user.accountType || 'user').toLowerCase();
       fetch(notificationUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userIds: [user.userId],
+          userIds: [user.userId || user.id],
           type: `KYC_${kycStatus.toUpperCase()}`,
           title: 'KYC Application Update',
           message: kycStatus === 'approved' ? 'Your KYC application has been approved' : 'Your KYC application has been rejected',
           priority: 'high',
           data: {
-            href: `/dashboard/${user.accountType.toLowerCase()}/profile`
+            href: `/dashboard/${safeAccountType}/profile`
           }
         })
       }).catch(() => undefined);
@@ -1460,7 +1461,8 @@ export class AuthService {
     try {
       // Trigger real-time notification to ADMINs
       const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
-      const capitalizedType = user.accountType.charAt(0).toUpperCase() + user.accountType.slice(1).toLowerCase();
+      const safeAccType = (user.accountType || 'user').toLowerCase();
+      const capitalizedType = safeAccType.charAt(0).toUpperCase() + safeAccType.slice(1);
       
       const adminUsers = await this.adminRepository.find();
       const adminIds = adminUsers.map(admin => admin.id);
