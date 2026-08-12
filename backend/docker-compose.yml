@@ -192,6 +192,22 @@ services:
       SSO_PUBLIC_KEY: ${SSO_PUBLIC_KEY}
       SSO_ISSUER: ${SSO_ISSUER}
 
+  notification-service:
+    build:
+      context: ./apps/notification
+      dockerfile: Dockerfile
+    ports:
+      - "3014:3014"
+    environment:
+      PORT: 3014
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_DB_USERNAME}
+      DB_PASSWORD: ${POSTGRES_DB_PASSWORD}
+      DB_NAME: ${POSTGRES_DB_NAME}
+      SSO_ISSUER: ${SSO_ISSUER}
+      SSO_PUBLIC_KEY: ${SSO_PUBLIC_KEY}
+
 volumes:
   postgres-data:
   pgadmin-data:

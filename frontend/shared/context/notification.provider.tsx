@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Bell } from "lucide-react";
 import { toast } from "sonner";
 import {
   ADMIN_NOTIFICATIONS,
@@ -26,11 +27,15 @@ interface INotificationContext {
   notify: (item: Omit<NotificationItem, "id" | "time" | "read">) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
+  deleteNotification: (id: string) => void;
+  deleteAllNotifications: () => void;
 }
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
 const READ_STORAGE_KEY = "sysdb.notifications.read";
+
+import { io, Socket } from "socket.io-client";
 
 function roleSeed(role: string | undefined): NotificationItem[] {
   switch (role) {
@@ -60,7 +65,7 @@ function loadReadIds(): Set<string> {
 
 function persistReadIds(ids: Set<string>): void {
   try {
-    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...ids].slice(-200)));
+    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(Array.from(ids).slice(-200)));
   } catch {
     // storage unavailable
   }
@@ -74,6 +79,7 @@ function persistReadIds(ids: Set<string>): void {
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const role = user && "role" in user ? String(user.role ?? "") : undefined;
+  const userId = user && ("userId" in user || "id" in user) ? ((user as any).userId || (user as any).id) : undefined;
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
@@ -81,6 +87,50 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const readIds = loadReadIds();
     setItems(roleSeed(role).map((item) => (readIds.has(item.id) ? { ...item, read: true } : item)));
   }, [role]);
+
+  const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read">) => {
+    const entry: NotificationItem = {
+      ...item,
+      id: `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      time: "Just now",
+      read: false,
+    };
+    setItems((prev) => [entry, ...prev].slice(0, 50));
+    toast("You have received a notification", {
+      description: item.title,
+      duration: 5000,
+      icon: <Bell className="h-5 w-5 text-blue-500" />,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+    
+    // Connect to notification gateway
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+    const wsUrl = apiUrl.replace("http", "ws").replace("/api/v1", "");
+    
+    const socket: Socket = io(`${wsUrl}/notifications`, {
+      transports: ["websocket"],
+      query: { userId, role: role || "user" },
+    });
+
+    socket.on("connect", () => {
+      console.log("Connected to real-time notifications server");
+    });
+
+    socket.on("new_notification", (payload: any) => {
+      notify({
+        title: payload.title,
+        message: payload.message,
+        href: payload.href,
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [userId, role, notify]);
 
   const markRead = useCallback((id: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
@@ -98,16 +148,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read">) => {
-    const entry: NotificationItem = {
-      ...item,
-      id: `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      time: "Just now",
-      read: false,
-    };
-    setItems((prev) => [entry, ...prev].slice(0, 50));
-    toast(item.title, { description: item.message });
+  const deleteNotification = useCallback((id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
+
+  const deleteAllNotifications = useCallback(() => {
+    setItems([]);
+  }, []);
+
 
   const value = useMemo<INotificationContext>(
     () => ({
@@ -116,8 +164,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       notify,
       markRead,
       markAllRead,
+      deleteNotification,
+      deleteAllNotifications,
     }),
-    [items, notify, markRead, markAllRead]
+    [items, notify, markRead, markAllRead, deleteNotification, deleteAllNotifications]
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

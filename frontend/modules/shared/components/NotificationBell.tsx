@@ -18,7 +18,7 @@ export function NotificationBell({
   emptyLabel = "You're all caught up",
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+  const { notifications, unreadCount, markRead, markAllRead, deleteNotification, deleteAllNotifications } = useNotifications();
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,16 +70,15 @@ export function NotificationBell({
                 {unreadCount > 0 ? `${unreadCount} unread` : emptyLabel}
               </p>
             </div>
-            {unreadCount > 0 && (
+            {notifications.length > 0 && (
               <button
                 type="button"
-                onClick={markAllRead}
+                onClick={deleteAllNotifications}
                 className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
-                  isDark ? "text-slate-300 hover:bg-white/10" : "text-gray-600 hover:bg-gray-50"
+                  isDark ? "text-red-400 hover:bg-red-400/10" : "text-red-600 hover:bg-red-50"
                 }`}
               >
-                <CheckCheck className="h-3.5 w-3.5" />
-                Mark all read
+                Delete all
               </button>
             )}
           </div>
@@ -93,7 +92,7 @@ export function NotificationBell({
               </li>
             ) : (
               notifications.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} className="relative group">
                   {item.href ? (
                     <Link
                       href={item.href}
@@ -101,10 +100,10 @@ export function NotificationBell({
                         markRead(item.id);
                         setOpen(false);
                       }}
-                      className={`block border-b px-4 py-3 transition-colors last:border-0 ${
+                      className={`block border-b px-4 py-3 pr-10 transition-colors last:border-0 ${
                         isDark
-                          ? `border-white/5 hover:bg-white/5 ${!item.read ? "bg-white/5" : ""}`
-                          : `border-gray-50 hover:bg-gray-50 ${!item.read ? "bg-blue-50/40" : ""}`
+                          ? `border-white/5 hover:bg-white/10 ${!item.read ? "bg-white/5" : "bg-transparent"}`
+                          : `border-gray-50 hover:bg-gray-100 ${!item.read ? "bg-blue-50/50" : "bg-transparent"}`
                       }`}
                     >
                       <NotificationRow item={item} isDark={isDark} />
@@ -113,45 +112,65 @@ export function NotificationBell({
                     <button
                       type="button"
                       onClick={() => markRead(item.id)}
-                      className={`block w-full border-b px-4 py-3 text-left transition-colors last:border-0 ${
+                      className={`block w-full border-b px-4 py-3 pr-10 text-left transition-colors last:border-0 ${
                         isDark
-                          ? `border-white/5 hover:bg-white/5 ${!item.read ? "bg-white/5" : ""}`
-                          : `border-gray-50 hover:bg-gray-50 ${!item.read ? "bg-blue-50/40" : ""}`
+                          ? `border-white/5 hover:bg-white/10 ${!item.read ? "bg-white/5" : "bg-transparent"}`
+                          : `border-gray-50 hover:bg-gray-100 ${!item.read ? "bg-blue-50/50" : "bg-transparent"}`
                       }`}
                     >
                       <NotificationRow item={item} isDark={isDark} />
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      deleteNotification(item.id);
+                    }}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+                      isDark ? "text-slate-400 hover:bg-white/10 hover:text-red-400" : "text-gray-400 hover:bg-gray-200 hover:text-red-500"
+                    }`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </li>
               ))
             )}
           </ul>
 
-          <div
-            className={`border-t px-4 py-2.5 ${isDark ? "border-white/10 bg-white/5" : "border-gray-100 bg-gray-50"}`}
-          >
-            <Link
-              href={viewAllHref}
-              onClick={() => setOpen(false)}
-              className={`block text-center text-xs font-semibold ${
-                isDark ? "text-blue-300 hover:text-blue-200" : "text-primary hover:underline"
-              }`}
+          {unreadCount > 0 && (
+            <div
+              className={`border-t px-4 py-2.5 ${isDark ? "border-white/10 bg-white/5" : "border-gray-100 bg-gray-50"}`}
             >
-              View all notifications
-            </Link>
-          </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  markAllRead();
+                }}
+                className={`block w-full text-center text-xs font-semibold ${
+                  isDark ? "text-blue-300 hover:text-blue-200" : "text-primary hover:underline"
+                }`}
+              >
+                Read all
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
+import { Trash2 } from "lucide-react";
+
 function NotificationRow({ item, isDark }: { item: NotificationItem; isDark: boolean }) {
   return (
     <div className="flex items-start gap-3">
       <span
         className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-          item.read ? (isDark ? "bg-slate-600" : "bg-gray-300") : "bg-red-500"
+          item.read ? (isDark ? "bg-slate-600" : "bg-gray-300") : "bg-blue-500"
         }`}
       />
       <div className="min-w-0 flex-1">

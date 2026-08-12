@@ -1359,6 +1359,22 @@ export class AuthService {
           ipAddress
         })
       }).catch(() => undefined);
+
+      // Trigger real-time notification to the user
+      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
+      fetch(notificationUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: `KYC_${kycStatus.toUpperCase()}`,
+          title: 'KYC Application Update',
+          message: kycStatus === 'approved' ? 'Your KYC application has been approved' : 'Your KYC application has been rejected',
+          priority: 'high',
+          data: {
+            href: `/dashboard/${user.accountType.toLowerCase()}/profile`
+          }
+        })
+      }).catch(() => undefined);
     } catch { }
 
     return {
@@ -1439,6 +1455,27 @@ export class AuthService {
 
     user.kycStatus = KycStatus.PENDING;
     await this.userRepository.save(user);
+
+    try {
+      // Trigger real-time notification to ADMINs
+      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
+      const capitalizedType = user.accountType.charAt(0).toUpperCase() + user.accountType.slice(1).toLowerCase();
+      fetch(notificationUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'KYC_APPLY',
+          title: 'You have received KYC application',
+          message: capitalizedType,
+          priority: 'high',
+          data: {
+            href: `/admin/kyc-queue?tab=${capitalizedType}`
+          },
+          isRoleBased: true,
+          targetRole: 'ADMIN'
+        })
+      }).catch(() => undefined);
+    } catch { }
 
     return {
       success: true,

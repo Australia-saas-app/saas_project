@@ -7,6 +7,7 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { GetNotificationsDto } from './dto/get-notifications.dto';
 import { TemplatesService } from '../templates/templates.service';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
@@ -16,6 +17,7 @@ export class NotificationsService {
     @InjectRepository(NotificationLog)
     private readonly logRepository: Repository<NotificationLog>,
     private readonly templatesService: TemplatesService,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   async createNotification(
@@ -40,6 +42,15 @@ export class NotificationsService {
       channel: 'in-app',
       status: 'sent',
       sentAt: new Date(),
+    });
+
+    // Emit real-time event
+    this.notificationsGateway.sendToUser(userId, {
+      id: savedNotification.id,
+      title: savedNotification.title,
+      message: savedNotification.message,
+      type: savedNotification.type,
+      href: savedNotification.data?.href,
     });
 
     return {
@@ -101,6 +112,15 @@ export class NotificationsService {
         channel: 'in-app',
         status: 'sent',
         sentAt: now,
+      });
+
+      // Emit real-time event
+      this.notificationsGateway.sendToUser(userId, {
+        id: savedNotification.id,
+        title: savedNotification.title,
+        message: savedNotification.message,
+        type: savedNotification.type,
+        href: savedNotification.data?.href,
       });
     }
 
