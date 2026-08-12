@@ -41,7 +41,7 @@ const wsUrl = apiUrl.replace("http", "ws").replace("/api/v1", "");
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const user = useAppSelector((state: any) => state.auth.user);
   const role = user?.role || "admin";
-  const userId = user?.id || user?.userId;
+  const userId = user?.id || user?.userId || user?.adminId;
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 

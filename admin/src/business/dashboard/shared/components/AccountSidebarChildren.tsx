@@ -36,8 +36,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
       try {
         // Use limit=all to count all pending KYC applications without pagination limit
         const response = await fetch('/admin/api/sso/auth/admin/users?limit=all', {
-          headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-cache' },
-          cache: 'no-store'
+          headers: { 'Authorization': `Bearer ${token}` }
         })
         if (!response.ok) return
         const resData = await response.json()
@@ -57,17 +56,13 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     // Instantly update badge when an admin approves / rejects an application
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      // Optimistic decrement — approved/rejected removes from queue
       if (detail?.kycStatus && (detail.kycStatus === 'approved' || detail.kycStatus === 'rejected')) {
         setKycCount(prev => Math.max(0, prev - 1));
       }
-      // Then refetch the real count from the backend
-      fetchKycCount();
     };
     // If a user is deleted, their KYC application is gone too — decrement the badge
     const handleUserDeleted = () => {
       setKycCount(prev => Math.max(0, prev - 1));
-      fetchKycCount();
     };
     window.addEventListener("vero:kyc_updated", handleKycUpdate)
     window.addEventListener("vero:user_deleted", handleUserDeleted)

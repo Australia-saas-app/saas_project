@@ -34,8 +34,7 @@ export default function KycQueuePage() {
     queryFn: async () => {
       if (!token) return [];
       const response = await fetch('/admin/api/sso/auth/admin/users?limit=all&hasKyc=true', {
-        headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-cache' },
-        cache: 'no-store'
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Network error');
       const resData = await response.json();
@@ -66,22 +65,17 @@ export default function KycQueuePage() {
           );
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["kyc-users"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      refetch();
     };
 
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       processUpdate(detail?.userId, detail?.kycStatus);
-      refetch();
     };
 
     const handleUserStatusUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.userId) {
-        processUpdate(detail.userId, detail.kycStatus || 'pending');
-        refetch();
+      if (detail?.userId && detail.kycStatus) {
+        processUpdate(detail.userId, detail.kycStatus);
       }
     };
 
@@ -95,13 +89,11 @@ export default function KycQueuePage() {
         bc.onmessage = (event) => {
           if (
             event.data?.type === "vero:kyc_updated" ||
-            event.data?.type === "vero:user_status_updated" ||
             event.data?.type === "vero:kyc_submitted"
           ) {
-            if (event.data?.userId) {
-              processUpdate(event.data.userId, event.data.kycStatus || 'pending');
+            if (event.data?.userId && event.data?.kycStatus) {
+              processUpdate(event.data.userId, event.data.kycStatus);
             }
-            refetch();
           }
         };
       }
@@ -111,10 +103,9 @@ export default function KycQueuePage() {
       if ((e.key === "vero_kyc_sync" || e.key === "vero_profile_sync") && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          if (parsed.userId) {
-            processUpdate(parsed.userId, parsed.kycStatus || 'pending');
+          if (parsed.userId && parsed.kycStatus) {
+            processUpdate(parsed.userId, parsed.kycStatus);
           }
-          refetch();
         } catch {}
       }
     };
@@ -384,7 +375,6 @@ export default function KycQueuePage() {
           onClose={() => setSelectedApp(null)}
           user={selectedApp}
           onSuccess={() => {
-            refetch();
             setSelectedApp(null);
           }}
         />
