@@ -1460,21 +1460,26 @@ export class AuthService {
       // Trigger real-time notification to ADMINs
       const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
       const capitalizedType = user.accountType.charAt(0).toUpperCase() + user.accountType.slice(1).toLowerCase();
-      fetch(notificationUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'KYC_APPLY',
-          title: 'You have received KYC application',
-          message: capitalizedType,
-          priority: 'high',
-          data: {
-            href: `/admin/kyc-queue?tab=${capitalizedType}`
-          },
-          isRoleBased: true,
-          targetRole: 'ADMIN'
-        })
-      }).catch(() => undefined);
+      
+      const adminUsers = await this.adminRepository.find();
+      const adminIds = adminUsers.map(admin => admin.id);
+
+      if (adminIds.length > 0) {
+        fetch(notificationUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userIds: adminIds,
+            type: 'KYC_APPLY',
+            title: 'You have received KYC application',
+            message: capitalizedType,
+            priority: 'high',
+            data: {
+              href: `/admin/kyc-queue?tab=${capitalizedType}`
+            },
+          })
+        }).catch(() => undefined);
+      }
     } catch { }
 
     return {

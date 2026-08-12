@@ -276,6 +276,14 @@ export class NotificationsService {
     };
   }
 
+  async deleteAllNotifications(userId: string) {
+    await this.notificationRepository.delete({ userId });
+    return {
+      success: true,
+      message: 'All notifications deleted successfully',
+    };
+  }
+
   async getNotificationStats(userId: string) {
     const total = await this.notificationRepository.count({ where: { userId } });
     const unread = await this.notificationRepository.count({ where: { userId, isRead: false } });

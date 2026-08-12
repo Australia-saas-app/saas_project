@@ -12,7 +12,7 @@ export class InternalNotificationsController {
   @Post()
   @HttpCode(HttpStatus.OK)
   async createInternalNotification(@Body() body: any) {
-    const { userId, targetRole, type, title, message, priority, data, isRoleBased } = body;
+    const { userId, userIds, type, title, message, priority, data } = body;
 
     // Build payload
     const payload = {
@@ -23,14 +23,12 @@ export class InternalNotificationsController {
       href: data?.href,
     };
 
-    if (isRoleBased && targetRole) {
-      // Emit to role (e.g. 'ADMIN')
-      this.notificationsGateway.sendToRole(targetRole, payload);
-    } else if (userId) {
-      // Persist in DB and emit to user
+    const ids = userIds || (userId ? [userId] : []);
+
+    for (const id of ids) {
       await this.notificationsService.createNotification(
         { type, title, message, priority, data },
-        userId,
+        id,
       );
     }
 

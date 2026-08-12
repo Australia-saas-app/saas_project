@@ -11,20 +11,14 @@ import {
 } from "react";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
-import {
-  ADMIN_NOTIFICATIONS,
-  AFFILIATE_NOTIFICATIONS,
-  BUSINESS_NOTIFICATIONS,
-  USER_NOTIFICATIONS,
-  type NotificationItem,
-} from "@/src/constants/notifications";
+import type { NotificationItem } from "@/src/constants/notifications";
 import { useUser } from "@/src/context/user.provider";
+import { io, Socket } from "socket.io-client";
 
 interface INotificationContext {
   notifications: NotificationItem[];
   unreadCount: number;
-  /** Push a new notification (shows a toast and prepends to the list). */
-  notify: (item: Omit<NotificationItem, "id" | "time" | "read">) => void;
+  notify: (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
   deleteNotification: (id: string) => void;
@@ -33,43 +27,8 @@ interface INotificationContext {
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
-const READ_STORAGE_KEY = "sysdb.notifications.read";
-
-import { io, Socket } from "socket.io-client";
-
-function roleSeed(role: string | undefined): NotificationItem[] {
-  switch (role) {
-    case "ADMIN":
-    case "SUPER_ADMIN":
-      return ADMIN_NOTIFICATIONS;
-    case "AFFILIATE":
-      return AFFILIATE_NOTIFICATIONS;
-    case "BUSINESS":
-      return BUSINESS_NOTIFICATIONS;
-    case "USER":
-      return USER_NOTIFICATIONS;
-    default:
-      return [];
-  }
-}
-
-function loadReadIds(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = window.localStorage.getItem(READ_STORAGE_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function persistReadIds(ids: Set<string>): void {
-  try {
-    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(Array.from(ids).slice(-200)));
-  } catch {
-    // storage unavailable
-  }
-}
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const wsUrl = apiUrl.replace("http", "ws").replace("/api/v1", "");
 
 /**
  * Global notification store. Seeds role-appropriate demo notifications until
@@ -83,21 +42,43 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
+  // Fetch initial notifications from DB
   useEffect(() => {
-    const readIds = loadReadIds();
-    setItems(roleSeed(role).map((item) => (readIds.has(item.id) ? { ...item, read: true } : item)));
-  }, [role]);
+    if (!userId) {
+      setItems([]);
+      return;
+    }
+    
+    let mounted = true;
+    fetch(`${apiUrl}/notifications`, { credentials: "omit" }) // Add Authorization if needed, but assuming cookies/proxy handles it
+      .then(res => res.json())
+      .then(res => {
+        if (mounted && res.success && Array.isArray(res.data?.notifications)) {
+          const mapped = res.data.notifications.map((n: any) => ({
+            id: n.id,
+            title: n.title,
+            message: n.message,
+            time: new Date(n.createdAt).toLocaleDateString(), // Format appropriately
+            read: n.isRead,
+            href: n.data?.href,
+          }));
+          setItems(mapped);
+        }
+      })
+      .catch(err => console.error("Failed to load notifications:", err));
 
-  const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read">) => {
+    return () => { mounted = false; };
+  }, [userId]);
+
+  const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
     const entry: NotificationItem = {
       ...item,
-      id: `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       time: "Just now",
       read: false,
     };
     setItems((prev) => [entry, ...prev].slice(0, 50));
-    toast("You have received a notification", {
-      description: item.title,
+    toast("You have received a new notification", {
       duration: 5000,
       icon: <Bell className="h-5 w-5 text-blue-500" />,
     });
@@ -107,9 +88,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!userId || typeof window === "undefined") return;
     
     // Connect to notification gateway
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-    const wsUrl = apiUrl.replace("http", "ws").replace("/api/v1", "");
-    
     const socket: Socket = io(`${wsUrl}/notifications`, {
       transports: ["websocket"],
       query: { userId, role: role || "user" },
@@ -121,6 +99,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     socket.on("new_notification", (payload: any) => {
       notify({
+        id: payload.id, // Pass the real DB ID!
         title: payload.title,
         message: payload.message,
         href: payload.href,
@@ -134,26 +113,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback((id: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-    const readIds = loadReadIds();
-    readIds.add(id);
-    persistReadIds(readIds);
+    fetch(`${apiUrl}/notifications/${id}/read`, { method: "PUT", credentials: "omit" }).catch(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
-    setItems((prev) => {
-      const readIds = loadReadIds();
-      prev.forEach((item) => readIds.add(item.id));
-      persistReadIds(readIds);
-      return prev.map((item) => ({ ...item, read: true }));
-    });
+    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+    fetch(`${apiUrl}/notifications/read-all`, { method: "PUT", credentials: "omit" }).catch(() => {});
   }, []);
 
   const deleteNotification = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+    fetch(`${apiUrl}/notifications/${id}`, { method: "DELETE", credentials: "omit" }).catch(() => {});
   }, []);
 
   const deleteAllNotifications = useCallback(() => {
     setItems([]);
+    fetch(`${apiUrl}/notifications/all`, { method: "DELETE", credentials: "omit" }).catch(() => {});
   }, []);
 
 
