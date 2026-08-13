@@ -106,7 +106,6 @@ services:
     depends_on:
       - saas-postgres
       - saas-redis
-      - saas-backend-notification
     restart: always
     networks:
       - saas_network
