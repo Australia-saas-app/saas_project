@@ -74,8 +74,6 @@ services:
           - /api/v1/notifications
         strip_path: true
 
-  # Dedicated WebSocket/Socket.io proxy — no strip_path so Socket.io engine
-  # receives paths exactly as sent by the browser (required for handshake).
   - name: notification-ws-service
     url: http://saas-backend-notification:3014
     routes:
@@ -84,8 +82,3 @@ services:
           - /notifications
           - /socket.io
         strip_path: false
-        protocols:
-          - http
-          - https
-          - ws
-          - wss
