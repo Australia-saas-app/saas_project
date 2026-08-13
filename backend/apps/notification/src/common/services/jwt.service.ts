@@ -95,22 +95,15 @@ export class JwtService {
         payload = decoded;
       }
 
-      // Verify required fields
-      if (!payload || !payload.userId || !payload.sub) {
-        Logger.warn('User token missing required fields', JwtService.name);
+      // Verify required fields — accept both user tokens (userId) and admin tokens (adminId)
+      const resolvedId = (payload as any).userId || (payload as any).adminId || payload.sub;
+      if (!payload || !resolvedId) {
+        Logger.warn('Token missing required id fields (userId/adminId/sub)', JwtService.name);
         return null;
       }
 
-      // Verify it's a user token (not admin token)
-      // Reject admin tokens explicitly, but accept user tokens or tokens without role/accountType
-      const role = payload.role || payload.accountType;
-      if (role === 'admin' || role === 'sub-admin' || role === 'super_admin') {
-        Logger.warn(
-          `Token rejected: Admin tokens are not allowed. Got role: ${payload.role}, accountType: ${payload.accountType}`,
-          JwtService.name,
-        );
-        return null;
-      }
+      // Inject a unified userId so downstream code works for both user and admin tokens
+      (payload as any).userId = resolvedId;
 
       return payload;
     } catch (error) {

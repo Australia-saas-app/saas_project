@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Table } from "@/src/shared/ui/table/Table";
 import { TableBody } from "@/src/shared/ui/table/TableBody";
@@ -19,15 +20,29 @@ import { KycReviewModal } from "./KycReviewModal";
 export default function KycQueuePage() {
   const queryClient = useQueryClient();
   const token = useAppSelector((state) => state.auth.token);
-  
+  const searchParams = useSearchParams();
+
+  // Read ?tab= from URL (e.g. from notification click: /admin/kyc-queue?tab=user)
+  const tabParam = searchParams.get("tab");
+  const validTabs = ["user", "affiliate", "business"] as const;
+  const initialTab = validTabs.includes(tabParam as any) ? (tabParam as "user" | "affiliate" | "business") : "user";
+
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
-  const [activeTab, setActiveTab] = useState<"user" | "affiliate" | "business">("user");
+  const [activeTab, setActiveTab] = useState<"user" | "affiliate" | "business">(initialTab);
   const [localOverrides, setLocalOverrides] = useState<Record<string, string>>({});
+
   
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Sync tab when URL param changes (e.g. navigating from a notification)
+  useEffect(() => {
+    if (tabParam && validTabs.includes(tabParam as any)) {
+      setActiveTab(tabParam as "user" | "affiliate" | "business");
+    }
+  }, [tabParam]);
 
   const { data: users, isLoading, isFetching, refetch } = useQuery<any[]>({
     queryKey: ["kyc-users", token],

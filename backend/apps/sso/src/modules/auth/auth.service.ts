@@ -1363,17 +1363,22 @@ export class AuthService {
       // Trigger real-time notification to the user
       const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://saas-backend-notification:3014/notification-service/internal/notifications';
       const safeAccountType = (user.accountType || 'user').toLowerCase();
+      // Map 'agency' to 'affiliate' to match the frontend URL structure
+      const profilePath = (safeAccountType === 'agency' || safeAccountType === 'affiliate') ? 'affiliate' : safeAccountType;
+      const statusLabel = kycStatus === 'approved' ? 'approved ✓' : 'rejected';
       fetch(notificationUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userIds: [user.userId || user.id],
           type: `KYC_${kycStatus.toUpperCase()}`,
-          title: 'KYC Application Update',
-          message: kycStatus === 'approved' ? 'Your KYC application has been approved' : 'Your KYC application has been rejected',
+          title: kycStatus === 'approved' ? 'KYC Application Approved' : 'KYC Application Rejected',
+          message: kycStatus === 'approved'
+            ? 'Your KYC application has been approved. Your account is now verified.'
+            : `Your KYC application has been rejected. Please review and resubmit.`,
           priority: 'high',
           data: {
-            href: `/dashboard/${safeAccountType}/profile`
+            href: `/dashboard/${profilePath}/profile`
           }
         })
       }).catch(() => undefined);
@@ -1474,11 +1479,11 @@ export class AuthService {
           body: JSON.stringify({
             userIds: adminIds,
             type: 'KYC_APPLY',
-            title: 'You have received KYC application',
-            message: capitalizedType,
+            title: 'New KYC Application',
+            message: `${user.fullName || user.email} (${capitalizedType}) has submitted a KYC application`,
             priority: 'high',
             data: {
-              href: `/admin/kyc-queue?tab=${capitalizedType}`
+              href: `/admin/kyc-queue?tab=${safeAccType}`
             },
           })
         }).catch(() => undefined);

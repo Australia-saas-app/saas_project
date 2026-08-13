@@ -26,11 +26,16 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
+    // Admin tokens use `adminId` as the identifier; user tokens use `userId`.
+    // We unify both into req.user.userId so all service queries work for both roles.
+    const resolvedId = (payload as any).userId || (payload as any).adminId || (payload as any).sub;
+
     (request as any).user = {
-      userId: payload.userId,
+      userId: resolvedId,
       email: payload.email,
-      phone: payload.phone,
-      role: payload.role,
+      phone: (payload as any).phone,
+      role: (payload as any).role,
+      adminId: (payload as any).adminId,
     };
 
     return true;

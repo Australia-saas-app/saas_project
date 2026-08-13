@@ -104,8 +104,8 @@ export function NotificationBell({
                       }}
                       className={`block border-b px-4 py-3 pr-10 transition-colors last:border-0 ${
                         isDark
-                          ? `border-white/5 hover:bg-white/10 ${!item.read ? "bg-white/5" : "bg-transparent"}`
-                          : `border-gray-50 hover:bg-gray-100 ${!item.read ? "bg-blue-50/50" : "bg-transparent"}`
+                          ? `border-white/5 ${!item.read ? "bg-blue-900/20 hover:bg-blue-900/40" : "hover:bg-white/10 bg-transparent"}`
+                          : `border-gray-50 ${!item.read ? "bg-blue-50/60 hover:bg-blue-100/80" : "hover:bg-gray-50 bg-transparent"}`
                       }`}
                     >
                       <NotificationRow item={item} isDark={isDark} />
@@ -116,8 +116,8 @@ export function NotificationBell({
                       onClick={() => markRead(item.id)}
                       className={`block w-full border-b px-4 py-3 pr-10 text-left transition-colors last:border-0 ${
                         isDark
-                          ? `border-white/5 hover:bg-white/10 ${!item.read ? "bg-white/5" : "bg-transparent"}`
-                          : `border-gray-50 hover:bg-gray-100 ${!item.read ? "bg-blue-50/50" : "bg-transparent"}`
+                          ? `border-white/5 ${!item.read ? "bg-blue-900/20 hover:bg-blue-900/40" : "hover:bg-white/10 bg-transparent"}`
+                          : `border-gray-50 ${!item.read ? "bg-blue-50/60 hover:bg-blue-100/80" : "hover:bg-gray-50 bg-transparent"}`
                       }`}
                     >
                       <NotificationRow item={item} isDark={isDark} />
