@@ -1361,7 +1361,7 @@ export class AuthService {
       }).catch(() => undefined);
 
       // Trigger real-time notification to the user
-      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3014/notification-service/internal/notifications';
+      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://saas-backend-notification:3014/notification-service/internal/notifications';
       const safeAccountType = (user.accountType || 'user').toLowerCase();
       fetch(notificationUrl, {
         method: 'POST',

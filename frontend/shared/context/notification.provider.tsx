@@ -28,7 +28,19 @@ interface INotificationContext {
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const wsUrl = apiUrl.replace("http", "ws").replace("/api/v1", "");
+
+// Derive WebSocket URL from the browser's actual origin at runtime.
+// This is critical for GCP — the internal Docker URL (kong:8000) is not
+// reachable from the user's browser. We connect to the public-facing host.
+const getWsUrl = (): string => {
+  if (typeof window === "undefined") return "http://localhost:8000";
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  const host = window.location.host;
+  // Frontend app is on port 8080; Kong gateway is on 8000
+  const kongHost = host.replace(/:8080$/, ":8000").replace(/:3000$/, ":8000");
+  return `${proto}://${kongHost}`;
+};
+
 
 /**
  * Global notification store. Seeds role-appropriate demo notifications until
@@ -87,14 +99,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
     
+    const wsUrl = getWsUrl();
     // Connect to notification gateway
     const socket: Socket = io(`${wsUrl}/notifications`, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"], // polling fallback for GCP/firewalls
       query: { userId, role: role || "user" },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
 
     socket.on("connect", () => {
-      console.log("Connected to real-time notifications server");
+      console.log("[Notifications] Connected:", wsUrl);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.warn("[Notifications] Connect error:", err.message);
     });
 
     socket.on("new_notification", (payload: any) => {

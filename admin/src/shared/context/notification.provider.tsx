@@ -36,10 +36,25 @@ interface INotificationContext {
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const wsUrl = apiUrl.replace("http", "ws").replace("/api/v1", "");
+
+// Derive the WebSocket URL from the browser's own origin (window.location) at runtime.
+// This is critical for GCP deployments where the internal Docker URL (kong:8000) is
+// NOT accessible from the browser. We must connect to the public-facing host.
+const getWsUrl = (): string => {
+  if (typeof window === "undefined") return "http://localhost:8000";
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  const host = window.location.host; // e.g. "34.x.x.x:8000" or "yourdomain.com"
+  // The Kong gateway is on port 8000. In production, the public host maps to Kong.
+  // We replace the Next.js app port with Kong's public port if needed.
+  // Since the admin Next.js app is on port 8001 and Kong is on 8000, derive accordingly.
+  const kongHost = host.replace(/:8001$/, ":8000").replace(/:3001$/, ":8000");
+  return `${proto}://${kongHost}`;
+};
+
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const user = useAppSelector((state: any) => state.auth.user);
+  const token = useAppSelector((state: any) => state.auth.token);
   const role = user?.role || "admin";
   const userId = user?.id || user?.userId || user?.adminId;
 
@@ -53,7 +68,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
     
     let mounted = true;
-    fetch(`${apiUrl}/notifications`, { credentials: "omit" }) // Add Authorization if needed
+    fetch(`${apiUrl}/notifications`, {
+      credentials: "omit",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(res => res.json())
       .then(res => {
         if (mounted && res.success && Array.isArray(res.data?.notifications)) {
@@ -90,13 +108,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
     
+    const wsUrl = getWsUrl();
     const socket: Socket = io(`${wsUrl}/notifications`, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
       query: { userId, role },
+      auth: token ? { token } : {},
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
 
     socket.on("connect", () => {
-      console.log("Connected to Admin real-time notifications server");
+      console.log("[Notifications] Connected:", wsUrl);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.warn("[Notifications] Connect error:", err.message);
     });
 
     socket.on("new_notification", (payload: any) => {

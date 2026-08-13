@@ -17,6 +17,10 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_UPSTREAM_KEEPALIVE_IDLE_TIMEOUT: "600"
+      KONG_UPSTREAM_KEEPALIVE_MAX_REQUESTS: "1000"
+      KONG_NGINX_PROXY_READ_TIMEOUT: "3600s"
+      KONG_NGINX_PROXY_SEND_TIMEOUT: "3600s"
       FORCE_RECREATE: "1"
     ports:
       - "8000:8000"
@@ -96,11 +100,13 @@ services:
       - SMTP_USER=abdulrafiumahesar@gmail.com
       - SMTP_PASSWORD=kkzdajqzqvwkybgq
       - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
+      - NOTIFICATION_SERVICE_URL=http://saas-backend-notification:3014/notification-service/internal/notifications
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
       - saas-redis
+      - saas-backend-notification
     restart: always
     networks:
       - saas_network
