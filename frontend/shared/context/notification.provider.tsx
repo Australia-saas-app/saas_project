@@ -27,7 +27,10 @@ interface INotificationContext {
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+// Use the Next.js API proxy rewrite: /api/:path* → http://kong:8000/api/v1/:path*
+// This makes it work both locally and on GCP, because the Next.js server proxies
+// internally to Kong (docker network), and the browser only talks to Next.js.
+const notifApiBase = "/api/notifications";
 
 // Derive WebSocket URL from the browser's actual origin at runtime.
 // This is critical for GCP — the internal Docker URL (kong:8000) is not
@@ -41,11 +44,9 @@ const getWsUrl = (): string => {
   return `${proto}://${kongHost}`;
 };
 
-
 /**
- * Global notification store. Seeds role-appropriate demo notifications until
- * the backend pushes real events; read state persists across reloads. Code
- * anywhere in the app can call `notify(...)` to raise a notification + toast.
+ * Global notification store. Fetches real notifications from DB on mount,
+ * then listens for real-time events via WebSocket.
  */
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
@@ -54,15 +55,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
-  // Fetch initial notifications from DB
+  // Fetch initial notifications from DB on mount / user change
   useEffect(() => {
     if (!userId) {
       setItems([]);
       return;
     }
-    
+
     let mounted = true;
-    fetch(`${apiUrl}/notifications`, { credentials: "omit" }) // Add Authorization if needed, but assuming cookies/proxy handles it
+    // credentials:"include" sends the auth cookie automatically (cookie-based auth)
+    fetch(notifApiBase, { credentials: "include" })
       .then(res => res.json())
       .then(res => {
         if (mounted && res.success && Array.isArray(res.data?.notifications)) {
@@ -70,7 +72,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             id: n.id,
             title: n.title,
             message: n.message,
-            time: new Date(n.createdAt).toLocaleDateString(), // Format appropriately
+            time: new Date(n.createdAt).toLocaleDateString(),
             read: n.isRead,
             href: n.data?.href,
           }));
@@ -90,7 +92,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       read: false,
     };
     setItems((prev) => [entry, ...prev].slice(0, 50));
-    toast("You have received a new notification", {
+    toast(item.title || "You have a new notification", {
+      description: item.message,
       duration: 5000,
       icon: <Bell className="h-5 w-5 text-blue-500" />,
     });
@@ -98,7 +101,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
-    
+
     const wsUrl = getWsUrl();
     // Connect to notification gateway
     const socket: Socket = io(`${wsUrl}/notifications`, {
@@ -119,7 +122,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     socket.on("new_notification", (payload: any) => {
       notify({
-        id: payload.id, // Pass the real DB ID!
+        id: payload.id,
         title: payload.title,
         message: payload.message,
         href: payload.href,
@@ -133,24 +136,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback((id: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-    fetch(`${apiUrl}/notifications/${id}/read`, { method: "PUT", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/${id}/read`, { method: "PUT", credentials: "include" }).catch(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
     setItems((prev) => prev.map((item) => ({ ...item, read: true })));
-    fetch(`${apiUrl}/notifications/read-all`, { method: "PUT", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/read-all`, { method: "PUT", credentials: "include" }).catch(() => {});
   }, []);
 
   const deleteNotification = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    fetch(`${apiUrl}/notifications/${id}`, { method: "DELETE", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/${id}`, { method: "DELETE", credentials: "include" }).catch(() => {});
   }, []);
 
   const deleteAllNotifications = useCallback(() => {
     setItems([]);
-    fetch(`${apiUrl}/notifications/all`, { method: "DELETE", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/all`, { method: "DELETE", credentials: "include" }).catch(() => {});
   }, []);
-
 
   const value = useMemo<INotificationContext>(
     () => ({

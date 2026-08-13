@@ -67,7 +67,7 @@ services:
         strip_path: true
 
   - name: notification-service
-    url: http://saas-backend-notification:3014/notification-service
+    url: http://saas-backend-notification:3014/notification-service/notifications
     routes:
       - name: notification-route
         paths:

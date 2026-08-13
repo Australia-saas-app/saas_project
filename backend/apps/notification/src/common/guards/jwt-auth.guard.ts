@@ -13,21 +13,28 @@ export class JwtAuthGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    const authHeader = request.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Authorization header missing');
+    // Extract token: prefer Authorization header (admin uses Bearer),
+    // fall back to accessToken cookie (frontend user uses cookie-based auth)
+    let token: string | undefined;
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (request.cookies?.accessToken) {
+      token = request.cookies.accessToken;
     }
 
-    const token = authHeader.split(' ')[1];
+    if (!token) {
+      throw new UnauthorizedException('No auth token found');
+    }
+
     const payload = this.jwtService.verifyUserToken(token);
 
     if (!payload) {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    // Admin tokens use `adminId` as the identifier; user tokens use `userId`.
-    // We unify both into req.user.userId so all service queries work for both roles.
+    // Admin tokens use `adminId`; user tokens use `userId`. Unify into req.user.userId.
     const resolvedId = (payload as any).userId || (payload as any).adminId || (payload as any).sub;
 
     (request as any).user = {

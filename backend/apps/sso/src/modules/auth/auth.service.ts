@@ -1483,7 +1483,7 @@ export class AuthService {
             message: `${user.fullName || user.email} (${capitalizedType}) has submitted a KYC application`,
             priority: 'high',
             data: {
-              href: `/admin/kyc-queue?tab=${safeAccType}`
+              href: `/kyc-queue?tab=${safeAccType}`
             },
           })
         }).catch(() => undefined);

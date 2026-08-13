@@ -177,6 +177,11 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
+      // API proxy — browser cannot reach Kong directly; Next.js server can (same Docker network)
+      {
+        source: "/api/:path*",
+        destination: "http://kong:8000/api/v1/:path*",
+      },
       {
         source: "/affiliate",
         destination: "/dashboard/affiliate/dashboard",

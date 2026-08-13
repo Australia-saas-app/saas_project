@@ -37,6 +37,10 @@ const NotificationContext = createContext<INotificationContext | undefined>(unde
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
+// Use a relative path so browser fetches route through Next.js proxy → Kong.
+// With basePath '/admin', the rewrite /api/:path* becomes /admin/api/:path*
+const notifApiBase = "/admin/api/notifications";
+
 // Derive the WebSocket URL from the browser's own origin (window.location) at runtime.
 // This is critical for GCP deployments where the internal Docker URL (kong:8000) is
 // NOT accessible from the browser. We must connect to the public-facing host.
@@ -68,7 +72,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
     
     let mounted = true;
-    fetch(`${apiUrl}/notifications`, {
+    fetch(notifApiBase, {
       credentials: "omit",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
@@ -142,22 +146,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback((id: string) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-    fetch(`${apiUrl}/notifications/${id}/read`, { method: "PUT", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/${id}/read`, { method: "PUT", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
     setItems((prev) => prev.map((item) => ({ ...item, read: true })));
-    fetch(`${apiUrl}/notifications/read-all`, { method: "PUT", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/read-all`, { method: "PUT", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
   }, []);
 
   const deleteNotification = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    fetch(`${apiUrl}/notifications/${id}`, { method: "DELETE", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/${id}`, { method: "DELETE", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
   }, []);
 
   const deleteAllNotifications = useCallback(() => {
     setItems([]);
-    fetch(`${apiUrl}/notifications/all`, { method: "DELETE", credentials: "omit" }).catch(() => {});
+    fetch(`${notifApiBase}/all`, { method: "DELETE", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
   }, []);
 
   const value = useMemo<INotificationContext>(
