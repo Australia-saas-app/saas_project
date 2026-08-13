@@ -27,6 +27,12 @@ services:
       - "8002:8001" # Admin API exposed on 8002 to avoid conflict with saas-admin on 8001
     volumes:
       - ./kong:/kong/declarative
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     restart: always
     networks:
       - saas_network
@@ -49,7 +55,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - kong
+      kong:
+        condition: service_healthy
     restart: always
     networks:
       - saas_network
@@ -72,7 +79,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - kong
+      kong:
+        condition: service_healthy
     restart: always
     networks:
       - saas_network
