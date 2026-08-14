@@ -41,24 +41,35 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const role = user && "role" in user ? String(user.role ?? "") : undefined;
   const userId = user && ("userId" in user || "id" in user) ? ((user as any).userId || (user as any).id) : undefined;
+  const userEmail = user?.email ? String(user.email).trim().toLowerCase() : "";
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
-  // Load from cache on first render
+  // Load from cache on first render (by userId and by userEmail)
   useEffect(() => {
-    if (!userId || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
     try {
-      const cached = localStorage.getItem(`app_notifs_${userId}`);
-      if (cached) {
-        setItems(JSON.parse(cached));
+      const userCached = userId ? localStorage.getItem(`app_notifs_${userId}`) : null;
+      const emailCached = userEmail ? localStorage.getItem(`app_notifs_${userEmail}`) : null;
+      
+      const userNotifs: NotificationItem[] = userCached ? JSON.parse(userCached) : [];
+      const emailNotifs: NotificationItem[] = emailCached ? JSON.parse(emailCached) : [];
+
+      const combinedMap = new Map<string, NotificationItem>();
+      [...emailNotifs, ...userNotifs].forEach((n) => {
+        if (n && n.id) combinedMap.set(n.id, n);
+      });
+
+      if (combinedMap.size > 0) {
+        setItems(Array.from(combinedMap.values()).slice(0, 50));
       }
     } catch {}
-  }, [userId]);
+  }, [userId, userEmail]);
 
   // Fetch initial notifications from DB on mount / user change
   useEffect(() => {
     if (!userId) {
-      setItems([]);
+      if (!userEmail) setItems([]);
       return;
     }
 
@@ -75,10 +86,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             read: n.isRead,
             href: n.data?.href,
           }));
-          setItems(mapped);
-          try {
-            localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(mapped));
-          } catch {}
+          setItems((prev) => {
+            const map = new Map<string, NotificationItem>();
+            [...mapped, ...prev].forEach((item) => {
+              if (item && item.id) map.set(item.id, item);
+            });
+            const merged = Array.from(map.values()).slice(0, 50);
+            try {
+              localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
       })
       .catch((err) => console.error("Failed to load notifications:", err));
@@ -86,7 +104,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [userId]);
+  }, [userId, userEmail]);
 
   const notify = useCallback(
     (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
@@ -97,22 +115,69 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         read: false,
       };
       setItems((prev) => {
-        const next = [entry, ...prev].slice(0, 50);
+        const next = [entry, ...prev.filter((i) => i.id !== entry.id)].slice(0, 50);
         if (userId) {
           try {
             localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
           } catch {}
         }
+        if (userEmail) {
+          try {
+            localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(next));
+          } catch {}
+        }
         return next;
       });
+
       toast(item.title || "You have a new notification", {
         description: item.message,
-        duration: 5000,
+        duration: 6000,
         icon: <Bell className="h-5 w-5 text-primary" />,
+        action: item.href
+          ? {
+              label: "View message",
+              onClick: () => {
+                if (typeof window !== "undefined") {
+                  window.location.href = item.href!;
+                }
+              },
+            }
+          : undefined,
       });
     },
-    [userId]
+    [userId, userEmail]
   );
+
+  // Realtime Platform Email Notifications
+  useEffect(() => {
+    if (!userEmail || typeof window === "undefined") return;
+
+    function handleNewEmail(event: Event) {
+      const customEvent = event as CustomEvent;
+      const detail = customEvent.detail;
+      if (!detail) return;
+
+      const rec = (detail.recipientEmail || "").trim().toLowerCase();
+      if (rec === userEmail) {
+        const messagePath =
+          role === "AFFILIATE"
+            ? "/dashboard/affiliate/messages"
+            : role === "SELLER" || role === "BUSINESS"
+            ? "/dashboard/business/messages"
+            : "/dashboard/user/messages";
+
+        notify({
+          id: `email-${detail.threadId}-${Date.now()}`,
+          title: `New Email from ${detail.senderName || detail.senderEmail}`,
+          message: detail.subject ? `"${detail.subject}"` : "You received a new email message.",
+          href: `${messagePath}?thread=${detail.threadId}`,
+        });
+      }
+    }
+
+    window.addEventListener("platform_new_email", handleNewEmail);
+    return () => window.removeEventListener("platform_new_email", handleNewEmail);
+  }, [userEmail, role, notify]);
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;

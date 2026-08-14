@@ -1,7 +1,7 @@
-import TechnicalProjectLayout from "@/src/modules/dashboard/shared/components/TechnicalProjectLayout"
+import UserProjectsPage from "@/src/modules/technical/components/UserProjectsPage";
 
 const Page = () => {
-  return <TechnicalProjectLayout />
-}
+  return <UserProjectsPage />;
+};
 
-export default Page
+export default Page;

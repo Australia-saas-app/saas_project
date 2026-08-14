@@ -174,15 +174,30 @@ export default function UserProjectsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 md:p-6 max-w-7xl mx-auto">
+      {/* Page Header with Create Project Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">My Technical Projects</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Track your project review status, make escrow payments, review deliverables, and chat in real time.
+          </p>
+        </div>
+        <Button asChild className="bg-primary hover:bg-primary/90 text-white font-bold shrink-0 shadow-sm">
+          <Link href="/user/technical/create">
+            <Plus className="mr-1.5 h-4 w-4" /> Create New Project
+          </Link>
+        </Button>
+      </div>
+
       {projects.map((project) => {
         const statusCfg = STATUS_CONFIG[project.submissionStatus] ?? STATUS_CONFIG.draft;
         const budget = project.adminBudget || project.price || 0;
         const isActioning = actionLoading === project.projectId;
 
         return (
-          <div
-            key={project.projectId}
+            <div
+              key={project.projectId}
             className="group rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
           >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

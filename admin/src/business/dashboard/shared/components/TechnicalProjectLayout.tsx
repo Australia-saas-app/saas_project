@@ -38,7 +38,7 @@ const TechnicalProjectLayout: React.FC = () => {
 
   const loadServices = async () => {
     try {
-      const res = await apiClient.get<any>('/technology/services/admin/list');
+      const res = await apiClient.get<any>('/technology/services/admin/list', { skipErrorToast: true });
       const dataList = Array.isArray(res) ? res : (res?.data || []);
       
       const mapped = dataList.map((item: any) => {
@@ -62,8 +62,8 @@ const TechnicalProjectLayout: React.FC = () => {
       });
       setServices(mapped);
     } catch (e) {
-      console.error(e)
-      setServices([])
+      console.warn("Could not load remote services from technology service, falling back to local list:", e);
+      setServices([]);
     }
   }
 

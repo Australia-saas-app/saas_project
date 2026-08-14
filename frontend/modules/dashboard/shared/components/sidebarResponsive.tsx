@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import React from "react"
+import React from "react";
 
 interface SidebarProps {
-  isExpanded: boolean
-  isMobile: boolean
-  onCloseMobile: () => void
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-  children: React.ReactNode
+  isExpanded: boolean;
+  isMobile: boolean;
+  onCloseMobile: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  children: React.ReactNode;
 }
 
 export function SidebarResponsive({
@@ -49,23 +49,28 @@ export function SidebarResponsive({
           {children}
         </aside>
       </>
-    )
+    );
   }
 
   return (
-    <div className="relative h-[100dvh] w-16 shrink-0">
+    <div
+      className={[
+        "relative h-[100dvh] shrink-0 transition-[width] duration-300 ease-in-out",
+        isExpanded ? "w-64" : "w-[72px]",
+      ].join(" ")}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       <aside
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
         className={[
-          "absolute left-0 top-0 z-40 flex h-full min-h-0 flex-col overflow-hidden border-r border-border bg-card transition-[width,box-shadow] duration-300 ease-in-out",
-          isExpanded ? "w-64 shadow-xl" : "w-16 shadow-sm",
+          "flex h-full min-h-0 flex-col overflow-hidden border-r border-border bg-card transition-[width,box-shadow] duration-300 ease-in-out",
+          isExpanded ? "w-64 shadow-md" : "w-[72px] shadow-xs",
         ].join(" ")}
       >
         {children}
       </aside>
     </div>
-  )
+  );
 }
 
-export default SidebarResponsive
+export default SidebarResponsive;

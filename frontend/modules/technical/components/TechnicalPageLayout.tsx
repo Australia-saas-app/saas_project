@@ -198,7 +198,8 @@ export default function TechnicalPageLayout() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {/* Top Right Controls & Create Project Button */}
+            <div className="flex flex-wrap items-center gap-3">
               {activeTab === "explore" && (
                 <>
                   {isMobile && (
@@ -229,7 +230,7 @@ export default function TechnicalPageLayout() {
                         variant={layout === "grid" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setLayout("grid")}
-                        className={`h-8 w-8 p-0 ${layout === "grid" ? "bg-primary hover:bg-primary/90" : ""}`}
+                        className={`h-8 w-8 p-0 ${layout === "grid" ? "bg-primary text-white hover:bg-primary/90" : ""}`}
                         aria-label="Grid view"
                       >
                         <Grid3x3 className="h-4 w-4" />
@@ -238,7 +239,7 @@ export default function TechnicalPageLayout() {
                         variant={layout === "list" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setLayout("list")}
-                        className={`h-8 w-8 p-0 ${layout === "list" ? "bg-primary hover:bg-primary/90" : ""}`}
+                        className={`h-8 w-8 p-0 ${layout === "list" ? "bg-primary text-white hover:bg-primary/90" : ""}`}
                         aria-label="List view"
                       >
                         <List className="h-4 w-4" />
@@ -248,10 +249,14 @@ export default function TechnicalPageLayout() {
                 </>
               )}
 
-              <Button asChild className="bg-primary hover:bg-primary/90">
+              {/* Top-Right Create Button */}
+              <Button
+                asChild
+                className="bg-primary hover:bg-primary/90 text-white font-bold shadow-md transition-all active:scale-95 px-4 py-2"
+              >
                 <Link href={createProjectHref}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  {t.technical.createProject}
+                  <Plus className="mr-1.5 h-4 w-4 stroke-[3]" />
+                  Create Project
                 </Link>
               </Button>
             </div>

@@ -94,12 +94,14 @@ export default function AdminTechnicalProjectsManager() {
       const res = await fetch("/admin/api/technology/projects/all", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const data = await res.json();
-      if (data?.projects && Array.isArray(data.projects)) {
-        setProjects(data.projects);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.projects && Array.isArray(data.projects)) {
+          setProjects(data.projects);
+        }
       }
     } catch {
-      toast.error("Failed to load projects from technology service");
+      // Gracefully handle without crashing
     } finally {
       setLoading(false);
     }

@@ -126,7 +126,7 @@ export default function CreateProjectLayout() {
       }
 
       toast.success("Project submitted successfully! It is now under Admin review.");
-      router.push("/user/technical");
+      router.push("/dashboard/user/technical");
     } catch (err: any) {
       toast.error(err.message || "Failed to submit project. Please try again.");
     } finally {
