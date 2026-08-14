@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard, ThrottlerModuleOptions } from '@nestjs
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
+import { MongooseModule } from '@nestjs/mongoose';
 import { TechnologyModule } from './technology/technology.module';
 import { HealthModule } from './health/health.module';
 import { TechnicalService } from './technology/entities/technical-service.entity';
@@ -20,6 +21,16 @@ import { ProjectProposal } from './technology/entities/project-proposal.entity';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', '../config/env.example'].filter(Boolean),
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri:
+          configService.get<string>('MONGODB_URI') ||
+          process.env.MONGODB_URI ||
+          'mongodb://localhost:27017/saas_db',
+      }),
+      inject: [ConfigService],
     }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],

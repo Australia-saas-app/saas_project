@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MongooseModule } from '@nestjs/mongoose';
 import { TechnologyController } from './technology.controller';
 import { ProjectController } from './project.controller';
 import { TechnicalServiceService } from './services/technical-service.service';
@@ -14,6 +15,10 @@ import { ProjectParticipant } from './entities/project-participant.entity';
 import { ProjectTask } from './entities/project-task.entity';
 import { ProjectMessage } from './entities/project-message.entity';
 import { ProjectProposal } from './entities/project-proposal.entity';
+import {
+  ProjectMessageModel,
+  ProjectMessageSchema,
+} from './schemas/project-message.schema';
 
 @Module({
   imports: [
@@ -25,6 +30,9 @@ import { ProjectProposal } from './entities/project-proposal.entity';
       ProjectTask,
       ProjectMessage,
       ProjectProposal,
+    ]),
+    MongooseModule.forFeature([
+      { name: ProjectMessageModel.name, schema: ProjectMessageSchema },
     ]),
   ],
   controllers: [TechnologyController, ProjectController],
