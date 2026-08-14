@@ -1,28 +1,18 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useLocale } from "@/src/shared/context/locale.provider"
-import DashboardMessagesLayout from "@/src/modules/dashboard/shared/components/DashboardMessagesLayout"
-import { AFFILIATE_MESSAGES } from "../data/affiliate-demo-data"
-import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
-import { demoToThread, seedThreadsIfEmpty } from "@/src/shared/lib/messages-store"
+import { useLocale } from "@/src/shared/context/locale.provider";
+import DashboardMessagesLayout from "@/src/modules/dashboard/shared/components/DashboardMessagesLayout";
 
 export default function AffiliateMessagesLayout() {
-  const { t } = useLocale()
-  const { isDemo, isReady } = useIsDemoAccount()
-  const p = t.affiliatePages.messages
-
-  useEffect(() => {
-    if (!isReady || !isDemo) return
-    seedThreadsIfEmpty(AFFILIATE_MESSAGES.map((m) => demoToThread("affiliate", m)))
-  }, [isReady, isDemo])
+  const { t } = useLocale();
+  const p = t.affiliatePages.messages;
 
   return (
     <DashboardMessagesLayout
       role="affiliate"
       title={p.title}
       subtitle={p.subtitle}
-      technicalHref="/affiliate/technical"
+      technicalHref="/dashboard/affiliate/technical"
       labels={{
         total: p.total,
         unread: p.unread,
@@ -37,5 +27,5 @@ export default function AffiliateMessagesLayout() {
         writeMessage: "Write your message…",
       }}
     />
-  )
+  );
 }

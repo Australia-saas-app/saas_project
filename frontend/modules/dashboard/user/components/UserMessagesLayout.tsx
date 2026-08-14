@@ -1,28 +1,18 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useLocale } from "@/src/shared/context/locale.provider"
-import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
-import DashboardMessagesLayout from "@/src/modules/dashboard/shared/components/DashboardMessagesLayout"
-import { USER_MESSAGES } from "../data/user-demo-data"
-import { demoToThread, seedThreadsIfEmpty } from "@/src/shared/lib/messages-store"
+import { useLocale } from "@/src/shared/context/locale.provider";
+import DashboardMessagesLayout from "@/src/modules/dashboard/shared/components/DashboardMessagesLayout";
 
 export default function UserMessagesLayout() {
-  const { t } = useLocale()
-  const { isDemo, isReady } = useIsDemoAccount()
-  const p = t.userPages.messages
-
-  useEffect(() => {
-    if (!isReady || !isDemo) return
-    seedThreadsIfEmpty(USER_MESSAGES.map((m) => demoToThread("user", m)))
-  }, [isReady, isDemo])
+  const { t } = useLocale();
+  const p = t.userPages.messages;
 
   return (
     <DashboardMessagesLayout
       role="user"
       title={p.title}
       subtitle={p.subtitle}
-      technicalHref="/user/technical"
+      technicalHref="/dashboard/user/technical"
       labels={{
         total: p.total,
         unread: p.unread,
@@ -37,5 +27,5 @@ export default function UserMessagesLayout() {
         writeMessage: "Write your message…",
       }}
     />
-  )
+  );
 }

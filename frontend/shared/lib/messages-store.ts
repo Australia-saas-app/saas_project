@@ -410,3 +410,44 @@ export function getThreadsByFolder(
     return f === folder;
   });
 }
+
+export function demoToThread(
+  role: DashboardRole,
+  m: {
+    id: string;
+    from: string;
+    subject: string;
+    body: string;
+    project?: string;
+    unread?: boolean;
+    date?: string;
+  }
+): MessageThread {
+  const sentAt = m.date
+    ? new Date(m.date.replace(/\//g, "-")).toISOString()
+    : new Date().toISOString();
+
+  return {
+    id: `TH-${m.id}`,
+    role,
+    participant: m.from,
+    senderName: m.from,
+    senderEmail: `${m.from.toLowerCase().replace(/[^a-z0-9]/g, "_")}@example.com`,
+    subject: m.subject,
+    project: m.project || "General",
+    unread: m.unread ?? false,
+    updatedAt: sentAt,
+    folder: "inbox",
+    messages: [
+      {
+        id: `M-${m.id}-0`,
+        from: "them",
+        fromName: m.from,
+        fromEmail: `${m.from.toLowerCase().replace(/[^a-z0-9]/g, "_")}@example.com`,
+        body: m.body,
+        sentAt,
+      },
+    ],
+  };
+}
+
