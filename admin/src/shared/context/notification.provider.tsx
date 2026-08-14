@@ -35,26 +35,17 @@ interface INotificationContext {
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-
 // Use a relative path so browser fetches route through Next.js proxy → Kong.
 // With basePath '/admin', the rewrite /api/:path* becomes /admin/api/:path*
 const notifApiBase = "/admin/api/notifications";
 
-// Derive the WebSocket URL from the browser's own origin (window.location) at runtime.
-// This is critical for GCP deployments where the internal Docker URL (kong:8000) is
-// NOT accessible from the browser. We must connect to the public-facing host.
 const getWsUrl = (): string => {
   if (typeof window === "undefined") return "http://localhost:8000";
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const host = window.location.host; // e.g. "34.x.x.x:8000" or "yourdomain.com"
-  // The Kong gateway is on port 8000. In production, the public host maps to Kong.
-  // We replace the Next.js app port with Kong's public port if needed.
-  // Since the admin Next.js app is on port 8001 and Kong is on 8000, derive accordingly.
+  const host = window.location.host;
   const kongHost = host.replace(/:8001$/, ":8000").replace(/:3001$/, ":8000");
   return `${proto}://${kongHost}`;
 };
-
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const user = useAppSelector((state: any) => state.auth.user);
@@ -64,7 +55,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
-  // Fetch initial notifications from DB
+  // Load from cache on first render
+  useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+    try {
+      const cached = localStorage.getItem(`admin_notifs_${userId}`);
+      if (cached) {
+        setItems(JSON.parse(cached));
+      }
+    } catch {}
+  }, [userId]);
+
+  // Fetch initial notifications from DB whenever user or token is available
   useEffect(() => {
     if (!userId) {
       setItems([]);
@@ -88,12 +90,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             href: n.data?.href,
           }));
           setItems(mapped);
+          try {
+            localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(mapped));
+          } catch {}
         }
       })
       .catch(err => console.error("Failed to load notifications:", err));
 
     return () => { mounted = false; };
-  }, [userId]);
+  }, [userId, token]);
 
   const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
     const entry: NotificationItem = {
@@ -102,12 +107,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       time: "Just now",
       read: false,
     };
-    setItems((prev) => [entry, ...prev].slice(0, 50));
-    toast("You have received a new notification", {
-      duration: 5000,
-      icon: <Bell className="h-5 w-5 text-blue-500" />,
+    setItems((prev) => {
+      const next = [entry, ...prev].slice(0, 50);
+      if (userId) {
+        try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
     });
-  }, []);
+    toast(item.title || "New Notification", {
+      description: item.message,
+      duration: 5000,
+      icon: <Bell className="h-5 w-5 text-primary" />,
+    });
+  }, [userId]);
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
@@ -123,11 +135,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
 
     socket.on("connect", () => {
-      console.log("[Notifications] Connected:", wsUrl);
+      console.log("[Admin Notifications] Connected:", wsUrl);
     });
 
     socket.on("connect_error", (err) => {
-      console.warn("[Notifications] Connect error:", err.message);
+      console.warn("[Admin Notifications] Connect error:", err.message);
     });
 
     socket.on("new_notification", (payload: any) => {
@@ -142,27 +154,60 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return () => {
       socket.disconnect();
     };
-  }, [userId, role, notify]);
+  }, [userId, role, token, notify]);
 
   const markRead = useCallback((id: string) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-    fetch(`${notifApiBase}/${id}/read`, { method: "PUT", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
-  }, []);
+    setItems((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, read: true } : item));
+      if (userId) {
+        try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+    fetch(`${notifApiBase}/${id}/read`, {
+      method: "PUT",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).catch(() => {});
+  }, [userId, token]);
 
   const markAllRead = useCallback(() => {
-    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
-    fetch(`${notifApiBase}/read-all`, { method: "PUT", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
-  }, []);
+    setItems((prev) => {
+      const next = prev.map((item) => ({ ...item, read: true }));
+      if (userId) {
+        try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+    fetch(`${notifApiBase}/read-all`, {
+      method: "PUT",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).catch(() => {});
+  }, [userId, token]);
 
   const deleteNotification = useCallback((id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-    fetch(`${notifApiBase}/${id}`, { method: "DELETE", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
-  }, []);
+    setItems((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+      if (userId) {
+        try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+    fetch(`${notifApiBase}/${id}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).catch(() => {});
+  }, [userId, token]);
 
   const deleteAllNotifications = useCallback(() => {
     setItems([]);
-    fetch(`${notifApiBase}/all`, { method: "DELETE", credentials: "omit", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
-  }, []);
+    if (userId) {
+      try { localStorage.removeItem(`admin_notifs_${userId}`); } catch {}
+    }
+    fetch(`${notifApiBase}/all`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).catch(() => {});
+  }, [userId, token]);
 
   const value = useMemo<INotificationContext>(
     () => ({

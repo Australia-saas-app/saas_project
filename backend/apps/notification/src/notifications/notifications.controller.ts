@@ -51,7 +51,7 @@ export class NotificationsController {
     @Query() query: GetNotificationsDto,
     @Request() req: any,
   ) {
-    return this.notificationsService.getUserNotifications(query, req.user.userId);
+    return this.notificationsService.getUserNotifications(query, req.user);
   }
 
   @Get(':id')

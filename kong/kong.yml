@@ -66,6 +66,14 @@ services:
           - /api/v1/user-profile-service
         strip_path: true
 
+  - name: wallet-service
+    url: http://saas-backend-wallet:3015/wallet-service/wallet
+    routes:
+      - name: wallet-route
+        paths:
+          - /api/v1/wallet
+        strip_path: true
+
   - name: notification-service
     url: http://saas-backend-notification:3014/notification-service/notifications
     routes:

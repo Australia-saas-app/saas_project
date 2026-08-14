@@ -38,37 +38,47 @@ export class ProjectController {
     private readonly messageService: MessageService,
   ) {}
 
-  // ==========================================
-  // PROJECT ROUTES
-  // ==========================================
+  // ─── PROJECT CRUD ───────────────────────────────────────────────────────────
 
   @Post()
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Create a new project' })
-  @ApiResponse({ status: 201, description: 'Project created successfully' })
+  @ApiOperation({ summary: 'Create a new project (client)' })
   async createProject(@Body() createDto: CreateProjectDto, @Req() req: any) {
     const creatorId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.projectService.create(createDto, creatorId);
   }
 
+  @Get('public')
+  @ApiOperation({ summary: 'List all public active projects (for business to browse)' })
+  async listPublicProjects(@Query() query: ProjectQueryDto) {
+    return this.projectService.findAll(query, undefined, { publicOnly: true });
+  }
+
   @Get('all')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'List all projects across the platform' })
+  @ApiOperation({ summary: 'Admin: list all projects' })
   async listAllProjects(@Query() query: ProjectQueryDto) {
     return this.projectService.findAll(query);
   }
 
-  @Get()
+  @Get('mine')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get all projects or filtered projects' })
-  async getProjects(@Query() query: ProjectQueryDto, @Req() req: any) {
-    // If it's a user, they only see projects they participate in
-    // If it's an admin, they see all projects
+  @ApiOperation({ summary: 'Client: list own projects' })
+  async getMyProjects(@Query() query: ProjectQueryDto, @Req() req: any) {
     const userId = req.user?.userId;
     return this.projectService.findAll(query, userId);
+  }
+
+  @Get('assigned')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Business: list projects assigned to me' })
+  async getAssignedProjects(@Query() query: ProjectQueryDto, @Req() req: any) {
+    const businessId = req.user?.userId;
+    return this.projectService.findAll(query, undefined, { assignedTo: businessId });
   }
 
   @Get(':projectId')
@@ -76,8 +86,7 @@ export class ProjectController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get single project' })
   async getProject(@Param('projectId') projectId: string, @Req() req: any) {
-    const userId = req.user?.userId;
-    return this.projectService.findOne(projectId, userId);
+    return this.projectService.findOne(projectId);
   }
 
   @Patch(':projectId')
@@ -104,6 +113,111 @@ export class ProjectController {
     return { success: true, message: 'Project deleted successfully' };
   }
 
+  // ─── LIFECYCLE ENDPOINTS ────────────────────────────────────────────────────
+
+  @Post(':projectId/submit')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Client submits project for admin review' })
+  async submitProject(@Param('projectId') projectId: string, @Req() req: any) {
+    const clientId = req.user?.userId;
+    return this.projectService.submitProject(projectId, clientId);
+  }
+
+  @Post(':projectId/admin-approve')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Admin approves project and sets budget' })
+  async adminApprove(
+    @Param('projectId') projectId: string,
+    @Body()
+    body: {
+      adminBudget: number;
+      minBudget?: number;
+      requirements?: string;
+      conditions?: string;
+      adminNotes?: string;
+      commissionPercent?: number;
+    },
+    @Req() req: any,
+  ) {
+    const adminId = req.admin?.adminId || req.user?.userId || 'admin';
+    return this.projectService.adminApprove(projectId, adminId, body);
+  }
+
+  @Post(':projectId/admin-reject')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Admin rejects project' })
+  async adminReject(
+    @Param('projectId') projectId: string,
+    @Body() body: { reason?: string },
+    @Req() req: any,
+  ) {
+    const adminId = req.admin?.adminId || req.user?.userId || 'admin';
+    return this.projectService.adminReject(projectId, adminId, body.reason);
+  }
+
+  @Post(':projectId/pay')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Client pays for approved project (deducts from wallet)' })
+  async payProject(@Param('projectId') projectId: string, @Req() req: any) {
+    const clientId = req.user?.userId;
+    return this.projectService.payProject(projectId, clientId);
+  }
+
+  @Post(':projectId/accept')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Business accepts / takes on an active project' })
+  async acceptProject(
+    @Param('projectId') projectId: string,
+    @Body() body: { businessName?: string },
+    @Req() req: any,
+  ) {
+    const businessId = req.user?.userId;
+    const businessName = body.businessName || businessId;
+    return this.projectService.acceptProject(projectId, businessId, businessName);
+  }
+
+  @Post(':projectId/complete')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Business marks project complete and uploads deliverables' })
+  async markComplete(
+    @Param('projectId') projectId: string,
+    @Body() body: { deliverableUrls?: string[]; completionNotes?: string },
+    @Req() req: any,
+  ) {
+    const businessId = req.user?.userId;
+    return this.projectService.markComplete(projectId, businessId, body);
+  }
+
+  @Post(':projectId/review-accept')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Client/Admin accepts completed project → releases payment' })
+  async reviewAccept(@Param('projectId') projectId: string, @Req() req: any) {
+    const reviewerId = req.user?.userId || req.admin?.adminId || 'admin';
+    return this.projectService.reviewAccept(projectId, reviewerId);
+  }
+
+  @Post(':projectId/request-revision')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Client/Admin requests revision on completed project' })
+  async requestRevision(
+    @Param('projectId') projectId: string,
+    @Body() body: { reason: string },
+    @Req() req: any,
+  ) {
+    const reviewerId = req.user?.userId || req.admin?.adminId || 'admin';
+    return this.projectService.requestRevision(projectId, reviewerId, body.reason);
+  }
+
+  // ─── PROPOSALS ──────────────────────────────────────────────────────────────
+
   @Post(':projectId/apply')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
@@ -128,7 +242,7 @@ export class ProjectController {
   @Patch(':projectId/proposals/:proposalId/select')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Select a proposal for project' })
+  @ApiOperation({ summary: 'Select a proposal' })
   async selectProposal(
     @Param('projectId') projectId: string,
     @Param('proposalId') proposalId: string,
@@ -138,34 +252,23 @@ export class ProjectController {
     return this.projectService.selectProposal(projectId, proposalId, userId);
   }
 
-  // ==========================================
-  // PARTICIPANT ROUTES
-  // ==========================================
+  // ─── PARTICIPANTS ────────────────────────────────────────────────────────────
 
   @Post(':projectId/participants')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Add participant to project' })
   async addParticipant(
     @Param('projectId') projectId: string,
     @Body() body: { userId: string; userName: string; role: ParticipantRole; accountType: string },
     @Req() req: any,
   ) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
-    return this.projectService.addParticipant(
-      projectId,
-      body.userId,
-      body.userName,
-      body.role,
-      userId,
-      body.accountType,
-    );
+    return this.projectService.addParticipant(projectId, body.userId, body.userName, body.role, userId, body.accountType);
   }
 
   @Patch(':projectId/participants/:userId/role')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update participant role' })
   async updateParticipantRole(
     @Param('projectId') projectId: string,
     @Param('userId') userId: string,
@@ -176,19 +279,12 @@ export class ProjectController {
     return this.projectService.updateParticipantRole(projectId, userId, body.role, updaterId);
   }
 
-  // ==========================================
-  // TASK ROUTES
-  // ==========================================
+  // ─── TASKS ──────────────────────────────────────────────────────────────────
 
   @Post(':projectId/tasks')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Create task in project' })
-  async createTask(
-    @Param('projectId') projectId: string,
-    @Body() createDto: CreateTaskDto,
-    @Req() req: any,
-  ) {
+  async createTask(@Param('projectId') projectId: string, @Body() createDto: CreateTaskDto, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.taskService.create(projectId, createDto, userId);
   }
@@ -196,12 +292,7 @@ export class ProjectController {
   @Get(':projectId/tasks')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get tasks for project' })
-  async getTasks(
-    @Param('projectId') projectId: string,
-    @Query() query: TaskQueryDto,
-    @Req() req: any,
-  ) {
+  async getTasks(@Param('projectId') projectId: string, @Query() query: TaskQueryDto, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     query.projectId = projectId;
     return this.taskService.findAll(query, userId);
@@ -210,7 +301,6 @@ export class ProjectController {
   @Get('tasks/:taskId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get single task' })
   async getProjectTask(@Param('taskId') taskId: string, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.taskService.findOne(parseInt(taskId), userId);
@@ -219,12 +309,7 @@ export class ProjectController {
   @Patch('tasks/:taskId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update task' })
-  async updateTask(
-    @Param('taskId') taskId: string,
-    @Body() updateDto: UpdateTaskDto,
-    @Req() req: any,
-  ) {
+  async updateTask(@Param('taskId') taskId: string, @Body() updateDto: UpdateTaskDto, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.taskService.update(parseInt(taskId), updateDto, userId);
   }
@@ -233,39 +318,25 @@ export class ProjectController {
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete task' })
   async deleteTask(@Param('taskId') taskId: string, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     await this.taskService.remove(parseInt(taskId), userId);
-    return { success: true, message: 'Task deleted successfully' };
+    return { success: true, message: 'Task deleted' };
   }
 
-  // ==========================================
-  // MESSAGE ROUTES
-  // ==========================================
+  // ─── MESSAGES ───────────────────────────────────────────────────────────────
 
   @Post(':projectId/messages')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Post message to project' })
-  async createMessage(
-    @Param('projectId') projectId: string,
-    @Body() createDto: CreateMessageDto,
-    @Req() req: any,
-  ) {
+  async createMessage(@Param('projectId') projectId: string, @Body() createDto: CreateMessageDto, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
-    return this.messageService.create(
-      projectId,
-      createDto,
-      userId,
-      userId, // TODO: get actual name
-    );
+    return this.messageService.create(projectId, createDto, userId, userId);
   }
 
   @Get(':projectId/messages')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get messages for project' })
   async getMessages(@Param('projectId') projectId: string, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.messageService.findAll(projectId, userId);
@@ -274,7 +345,6 @@ export class ProjectController {
   @Get('messages/:messageId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get single message' })
   async getMessage(@Param('messageId') messageId: string, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.messageService.findOne(parseInt(messageId), userId);
@@ -283,12 +353,7 @@ export class ProjectController {
   @Patch('messages/:messageId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update message' })
-  async updateMessage(
-    @Param('messageId') messageId: string,
-    @Body() updateDto: UpdateMessageDto,
-    @Req() req: any,
-  ) {
+  async updateMessage(@Param('messageId') messageId: string, @Body() updateDto: UpdateMessageDto, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     return this.messageService.update(parseInt(messageId), updateDto, userId);
   }
@@ -297,10 +362,9 @@ export class ProjectController {
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete message' })
   async deleteMessage(@Param('messageId') messageId: string, @Req() req: any) {
     const userId = req.user?.userId || req.admin?.adminId || 'admin';
     await this.messageService.remove(parseInt(messageId), userId);
-    return { success: true, message: 'Message deleted successfully' };
+    return { success: true, message: 'Message deleted' };
   }
 }

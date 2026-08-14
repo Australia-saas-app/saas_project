@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,8 +12,9 @@ import { Label } from "@/src/components/form/label";
 import FileUpload from "@/src/components/form/FileUpload";
 import { RichTextEditor } from "@/src/components/form/RichTextEditor";
 import ReactSelectMulti from "@/src/components/form/ReactSelectMulti";
-import { createProject } from "../services/technical.services";
+import { createProject, submitProject } from "../services/technical.services";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 // Zod schema for the full multi-step form
 const projectSchema = z.object({
@@ -96,18 +98,44 @@ export default function CreateProjectLayout() {
 
   const { register, handleSubmit, control, setValue } = form;
 
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+
   const onSubmit = async (data: ProjectForm) => {
+    setSubmitting(true);
     try {
-      await createProject(data);
-      toast.success("Project submitted successfully");
-    } catch {
-      toast.error("Failed to submit project. Please try again.");
+      const payload = {
+        title: data.title,
+        description: data.description || `${data.title} (${data.projectType})`,
+        price: Number(data.budgetAmount) || 0,
+        currency: data.currency || "USD",
+        category: data.category || "Software Development",
+        subcategory: data.subcategories?.[0] || "Web Development",
+        projectType: data.projectType || "New Build",
+        skills: data.requiredSkills || [],
+        clientName: data.fullName,
+        startDate: data.expectedStartDate ? new Date(data.expectedStartDate).toISOString() : undefined,
+        endDate: data.expectedEndDate ? new Date(data.expectedEndDate).toISOString() : undefined,
+      };
+
+      const created = await createProject(payload);
+      const projectId = created?.data?.projectId || created?.projectId;
+
+      if (projectId) {
+        await submitProject(projectId);
+      }
+
+      toast.success("Project submitted successfully! It is now under Admin review.");
+      router.push("/user/technical");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit project. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   // simple step navigation
   const next = async () => {
-    // validate current step fields if needed
     setStep((s) => Math.min(s + 1, stepTitles.length - 1));
   };
 
@@ -371,7 +399,15 @@ export default function CreateProjectLayout() {
               {step < stepTitles.length - 1 ? (
                 <Button onClick={next}>Next</Button>
               ) : (
-                <Button type="submit">Submit Project</Button>
+                <Button type="submit" disabled={submitting} className="bg-primary hover:bg-primary/90">
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...
+                    </>
+                  ) : (
+                    "Submit Project"
+                  )}
+                </Button>
               )}
             </div>
           </div>

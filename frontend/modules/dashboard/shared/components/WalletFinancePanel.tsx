@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownToLine, Shield, PauseCircle, RotateCcw, Wallet } from "lucide-react";
+import { ArrowDownToLine, Shield, PauseCircle, RotateCcw, Wallet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import AppModal from "./AppModal";
 import { EmptyState } from "@/src/components/ui/EmptyState";
@@ -14,6 +14,7 @@ import {
   submitSecurityDeposit,
   type WalletLedgerRecord,
 } from "@/src/shared/lib/wallet-ledger-store";
+import { depositToWallet, fetchWalletTransactions } from "@/src/modules/technical/services/technical.services";
 
 type TabId = "overview" | "deposit" | "security" | "holds" | "refunds";
 
@@ -46,9 +47,30 @@ export default function WalletFinancePanel() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("Card · Visa ****4242");
   const [project, setProject] = useState("Technical Project");
+  const [loadingDeposit, setLoadingDeposit] = useState(false);
 
-  const refresh = () => {
+  const refresh = async () => {
     if (!userId) return;
+    try {
+      const res = await fetchWalletTransactions();
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        const dbRows: WalletLedgerRecord[] = res.data.map((tx: any) => ({
+          id: tx.id ? `TX-${tx.id.toString().slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`,
+          userId: tx.userId || userId,
+          userName: "Account",
+          amount: `$${Number(tx.amount || 0).toFixed(2)}`,
+          kind: tx.type?.toLowerCase() === "deposit" ? "deposit" : tx.type?.toLowerCase() === "refund" ? "refund" : "deposit",
+          method: tx.description || "Wallet Transaction",
+          date: new Date(tx.createdAt || Date.now()).toLocaleDateString(),
+          status: tx.status === "completed" ? "Completed" : "Pending",
+        }));
+        setRows(dbRows);
+        return;
+      }
+    } catch {
+      // fallback to stored/demo
+    }
+
     const stored = getLedgerForUser(userId);
     const demo = isDemo
       ? DEMO_LEDGER_SEED.map((r) => ({
@@ -87,17 +109,26 @@ export default function WalletFinancePanel() {
     };
   }, [rows]);
 
-  const handleDeposit = (e: React.FormEvent) => {
+  const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return toast.error("Sign in required");
     const value = parseFloat(amount);
     if (!value || value <= 0) return toast.error("Enter a valid amount");
-    const { id, name } = identity(user);
-    submitDeposit({ userId: id, userName: name, amount: value, method });
-    setDepositOpen(false);
-    setAmount("");
-    refresh();
-    toast.success("Deposit submitted for processing.");
+    
+    setLoadingDeposit(true);
+    try {
+      await depositToWallet(value, `Deposit via ${method}`);
+      const { id, name } = identity(user);
+      submitDeposit({ userId: id, userName: name, amount: value, method });
+      setDepositOpen(false);
+      setAmount("");
+      await refresh();
+      toast.success(`Successfully deposited $${value.toFixed(2)} into your wallet!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process deposit");
+    } finally {
+      setLoadingDeposit(false);
+    }
   };
 
   const handleSecurity = (e: React.FormEvent) => {
@@ -136,7 +167,7 @@ export default function WalletFinancePanel() {
             }}
             className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90"
           >
-            New deposit
+            New deposit (Add Money)
           </button>
           <button
             type="button"
@@ -235,8 +266,8 @@ export default function WalletFinancePanel() {
 
       <AppModal
         open={depositOpen}
-        onClose={() => setDepositOpen(false)}
-        title="Deposit funds"
+        onClose={() => !loadingDeposit && setDepositOpen(false)}
+        title="Deposit funds (Add Money)"
         size="md"
       >
         <form onSubmit={handleDeposit} className="space-y-4">
@@ -247,25 +278,32 @@ export default function WalletFinancePanel() {
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               placeholder="100.00"
+              required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Payment method</label>
+            <label className="mb-1 block text-sm font-medium">Payment method (Demo Gateway)</label>
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm"
             >
               <option>Card · Visa ****4242</option>
+              <option>Mastercard · ****8899</option>
               <option>Bank transfer</option>
               <option>PayPal</option>
             </select>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Funds will be deposited to your wallet immediately and stored in the database.
+          </p>
           <button
             type="submit"
-            className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+            disabled={loadingDeposit}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
           >
-            Submit deposit
+            {loadingDeposit ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
+            Confirm Deposit
           </button>
         </form>
       </AppModal>

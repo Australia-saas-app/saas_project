@@ -7,8 +7,13 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, In } from 'typeorm';
-import { Project, ProjectStatus } from '../entities/project.entity';
+import { Repository, Like } from 'typeorm';
+import {
+  Project,
+  ProjectStatus,
+  SubmissionStatus,
+  PaymentStatus,
+} from '../entities/project.entity';
 import { ProjectParticipant, ParticipantRole } from '../entities/project-participant.entity';
 import { CreateProjectDto } from '../dto/create-project.dto';
 import { UpdateProjectDto } from '../dto/update-project.dto';
@@ -30,230 +35,481 @@ export class ProjectService {
     private readonly proposalRepository: Repository<ProjectProposal>,
   ) {}
 
+  private async triggerNotification(payload: {
+    userIds?: string[];
+    userId?: string;
+    type: string;
+    title: string;
+    message: string;
+    priority?: string;
+    href?: string;
+  }) {
+    try {
+      const notificationUrl =
+        process.env.NOTIFICATION_SERVICE_URL ||
+        'http://saas-backend-notification:3014/notification-service/internal/notifications';
+      await fetch(notificationUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: payload.userId,
+          userIds: payload.userIds,
+          type: payload.type,
+          title: payload.title,
+          message: payload.message,
+          priority: payload.priority || 'medium',
+          data: { href: payload.href },
+        }),
+      }).catch(() => undefined);
+    } catch {
+      // ignore notification dispatch failure
+    }
+  }
+
   async create(createDto: CreateProjectDto, createdBy: string): Promise<Project> {
     const project = this.projectRepository.create({
       title: createDto.title,
       description: createDto.description,
       startDate: createDto.startDate ? new Date(createDto.startDate) : null,
       endDate: createDto.endDate ? new Date(createDto.endDate) : null,
-      status: createDto.status || ProjectStatus.DRAFT,
+      status: ProjectStatus.DRAFT,
+      submissionStatus: SubmissionStatus.DRAFT,
+      paymentStatus: PaymentStatus.NONE,
+      paymentTerms: (createDto as any).paymentTerms || 'one_time',
+      milestones: (createDto as any).milestones || [],
       price: createDto.price || 0,
       currency: createDto.currency || 'USD',
       category: createDto.category,
+      subcategory: (createDto as any).subcategory,
+      projectType: (createDto as any).projectType,
       paymentType: createDto.paymentType,
       skills: createDto.skills,
+      clientId: createdBy,
+      clientName: (createDto as any).clientName || createdBy,
       createdBy,
       updatedBy: createdBy,
     });
 
     const savedProject = await this.projectRepository.save(project);
 
-    // Add creator as admin participant
-    const participant = this.participantRepository.create({
-      projectId: savedProject.id,
-      userId: createdBy,
-      userName: createdBy, // TODO: get actual name from user service
-      role: ParticipantRole.ADMIN,
-      accountType: 'user', // TODO: get from user
-    });
-    await this.participantRepository.save(participant);
+    await this.participantRepository.save(
+      this.participantRepository.create({
+        projectId: savedProject.id,
+        userId: createdBy,
+        userName: (createDto as any).clientName || createdBy,
+        role: ParticipantRole.MEMBER,
+        accountType: 'user',
+      }),
+    );
 
     return savedProject;
   }
 
-  async findAll(query: ProjectQueryDto, userId?: string): Promise<any> {
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      status,
-      createdBy,
-      price,
-      category,
-      paymentType,
-      skills,
-    } = query;
+  async findAll(
+    query: ProjectQueryDto,
+    userId?: string,
+    options?: { publicOnly?: boolean; assignedTo?: string },
+  ): Promise<any> {
+    const { page = 1, limit = 10, search, status, createdBy, price, category, paymentType, skills } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
-
-    if (status) where.status = status;
-    if (createdBy) where.createdBy = createdBy;
-    if (search) where.title = Like(`%${search}%`);
-
-    if (price) where.price = price;
-    if (category) where.category = category;
-    if (paymentType) where.paymentType = paymentType;
-
-    // Handle skills (simple-array search)
-    if (skills) {
-      const skillArray = skills.split(',').map((s) => s.trim());
-      // For simple-array, we use Raw or individual Like queries.
-      // Since 'where' can be an array of objects for OR, but here we probably want AND or just any match.
-      // Usually simple filtering works well with QueryBuilder for complex array matching.
-      // For simplicity, if multiple skills are provided, we'll search for projects containing ANY of them.
-      if (skillArray.length > 0) {
-        // TypeORM doesn't have a built-in for simple-array inclusion in find options easily for multiple values
-        // We'll use a more flexible approach if it's just one, or use QueryBuilder for multiple.
-      }
-    }
-
-    const queryBuilder = this.projectRepository
+    const qb = this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.participants', 'participant');
 
-    if (status) queryBuilder.andWhere('project.status = :status', { status });
-    if (createdBy) queryBuilder.andWhere('project.createdBy = :createdBy', { createdBy });
-    if (search) queryBuilder.andWhere('project.title LIKE :search', { search: `%${search}%` });
-    if (price) queryBuilder.andWhere('project.price = :price', { price });
-    if (category) queryBuilder.andWhere('project.category = :category', { category });
-    if (paymentType) queryBuilder.andWhere('project.paymentType = :paymentType', { paymentType });
+    if (options?.publicOnly) {
+      qb.andWhere('project.submissionStatus = :ss', { ss: SubmissionStatus.ACTIVE });
+    } else if (status) {
+      qb.andWhere('project.status = :status', { status });
+    }
+
+    if (options?.assignedTo) {
+      qb.andWhere('project.assignedBusinessId = :biz', { biz: options.assignedTo });
+    }
+
+    if (createdBy) qb.andWhere('project.createdBy = :createdBy', { createdBy });
+    if (search) qb.andWhere('project.title LIKE :search', { search: `%${search}%` });
+    if (price) qb.andWhere('project.price = :price', { price });
+    if (category) qb.andWhere('project.category = :category', { category });
+    if (paymentType) qb.andWhere('project.paymentType = :paymentType', { paymentType });
 
     if (skills) {
       const skillList = skills.split(',').map((s) => s.trim());
       skillList.forEach((skill, index) => {
-        queryBuilder.andWhere(`project.skills LIKE :skill${index}`, {
-          [`skill${index}`]: `%${skill}%`,
-        });
+        qb.andWhere(`project.skills LIKE :skill${index}`, { [`skill${index}`]: `%${skill}%` });
       });
     }
 
-    // If user provided, only show projects they participate in
-    if (userId) {
-      const participantProjects = await this.participantRepository.find({
-        where: { userId },
-        select: ['projectId'],
-      });
-      const projectIds = participantProjects.map((p) => p.projectId);
-      if (projectIds.length > 0) {
-        queryBuilder.andWhere('project.id IN (:...projectIds)', { projectIds });
-      } else {
-        // No projects if no participation
-        return {
-          projects: [],
-          pagination: {
-            page,
-            limit,
-            total: 0,
-            pages: 0,
-          },
-        };
-      }
+    // Client: only their own projects
+    if (userId && !options?.publicOnly && !options?.assignedTo) {
+      qb.andWhere('project.clientId = :userId', { userId });
     }
 
-    const [projects, total] = await queryBuilder
+    const [projects, total] = await qb
       .orderBy('project.createdAt', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
 
-    return {
-      projects,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
+    return { projects, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
   }
 
   async findOne(projectId: string, userId?: string): Promise<Project> {
-    const where: any = { projectId };
-
     const project = await this.projectRepository.findOne({
-      where,
+      where: { projectId },
       relations: ['participants', 'tasks', 'messages'],
     });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    // If user provided, check participation
-    if (userId) {
-      const participant = await this.participantRepository.findOne({
-        where: { projectId: project.id, userId },
-      });
-      if (!participant) {
-        throw new ForbiddenException('Access denied to this project');
-      }
-    }
-
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
     return project;
   }
 
-  async update(
-    projectId: string,
-    updateDto: UpdateProjectDto,
-    updatedBy: string,
-  ): Promise<Project> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    // Check if user is admin or sub-admin
-    const participant = await this.participantRepository.findOne({
-      where: { projectId: project.id, userId: updatedBy },
-    });
-    if (
-      !participant ||
-      ![ParticipantRole.ADMIN, ParticipantRole.SUB_ADMIN].includes(participant.role)
-    ) {
-      throw new ForbiddenException('Only admins can update project details');
-    }
+  async update(projectId: string, updateDto: UpdateProjectDto, updatedBy: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
     if (updateDto.title !== undefined) project.title = updateDto.title;
     if (updateDto.description !== undefined) project.description = updateDto.description;
-    if (updateDto.status !== undefined) {
-      // Validate status transition
-      if (!this.canTransitionStatus(project.status, updateDto.status)) {
-        throw new BadRequestException(
-          `Cannot transition from ${project.status} to ${updateDto.status}`,
-        );
-      }
-      project.status = updateDto.status;
-    }
     if (updateDto.startDate !== undefined)
       project.startDate = updateDto.startDate ? new Date(updateDto.startDate) : null;
     if (updateDto.endDate !== undefined)
       project.endDate = updateDto.endDate ? new Date(updateDto.endDate) : null;
-
     if (updateDto.price !== undefined) project.price = updateDto.price;
     if (updateDto.currency !== undefined) project.currency = updateDto.currency;
     if (updateDto.category !== undefined) project.category = updateDto.category;
     if (updateDto.paymentType !== undefined) project.paymentType = updateDto.paymentType;
     if (updateDto.skills !== undefined) project.skills = updateDto.skills;
 
-
     project.updatedBy = updatedBy;
-
     return this.projectRepository.save(project);
   }
 
   async remove(projectId: string, userId: string): Promise<void> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    // Only admin can delete
-    const participant = await this.participantRepository.findOne({
-      where: { projectId: project.id, userId },
-    });
-    if (!participant || participant.role !== ParticipantRole.ADMIN) {
-      throw new ForbiddenException('Only project admin can delete the project');
-    }
-
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
     await this.projectRepository.remove(project);
   }
+
+  // ─── LIFECYCLE ──────────────────────────────────────────────────────────────
+
+  async submitProject(projectId: string, clientId: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    if (project.clientId !== clientId) throw new ForbiddenException('Only the project owner can submit');
+    if (project.submissionStatus !== SubmissionStatus.DRAFT)
+      throw new BadRequestException('Project has already been submitted');
+
+    project.submissionStatus = SubmissionStatus.SUBMITTED;
+    project.updatedBy = clientId;
+    const saved = await this.projectRepository.save(project);
+
+    // Trigger notification to Admin
+    this.triggerNotification({
+      type: 'TECHNICAL_PROJECT_SUBMIT',
+      title: 'New Technical Project Submission',
+      message: `${project.clientName || 'Client'} submitted "${project.title}" for review.`,
+      priority: 'high',
+      href: '/technical',
+    });
+
+    return saved;
+  }
+
+  async adminApprove(
+    projectId: string,
+    adminId: string,
+    data: {
+      adminBudget: number;
+      minBudget?: number;
+      requirements?: string;
+      conditions?: string;
+      adminNotes?: string;
+      commissionPercent?: number;
+      paymentTerms?: string;
+      milestones?: any[];
+    },
+  ): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+
+    if (![SubmissionStatus.SUBMITTED, SubmissionStatus.ADMIN_REVIEW].includes(project.submissionStatus))
+      throw new BadRequestException('Project is not in a reviewable state');
+
+    project.adminBudget = data.adminBudget;
+    project.minBudget = data.minBudget ?? data.adminBudget;
+    project.requirements = data.requirements ?? project.requirements;
+    project.conditions = data.conditions ?? project.conditions;
+    project.adminNotes = data.adminNotes ?? project.adminNotes;
+    project.commissionPercent = data.commissionPercent ?? 10;
+    if (data.paymentTerms) project.paymentTerms = data.paymentTerms;
+    if (data.milestones) project.milestones = data.milestones;
+    project.submissionStatus = SubmissionStatus.APPROVED;
+    project.reviewedBy = adminId;
+    project.reviewedAt = new Date();
+    project.updatedBy = adminId;
+
+    const saved = await this.projectRepository.save(project);
+
+    // Notify Client that project has been quoted and approved
+    if (project.clientId) {
+      this.triggerNotification({
+        userId: project.clientId,
+        type: 'TECHNICAL_PROJECT_APPROVED',
+        title: 'Project Approved — Ready for Payment',
+        message: `Admin approved "${project.title}" with a budget of ${project.currency || 'USD'} ${data.adminBudget}. Please pay to publish.`,
+        priority: 'high',
+        href: '/user/technical',
+      });
+    }
+
+    return saved;
+  }
+
+  async adminReject(projectId: string, adminId: string, reason?: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+
+    project.submissionStatus = SubmissionStatus.REJECTED;
+    project.adminNotes = reason ?? project.adminNotes;
+    project.reviewedBy = adminId;
+    project.reviewedAt = new Date();
+    project.updatedBy = adminId;
+    const saved = await this.projectRepository.save(project);
+
+    if (project.clientId) {
+      this.triggerNotification({
+        userId: project.clientId,
+        type: 'TECHNICAL_PROJECT_REJECTED',
+        title: 'Project Update',
+        message: `Your project "${project.title}" was not approved: ${reason || 'Does not meet requirements'}.`,
+        priority: 'high',
+        href: '/user/technical',
+      });
+    }
+
+    return saved;
+  }
+
+  async payProject(projectId: string, clientId: string, milestoneId?: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    if (project.clientId !== clientId) throw new ForbiddenException('Not your project');
+    if (project.submissionStatus !== SubmissionStatus.APPROVED && project.submissionStatus !== SubmissionStatus.IN_PROGRESS)
+      throw new BadRequestException('Project is not in a payable state');
+
+    let amount = Number(project.adminBudget || project.price);
+
+    // If milestone-based payment
+    if (milestoneId && project.milestones && Array.isArray(project.milestones)) {
+      const ms = project.milestones.find((m) => m.id === milestoneId);
+      if (ms) {
+        amount = Number(ms.amount);
+        ms.status = 'funded';
+      }
+    }
+
+    if (!amount || amount <= 0) throw new BadRequestException('No valid budget amount');
+
+    const walletUrl =
+      process.env.WALLET_SERVICE_URL || 'http://saas-backend-wallet:3015/wallet-service';
+    const walletRes = await fetch(`${walletUrl}/internal/deduct`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: clientId,
+        amount,
+        description: `Payment for project: ${project.title} (${project.projectId})`,
+        reference: project.projectId,
+      }),
+    }).catch(() => null);
+
+    if (!walletRes || !walletRes.ok) {
+      const err = (await walletRes?.json().catch(() => ({}))) as any;
+      throw new BadRequestException(err?.message || 'Payment failed — please check your wallet balance');
+    }
+
+    project.submissionStatus = SubmissionStatus.ACTIVE;
+    project.status = ProjectStatus.ACTIVE;
+    project.paymentStatus = PaymentStatus.PAID;
+    project.paidAt = new Date();
+    project.updatedBy = clientId;
+    const saved = await this.projectRepository.save(project);
+
+    // Notify Business network that a new project is public
+    this.triggerNotification({
+      type: 'TECHNICAL_PROJECT_FUNDED',
+      title: 'New Funded Project Available',
+      message: `"${project.title}" has been funded (${project.currency || 'USD'} ${amount}) and is open for acceptance!`,
+      priority: 'high',
+      href: '/business/technical',
+    });
+
+    return saved;
+  }
+
+  async acceptProject(projectId: string, businessId: string, businessName: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    if (project.submissionStatus !== SubmissionStatus.ACTIVE)
+      throw new BadRequestException('Project is not available for acceptance');
+    if (project.assignedBusinessId) throw new ConflictException('Already accepted by another business');
+
+    project.assignedBusinessId = businessId;
+    project.assignedBusinessName = businessName;
+    project.submissionStatus = SubmissionStatus.IN_PROGRESS;
+    project.status = ProjectStatus.IN_PROGRESS;
+    project.acceptedAt = new Date();
+    project.updatedBy = businessId;
+
+    const existing = await this.participantRepository.findOne({
+      where: { projectId: project.id, userId: businessId },
+    });
+    if (!existing) {
+      await this.participantRepository.save(
+        this.participantRepository.create({
+          projectId: project.id,
+          userId: businessId,
+          userName: businessName,
+          role: ParticipantRole.MEMBER,
+          accountType: 'business',
+        }),
+      );
+    }
+
+    const saved = await this.projectRepository.save(project);
+
+    // Notify Client
+    if (project.clientId) {
+      this.triggerNotification({
+        userId: project.clientId,
+        type: 'TECHNICAL_PROJECT_ACCEPTED',
+        title: 'Business Started Work',
+        message: `${businessName} has accepted "${project.title}" and is now working on it.`,
+        priority: 'high',
+        href: '/user/technical',
+      });
+    }
+
+    return saved;
+  }
+
+  async markComplete(
+    projectId: string,
+    businessId: string,
+    data: { deliverableUrls?: string[]; completionNotes?: string },
+  ): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    if (project.assignedBusinessId !== businessId) throw new ForbiddenException('Not your project');
+    if (project.submissionStatus !== SubmissionStatus.IN_PROGRESS)
+      throw new BadRequestException('Project is not in progress');
+
+    project.submissionStatus = SubmissionStatus.COMPLETED;
+    project.status = ProjectStatus.COMPLETED;
+    project.deliverableUrls = data.deliverableUrls ?? [];
+    project.completionNotes = data.completionNotes ?? '';
+    project.completedAt = new Date();
+    project.updatedBy = businessId;
+    const saved = await this.projectRepository.save(project);
+
+    // Notify Client & Admin
+    if (project.clientId) {
+      this.triggerNotification({
+        userId: project.clientId,
+        type: 'TECHNICAL_PROJECT_COMPLETED',
+        title: 'Project Deliverables Ready for Review',
+        message: `${project.assignedBusinessName || 'Business'} submitted deliverables for "${project.title}". Please review and accept.`,
+        priority: 'high',
+        href: '/user/technical',
+      });
+    }
+
+    return saved;
+  }
+
+  async reviewAccept(projectId: string, reviewerId: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    if (project.submissionStatus !== SubmissionStatus.COMPLETED)
+      throw new BadRequestException('Project must be completed first');
+
+    project.submissionStatus = SubmissionStatus.ACCEPTED;
+    project.updatedBy = reviewerId;
+    const saved = await this.projectRepository.save(project);
+    await this.releasePayment(saved);
+
+    // Notify Business
+    if (project.assignedBusinessId) {
+      this.triggerNotification({
+        userId: project.assignedBusinessId,
+        type: 'TECHNICAL_PROJECT_PAID',
+        title: 'Project Accepted & Payment Released',
+        message: `Your work on "${project.title}" was accepted. Payout has been transferred to your wallet!`,
+        priority: 'high',
+        href: '/business/technical',
+      });
+    }
+
+    return saved;
+  }
+
+  async requestRevision(projectId: string, reviewerId: string, reason: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    if (project.submissionStatus !== SubmissionStatus.COMPLETED)
+      throw new BadRequestException('Can only request revision on completed projects');
+
+    project.submissionStatus = SubmissionStatus.REVISION;
+    project.adminNotes = reason;
+    project.updatedBy = reviewerId;
+    const saved = await this.projectRepository.save(project);
+
+    // Notify Business
+    if (project.assignedBusinessId) {
+      this.triggerNotification({
+        userId: project.assignedBusinessId,
+        type: 'TECHNICAL_PROJECT_REVISION',
+        title: 'Revision Requested',
+        message: `Client requested revision on "${project.title}": ${reason}`,
+        priority: 'high',
+        href: '/business/technical',
+      });
+    }
+
+    return saved;
+  }
+
+  private async releasePayment(project: Project): Promise<void> {
+    const total = Number(project.adminBudget || project.price);
+    const commissionPct = Number(project.commissionPercent ?? 10);
+    const commission = parseFloat(((total * commissionPct) / 100).toFixed(2));
+    const businessPayout = parseFloat((total - commission).toFixed(2));
+
+    const walletUrl =
+      process.env.WALLET_SERVICE_URL || 'http://saas-backend-wallet:3015/wallet-service';
+
+    if (project.assignedBusinessId && businessPayout > 0) {
+      await fetch(`${walletUrl}/internal/credit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: project.assignedBusinessId,
+          amount: businessPayout,
+          description: `Payment release for project: ${project.title} (${project.projectId})`,
+          reference: project.projectId,
+        }),
+      }).catch((e) => this.logger.error('Failed to credit business wallet', e));
+    }
+
+    this.logger.log(
+      `Payment released for ${project.projectId}: total=${total}, commission=${commission}, business=${businessPayout}`,
+    );
+
+    project.paymentStatus = PaymentStatus.RELEASED;
+    project.paymentReleasedAt = new Date();
+    await this.projectRepository.save(project);
+  }
+
+  // ─── PROPOSALS / PARTICIPANTS ────────────────────────────────────────────────
 
   async addParticipant(
     projectId: string,
@@ -263,40 +519,15 @@ export class ProjectService {
     invitedBy: string,
     accountType: string,
   ): Promise<ProjectParticipant> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-    });
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
+    const existing = await this.participantRepository.findOne({ where: { projectId: project.id, userId } });
+    if (existing) throw new ConflictException('User already a participant');
 
-    // Check if inviter has permission
-    const inviter = await this.participantRepository.findOne({
-      where: { projectId: project.id, userId: invitedBy },
-    });
-    if (!inviter || ![ParticipantRole.ADMIN, ParticipantRole.SUB_ADMIN].includes(inviter.role)) {
-      throw new ForbiddenException('Only admins can add participants');
-    }
-
-    // Check if participant already exists
-    const existingParticipant = await this.participantRepository.findOne({
-      where: { projectId: project.id, userId },
-    });
-    if (existingParticipant) {
-      throw new ConflictException('User is already a participant in this project');
-    }
-
-    const participant = this.participantRepository.create({
-      projectId: project.id,
-      userId,
-      userName,
-      role,
-      accountType,
-      invitedBy,
-    });
-
-    return this.participantRepository.save(participant);
+    return this.participantRepository.save(
+      this.participantRepository.create({ projectId: project.id, userId, userName, role, accountType, invitedBy }),
+    );
   }
 
   async updateParticipantRole(
@@ -305,182 +536,83 @@ export class ProjectService {
     newRole: ParticipantRole,
     updatedBy: string,
   ): Promise<ProjectParticipant> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    // Only admin can change roles
-    const updater = await this.participantRepository.findOne({
-      where: { projectId: project.id, userId: updatedBy },
-    });
-    if (!updater || updater.role !== ParticipantRole.ADMIN) {
-      throw new ForbiddenException('Only project admin can change roles');
-    }
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
     const participant = await this.participantRepository.findOne({
       where: { projectId: project.id, userId: participantUserId },
     });
-
-    if (!participant) {
-      throw new NotFoundException('Participant not found');
-    }
+    if (!participant) throw new NotFoundException('Participant not found');
 
     participant.role = newRole;
     return this.participantRepository.save(participant);
   }
 
-  async applyForProject(
-    projectId: string,
-    applyDto: ApplyProjectDto,
-    userId: string,
-  ): Promise<ProjectProposal> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-    });
+  async applyForProject(projectId: string, applyDto: ApplyProjectDto, userId: string): Promise<ProjectProposal> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
+    const existing = await this.proposalRepository.findOne({ where: { projectId: project.id, userId } });
+    if (existing) throw new ConflictException('Already submitted a proposal');
 
-    // Check if project is active
-    if (project.status !== ProjectStatus.ACTIVE) {
-      throw new BadRequestException('Can only apply to active projects');
-    }
-
-    // Check if user already applied
-    const existingProposal = await this.proposalRepository.findOne({
-      where: { projectId: project.id, userId },
-    });
-    if (existingProposal) {
-      throw new ConflictException('You have already submitted a proposal for this project');
-    }
-
-    const proposal = this.proposalRepository.create({
-      projectId: project.id,
-      userId,
-      proposal: applyDto.proposal,
-      price: applyDto.price,
-      currency: applyDto.currency,
-      timeline: applyDto.timeline,
-      paymentType: applyDto.paymentType,
-    });
-
-    return this.proposalRepository.save(proposal);
+    return this.proposalRepository.save(
+      this.proposalRepository.create({
+        projectId: project.id,
+        userId,
+        proposal: applyDto.proposal,
+        price: applyDto.price,
+        currency: applyDto.currency,
+        timeline: applyDto.timeline,
+        paymentType: applyDto.paymentType,
+      }),
+    );
   }
 
   async findProposals(projectId: string, query: ProposalQueryDto): Promise<any> {
     const { page = 1, limit = 10, timeline, paymentType } = query;
     const skip = (page - 1) * limit;
 
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-    });
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    const queryBuilder = this.proposalRepository
+    const qb = this.proposalRepository
       .createQueryBuilder('proposal')
       .where('proposal.projectId = :projectId', { projectId: project.id });
 
-    if (timeline) {
-      queryBuilder.andWhere('proposal.timeline LIKE :timeline', { timeline: `%${timeline}%` });
-    }
+    if (timeline) qb.andWhere('proposal.timeline LIKE :timeline', { timeline: `%${timeline}%` });
+    if (paymentType) qb.andWhere('proposal.paymentType = :paymentType', { paymentType });
 
-    if (paymentType) {
-      queryBuilder.andWhere('proposal.paymentType = :paymentType', { paymentType });
-    }
-
-    const [proposals, total] = await queryBuilder
-      .orderBy('proposal.createdAt', 'DESC')
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-    return {
-      proposals,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
+    const [proposals, total] = await qb.orderBy('proposal.createdAt', 'DESC').skip(skip).take(limit).getManyAndCount();
+    return { proposals, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
   }
 
-  async selectProposal(
-    projectId: string,
-    proposalId: string,
-    adminId: string,
-  ): Promise<Project> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
-      relations: ['participants'],
-    });
+  async selectProposal(projectId: string, proposalId: string, adminId: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId }, relations: ['participants'] });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
+    const proposal = await this.proposalRepository.findOne({ where: { proposalId, projectId: project.id } });
+    if (!proposal) throw new NotFoundException(`Proposal ${proposalId} not found`);
 
-    // Only admin can select proposal
-    // const admin = project.participants.find(
-    //   (p) =>
-    //     p.userId === adminId &&
-    //     [ParticipantRole.ADMIN, ParticipantRole.SUB_ADMIN].includes(p.role),
-    // );
-    // if (!admin) {
-    //   throw new ForbiddenException('Only project admins can select proposals');
-    // }
-
-    const proposal = await this.proposalRepository.findOne({
-      where: { proposalId, projectId: project.id },
-    });
-
-    if (!proposal) {
-      throw new NotFoundException(`Proposal with ID ${proposalId} not found for this project`);
-    }
-
-    // Update project with proposal details
     project.acceptedProposalId = proposal.id;
     project.price = proposal.price;
     project.currency = proposal.currency;
     project.paymentType = proposal.paymentType;
-    // Note: timeline is usually a string like "3 months", we might want to store it in description or a specific field
-    // For now we'll just update the core project details and status
     project.status = ProjectStatus.ACTIVE;
+    const saved = await this.projectRepository.save(project);
 
-    const savedProject = await this.projectRepository.save(project);
-
-    // Add proposer as project member if not already
-    const existingParticipant = project.participants.find((p) => p.userId === proposal.userId);
-    if (!existingParticipant) {
-      const participant = this.participantRepository.create({
-        projectId: project.id,
-        userId: proposal.userId,
-        userName: proposal.userId, // TODO: get real name
-        role: ParticipantRole.MEMBER,
-        accountType: 'user',
-        invitedBy: adminId,
-      });
-      await this.participantRepository.save(participant);
+    const existingP = project.participants.find((p) => p.userId === proposal.userId);
+    if (!existingP) {
+      await this.participantRepository.save(
+        this.participantRepository.create({
+          projectId: project.id,
+          userId: proposal.userId,
+          userName: proposal.userId,
+          role: ParticipantRole.MEMBER,
+          accountType: 'user',
+          invitedBy: adminId,
+        }),
+      );
     }
-
-    return savedProject;
-  }
-
-  private canTransitionStatus(from: ProjectStatus, to: ProjectStatus): boolean {
-    const transitions: Record<ProjectStatus, ProjectStatus[]> = {
-      [ProjectStatus.DRAFT]: [ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED],
-      [ProjectStatus.ACTIVE]: [ProjectStatus.COMPLETED, ProjectStatus.ARCHIVED],
-      [ProjectStatus.COMPLETED]: [ProjectStatus.ACTIVE, ProjectStatus.ARCHIVED],
-      [ProjectStatus.ARCHIVED]: [ProjectStatus.DRAFT], // Allow unarchiving
-    };
-
-    return transitions[from]?.includes(to) ?? false;
+    return saved;
   }
 }

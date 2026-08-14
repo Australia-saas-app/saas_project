@@ -17,9 +17,15 @@ export class WalletService {
   ) {}
 
   async getWallet(userId: string): Promise<Wallet> {
-    const wallet = await this.walletRepository.findOne({ where: { userId } });
+    let wallet = await this.walletRepository.findOne({ where: { userId } });
     if (!wallet) {
-      throw new NotFoundException('Wallet not found');
+      // Auto-create wallet on first access
+      wallet = this.walletRepository.create({
+        userId,
+        currency: 'USD',
+        balance: 0,
+      });
+      wallet = await this.walletRepository.save(wallet);
     }
     return wallet;
   }
@@ -31,13 +37,12 @@ export class WalletService {
     }
 
     const user = await this.userRepository.findOne({ where: { userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const currency = user?.currency || 'USD';
 
     const wallet = this.walletRepository.create({
       userId,
-      currency: user.currency,
+      currency,
+      balance: 0,
     });
 
     return await this.walletRepository.save(wallet);
@@ -51,10 +56,10 @@ export class WalletService {
   async deposit(userId: string, amount: number, description?: string): Promise<Wallet> {
     const wallet = await this.getWallet(userId);
 
-    wallet.balance += amount;
+    wallet.balance = Number((Number(wallet.balance) + Number(amount)).toFixed(2));
     await this.walletRepository.save(wallet);
 
-    await this.createTransaction(userId, wallet.id, TransactionType.DEPOSIT, amount, wallet.currency, description);
+    await this.createTransaction(userId, wallet.id, TransactionType.DEPOSIT, Number(amount), wallet.currency, description);
 
     return wallet;
   }
@@ -62,14 +67,14 @@ export class WalletService {
   async withdraw(userId: string, amount: number, description?: string): Promise<Wallet> {
     const wallet = await this.getWallet(userId);
 
-    if (wallet.balance < amount) {
-      throw new BadRequestException('Insufficient balance');
+    if (Number(wallet.balance) < Number(amount)) {
+      throw new BadRequestException('Insufficient balance in wallet');
     }
 
-    wallet.balance -= amount;
+    wallet.balance = Number((Number(wallet.balance) - Number(amount)).toFixed(2));
     await this.walletRepository.save(wallet);
 
-    await this.createTransaction(userId, wallet.id, TransactionType.WITHDRAWAL, amount, wallet.currency, description);
+    await this.createTransaction(userId, wallet.id, TransactionType.WITHDRAWAL, Number(amount), wallet.currency, description);
 
     return wallet;
   }
@@ -96,30 +101,30 @@ export class WalletService {
 
   async refund(userId: string, amount: number, description?: string): Promise<Wallet> {
     const wallet = await this.getWallet(userId);
-    wallet.balance += amount;
+    wallet.balance = Number((Number(wallet.balance) + Number(amount)).toFixed(2));
     await this.walletRepository.save(wallet);
 
-    await this.createTransaction(userId, wallet.id, TransactionType.REFUND, amount, wallet.currency, description);
+    await this.createTransaction(userId, wallet.id, TransactionType.REFUND, Number(amount), wallet.currency, description);
 
     return wallet;
   }
 
   async adjustBalance(userId: string, adjustment: number, description?: string): Promise<Wallet> {
     const wallet = await this.getWallet(userId);
-    wallet.balance += adjustment;
+    wallet.balance = Number((Number(wallet.balance) + Number(adjustment)).toFixed(2));
     await this.walletRepository.save(wallet);
 
     const type = adjustment > 0 ? TransactionType.DEPOSIT : TransactionType.WITHDRAWAL;
-    await this.createTransaction(userId, wallet.id, type, Math.abs(adjustment), wallet.currency, description);
+    await this.createTransaction(userId, wallet.id, type, Math.abs(Number(adjustment)), wallet.currency, description);
 
     return wallet;
   }
 
   async getWalletAnalytics(userId: string): Promise<any> {
     const transactions = await this.transactionRepository.find({ where: { userId } });
-    const totalDeposits = transactions.filter(t => t.type === TransactionType.DEPOSIT).reduce((sum, t) => sum + t.amount, 0);
-    const totalWithdrawals = transactions.filter(t => t.type === TransactionType.WITHDRAWAL).reduce((sum, t) => sum + t.amount, 0);
-    const totalRefunds = transactions.filter(t => t.type === TransactionType.REFUND).reduce((sum, t) => sum + t.amount, 0);
+    const totalDeposits = transactions.filter(t => t.type === TransactionType.DEPOSIT).reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalWithdrawals = transactions.filter(t => t.type === TransactionType.WITHDRAWAL).reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalRefunds = transactions.filter(t => t.type === TransactionType.REFUND).reduce((sum, t) => sum + Number(t.amount), 0);
 
     return {
       totalDeposits,
@@ -130,22 +135,20 @@ export class WalletService {
   }
 
   async checkFraud(userId: string, amount: number): Promise<boolean> {
-    // Placeholder fraud prevention logic
     const recentTransactions = await this.transactionRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
       take: 10,
     });
 
-    const totalRecent = recentTransactions.reduce((sum, t) => sum + t.amount, 0);
-    if (totalRecent + amount > 10000) { // Example threshold
-      return true; // Fraud detected
+    const totalRecent = recentTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+    if (totalRecent + amount > 50000) {
+      return true;
     }
     return false;
   }
 
   async integrateWithService(userId: string, service: string, data: any): Promise<any> {
-    // Placeholder for integration
     return { userId, service, data };
   }
 

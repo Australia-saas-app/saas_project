@@ -140,11 +140,24 @@ export class NotificationsService {
     };
   }
 
-  async getUserNotifications(query: GetNotificationsDto, userId: string) {
+  async getUserNotifications(query: GetNotificationsDto, userContext: any) {
     const { type, isRead, priority, page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'DESC' } = query;
 
-    const queryBuilder = this.notificationRepository.createQueryBuilder('notification')
-      .where('notification.userId = :userId', { userId });
+    const userId = typeof userContext === 'string' ? userContext : userContext?.userId || userContext?.adminId;
+    const isAdmin =
+      typeof userContext === 'object' &&
+      (userContext?.role === 'admin' || userContext?.role === 'superadmin' || !!userContext?.adminId);
+
+    const queryBuilder = this.notificationRepository.createQueryBuilder('notification');
+
+    if (isAdmin) {
+      queryBuilder.where('(notification.userId = :userId OR notification.userId = :adminRole OR notification.userId IS NULL)', {
+        userId,
+        adminRole: 'admin',
+      });
+    } else {
+      queryBuilder.where('notification.userId = :userId', { userId });
+    }
 
     // Apply filters
     if (type) {
