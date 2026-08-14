@@ -14,7 +14,9 @@ import {
   Upload,
   UserCheck,
   X,
+  MessageSquare,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -25,6 +27,8 @@ import {
   markProjectComplete,
 } from "../services/technical.services";
 import { useUser } from "@/src/context/user.provider";
+import { ProjectChatModal } from "./ProjectChatModal";
+import { DeliverableUploadModal } from "./DeliverableUploadModal";
 
 interface Project {
   id: number;
@@ -50,6 +54,7 @@ interface Project {
 }
 
 export default function BusinessProjectsPage() {
+  const router = useRouter();
   const { user } = useUser();
   const businessName =
     user && "businessName" in user && (user as any).businessName
@@ -63,6 +68,7 @@ export default function BusinessProjectsPage() {
   const [myProjects, setMyProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [chatProject, setChatProject] = useState<Project | null>(null);
 
   // Complete modal state
   const [completingProject, setCompletingProject] = useState<Project | null>(null);
@@ -354,25 +360,37 @@ export default function BusinessProjectsPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                     <p className="text-xs text-muted-foreground">
                       Client: <span className="font-medium text-foreground">{project.clientName || "Client"}</span>
                     </p>
 
-                    {(project.submissionStatus === "in_progress" || project.submissionStatus === "revision") && (
+                    <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        className="bg-primary hover:bg-primary/90 text-white font-semibold"
-                        onClick={() => {
-                          setCompletingProject(project);
-                          setDeliverableList(project.deliverableUrls || []);
-                          setCompletionNotes(project.completionNotes || "");
-                        }}
+                        variant="outline"
+                        className="border-border text-foreground hover:bg-muted"
+                        onClick={() => setChatProject(project)}
                       >
-                        <Upload className="mr-1.5 h-3.5 w-3.5" />
-                        Submit Deliverables &amp; Complete
+                        <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                        Project Chat
                       </Button>
-                    )}
+
+                      {(project.submissionStatus === "in_progress" || project.submissionStatus === "revision") && (
+                        <Button
+                          size="sm"
+                          className="bg-primary hover:bg-primary/90 text-white font-semibold"
+                          onClick={() => {
+                            setCompletingProject(project);
+                            setDeliverableList(project.deliverableUrls || []);
+                            setCompletionNotes(project.completionNotes || "");
+                          }}
+                        >
+                          <Upload className="mr-1.5 h-3.5 w-3.5" />
+                          Submit Deliverables &amp; Complete
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -381,99 +399,23 @@ export default function BusinessProjectsPage() {
         )
       )}
 
-      {/* Complete Project Modal */}
+      {/* Complete Project Modal with Progress */}
       {completingProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-lg font-bold text-foreground">Submit Deliverables &amp; Complete</h3>
-              <button
-                onClick={() => setCompletingProject(null)}
-                className="rounded-md p-1 hover:bg-muted text-muted-foreground"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Provide GitHub repository URLs, live site links, Figma files, or cloud download links for <strong>{completingProject.title}</strong>.
-            </p>
-
-            <form onSubmit={handleCompleteSubmit} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-foreground">
-                  Deliverable Link / URL
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={deliverableUrl}
-                    onChange={(e) => setDeliverableUrl(e.target.value)}
-                    placeholder="https://github.com/org/repo or https://drive.google.com/..."
-                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-primary"
-                  />
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddDeliverable}>
-                    Add
-                  </Button>
-                </div>
-              </div>
-
-              {deliverableList.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Added links ({deliverableList.length}):</p>
-                  <ul className="max-h-28 overflow-y-auto space-y-1 rounded-lg border border-border p-2 text-xs">
-                    {deliverableList.map((url, idx) => (
-                      <li key={idx} className="flex items-center justify-between gap-2 text-foreground">
-                        <span className="truncate">{url}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveDeliverable(idx)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-foreground">
-                  Completion Notes &amp; Instructions
-                </label>
-                <textarea
-                  rows={3}
-                  value={completionNotes}
-                  onChange={(e) => setCompletionNotes(e.target.value)}
-                  placeholder="Deployment instructions, credentials, or notes for the client..."
-                  className="w-full rounded-lg border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button type="button" variant="outline" onClick={() => setCompletingProject(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={actionLoading === completingProject.projectId}
-                  className="bg-primary hover:bg-primary/90 text-white font-semibold"
-                >
-                  {actionLoading === completingProject.projectId ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="mr-1.5 h-3.5 w-3.5" /> Submit to Client &amp; Admin
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <DeliverableUploadModal
+          project={completingProject as any}
+          onClose={() => setCompletingProject(null)}
+          onSuccess={() => {
+            setCompletingProject(null);
+            loadData();
+          }}
+        />
+      )}
+      {/* Project Real-Time Chat Modal */}
+      {chatProject && (
+        <ProjectChatModal
+          project={chatProject as any}
+          onClose={() => setChatProject(null)}
+        />
       )}
     </div>
   );

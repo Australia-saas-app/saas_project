@@ -395,17 +395,18 @@ export class ProjectService {
   async markComplete(
     projectId: string,
     businessId: string,
-    data: { deliverableUrls?: string[]; completionNotes?: string },
+    data: { deliverableUrls?: string[]; deliverableFiles?: any[]; completionNotes?: string },
   ): Promise<Project> {
     const project = await this.projectRepository.findOne({ where: { projectId } });
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
     if (project.assignedBusinessId !== businessId) throw new ForbiddenException('Not your project');
-    if (project.submissionStatus !== SubmissionStatus.IN_PROGRESS)
-      throw new BadRequestException('Project is not in progress');
+    if (project.submissionStatus !== SubmissionStatus.IN_PROGRESS && project.submissionStatus !== SubmissionStatus.REVISION)
+      throw new BadRequestException('Project is not in progress or revision');
 
     project.submissionStatus = SubmissionStatus.COMPLETED;
     project.status = ProjectStatus.COMPLETED;
     project.deliverableUrls = data.deliverableUrls ?? [];
+    project.deliverableFiles = data.deliverableFiles ?? [];
     project.completionNotes = data.completionNotes ?? '';
     project.completedAt = new Date();
     project.updatedBy = businessId;

@@ -5,8 +5,12 @@
 
 const BASE = '/api/technology/projects';
 
-function authHeaders(token?: string) {
-  return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+function authHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 // ─── Category / Skill helpers (kept as mock — replace with real API later) ──
@@ -139,7 +143,7 @@ export const acceptProject = async (projectId: string, businessName: string, tok
 
 export const markProjectComplete = async (
   projectId: string,
-  payload: { deliverableUrls?: string[]; completionNotes?: string },
+  payload: { deliverableUrls?: string[]; deliverableFiles?: any[]; completionNotes?: string },
   token?: string,
 ) => {
   const res = await fetch(`${BASE}/${projectId}/complete`, {
@@ -242,5 +246,34 @@ export const fetchWalletTransactions = async (token?: string) => {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   const data = await res.json();
+  return data;
+};
+
+// ─── Real-Time Messages ──────────────────────────────────────────────────────
+
+export const fetchProjectMessages = async (projectId: string, token?: string) => {
+  const res = await fetch(`${BASE}/${projectId}/messages`, {
+    credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Failed to fetch messages');
+  return data;
+};
+
+export const sendProjectMessage = async (
+  projectId: string,
+  content: string,
+  messageType: 'general' | 'update' | 'comment' | 'system' = 'general',
+  token?: string,
+) => {
+  const res = await fetch(`${BASE}/${projectId}/messages`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token),
+    body: JSON.stringify({ content, messageType }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || 'Failed to send message');
   return data;
 };

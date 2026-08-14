@@ -177,6 +177,9 @@ export class Project {
   @Column({ type: 'simple-array', nullable: true })
   deliverableUrls: string[];
 
+  @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
+  deliverableFiles: { name: string; url: string; size?: number; type?: string; uploadedAt?: string }[];
+
   @Column({ type: 'text', nullable: true })
   completionNotes: string;
 

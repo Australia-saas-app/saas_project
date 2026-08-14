@@ -13,6 +13,12 @@ import {
   Loader2,
   FolderOpen,
   Plus,
+  MessageSquare,
+  Download,
+  FileArchive,
+  FileText,
+  FileCode,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -23,6 +29,7 @@ import {
   submitProject,
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
+import { ProjectChatModal } from "./ProjectChatModal";
 import Link from "next/link";
 
 type SubmissionStatus =
@@ -70,6 +77,7 @@ interface Project {
   assignedBusinessName?: string;
   completionNotes?: string;
   deliverableUrls?: string[];
+  deliverableFiles?: { name: string; url: string; size?: number; type?: string; uploadedAt?: string }[];
   createdAt: string;
 }
 
@@ -79,6 +87,7 @@ export default function UserProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [payProject, setPayProject] = useState<Project | null>(null);
+  const [chatProject, setChatProject] = useState<Project | null>(null);
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
   const [revisionReason, setRevisionReason] = useState("");
 
@@ -209,26 +218,96 @@ export default function UserProjectsPage() {
                   </p>
                 )}
 
-                {project.completionNotes && (
-                  <div className="mt-3 rounded-lg bg-muted/50 p-3">
-                    <p className="text-xs font-medium text-muted-foreground">Completion Notes</p>
-                    <p className="mt-0.5 text-sm text-foreground">{project.completionNotes}</p>
-                  </div>
-                )}
+                {/* Deliverables from Business */}
+                {((project.deliverableFiles && project.deliverableFiles.length > 0) ||
+                  (project.deliverableUrls && project.deliverableUrls.length > 0) ||
+                  project.completionNotes) && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <FileCode className="h-3.5 w-3.5 text-primary" /> Submitted Deliverables
+                    </p>
 
-                {project.deliverableUrls && project.deliverableUrls.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {project.deliverableUrls.map((url, i) => (
-                      <a
-                        key={i}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary hover:underline"
-                      >
-                        Deliverable {i + 1}
-                      </a>
-                    ))}
+                    {/* Deliverable Files with Direct PC Download */}
+                    {project.deliverableFiles && project.deliverableFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        {project.deliverableFiles.map((file, i) => {
+                          const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+                          const isZip = [".zip", ".rar", ".tar", ".gz"].includes(ext);
+                          const isDoc = [".pdf", ".doc", ".docx", ".txt"].includes(ext);
+
+                          return (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between rounded-lg border border-border bg-card p-2.5 text-xs shadow-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {isZip ? (
+                                  <FileArchive className="h-4 w-4 text-amber-500 shrink-0" />
+                                ) : isDoc ? (
+                                  <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                                ) : (
+                                  <FileCode className="h-4 w-4 text-primary shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-foreground truncate max-w-xs sm:max-w-md">
+                                    {file.name}
+                                  </p>
+                                  {file.size && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {(file.size / (1024 * 1024)).toFixed(2)} MB
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <a
+                                href={file.url}
+                                download={file.name}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-primary/90 transition-all shrink-0 ml-2"
+                              >
+                                <Download className="h-3.5 w-3.5" /> Download
+                              </a>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* External links */}
+                    {project.deliverableUrls && project.deliverableUrls.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {project.deliverableUrls.map((url, i) => (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            {url.includes("github.com")
+                              ? "GitHub Repository"
+                              : url.includes("figma.com")
+                                ? "Figma Design"
+                                : `Deliverable Link #${i + 1}`}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Completion Notes */}
+                    {project.completionNotes && (
+                      <div className="rounded-lg bg-card border border-border p-2.5 mt-2">
+                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+                          Notes &amp; Setup Instructions
+                        </p>
+                        <p className="mt-0.5 text-xs text-foreground whitespace-pre-wrap">
+                          {project.completionNotes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -279,6 +358,18 @@ export default function UserProjectsPage() {
                   </>
                 )}
 
+                {project.submissionStatus !== "draft" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border text-foreground hover:bg-muted"
+                    onClick={() => setChatProject(project)}
+                  >
+                    <MessageSquare className="mr-1 h-3.5 w-3.5 text-primary" />
+                    Project Chat
+                  </Button>
+                )}
+
                 <p className="text-xs text-muted-foreground">
                   {new Date(project.createdAt).toLocaleDateString()}
                 </p>
@@ -294,6 +385,14 @@ export default function UserProjectsPage() {
           project={payProject}
           onClose={() => setPayProject(null)}
           onSuccess={() => { setPayProject(null); loadProjects(); }}
+        />
+      )}
+
+      {/* Project Real-Time Chat Modal */}
+      {chatProject && (
+        <ProjectChatModal
+          project={chatProject as any}
+          onClose={() => setChatProject(null)}
         />
       )}
 

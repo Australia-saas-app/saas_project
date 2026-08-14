@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProjectMessage } from '../entities/project-message.entity';
+import { ProjectMessage, MessageType } from '../entities/project-message.entity';
 import { ProjectParticipant, ParticipantRole } from '../entities/project-participant.entity';
 import { Project } from '../entities/project.entity';
 import { CreateMessageDto } from '../dto/create-message.dto';
@@ -20,13 +20,40 @@ export class MessageService {
     private readonly projectRepository: Repository<Project>,
   ) {}
 
+  private async triggerNotification(payload: {
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    href?: string;
+  }) {
+    try {
+      const notificationUrl =
+        process.env.NOTIFICATION_SERVICE_URL ||
+        'http://saas-backend-notification:3014/notification-service/internal/notifications';
+      await fetch(notificationUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: payload.userId,
+          type: payload.type,
+          title: payload.title,
+          message: payload.message,
+          priority: 'medium',
+          data: { href: payload.href },
+        }),
+      }).catch(() => undefined);
+    } catch {
+      // ignore
+    }
+  }
+
   async create(
     projectId: string,
     createDto: CreateMessageDto,
     senderId: string,
     senderName: string,
   ): Promise<ProjectMessage> {
-    // Find the project
     const project = await this.projectRepository.findOne({
       where: { projectId },
     });
@@ -34,43 +61,58 @@ export class MessageService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
-    // Check if user can post messages in this project
-    const participant = await this.participantRepository.findOne({
-      where: { projectId: project.id, userId: senderId },
-    });
-    if (!participant || participant.role === ParticipantRole.VIEWER) {
-      throw new ForbiddenException('You do not have permission to post messages');
+    // Direct access check: Client, Assigned Business, or Admin
+    const isOwner = project.clientId === senderId;
+    const isAssignedBiz = project.assignedBusinessId === senderId;
+    const isAdmin = senderId === 'admin' || senderId.startsWith('admin_');
+
+    if (!isOwner && !isAssignedBiz && !isAdmin) {
+      const participant = await this.participantRepository.findOne({
+        where: { projectId: project.id, userId: senderId },
+      });
+      if (!participant || participant.role === ParticipantRole.VIEWER) {
+        throw new ForbiddenException('You do not have permission to post messages in this project');
+      }
     }
 
     const message = this.messageRepository.create({
       projectId: project.id,
       senderId,
-      senderName,
-      messageType: createDto.messageType,
+      senderName: senderName || senderId,
+      messageType: createDto.messageType || MessageType.GENERAL,
       content: createDto.content,
       isVisible: true,
     });
 
-    return this.messageRepository.save(message);
+    const saved = await this.messageRepository.save(message);
+
+    // Identify recipient to notify
+    let recipientId: string | null = null;
+    if (isOwner && project.assignedBusinessId) {
+      recipientId = project.assignedBusinessId;
+    } else if (isAssignedBiz && project.clientId) {
+      recipientId = project.clientId;
+    }
+
+    if (recipientId) {
+      this.triggerNotification({
+        userId: recipientId,
+        type: 'PROJECT_CHAT_MESSAGE',
+        title: `New Message on "${project.title}"`,
+        message: `${senderName || 'Team member'}: ${createDto.content.slice(0, 80)}`,
+        href: `/technical`,
+      });
+    }
+
+    return saved;
   }
 
   async findAll(projectId: string, userId?: string): Promise<ProjectMessage[]> {
-    // Find the project
     const project = await this.projectRepository.findOne({
       where: { projectId },
     });
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    // Check project access
-    if (userId) {
-      const participant = await this.participantRepository.findOne({
-        where: { projectId: project.id, userId },
-      });
-      if (!participant) {
-        throw new ForbiddenException('Access denied to this project');
-      }
     }
 
     return this.messageRepository.find({
@@ -89,16 +131,6 @@ export class MessageService {
       throw new NotFoundException(`Message with ID ${messageId} not found`);
     }
 
-    // Check project access
-    if (userId) {
-      const participant = await this.participantRepository.findOne({
-        where: { projectId: message.projectId, userId },
-      });
-      if (!participant) {
-        throw new ForbiddenException('Access denied to this message');
-      }
-    }
-
     return message;
   }
 
@@ -115,19 +147,7 @@ export class MessageService {
       throw new NotFoundException(`Message with ID ${messageId} not found`);
     }
 
-    // Only sender or admin can edit
-    const participant = await this.participantRepository.findOne({
-      where: { projectId: message.projectId, userId: updatedBy },
-    });
-    if (!participant) {
-      throw new ForbiddenException('Access denied');
-    }
-
-    const canEdit =
-      message.senderId === updatedBy ||
-      [ParticipantRole.ADMIN, ParticipantRole.SUB_ADMIN].includes(participant.role);
-
-    if (!canEdit) {
+    if (message.senderId !== updatedBy) {
       throw new ForbiddenException('You cannot edit this message');
     }
 
@@ -135,7 +155,6 @@ export class MessageService {
     if (updateDto.messageType !== undefined) message.messageType = updateDto.messageType;
 
     message.updatedAt = new Date();
-
     return this.messageRepository.save(message);
   }
 
@@ -148,23 +167,10 @@ export class MessageService {
       throw new NotFoundException(`Message with ID ${messageId} not found`);
     }
 
-    // Check permissions
-    const participant = await this.participantRepository.findOne({
-      where: { projectId: message.projectId, userId },
-    });
-    if (!participant) {
-      throw new ForbiddenException('Access denied');
-    }
-
-    const canDelete =
-      message.senderId === userId ||
-      [ParticipantRole.ADMIN, ParticipantRole.SUB_ADMIN].includes(participant.role);
-
-    if (!canDelete) {
+    if (message.senderId !== userId) {
       throw new ForbiddenException('You cannot delete this message');
     }
 
-    // Soft delete by hiding
     message.isVisible = false;
     await this.messageRepository.save(message);
   }
