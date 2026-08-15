@@ -5,6 +5,7 @@ export interface RegisteredContact {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role?: string;
   avatar?: string;
 }
@@ -35,6 +36,7 @@ function readCustomContacts(): RegisteredContact[] {
 export function saveCustomContact(contact: {
   email: string;
   name?: string;
+  phone?: string;
   role?: string;
   id?: string;
 }): RegisteredContact {
@@ -48,6 +50,7 @@ export function saveCustomContact(contact: {
     id: contact.id || `custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     name: contact.name || contact.email.split("@")[0],
     email: contact.email.trim().toLowerCase(),
+    phone: contact.phone,
     role: contact.role || "User",
   };
 
@@ -64,6 +67,8 @@ export function saveCustomContact(contact: {
 
   return newContact;
 }
+
+export const registerContact = saveCustomContact;
 
 export function getAllRegisteredContacts(): RegisteredContact[] {
   const contactsMap = new Map<string, RegisteredContact>();

@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useUser } from "@/src/context/user.provider"
-import { useLogout } from "@/src/hooks/auth.hook"
-import { usePermission } from "@/src/hooks/permission.hook"
-import { useLocale } from "@/src/shared/context/locale.provider"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useUser } from "@/src/context/user.provider";
+import { useLogout } from "@/src/hooks/auth.hook";
+import { usePermission } from "@/src/hooks/permission.hook";
+import { useLocale } from "@/src/shared/context/locale.provider";
 import {
   X,
   Wallet,
@@ -24,43 +24,47 @@ import {
   Code2,
   RotateCcw,
   User,
-} from "lucide-react"
-import { formatAccountIdLabel } from "@/src/shared/lib/demo-user"
-import UserAccountMenu from "./UserAccountMenu"
+  LayoutGrid,
+} from "lucide-react";
+import { formatAccountIdLabel } from "@/src/shared/lib/demo-user";
+import UserAccountMenu from "./UserAccountMenu";
+import { isProfileComplete } from "@/src/shared/lib/profile-completion";
+import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user";
+import { useProfileDisplay } from "../hooks/use-profile-display";
 
 interface SidebarProps {
-  isExpanded: boolean
-  isMobile: boolean
-  onCloseMobile: () => void
+  isExpanded?: boolean;
+  isMobile?: boolean;
+  onCloseMobile: () => void;
 }
 
-import { isProfileComplete } from "@/src/shared/lib/profile-completion"
-import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user"
-import { useProfileDisplay } from "../hooks/use-profile-display"
+export function AccountSidebarChildren({
+  isExpanded = true,
+  isMobile = false,
+  onCloseMobile,
+}: SidebarProps) {
+  const pathname = usePathname();
+  const { user, isLoading } = useUser();
+  const { isAffiliate, isBusiness } = usePermission();
+  const { t } = useLocale();
+  const logoutMutation = useLogout();
+  const { avatarUrl, isVerified } = useProfileDisplay();
 
-export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: SidebarProps) {
-  const pathname = usePathname()
-  const { user, isLoading } = useUser()
-  const { isAffiliate, isBusiness } = usePermission()
-  const { t } = useLocale()
-  const logoutMutation = useLogout()
-  const { avatarUrl, isVerified } = useProfileDisplay()
-
-  let dashboardPrefix = "/user"
+  let dashboardPrefix = "/user";
   if (isAffiliate) {
-    dashboardPrefix = "/affiliate"
+    dashboardPrefix = "/affiliate";
   } else if (isBusiness) {
-    dashboardPrefix = "/business"
+    dashboardPrefix = "/business";
   }
 
-  const userId = getUserIdFromAuthUser(user)
-  const userStatus = String((user as any)?.status ?? "").toLowerCase()
+  const userId = getUserIdFromAuthUser(user);
+  const userStatus = String((user as any)?.status ?? "").toLowerCase();
   const isComplete =
     isProfileComplete(userId) ||
     isVerified ||
     userStatus === "active" ||
     userStatus === "verified" ||
-    userStatus === "approved"
+    userStatus === "approved";
 
   const menuItems = !isAffiliate && !isBusiness
     ? [
@@ -97,90 +101,82 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
           { label: t.dashboard.affiliate.promotions, icon: Link2, href: `${dashboardPrefix}/promotions` },
           { label: t.dashboard.affiliate.notices, icon: Bell, href: `${dashboardPrefix}/notices` },
           { label: t.dashboard.affiliate.messages, icon: MessageSquare, href: `${dashboardPrefix}/messages` },
-        ]
+        ];
 
   const isActive = (href: string) => {
-    if (href.endsWith("/dashboard")) return pathname === href
-    return pathname === href || pathname.startsWith(href + "/")
-  }
+    if (href.endsWith("/dashboard")) return pathname === href;
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
   const getDisplayName = () => {
-    if (isLoading) return "Loading..."
-    if (!user) return "Guest User"
+    if (isLoading) return "Loading...";
+    if (!user) return "Guest User";
     if ("fullName" in user && user.fullName) {
-      return user.fullName
+      return user.fullName;
     }
     if ("firstName" in user && user.firstName) {
-      return `${user.firstName} ${user.lastName || ""}`.trim()
+      return `${user.firstName} ${user.lastName || ""}`.trim();
     }
     if ("name" in user && user.name) {
-      return user.name
+      return user.name;
     }
-    return user.email?.split("@")[0] || "Account"
-  }
+    return user.email?.split("@")[0] || "Account";
+  };
 
-  const accountIdLabel = formatAccountIdLabel(user)
+  const accountIdLabel = formatAccountIdLabel(user);
   const profileLabel = isBusiness
     ? t.business.sidebar.profile
     : !isAffiliate
       ? t.dashboard.user.profile
-      : t.dashboard.affiliate.profile
+      : t.dashboard.affiliate.profile;
   const settingsLabel = isBusiness
     ? t.business.sidebar.settings
     : !isAffiliate
       ? t.dashboard.user.settings
-      : t.dashboard.affiliate.settings
+      : t.dashboard.affiliate.settings;
 
-  const workspaceRole = isBusiness ? "Business" : isAffiliate ? "Affiliate" : "User"
+  const workspaceRole = isBusiness ? "Business" : isAffiliate ? "Affiliate" : "User";
 
   const linkClass = (active: boolean, disabled: boolean) =>
     [
-      "group relative flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors",
-      isExpanded ? "gap-3 px-3" : "justify-center px-0",
+      "group relative flex items-center rounded-xl py-2.5 text-sm font-medium transition-all gap-3 px-3",
       disabled
         ? "opacity-45 cursor-not-allowed select-none bg-transparent text-muted-foreground/60"
         : active
-          ? "bg-[#5D7293] text-white shadow-sm"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-    ].join(" ")
+          ? "bg-primary text-white font-bold shadow-xs"
+          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+    ].join(" ");
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* Header section — displays User Full Name & Workspace role, centered */}
-      <div
-        className={`flex shrink-0 items-center border-b border-border ${
-          isExpanded ? "h-16 justify-between px-4" : "h-16 justify-center px-2"
-        }`}
-      >
-        {isExpanded ? (
-          <div className="min-w-0 flex-1 text-center">
-            <p className="truncate text-sm font-bold text-foreground">{getDisplayName()}</p>
-            <p className="truncate text-[11px] font-medium text-muted-foreground">
-              {workspaceRole} workspace
-            </p>
-          </div>
-        ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#5D7293] text-xs font-bold text-white shadow-sm">
-            {getDisplayName().charAt(0).toUpperCase()}
-          </div>
-        )}
-        {isMobile && isExpanded && (
+    <div className="flex h-full w-full flex-col overflow-hidden bg-card">
+      {/* Header section — displays User Branding & Full Name */}
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border px-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-xs font-bold">
+          <LayoutGrid className="h-4.5 w-4.5" />
+        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-sm font-bold text-foreground">{getDisplayName()}</p>
+          <p className="truncate text-[11px] font-medium text-muted-foreground">
+            {workspaceRole} Portal
+          </p>
+        </div>
+        {isMobile && (
           <button
             type="button"
             onClick={onCloseMobile}
             aria-label="Close menu"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
           >
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <nav className={`min-h-0 flex-1 space-y-1 overflow-y-auto ${isExpanded ? "p-3" : "px-2 py-3"}`}>
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {menuItems.map((item) => {
-          const active = isActive(item.href)
-          const Icon = item.icon
-          const isDisabled = !isComplete
+          const active = isActive(item.href);
+          const Icon = item.icon;
+          const isDisabled = !isComplete;
 
           if (isDisabled) {
             return (
@@ -190,35 +186,34 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
                 className={linkClass(false, true)}
               >
                 <Icon className="h-5 w-5 shrink-0 opacity-50" />
-                {isExpanded && <span className="truncate">{item.label}</span>}
+                <span className="truncate">{item.label}</span>
               </div>
-            )
+            );
           }
 
           return (
             <Link
               key={item.label}
               href={item.href}
-              title={!isExpanded ? item.label : undefined}
               onClick={() => isMobile && onCloseMobile()}
               className={linkClass(active, false)}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {isExpanded && <span className="truncate">{item.label}</span>}
+              <span className="truncate">{item.label}</span>
             </Link>
-          )
+          );
         })}
       </nav>
 
       {/* Single account control — bottom of sidebar footer */}
-      <div className={`shrink-0 border-t border-border ${isExpanded ? "p-3" : "px-2 py-3"}`}>
+      <div className="shrink-0 border-t border-border p-3">
         <UserAccountMenu
           profileHref={`${dashboardPrefix}/profile`}
           settingsHref={`${dashboardPrefix}/settings`}
           displayName={isLoading ? "Loading..." : (user?.email || "user@example.com")}
           subtitle={isLoading ? "..." : accountIdLabel}
           avatarUrl={avatarUrl}
-          isExpanded={isExpanded}
+          isExpanded={true}
           menuPlacement="up"
           isLoggingOut={logoutMutation.isPending}
           onLogout={() => logoutMutation.mutate()}
@@ -229,7 +224,7 @@ export function AccountSidebarChildren({ isExpanded, isMobile, onCloseMobile }: 
         />
       </div>
     </div>
-  )
+  );
 }
 
-export default AccountSidebarChildren
+export default AccountSidebarChildren;

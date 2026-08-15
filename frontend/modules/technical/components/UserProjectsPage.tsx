@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Clock,
   CheckCircle2,
@@ -19,6 +20,12 @@ import {
   FileText,
   FileCode,
   ExternalLink,
+  Search,
+  Grid3x3,
+  List,
+  Briefcase,
+  Layers,
+  ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -30,7 +37,6 @@ import {
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
-import Link from "next/link";
 
 type SubmissionStatus =
   | "draft"
@@ -49,17 +55,61 @@ const STATUS_CONFIG: Record<
   SubmissionStatus,
   { label: string; color: string; icon: React.ReactNode }
 > = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: <FolderOpen className="h-3.5 w-3.5" /> },
-  submitted: { label: "Submitted", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", icon: <Clock className="h-3.5 w-3.5" /> },
-  admin_review: { label: "Under Review", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300", icon: <Eye className="h-3.5 w-3.5" /> },
-  approved: { label: "Approved — Pay Now", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", icon: <CreditCard className="h-3.5 w-3.5" /> },
-  payment_pending: { label: "Payment Pending", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", icon: <CreditCard className="h-3.5 w-3.5" /> },
-  active: { label: "Active — Available", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  in_progress: { label: "In Progress", color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300", icon: <Loader2 className="h-3.5 w-3.5" /> },
-  completed: { label: "Completed — Review", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300", icon: <Eye className="h-3.5 w-3.5" /> },
-  revision: { label: "Revision Requested", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300", icon: <RotateCcw className="h-3.5 w-3.5" /> },
-  accepted: { label: "Accepted — Done", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  rejected: { label: "Rejected", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300", icon: <XCircle className="h-3.5 w-3.5" /> },
+  draft: {
+    label: "Draft",
+    color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    icon: <FolderOpen className="h-3.5 w-3.5" />,
+  },
+  submitted: {
+    label: "Submitted (Pending Review)",
+    color: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800",
+    icon: <Clock className="h-3.5 w-3.5" />,
+  },
+  admin_review: {
+    label: "Under Admin Review",
+    color: "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-400 dark:border-purple-800",
+    icon: <Eye className="h-3.5 w-3.5" />,
+  },
+  approved: {
+    label: "Approved — Pay Now",
+    color: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800",
+    icon: <CreditCard className="h-3.5 w-3.5" />,
+  },
+  payment_pending: {
+    label: "Payment Pending",
+    color: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800",
+    icon: <CreditCard className="h-3.5 w-3.5" />,
+  },
+  active: {
+    label: "Active — Open for Businesses",
+    color: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800",
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+  },
+  in_progress: {
+    label: "In Progress",
+    color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800",
+    icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
+  },
+  completed: {
+    label: "Completed — Ready to Review",
+    color: "bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-800",
+    icon: <Eye className="h-3.5 w-3.5" />,
+  },
+  revision: {
+    label: "Revision Requested",
+    color: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800",
+    icon: <RotateCcw className="h-3.5 w-3.5" />,
+  },
+  accepted: {
+    label: "Accepted & Escrow Released",
+    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800",
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+  },
+  rejected: {
+    label: "Rejected by Admin",
+    color: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-800",
+    icon: <XCircle className="h-3.5 w-3.5" />,
+  },
 };
 
 interface Project {
@@ -73,7 +123,9 @@ interface Project {
   price?: number;
   currency?: string;
   category?: string;
+  subcategory?: string;
   skills?: string[];
+  coverUrl?: string;
   assignedBusinessName?: string;
   completionNotes?: string;
   deliverableUrls?: string[];
@@ -86,6 +138,15 @@ export default function UserProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Filters and UI Controls
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "pending" | "completed">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "budget_high" | "budget_low">("newest");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Modals
   const [payProject, setPayProject] = useState<Project | null>(null);
   const [chatProject, setChatProject] = useState<Project | null>(null);
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
@@ -95,8 +156,8 @@ export default function UserProjectsPage() {
     try {
       const data = await fetchMyProjects();
       setProjects(data?.projects || []);
-    } catch {
-      toast.error("Failed to load projects");
+    } catch (err) {
+      console.warn("Could not fetch remote projects, using local store:", err);
     } finally {
       setLoading(false);
     }
@@ -119,11 +180,11 @@ export default function UserProjectsPage() {
     }
   };
 
-  const handleReviewAccept = async (project: Project) => {
-    setActionLoading(project.projectId);
+  const handleAccept = async (projectId: string) => {
+    setActionLoading(projectId);
     try {
-      await reviewAcceptProject(project.projectId);
-      toast.success("Project accepted! Payment is being released to the business.");
+      await reviewAcceptProject(projectId);
+      toast.success("Project accepted! Escrow payment released to the provider.");
       await loadProjects();
     } catch (e: any) {
       toast.error(e.message || "Failed to accept");
@@ -132,12 +193,15 @@ export default function UserProjectsPage() {
     }
   };
 
-  const handleRevision = async () => {
-    if (!revisionProject || !revisionReason.trim()) return;
+  const handleRequestRevision = async () => {
+    if (!revisionProject || !revisionReason.trim()) {
+      toast.error("Please enter revision instructions for the business.");
+      return;
+    }
     setActionLoading(revisionProject.projectId);
     try {
       await requestRevision(revisionProject.projectId, revisionReason);
-      toast.success("Revision requested. The business has been notified.");
+      toast.success("Revision requested from the business.");
       setRevisionProject(null);
       setRevisionReason("");
       await loadProjects();
@@ -148,292 +212,499 @@ export default function UserProjectsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[300px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // Top metric stats calculation
+  const stats = useMemo(() => {
+    const activeCount = projects.filter(
+      (p) => p.submissionStatus === "active" || p.submissionStatus === "in_progress"
+    ).length;
+    const pendingCount = projects.filter(
+      (p) =>
+        p.submissionStatus === "submitted" ||
+        p.submissionStatus === "admin_review" ||
+        p.submissionStatus === "approved" ||
+        p.submissionStatus === "payment_pending"
+    ).length;
+    const completedCount = projects.filter(
+      (p) => p.submissionStatus === "completed" || p.submissionStatus === "accepted"
+    ).length;
+    const totalBudget = projects.reduce((sum, p) => {
+      const b = p.adminBudget || p.price || 0;
+      return sum + Number(b);
+    }, 0);
 
-  if (projects.length === 0) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-12 text-center">
-        <FolderOpen className="h-12 w-12 text-muted-foreground/40" />
-        <div>
-          <p className="text-lg font-semibold text-foreground">No projects yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Create your first project to get started.</p>
-        </div>
-        <Button asChild>
-          <Link href="/user/technical/create">
-            <Plus className="mr-1 h-4 w-4" /> Create Project
-          </Link>
-        </Button>
-      </div>
-    );
-  }
+    return { activeCount, pendingCount, completedCount, totalBudget };
+  }, [projects]);
+
+  // Filtered and sorted projects
+  const filteredProjects = useMemo(() => {
+    return projects
+      .filter((p) => {
+        // Status filter
+        if (statusFilter === "active") {
+          if (p.submissionStatus !== "active" && p.submissionStatus !== "in_progress") return false;
+        } else if (statusFilter === "pending") {
+          if (
+            p.submissionStatus !== "submitted" &&
+            p.submissionStatus !== "admin_review" &&
+            p.submissionStatus !== "approved" &&
+            p.submissionStatus !== "payment_pending"
+          )
+            return false;
+        } else if (statusFilter === "completed") {
+          if (p.submissionStatus !== "completed" && p.submissionStatus !== "accepted") return false;
+        }
+
+        // Category filter
+        if (categoryFilter !== "all" && p.category !== categoryFilter) {
+          return false;
+        }
+
+        // Search query
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchTitle = p.title.toLowerCase().includes(q);
+          const matchDesc = (p.description || "").toLowerCase().includes(q);
+          const matchCat = (p.category || "").toLowerCase().includes(q);
+          const matchSkills = (p.skills || []).some((s) => s.toLowerCase().includes(q));
+          if (!matchTitle && !matchDesc && !matchCat && !matchSkills) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortOrder === "newest") {
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        }
+        if (sortOrder === "oldest") {
+          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        }
+        if (sortOrder === "budget_high") {
+          return (Number(b.adminBudget || b.price) || 0) - (Number(a.adminBudget || a.price) || 0);
+        }
+        if (sortOrder === "budget_low") {
+          return (Number(a.adminBudget || a.price) || 0) - (Number(b.adminBudget || b.price) || 0);
+        }
+        return 0;
+      });
+  }, [projects, statusFilter, categoryFilter, searchQuery, sortOrder]);
 
   return (
-    <div className="space-y-4 p-4 md:p-6 max-w-7xl mx-auto">
-      {/* Page Header with Create Project Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs">
+    <div className="space-y-6 p-4 md:p-8 max-w-7xl mx-auto">
+      {/* Top Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">My Technical Projects</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Track your project review status, make escrow payments, review deliverables, and chat in real time.
+          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Services</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Manage your service categories, client jobs, and delivery status.
           </p>
         </div>
-        <Button asChild className="bg-primary hover:bg-primary/90 text-white font-bold shrink-0 shadow-sm">
-          <Link href="/user/technical/create">
-            <Plus className="mr-1.5 h-4 w-4" /> Create New Project
+
+        <Button
+          asChild
+          className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2.5 rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
+        >
+          <Link href="/dashboard/user/technical/create">
+            <Plus className="mr-1.5 h-4 w-4" /> + New Service
           </Link>
         </Button>
       </div>
 
-      {projects.map((project) => {
-        const statusCfg = STATUS_CONFIG[project.submissionStatus] ?? STATUS_CONFIG.draft;
-        const budget = project.adminBudget || project.price || 0;
-        const isActioning = actionLoading === project.projectId;
+      {/* Top 4 Stat Metric Cards (Matching Screenshot 1) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+          <p className="text-xs font-semibold text-muted-foreground">Active Services</p>
+          <p className="text-3xl font-extrabold text-foreground mt-2">{stats.activeCount}</p>
+        </div>
 
-        return (
-            <div
-              key={project.projectId}
-            className="group rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+          <p className="text-xs font-semibold text-muted-foreground">Pending Approval</p>
+          <p className="text-3xl font-extrabold text-foreground mt-2">{stats.pendingCount}</p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+          <p className="text-xs font-semibold text-muted-foreground">Completed Jobs</p>
+          <p className="text-3xl font-extrabold text-foreground mt-2">{stats.completedCount}</p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+          <p className="text-xs font-semibold text-muted-foreground">Total Budget / Escrow</p>
+          <p className="text-3xl font-extrabold text-foreground mt-2">
+            ${stats.totalBudget.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter and Control Bar (Matching Screenshot 1) */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-xs">
+        {/* Status Filter Buttons */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+          {[
+            { id: "all", label: "All Services" },
+            { id: "active", label: "Active" },
+            { id: "pending", label: "Pending" },
+            { id: "completed", label: "Completed" },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id as any)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Search, Category Select, Sort & Layout Switcher */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Category Dropdown */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 border border-border rounded-xl bg-card text-foreground text-xs font-medium focus:border-primary focus:outline-none transition-colors cursor-pointer"
           >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${statusCfg.color}`}
-                  >
-                    {statusCfg.icon}
-                    {statusCfg.label}
-                  </span>
-                  {project.category && (
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                      {project.category}
+            <option value="all">All Categories</option>
+            <option value="Software Development">Software Development</option>
+            <option value="Web Design & UI/UX">Web Design & UI/UX</option>
+            <option value="QA & Testing">QA & Testing</option>
+            <option value="Troubleshooting">Troubleshooting</option>
+            <option value="Maintenance">Maintenance</option>
+          </select>
+
+          {/* Search Bar */}
+          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search services..."
+              className="w-full pl-8 pr-3 py-2 border border-border rounded-xl bg-card text-foreground text-xs font-medium placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* Sort Dropdown */}
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as any)}
+            className="px-3 py-2 border border-border rounded-xl bg-card text-foreground text-xs font-medium focus:border-primary focus:outline-none transition-colors cursor-pointer"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="budget_high">Budget: High to Low</option>
+            <option value="budget_low">Budget: Low to High</option>
+          </select>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center rounded-xl border border-border bg-card p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === "grid"
+                  ? "bg-primary text-white shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Grid View"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === "list"
+                  ? "bg-primary text-white shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="List View"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content: Card Grid / List Design */}
+      {loading ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
+            <FolderOpen className="h-7 w-7" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-foreground">No services found</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {searchQuery || statusFilter !== "all" || categoryFilter !== "all"
+                ? "Try adjusting your filters or search terms."
+                : "Create and submit your first service project to get started."}
+            </p>
+          </div>
+          <Button
+            asChild
+            className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-xs"
+          >
+            <Link href="/dashboard/user/technical/create">
+              <Plus className="mr-1 h-3.5 w-3.5" /> + New Service
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <div
+          className={
+            viewMode === "grid"
+              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+              : "space-y-3"
+          }
+        >
+          {filteredProjects.map((project) => {
+            const statusCfg = STATUS_CONFIG[project.submissionStatus] ?? STATUS_CONFIG.draft;
+            const budget = project.adminBudget || project.price || 0;
+            const isActioning = actionLoading === project.projectId;
+
+            return (
+              <div
+                key={project.projectId}
+                className="group rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between"
+              >
+                <div>
+                  {/* Status Badge & Category */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border ${statusCfg.color}`}
+                    >
+                      {statusCfg.icon}
+                      {statusCfg.label}
                     </span>
+
+                    {project.category && (
+                      <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground truncate">
+                        {project.category}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title & Description */}
+                  <h3 className="text-base font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                    {project.title}
+                  </h3>
+                  <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                    {project.description}
+                  </p>
+
+                  {/* Skills badges */}
+                  {project.skills && project.skills.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {project.skills.slice(0, 3).map((s) => (
+                        <span
+                          key={s}
+                          className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                      {project.skills.length > 3 && (
+                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          +{project.skills.length - 3}
+                        </span>
+                      )}
+                    </div>
                   )}
-                </div>
-                <h3 className="text-base font-semibold text-foreground">{project.title}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{project.description}</p>
 
-                {budget > 0 && (
-                  <p className="mt-2 text-sm font-medium text-foreground">
-                    Budget:{" "}
-                    <span className="text-primary">
-                      {project.currency || "USD"} {Number(budget).toLocaleString()}
-                    </span>
-                  </p>
-                )}
+                  {/* Budget & Assigned Provider */}
+                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Budget
+                      </p>
+                      <p className="text-sm font-extrabold text-primary">
+                        {project.currency || "USD"} ${Number(budget).toLocaleString()}
+                      </p>
+                    </div>
 
-                {project.assignedBusinessName && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Business: <span className="font-medium">{project.assignedBusinessName}</span>
-                  </p>
-                )}
+                    {project.assignedBusinessName && (
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Provider
+                        </p>
+                        <p className="text-xs font-semibold text-foreground truncate max-w-[120px]">
+                          {project.assignedBusinessName}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
-                {/* Deliverables from Business */}
-                {((project.deliverableFiles && project.deliverableFiles.length > 0) ||
-                  (project.deliverableUrls && project.deliverableUrls.length > 0) ||
-                  project.completionNotes) && (
-                  <div className="mt-3 space-y-2 rounded-xl border border-border bg-muted/30 p-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <FileCode className="h-3.5 w-3.5 text-primary" /> Submitted Deliverables
-                    </p>
+                  {/* Deliverables Section if uploaded by Business */}
+                  {((project.deliverableFiles && project.deliverableFiles.length > 0) ||
+                    (project.deliverableUrls && project.deliverableUrls.length > 0)) && (
+                    <div className="mt-3 space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <FileCode className="h-3.5 w-3.5 text-primary" /> Deliverables Ready
+                      </p>
 
-                    {/* Deliverable Files with Direct PC Download */}
-                    {project.deliverableFiles && project.deliverableFiles.length > 0 && (
-                      <div className="space-y-1.5">
-                        {project.deliverableFiles.map((file, i) => {
-                          const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-                          const isZip = [".zip", ".rar", ".tar", ".gz"].includes(ext);
-                          const isDoc = [".pdf", ".doc", ".docx", ".txt"].includes(ext);
-
-                          return (
+                      {project.deliverableFiles && project.deliverableFiles.length > 0 && (
+                        <div className="space-y-1">
+                          {project.deliverableFiles.map((file, i) => (
                             <div
                               key={i}
-                              className="flex items-center justify-between rounded-lg border border-border bg-card p-2.5 text-xs shadow-xs"
+                              className="flex items-center justify-between rounded-lg border border-border bg-card p-2 text-xs"
                             >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                {isZip ? (
-                                  <FileArchive className="h-4 w-4 text-amber-500 shrink-0" />
-                                ) : isDoc ? (
-                                  <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                                ) : (
-                                  <FileCode className="h-4 w-4 text-primary shrink-0" />
-                                )}
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-foreground truncate max-w-xs sm:max-w-md">
-                                    {file.name}
-                                  </p>
-                                  {file.size && (
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {(file.size / (1024 * 1024)).toFixed(2)} MB
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
+                              <span className="font-semibold text-foreground truncate text-xs">
+                                {file.name}
+                              </span>
                               <a
                                 href={file.url}
                                 download={file.name}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-primary/90 transition-all shrink-0 ml-2"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
                               >
-                                <Download className="h-3.5 w-3.5" /> Download
+                                <Download className="h-3 w-3" /> Download
                               </a>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-                    {/* External links */}
-                    {project.deliverableUrls && project.deliverableUrls.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {project.deliverableUrls.map((url, i) => (
-                          <a
-                            key={i}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary hover:underline"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            {url.includes("github.com")
-                              ? "GitHub Repository"
-                              : url.includes("figma.com")
-                                ? "Figma Design"
-                                : `Deliverable Link #${i + 1}`}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Completion Notes */}
-                    {project.completionNotes && (
-                      <div className="rounded-lg bg-card border border-border p-2.5 mt-2">
-                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
-                          Notes &amp; Setup Instructions
-                        </p>
-                        <p className="mt-0.5 text-xs text-foreground whitespace-pre-wrap">
-                          {project.completionNotes}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end">
-                {project.submissionStatus === "draft" && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleSubmit(project)}
-                    disabled={isActioning}
-                  >
-                    {isActioning ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                    Submit for Review
-                  </Button>
-                )}
-
-                {project.submissionStatus === "approved" && (
-                  <Button
-                    size="sm"
-                    className="bg-amber-500 hover:bg-amber-600 text-white"
-                    onClick={() => setPayProject(project)}
-                  >
-                    <CreditCard className="mr-1 h-3 w-3" />
-                    Pay Now — {project.currency || "USD"} {Number(budget).toLocaleString()}
-                  </Button>
-                )}
-
-                {project.submissionStatus === "completed" && (
-                  <>
+                {/* Actions Footer */}
+                <div className="mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+                  {/* Chat button */}
+                  {(project.submissionStatus === "active" ||
+                    project.submissionStatus === "in_progress" ||
+                    project.submissionStatus === "completed") && (
                     <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => handleReviewAccept(project)}
-                      disabled={isActioning}
-                    >
-                      {isActioning ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="mr-1 h-3 w-3" />}
-                      Accept & Release Payment
-                    </Button>
-                    <Button
-                      size="sm"
                       variant="outline"
-                      onClick={() => { setRevisionProject(project); setRevisionReason(""); }}
+                      size="sm"
+                      onClick={() => setChatProject(project)}
+                      className="rounded-xl text-xs font-semibold border-border hover:bg-muted"
                     >
-                      <RotateCcw className="mr-1 h-3 w-3" />
-                      Request Revision
+                      <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" /> Live Chat
                     </Button>
-                  </>
-                )}
+                  )}
 
-                {project.submissionStatus !== "draft" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-border text-foreground hover:bg-muted"
-                    onClick={() => setChatProject(project)}
-                  >
-                    <MessageSquare className="mr-1 h-3.5 w-3.5 text-primary" />
-                    Project Chat
-                  </Button>
-                )}
+                  {/* Status action buttons */}
+                  {project.submissionStatus === "draft" && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleSubmit(project)}
+                      disabled={isActioning}
+                      className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs ml-auto"
+                    >
+                      {isActioning ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                      Submit for Review
+                    </Button>
+                  )}
 
-                <p className="text-xs text-muted-foreground">
-                  {new Date(project.createdAt).toLocaleDateString()}
-                </p>
+                  {project.submissionStatus === "approved" && (
+                    <Button
+                      size="sm"
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs ml-auto"
+                      onClick={() => setPayProject(project)}
+                    >
+                      <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                      Pay Escrow — {project.currency || "USD"} ${Number(budget).toLocaleString()}
+                    </Button>
+                  )}
+
+                  {project.submissionStatus === "completed" && (
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setRevisionProject(project);
+                          setRevisionReason("");
+                        }}
+                        disabled={isActioning}
+                        className="rounded-xl text-xs font-semibold text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" /> Revision
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAccept(project.projectId)}
+                        disabled={isActioning}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs"
+                      >
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> Accept &amp; Release
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
 
-      {/* Pay Modal */}
+      {/* Escrow Payment Modal */}
       {payProject && (
         <PayProjectModal
           project={payProject}
           onClose={() => setPayProject(null)}
-          onSuccess={() => { setPayProject(null); loadProjects(); }}
+          onSuccess={() => {
+            setPayProject(null);
+            loadProjects();
+          }}
         />
       )}
 
-      {/* Project Real-Time Chat Modal */}
+      {/* Real-time Project Chat Modal */}
       {chatProject && (
         <ProjectChatModal
-          project={chatProject as any}
+          project={chatProject}
           onClose={() => setChatProject(null)}
         />
       )}
 
-      {/* Revision Modal */}
+      {/* Revision Request Modal */}
       {revisionProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-foreground">Request Revision</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Describe what needs to be corrected for <strong>{revisionProject.title}</strong>.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-foreground">Request Deliverable Revision</h3>
+            <p className="text-xs text-muted-foreground">
+              Please specify the revisions or changes required by the provider for{" "}
+              <span className="font-semibold text-foreground">{revisionProject.title}</span>.
             </p>
             <textarea
-              className="mt-4 w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               rows={4}
-              placeholder="Describe the required changes..."
               value={revisionReason}
               onChange={(e) => setRevisionReason(e.target.value)}
+              placeholder="e.g. Please update the API response schema and add unit test coverage..."
+              className="w-full p-3 border border-border rounded-xl bg-card text-foreground text-xs font-medium focus:border-primary focus:outline-none resize-none"
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setRevisionProject(null)}>Cancel</Button>
+            <div className="flex items-center justify-end gap-2">
               <Button
-                onClick={handleRevision}
-                disabled={!revisionReason.trim() || !!actionLoading}
+                variant="outline"
+                size="sm"
+                onClick={() => setRevisionProject(null)}
+                className="rounded-xl text-xs"
               >
-                {actionLoading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                Submit Revision Request
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleRequestRevision}
+                disabled={actionLoading === revisionProject.projectId}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs"
+              >
+                {actionLoading === revisionProject.projectId ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Send Revision Request
               </Button>
             </div>
           </div>

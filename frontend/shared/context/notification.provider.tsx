@@ -75,8 +75,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
     fetch(notifApiBase, { credentials: "include" })
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : null))
       .then((res) => {
+        if (!res) return;
         if (mounted && res.success && Array.isArray(res.data?.notifications)) {
           const mapped = res.data.notifications.map((n: any) => ({
             id: n.id,
@@ -99,7 +100,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
         }
       })
-      .catch((err) => console.error("Failed to load notifications:", err));
+      .catch(() => {});
 
     return () => {
       mounted = false;

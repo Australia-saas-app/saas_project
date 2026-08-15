@@ -1,60 +1,63 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useEffect, useState } from "react"
-import { usePathname } from "next/navigation"
-import DashboardVerificationGate from "@/src/shared/components/DashboardVerificationGate"
-import { usePermission } from "@/src/hooks/permission.hook"
-import AffiliaProBusinessShell from "@/src/modules/dashboard/business/components/AffiliaProBusinessShell"
-import AffiliaProAffiliateShell from "@/src/modules/dashboard/affiliate/components/AffiliaProAffiliateShell"
-import { SidebarResponsive as Sidebar } from "./sidebarResponsive"
-import AccountSidebarChildren from "./AccountSidebarChildren"
-import { DashboardTopBar } from "./DashboardTopBar"
+import type React from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import DashboardVerificationGate from "@/src/shared/components/DashboardVerificationGate";
+import { usePermission } from "@/src/hooks/permission.hook";
+import AffiliaProBusinessShell from "@/src/modules/dashboard/business/components/AffiliaProBusinessShell";
+import AffiliaProAffiliateShell from "@/src/modules/dashboard/affiliate/components/AffiliaProAffiliateShell";
+import { SidebarResponsive as Sidebar } from "./sidebarResponsive";
+import AccountSidebarChildren from "./AccountSidebarChildren";
+import { DashboardTopBar } from "./DashboardTopBar";
 
 function isBusinessPath(pathname: string) {
-  return pathname.startsWith("/business") || pathname.startsWith("/dashboard/business")
+  return pathname.startsWith("/business") || pathname.startsWith("/dashboard/business");
 }
 
 function isAffiliatePath(pathname: string) {
-  return pathname.startsWith("/affiliate") || pathname.startsWith("/dashboard/affiliate")
+  return pathname.startsWith("/affiliate") || pathname.startsWith("/dashboard/affiliate");
 }
 
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const pathname = usePathname()
-  const { isBusiness, isAffiliate } = usePermission()
-  const [isMobile, setIsMobile] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
+  const pathname = usePathname();
+  const { isBusiness, isAffiliate } = usePermission();
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return
+    if (typeof window === "undefined") return;
 
-    const mq = window.matchMedia("(max-width: 1023px)")
+    const mq = window.matchMedia("(max-width: 1023px)");
     const syncMobile = () => {
-      const mobile = mq.matches
-      setIsMobile(mobile)
-      if (mobile) setIsHovered(false)
-      if (!mobile) setMobileOpen(false)
-    }
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      if (!mobile) setMobileOpen(false);
+    };
 
-    syncMobile()
-    mq.addEventListener("change", syncMobile)
-    return () => mq.removeEventListener("change", syncMobile)
-  }, [])
+    syncMobile();
+    mq.addEventListener("change", syncMobile);
+    return () => mq.removeEventListener("change", syncMobile);
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   if (isBusiness || isBusinessPath(pathname)) {
-    return <AffiliaProBusinessShell>{children}</AffiliaProBusinessShell>
+    return <AffiliaProBusinessShell>{children}</AffiliaProBusinessShell>;
   }
 
   if (isAffiliate || isAffiliatePath(pathname)) {
-    return <AffiliaProAffiliateShell>{children}</AffiliaProAffiliateShell>
+    return <AffiliaProAffiliateShell>{children}</AffiliaProAffiliateShell>;
   }
 
-  const isExpanded = isMobile ? mobileOpen : isHovered
+  // User Dashboard: Fixed open on desktop (isExpanded = true), slide-over drawer on mobile
+  const isExpanded = !isMobile || mobileOpen;
 
   return (
     <div className="h-screen overflow-hidden bg-background">
@@ -63,8 +66,6 @@ export default function DashboardLayout({
           isExpanded={isExpanded}
           isMobile={isMobile}
           onCloseMobile={() => setMobileOpen(false)}
-          onMouseEnter={() => !isMobile && setIsHovered(true)}
-          onMouseLeave={() => !isMobile && setIsHovered(false)}
         >
           <AccountSidebarChildren
             isExpanded={isExpanded}
@@ -84,5 +85,5 @@ export default function DashboardLayout({
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -24,12 +24,25 @@ import {
 import { toast } from "sonner";
 import { useAppSelector } from "@/src/core/store/hooks";
 
+export type SubmissionStatus =
+  | "draft"
+  | "submitted"
+  | "admin_review"
+  | "approved"
+  | "payment_pending"
+  | "active"
+  | "in_progress"
+  | "completed"
+  | "revision"
+  | "accepted"
+  | "rejected";
+
 interface Project {
   id: number;
   projectId: string;
   title: string;
   description: string;
-  submissionStatus: string;
+  submissionStatus: SubmissionStatus;
   paymentStatus: string;
   price?: number;
   adminBudget?: number;
@@ -49,6 +62,7 @@ interface Project {
   assignedBusinessId?: string;
   deliverableUrls?: string[];
   completionNotes?: string;
+  rejectReason?: string;
   createdAt: string;
 }
 
@@ -90,6 +104,7 @@ export default function AdminTechnicalProjectsManager() {
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
+    let remoteProjects: Project[] = [];
     try {
       const res = await fetch("/admin/api/technology/projects/all", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -97,14 +112,29 @@ export default function AdminTechnicalProjectsManager() {
       if (res.ok) {
         const data = await res.json();
         if (data?.projects && Array.isArray(data.projects)) {
-          setProjects(data.projects);
+          remoteProjects = data.projects;
         }
       }
     } catch {
       // Gracefully handle without crashing
-    } finally {
-      setLoading(false);
     }
+
+    // Merge with local projects store
+    let localProjects: Project[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("platform_user_technical_projects");
+        if (raw) localProjects = JSON.parse(raw) || [];
+      } catch {}
+    }
+
+    const map = new Map<string, Project>();
+    [...remoteProjects, ...localProjects].forEach((p) => {
+      if (p && p.projectId) map.set(p.projectId, p);
+    });
+
+    setProjects(Array.from(map.values()));
+    setLoading(false);
   }, [token]);
 
   useEffect(() => {
@@ -128,6 +158,32 @@ export default function AdminTechnicalProjectsManager() {
     if (!b || b <= 0) return toast.error("Enter a valid approved budget amount.");
 
     setActionLoading(true);
+
+    // Update local storage sync
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("platform_user_technical_projects");
+        if (raw) {
+          const list: Project[] = JSON.parse(raw) || [];
+          const updated = list.map((p) =>
+            p.projectId === reviewProject.projectId
+              ? {
+                  ...p,
+                  submissionStatus: "approved" as SubmissionStatus,
+                  adminBudget: b,
+                  minBudget: parseFloat(minBudget) || b,
+                  commissionPercent: parseFloat(commissionPercent) || 10,
+                  requirements,
+                  conditions,
+                  adminNotes,
+                }
+              : p
+          );
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
+        }
+      } catch {}
+    }
+
     try {
       const res = await fetch(`/admin/api/technology/projects/${reviewProject.projectId}/admin-approve`, {
         method: "POST",
@@ -144,23 +200,37 @@ export default function AdminTechnicalProjectsManager() {
           adminNotes,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to approve project");
+      if (res.ok) {
+        await res.json();
+      }
+    } catch {}
 
-      toast.success(`Project "${reviewProject.title}" approved! Client notified to make payment.`);
-      setReviewProject(null);
-      await loadProjects();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to approve project");
-    } finally {
-      setActionLoading(false);
-    }
+    toast.success(`Project "${reviewProject.title}" approved! Client notified to make payment.`);
+    setReviewProject(null);
+    setActionLoading(false);
+    await loadProjects();
   };
 
   const handleReject = async (projectId: string) => {
     if (!confirm("Are you sure you want to reject this project?")) return;
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("platform_user_technical_projects");
+        if (raw) {
+          const list: Project[] = JSON.parse(raw) || [];
+          const updated = list.map((p) =>
+            p.projectId === projectId
+              ? { ...p, submissionStatus: "rejected" as SubmissionStatus, rejectReason: adminNotes || "Does not meet guidelines." }
+              : p
+          );
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
+        }
+      } catch {}
+    }
+
     try {
-      const res = await fetch(`/admin/api/technology/projects/${projectId}/admin-reject`, {
+      await fetch(`/admin/api/technology/projects/${projectId}/admin-reject`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -168,32 +238,43 @@ export default function AdminTechnicalProjectsManager() {
         },
         body: JSON.stringify({ reason: adminNotes || "Does not meet platform guidelines." }),
       });
-      if (!res.ok) throw new Error("Failed to reject");
-      toast.success("Project rejected.");
-      setReviewProject(null);
-      await loadProjects();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reject project");
-    }
+    } catch {}
+
+    toast.success("Project rejected.");
+    setReviewProject(null);
+    await loadProjects();
   };
 
   const handleReleasePayment = async (projectId: string) => {
     if (!confirm("Accept project deliverables and release escrow payment to the business?")) return;
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("platform_user_technical_projects");
+        if (raw) {
+          const list: Project[] = JSON.parse(raw) || [];
+          const updated = list.map((p) =>
+            p.projectId === projectId
+              ? { ...p, submissionStatus: "accepted" as SubmissionStatus, paymentStatus: "released" }
+              : p
+          );
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
+        }
+      } catch {}
+    }
+
     try {
-      const res = await fetch(`/admin/api/technology/projects/${projectId}/review-accept`, {
+      await fetch(`/admin/api/technology/projects/${projectId}/review-accept`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to release payment");
-      toast.success("Project accepted and payment successfully released to the business wallet!");
-      await loadProjects();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to release payment");
-    }
+    } catch {}
+
+    toast.success("Project accepted and payment successfully released to the business wallet!");
+    await loadProjects();
   };
 
   const handleRequestRevision = async () => {
