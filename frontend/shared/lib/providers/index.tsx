@@ -44,6 +44,19 @@ function getQueryClient(): QueryClient {
   return browserQueryClient;
 }
 
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  try {
+    Object.defineProperty(Document.prototype, "hidden", {
+      get: () => false,
+      configurable: true,
+    });
+    Object.defineProperty(Document.prototype, "visibilityState", {
+      get: () => "visible",
+      configurable: true,
+    });
+  } catch {}
+}
+
 export function Providers({ children }: ProvidersProps) {
   // useState keeps QueryClient off the Server→Client serialization boundary
   const [queryClient] = React.useState(getQueryClient);
@@ -70,8 +83,7 @@ export function Providers({ children }: ProvidersProps) {
             const toastEls = document.querySelectorAll(`[data-sonner-toast]`);
             toastEls.forEach((el) => {
               if (el instanceof HTMLElement) {
-                el.style.transition = "none";
-                el.style.display = "none";
+                el.style.setProperty("display", "none", "important");
                 el.remove();
               }
             });

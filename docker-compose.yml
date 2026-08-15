@@ -163,10 +163,13 @@ services:
       - DB_USERNAME=admin
       - DB_PASSWORD=adminpassword
       - DB_NAME=saas_db
+      - MONGODB_URI=mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin
+      - MONGODB_DB_NAME=saas_db
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
+      - saas_mongodb
       - saas-backend-sso
     restart: always
     networks:
