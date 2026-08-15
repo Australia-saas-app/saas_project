@@ -433,6 +433,11 @@ export const getCurrentUser = async () => {
           publicId,
           internalId,
           gender,
+          businessName,
+          businessType,
+          percentageRate,
+          commissionRate,
+          businessInfo,
         } = data.data;
         // Merge only DB-sourced fields; don't overwrite JWT claims
         if (profilePhoto !== undefined) merged.profilePhoto = profilePhoto;
@@ -454,6 +459,11 @@ export const getCurrentUser = async () => {
         if (twoFactorMethod !== undefined) merged.twoFactorMethod = twoFactorMethod;
         if (createdAt !== undefined) merged.createdAt = createdAt;
         if (gender !== undefined) merged.gender = gender;
+        if (businessName !== undefined) merged.businessName = businessName;
+        if (businessType !== undefined) merged.businessType = businessType;
+        if (percentageRate !== undefined) merged.percentageRate = percentageRate;
+        if (commissionRate !== undefined) merged.commissionRate = commissionRate;
+        if (businessInfo !== undefined) merged.businessInfo = businessInfo;
         if (publicId !== undefined) {
           merged.userId = publicId;
           merged.publicId = publicId;

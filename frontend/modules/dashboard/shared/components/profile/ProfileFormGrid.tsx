@@ -69,8 +69,16 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [secondaryEmail, setSecondaryEmail] = useState(initialSecondaryEmail || "");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
-  const [businessName, setBusinessName] = useState((user as any)?.businessName || (user as any)?.businessInfo?.businessName || fullName || "");
-  const [businessType, setBusinessType] = useState((user as any)?.businessType || (user as any)?.businessInfo?.businessIndustry || "Technology");
+  const [businessName, setBusinessName] = useState(
+    (user as any)?.businessName && (user as any).businessName !== "NA"
+      ? (user as any).businessName
+      : ""
+  );
+  const [businessType, setBusinessType] = useState(
+    (user as any)?.businessType && (user as any).businessType !== "NA"
+      ? (user as any).businessType
+      : ""
+  );
 
   const parsedDocs = React.useMemo(() => {
     try {

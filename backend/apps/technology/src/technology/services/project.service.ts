@@ -145,9 +145,9 @@ export class ProjectService {
       });
     }
 
-    // Client: only their own projects
+    // Client: only their own projects (match either clientId or createdBy)
     if (userId && !options?.publicOnly && !options?.assignedTo) {
-      qb.andWhere('project.clientId = :userId', { userId });
+      qb.andWhere('(project.clientId = :userId OR project.createdBy = :userId)', { userId });
     }
 
     const [projects, total] = await qb

@@ -89,17 +89,22 @@ const AllBusinessTable: React.FC = () => {
         if (!active) return
 
         let filtered = (resData.data.users || resData.data || []).map((u: any) => {
-          const bName = u.businessName && u.businessName !== 'NA' ? u.businessName : (u.businessInfo?.businessName || u.fullName || 'Unknown Business');
-          const bType = u.businessType && u.businessType !== 'NA' ? u.businessType : (u.businessInfo?.businessIndustry || 'Technology');
-          const pRate = (u.percentageRate !== undefined && u.percentageRate !== null && Number(u.percentageRate) > 0)
-            ? u.percentageRate
-            : (u.commissionRate !== undefined && u.commissionRate !== null && Number(u.commissionRate) > 0 ? u.commissionRate : 20);
+          const hasBusinessInfo = Boolean(
+            u.businessName && u.businessName !== 'NA' && u.businessName.trim() !== '' &&
+            u.businessType && u.businessType !== 'NA' && u.businessType.trim() !== '' && u.businessType !== 'Select Type'
+          );
+
+          const bName = hasBusinessInfo ? u.businessName : 'NA';
+          const bType = hasBusinessInfo ? u.businessType : 'NA';
+          const pRate = hasBusinessInfo
+            ? (u.percentageRate !== undefined && u.percentageRate !== null && Number(u.percentageRate) > 0 ? u.percentageRate : 20)
+            : 0;
 
           return {
             userId: u.userId || u.id,
             businessId: u.userId || (u.id || '').slice(0,5),
             accountType: u.accountType || 'business',
-            fullName: bName,
+            fullName: hasBusinessInfo ? bName : (u.fullName || 'NA'),
             email: u.email,
             phone: u.phone,
             businessName: bName,

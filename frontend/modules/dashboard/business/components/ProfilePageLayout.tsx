@@ -132,19 +132,23 @@ export default function ProfilePageLayout() {
   const [isUpdatingVerification, setIsUpdatingVerification] = useState(false)
   const [usernameError, setUsernameError] = useState("")
   const [businessName, setBusinessName] = useState(
-    (user as any)?.businessName || (user as any)?.businessInfo?.businessName || fullName || ""
+    (user as any)?.businessName && (user as any).businessName !== "NA"
+      ? (user as any).businessName
+      : ""
   )
   const [businessType, setBusinessType] = useState(
-    (user as any)?.businessType || (user as any)?.businessInfo?.businessIndustry || "Technology"
+    (user as any)?.businessType && (user as any).businessType !== "NA"
+      ? (user as any).businessType
+      : ""
   )
   const [isUpdatingBusiness, setIsUpdatingBusiness] = useState(false)
 
   // Sync business details if user object updates
   useEffect(() => {
-    if ((user as any)?.businessName && !businessName) {
+    if ((user as any)?.businessName && (user as any).businessName !== "NA") {
       setBusinessName((user as any).businessName)
     }
-    if ((user as any)?.businessType && (!businessType || businessType === "Technology")) {
+    if ((user as any)?.businessType && (user as any).businessType !== "NA") {
       setBusinessType((user as any).businessType)
     }
   }, [user])
@@ -572,15 +576,19 @@ export default function ProfilePageLayout() {
             {/* Right: Circular Progress */}
             <div className="flex flex-col shrink-0 md:w-64 md:pl-8 md:border-l border-slate-100 dark:border-slate-800 self-stretch justify-center mt-6 md:mt-0 pt-6 md:pt-0 border-t md:border-t-0">
               <h3 className="text-[15px] font-bold text-slate-900 dark:text-white mb-1.5">Profile Completeness</h3>
-              <p className="text-[11.5px] text-slate-500 leading-relaxed mb-5 pr-4">Complete your profile to unlock all features and get the experience</p>
+              <p className="text-[11.5px] text-slate-500 leading-relaxed mb-5 pr-4">Complete all 5 profile sections to achieve 100% verification.</p>
               
               {/* SVG Circular Progress */}
               <div className="relative w-28 h-28 self-start md:ml-4">
                 {(() => {
-                  const reqFields = [!!dob, !!nationality, !!idNumber, !!frontDoc, !!hasCustomAvatar];
-                  if (idType !== "Passport") reqFields.push(!!backDoc);
-                  const filled = reqFields.filter(Boolean).length;
-                  const pct = Math.round((filled / reqFields.length) * 100);
+                  const isPhotoDone = Boolean(avatarUrl || hasCustomAvatar);
+                  const isPersonalDone = Boolean(dob && nationality && gender && gender !== "Select");
+                  const isAddressDone = Boolean(country && city && state && address);
+                  const isBusinessDone = Boolean(businessName?.trim() && businessType && businessType !== "Select" && businessType !== "");
+                  const isIdentityDone = Boolean(idType && idNumber && frontDoc && (idType === "Passport" || backDoc));
+
+                  const completedCount = [isPhotoDone, isPersonalDone, isAddressDone, isBusinessDone, isIdentityDone].filter(Boolean).length;
+                  const pct = completedCount * 20;
                   return (
                     <>
                       <svg className="w-full h-full -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
@@ -606,7 +614,7 @@ export default function ProfilePageLayout() {
                         <span className="text-[9.5px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">Complete</span>
                       </div>
                     </>
-                  )
+                  );
                 })()}
               </div>
               </div>
@@ -614,57 +622,76 @@ export default function ProfilePageLayout() {
             
             {/* Bottom: Level Progress */}
             <div className="px-6 py-5 pb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-300">Level Progress</h3>
-                <span className="text-[13px] text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">{isDemo ? "5 of 6 levels completed" : "0 of 6 levels completed"}</span>
-              </div>
-              
-              <div className="relative px-1 mt-2">
-                {/* Background Track */}
-                <div className="absolute top-[9px] left-0 w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
-                {/* Progress Fill */}
-                <div className={`absolute top-[9px] left-0 h-2 bg-[#1355D4] dark:bg-blue-500 rounded-full transition-all duration-500 ${isDemo ? 'w-[80%]' : 'w-[0%]'}`}></div>
-                
-                {/* Nodes */}
-                <div className="relative flex justify-between z-10">
-                  {["Intake", "Bronze", "Silver", "Gold", "Platinum", "Diamond"].map((level, idx) => {
-                    // Logic for Demo (mocked 5 levels done, current level Diamond)
-                    const isCompleted = isDemo ? idx <= 4 : false;
-                    const isCurrent = isDemo ? idx === 5 : idx === 0;
+              {(() => {
+                const isPhotoDone = Boolean(avatarUrl || hasCustomAvatar);
+                const isPersonalDone = Boolean(dob && nationality && gender && gender !== "Select");
+                const isAddressDone = Boolean(country && city && state && address);
+                const isBusinessDone = Boolean(businessName?.trim() && businessType && businessType !== "Select" && businessType !== "");
+                const isIdentityDone = Boolean(idType && idNumber && frontDoc && (idType === "Passport" || backDoc));
+
+                const completedCount = [isPhotoDone, isPersonalDone, isAddressDone, isBusinessDone, isIdentityDone].filter(Boolean).length;
+                const pct = completedCount * 20;
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-300">Level Progress</h3>
+                      <span className="text-[13px] text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">
+                        {completedCount} of 5 completed ({pct}%)
+                      </span>
+                    </div>
                     
-                    return (
-                      <div key={level} className="flex flex-col items-center group cursor-default">
-                        <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm transition-colors ${
-                          isCompleted 
-                            ? 'bg-[#1355D4] border-[#1355D4] dark:bg-blue-500 dark:border-blue-500' 
-                            : isCurrent 
-                              ? 'bg-white dark:bg-slate-900 border-[#1355D4] dark:border-blue-500' 
-                              : 'bg-slate-200 dark:bg-slate-700 border-slate-200 dark:border-slate-700'
-                        }`}>
-                          {isCompleted && <BadgeCheck className="w-2.5 h-2.5 text-white" />}
-                        </div>
-                        <span className={`absolute top-6 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
-                          isCompleted ? 'text-slate-800 dark:text-slate-200' : 
-                          isCurrent ? 'text-[#1355D4] dark:text-blue-400' : 
-                          'text-slate-400 dark:text-slate-400'
-                        }`}>
-                          {level}
-                        </span>
+                    <div className="relative px-1 mt-2">
+                      {/* Background Track */}
+                      <div className="absolute top-[9px] left-0 w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                      {/* Progress Fill */}
+                      <div
+                        className="absolute top-[9px] left-0 h-2 bg-[#1355D4] dark:bg-blue-500 rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      ></div>
+                      
+                      {/* Nodes */}
+                      <div className="relative flex justify-between z-10">
+                        {["Intake", "Bronze", "Silver", "Gold", "Platinum", "Diamond"].map((level, idx) => {
+                          const isCompleted = idx === 0 ? completedCount > 0 : idx <= completedCount;
+                          const isCurrent = idx === completedCount;
+                          
+                          return (
+                            <div key={level} className="flex flex-col items-center group cursor-default">
+                              <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm transition-colors ${
+                                isCompleted 
+                                  ? 'bg-[#1355D4] border-[#1355D4] dark:bg-blue-500 dark:border-blue-500' 
+                                  : isCurrent 
+                                    ? 'bg-white dark:bg-slate-900 border-[#1355D4] dark:border-blue-500' 
+                                    : 'bg-slate-200 dark:bg-slate-700 border-slate-200 dark:border-slate-700'
+                              }`}>
+                                {isCompleted && <BadgeCheck className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                              <span className={`absolute top-6 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
+                                isCompleted ? 'text-slate-800 dark:text-slate-200' : 
+                                isCurrent ? 'text-[#1355D4] dark:text-blue-400' : 
+                                'text-slate-400 dark:text-slate-400'
+                              }`}>
+                                {level}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </section>
         </div>
 
         <div className="flex flex-col xl:grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
           <div className="contents xl:block xl:min-w-0 xl:space-y-5">
-            {/* Main Profile Columns */}
-          <div className="order-4 xl:order-none w-full grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
-            {/* Left Column: Personal + Identity */}
-            <div className="flex flex-col gap-5">
+          <div className="order-4 xl:order-none w-full flex flex-col gap-5">
+            {/* Top Row: Personal (Left) + Contact & Address (Right) */}
+            <div className="w-full grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+              {/* Left Column: Personal Info */}
               <section id="personal" className={cardClass}>
                 <h2 className="mb-4 text-base font-bold text-gray-900">Personal Information</h2>
                 <div className="mb-5 flex items-center gap-4">
@@ -774,62 +801,166 @@ export default function ProfilePageLayout() {
                 </div>
               </section>
 
-              {/* Business Information Card */}
-              <section id="business-info" className={cardClass}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold text-gray-900">Business Information</h2>
-                  <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
-                    20% Commission Rate
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className={labelClass}>
-                      Business Name <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className={inputClass}
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder="Enter Registered Business / Company Name"
-                    />
+              {/* Right Column: Contact + Address */}
+              <div className="flex flex-col gap-5">
+                <section id="contact" className={cardClass}>
+                  <h2 className="mb-4 text-base font-bold text-gray-900">Contact Information</h2>
+                  <div className="space-y-3">
+                    <div>
+                      <label className={labelClass}>Email Address</label>
+                      <div className="relative">
+                        <input className={`${inputClass} pr-24`} value={profileEmail || ""} readOnly />
+                        <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                          {profileEmail ? <VerifiedBadge /> : <UnaddedBadge />}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Phone Number</label>
+                      <div className="relative">
+                        <input
+                          className={`${inputClass} pr-24`}
+                          value={profilePhone || ""}
+                          readOnly
+                        />
+                        <span className="absolute top-1/2 right-3 -translate-y-1/2">
+                          {profilePhone ? <VerifiedBadge /> : <UnaddedBadge />}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="sm:col-span-1">
-                    <label className={labelClass}>
-                      Business Type <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <select
-                      className={inputClass}
-                      value={businessType}
-                      onChange={(e) => setBusinessType(e.target.value)}
+                  <div className="mt-4 flex justify-end">
+                    <button type="button" className={outlineBtn} onClick={() => save("Contact info")}>
+                      Update Contact Info
+                    </button>
+                  </div>
+                </section>
+                <section id="address" className={cardClass}>
+                  <h2 className="mb-4 text-base font-bold text-gray-900">Address</h2>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>
+                        Country <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <SelectDropdown
+                        value={country}
+                        onChange={setCountry}
+                        placeholder="Select Country..."
+                        options={ALL_COUNTRIES.map((c) => ({ label: c.name, value: c.name }))}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>
+                        State / Division <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>
+                        City <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <input className={inputClass} value={city} onChange={(e) => setCity(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>ZIP / Postal Code</label>
+                      <input className={inputClass} value={zip} onChange={(e) => setZip(e.target.value)} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={labelClass}>
+                        Full Address <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <textarea
+                        className={`${inputClass} min-h-[88px] resize-y`}
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      className={`${outlineBtn} flex items-center justify-center gap-2`}
+                      onClick={() => save("Address")}
+                      disabled={isUpdatingAddress}
                     >
-                      <option value="Technology">Technology</option>
-                      <option value="Real Estate">Real Estate</option>
-                      <option value="Visa">Visa</option>
-                      <option value="Travel">Travel</option>
-                      <option value="Careers">Careers</option>
-                      <option value="Courses">Courses</option>
-                      <option value="Transport">Transport</option>
-                    </select>
+                      {isUpdatingAddress && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Update Address
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            {/* Bottom Row: Business Info (Left) + Identity Verification (Right) */}
+            <div className="w-full grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
+              {/* Business Information Card */}
+              <section id="business-info" className={`${cardClass} flex flex-col justify-between h-full`}>
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-base font-bold text-gray-900">Business Information</h2>
+                    <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                      20% Commission Rate
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className={labelClass}>
+                        Business Name <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={inputClass}
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        placeholder="Enter Registered Business / Company Name"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-1">
+                      <label className={labelClass}>
+                        Business Type <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <select
+                        className={inputClass}
+                        value={businessType}
+                        onChange={(e) => setBusinessType(e.target.value)}
+                      >
+                        <option value="" disabled>Select Business Type</option>
+                        <option value="Technology">Technology</option>
+                        <option value="Real Estate">Real Estate</option>
+                        <option value="Visa">Visa</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Careers">Careers</option>
+                        <option value="Courses">Courses</option>
+                        <option value="Transport">Transport</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-1">
+                      <label className={labelClass}>
+                        Percentage Rate / Commission
+                      </label>
+                      <input
+                        type="text"
+                        className={`${inputClass} bg-gray-50 text-gray-700 cursor-not-allowed`}
+                        value="20% (Default Platform Rate)"
+                        readOnly
+                        disabled
+                      />
+                    </div>
                   </div>
 
-                  <div className="sm:col-span-1">
-                    <label className={labelClass}>
-                      Percentage Rate / Commission
-                    </label>
-                    <input
-                      type="text"
-                      className={`${inputClass} bg-gray-50 text-gray-700 cursor-not-allowed`}
-                      value="20% (Default Platform Rate)"
-                      readOnly
-                      disabled
-                    />
+                  <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs text-indigo-900 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5 text-indigo-700">
+                      <Shield className="h-3.5 w-3.5" /> Platform Business Tier
+                    </p>
+                    <p className="text-slate-600 text-[11.5px] leading-relaxed">
+                      Standard 20% platform commission rate applies upon business name and industry type verification.
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-4 flex justify-end">
+                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
                   <button
                     type="button"
                     className={`${primaryBtn} flex items-center justify-center gap-2`}
@@ -846,195 +977,107 @@ export default function ProfilePageLayout() {
                   </button>
                 </div>
               </section>
-            </div>
 
-            {/* Right Column: Contact + Address */}
-            <div className="flex flex-col gap-5">
-              <section id="contact" className={cardClass}>
-                <h2 className="mb-4 text-base font-bold text-gray-900">Contact Information</h2>
-                <div className="space-y-3">
-                  <div>
-                    <label className={labelClass}>Email Address</label>
-                    <div className="relative">
-                      <input className={`${inputClass} pr-24`} value={profileEmail || ""} readOnly />
-                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
-                        {profileEmail ? <VerifiedBadge /> : <UnaddedBadge />}
+              {/* Identity Verification Card */}
+              <section id="identity" className={`${cardClass} flex flex-col justify-between h-full`}>
+                <div>
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
+                    {isKycVerified ? <VerifiedBadge /> : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                        <Shield className="h-3.5 w-3.5" /> Unverified
                       </span>
+                    )}
+                  </div>
+                  <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>
+                        ID Type <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <select className={inputClass} value={idType} onChange={(e) => setIdType(e.target.value)}>
+                        <option value="National ID Card">National ID Card</option>
+                        <option value="Driving Licence">Driving Licence</option>
+                        <option value="Passport">Passport</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelClass}>
+                        ID Number <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <input className={inputClass} value={idNumber} onChange={handleIdNumberChange} />
                     </div>
                   </div>
-                  <div>
-                    <label className={labelClass}>Phone Number</label>
-                    <div className="relative">
-                      <input
-                        className={`${inputClass} pr-24`}
-                        value={profilePhone || ""}
-                        readOnly
-                      />
-                      <span className="absolute top-1/2 right-3 -translate-y-1/2">
-                        {profilePhone ? <VerifiedBadge /> : <UnaddedBadge />}
-                      </span>
-                    </div>
-                  </div>
+
+                  <input type="file" ref={frontFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "front")} />
+                  <input type="file" ref={backFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "back")} />
+                  <input type="file" ref={avatarFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={handleAvatarChange} />
+
+                  <ul className="space-y-2.5">
+                    {[
+                      { name: "ID Front Side", ref: frontFileRef, side: "front" as const, doc: frontDoc, dbUrl: documentFrontUrl, fileName: frontDocName },
+                      { name: "ID Back Side", ref: backFileRef, side: "back" as const, doc: backDoc, dbUrl: documentBackUrl, fileName: backDocName },
+                    ].map((f) => (
+                      <li
+                        key={f.name}
+                        className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2 cursor-pointer hover:bg-slate-100 transition"
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('button')) return;
+                          f.ref.current?.click();
+                        }}
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600 overflow-hidden">
+                          {f.doc ? (
+                            <img src={f.doc} alt={f.name} className="h-full w-full object-cover" />
+                          ) : (
+                            "ID"
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
+                          <p className="truncate text-[11px] text-gray-400">
+                            {f.doc ? (f.doc === f.dbUrl ? `${f.fileName ? f.fileName + " " : ""}Uploaded ${joiningDate || "on file"}` : `${f.fileName ? f.fileName + " " : ""}Ready to Update`) : "Click to select a JPG/PNG file"}
+                          </p>
+                        </div>
+                        {f.doc && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                              onClick={() => {
+                                setPreviewDoc({ url: f.doc, name: f.fileName, title: f.name });
+                                setPreviewModalOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              onClick={() => handleDeleteDoc(f.side)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                        {!f.doc && <Upload className="h-4 w-4 shrink-0 text-gray-400" />}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="mt-4 flex justify-end">
-                  <button type="button" className={outlineBtn} onClick={() => save("Contact info")}>
-                    Update Contact Info
-                  </button>
-                </div>
-              </section>
-              <section id="address" className={cardClass}>
-                <h2 className="mb-4 text-base font-bold text-gray-900">Address</h2>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={labelClass}>
-                      Country <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <SelectDropdown
-                      value={country}
-                      onChange={setCountry}
-                      placeholder="Select Country..."
-                      options={ALL_COUNTRIES.map((c) => ({ label: c.name, value: c.name }))}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>
-                      State / Division <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>
-                      City <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <input className={inputClass} value={city} onChange={(e) => setCity(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>ZIP / Postal Code</label>
-                    <input className={inputClass} value={zip} onChange={(e) => setZip(e.target.value)} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className={labelClass}>
-                      Full Address <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <textarea
-                      className={`${inputClass} min-h-[88px] resize-y`}
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 flex justify-end">
+
+                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
                   <button
                     type="button"
                     className={`${outlineBtn} flex items-center justify-center gap-2`}
-                    onClick={() => save("Address")}
-                    disabled={isUpdatingAddress}
+                    onClick={handleUpdateVerification}
+                    disabled={isUpdatingVerification}
                   >
-                    {isUpdatingAddress && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Update Address
+                    {isUpdatingVerification && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Update Verification
                   </button>
                 </div>
               </section>
             </div>
-          </div>
-
-          {/* Identity Verification */}
-          <div className="grid grid-cols-1 gap-5 order-5 xl:order-none w-full">
-            <section id="identity" className={`${cardClass} flex flex-col`}>
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
-                {isKycVerified ? <VerifiedBadge /> : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                    <Shield className="h-3.5 w-3.5" /> Unverified
-                  </span>
-                )}
-              </div>
-              <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>
-                    ID Type <span className="text-red-500 font-bold">*</span>
-                  </label>
-                  <select className={inputClass} value={idType} onChange={(e) => setIdType(e.target.value)}>
-                    <option value="National ID Card">National ID Card</option>
-                    <option value="Driving Licence">Driving Licence</option>
-                    <option value="Passport">Passport</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>
-                    ID Number <span className="text-red-500 font-bold">*</span>
-                  </label>
-                  <input className={inputClass} value={idNumber} onChange={handleIdNumberChange} />
-                </div>
-              </div>
-
-              <input type="file" ref={frontFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "front")} />
-              <input type="file" ref={backFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={(e) => handleDocUpload(e, "back")} />
-              <input type="file" ref={avatarFileRef} className="hidden" accept=".jpg,.jpeg,.png" onChange={handleAvatarChange} />
-
-              <ul className="space-y-2.5">
-                {[
-                  { name: "ID Front Side", ref: frontFileRef, side: "front" as const, doc: frontDoc, dbUrl: documentFrontUrl, fileName: frontDocName },
-                  { name: "ID Back Side", ref: backFileRef, side: "back" as const, doc: backDoc, dbUrl: documentBackUrl, fileName: backDocName },
-                ].map((f) => (
-                  <li
-                    key={f.name}
-                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2.5 cursor-pointer hover:bg-slate-100 transition"
-                    onClick={(e) => {
-                      if ((e.target as HTMLElement).closest('button')) return;
-                      f.ref.current?.click();
-                    }}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600 overflow-hidden">
-                      {f.doc ? (
-                        <img src={f.doc} alt={f.name} className="h-full w-full object-cover" />
-                      ) : (
-                        "ID"
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
-                      <p className="truncate text-[11px] text-gray-400">
-                        {f.doc ? (f.doc === f.dbUrl ? `${f.fileName ? f.fileName + " " : ""}Uploaded ${joiningDate || "on file"}` : `${f.fileName ? f.fileName + " " : ""}Ready to Update`) : "Click to select a JPG/PNG file"}
-                      </p>
-                    </div>
-                    {f.doc && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          onClick={() => {
-                            setPreviewDoc({ url: f.doc, name: f.fileName, title: f.name });
-                            setPreviewModalOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                          onClick={() => handleDeleteDoc(f.side)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                    {!f.doc && <Upload className="h-4 w-4 shrink-0 text-gray-400" />}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-auto pt-4 flex justify-end">
-                <button
-                  type="button"
-                  className={`${outlineBtn} flex items-center justify-center gap-2`}
-                  onClick={handleUpdateVerification}
-                  disabled={isUpdatingVerification}
-                >
-                  {isUpdatingVerification && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Update Verification
-                </button>
-              </div>
-            </section>
           </div>
 
         </div>
