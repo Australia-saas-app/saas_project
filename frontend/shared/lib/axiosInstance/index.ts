@@ -21,13 +21,11 @@ if (envConfig.isDev) {
 axiosInstance.interceptors.request.use(
   async function (config) {
     if (typeof window !== "undefined") {
-      const proto = window.location.protocol;
-      const host = window.location.hostname;
-      if (config.baseURL && (config.baseURL.includes("kong:8000") || config.baseURL.includes("kong"))) {
-        config.baseURL = config.baseURL.replace(/https?:\/\/kong(:8000)?/g, `${proto}//${host}:8000`);
+      if (!config.baseURL || config.baseURL.includes("kong:8000") || config.baseURL.includes("kong")) {
+        config.baseURL = envConfig.apiBaseURL || "/api/v1";
       }
-      if (config.url && (config.url.includes("kong:8000") || config.url.includes("kong"))) {
-        config.url = config.url.replace(/https?:\/\/kong(:8000)?/g, `${proto}//${host}:8000`);
+      if (config.url && (config.url.includes("http://kong:8000/api/v1") || config.url.includes("http://kong:8000"))) {
+        config.url = config.url.replace(/https?:\/\/kong(:8000)?\/api\/v1/g, "/api/v1").replace(/https?:\/\/kong(:8000)?/g, "/api");
       }
     }
 

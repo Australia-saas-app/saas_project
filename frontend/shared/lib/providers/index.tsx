@@ -53,9 +53,33 @@ export function Providers({ children }: ProvidersProps) {
     installGlobalErrorReporting();
   }, []);
 
-  // Ensure toasts dismiss in the background even if page is hidden / tab switched
+  // Ensure toasts dismiss in the background and immediately vanish upon returning if expired
   React.useEffect(() => {
     if (typeof window === "undefined") return;
+    const activeToastTimers = new Map<string | number, { createdAt: number; duration: number }>();
+
+    const checkAndDismissExpired = () => {
+      const now = Date.now();
+      activeToastTimers.forEach(({ createdAt, duration }, id) => {
+        if (now - createdAt >= duration) {
+          activeToastTimers.delete(id);
+          try {
+            toast.dismiss(id);
+          } catch {}
+          try {
+            const toastEls = document.querySelectorAll(`[data-sonner-toast]`);
+            toastEls.forEach((el) => {
+              if (el instanceof HTMLElement) {
+                el.style.transition = "none";
+                el.style.display = "none";
+                el.remove();
+              }
+            });
+          } catch {}
+        }
+      });
+    };
+
     try {
       const unsubscribe = (toast as any).subscribe((toastItem: any) => {
         if (
@@ -66,15 +90,31 @@ export function Providers({ children }: ProvidersProps) {
           toastItem.duration !== Infinity
         ) {
           const duration = Number(toastItem.duration || 5000);
+          activeToastTimers.set(toastItem.id, {
+            createdAt: Date.now(),
+            duration,
+          });
+
           setTimeout(() => {
+            activeToastTimers.delete(toastItem.id);
             try {
               toast.dismiss(toastItem.id);
             } catch {}
           }, duration);
+        } else if (toastItem && toastItem.id && toastItem.dismiss) {
+          activeToastTimers.delete(toastItem.id);
         }
       });
+
+      document.addEventListener("visibilitychange", checkAndDismissExpired);
+      window.addEventListener("focus", checkAndDismissExpired);
+      const intervalId = setInterval(checkAndDismissExpired, 500);
+
       return () => {
         if (typeof unsubscribe === "function") unsubscribe();
+        document.removeEventListener("visibilitychange", checkAndDismissExpired);
+        window.removeEventListener("focus", checkAndDismissExpired);
+        clearInterval(intervalId);
       };
     } catch {}
   }, []);

@@ -14,9 +14,7 @@ const envConfig = {
     const raw = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3006";
     if (typeof window !== "undefined") {
       if (raw.includes("kong:8000") || raw.includes("kong")) {
-        const proto = window.location.protocol;
-        const host = window.location.hostname;
-        return `${proto}//${host}:8000`;
+        return "";
       }
     }
     return raw;
@@ -33,10 +31,9 @@ const envConfig = {
   get apiBaseURL(): string {
     if (typeof window !== "undefined") {
       const raw = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-      if (raw.includes("kong:8000") || raw.includes("kong")) {
-        const proto = window.location.protocol;
-        const host = window.location.hostname;
-        return this.apiVersion ? `${proto}//${host}:8000/api/${this.apiVersion}` : `${proto}//${host}:8000`;
+      if (raw.includes("kong:8000") || raw.includes("kong") || !raw.startsWith("http")) {
+        // In browser, route through Next.js rewrite proxy for zero CORS issues
+        return this.apiVersion ? `/api/${this.apiVersion}` : "/api";
       }
     }
     return this.apiVersion ? `${this.backendURL}/api/${this.apiVersion}` : this.backendURL;

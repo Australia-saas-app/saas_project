@@ -179,6 +179,10 @@ const nextConfig: NextConfig = {
     return [
       // API proxy — browser cannot reach Kong directly; Next.js server can (same Docker network)
       {
+        source: "/api/v1/:path*",
+        destination: "http://kong:8000/api/v1/:path*",
+      },
+      {
         source: "/api/:path*",
         destination: "http://kong:8000/api/v1/:path*",
       },
