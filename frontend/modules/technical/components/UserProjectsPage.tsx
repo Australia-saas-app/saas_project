@@ -740,10 +740,10 @@ export default function UserProjectsPage() {
 
       {/* VIEW PROJECT DETAILS MODAL */}
       {viewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B132B] p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-primary font-bold">{viewProject.projectId}</span>
@@ -756,9 +756,9 @@ export default function UserProjectsPage() {
                     {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).label}
                   </span>
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{viewProject.title}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Category: <strong className="text-slate-800 dark:text-slate-200">{viewProject.category}</strong>
+                <h3 className="text-lg font-bold text-foreground mt-1">{viewProject.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Category: <strong className="text-foreground">{viewProject.category}</strong>
                   {viewProject.subcategory && ` • ${viewProject.subcategory}`}
                   {viewProject.projectType && ` • ${viewProject.projectType}`}
                 </p>
@@ -767,78 +767,67 @@ export default function UserProjectsPage() {
               <button
                 type="button"
                 onClick={() => setViewProject(null)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Scope Summary & Description */}
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/80 p-4 border border-slate-100 dark:border-slate-800 space-y-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Project Scope &amp; Summary
               </p>
-              <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+              <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap rounded-xl bg-muted/40 p-3 border border-border">
                 {viewProject.description || "No description provided."}
               </p>
             </div>
 
             {/* Tech Stack, Languages & Skills */}
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/80 p-4 border border-slate-100 dark:border-slate-800 space-y-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Required Tech Stack &amp; Skills
-              </p>
-
-              {viewProject.preferredLanguages && viewProject.preferredLanguages.length > 0 && (
-                <div>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mr-2">Languages:</span>
-                  <div className="inline-flex flex-wrap gap-1.5 mt-1">
-                    {viewProject.preferredLanguages.map((l) => (
-                      <span
-                        key={l}
-                        className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400"
-                      >
-                        {l}
-                      </span>
-                    ))}
-                  </div>
+            {((viewProject.preferredLanguages && viewProject.preferredLanguages.length > 0) ||
+              (viewProject.skills && viewProject.skills.length > 0)) && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Required Tech Stack &amp; Skills
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-muted/40 p-3 border border-border">
+                  {viewProject.preferredLanguages?.map((l) => (
+                    <span
+                      key={l}
+                      className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400"
+                    >
+                      {l}
+                    </span>
+                  ))}
+                  {viewProject.skills?.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                    >
+                      {s}
+                    </span>
+                  ))}
                 </div>
-              )}
-
-              {viewProject.skills && viewProject.skills.length > 0 && (
-                <div>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mr-2">Skills &amp; Frameworks:</span>
-                  <div className="inline-flex flex-wrap gap-1.5 mt-1">
-                    {viewProject.skills.map((s) => (
-                      <span
-                        key={s}
-                        className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Budget, Milestones & Timeline Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-xs">
+            <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl border border-border bg-muted/40 text-xs">
               <div>
-                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Target Budget</span>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Target Budget</span>
                 <span className="text-sm font-extrabold text-primary">
                   {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
                 </span>
               </div>
 
               <div>
-                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Payment Terms</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">{viewProject.paymentTerms || "One-time"}</span>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Terms</span>
+                <span className="font-semibold text-foreground">{viewProject.paymentTerms || "One-time"}</span>
               </div>
 
               <div>
-                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Timeline</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
+                <span className="font-semibold text-foreground">
                   {viewProject.startDate ? new Date(viewProject.startDate).toLocaleDateString() : "Flexible"}
                   {viewProject.endDate ? ` → ${new Date(viewProject.endDate).toLocaleDateString()}` : ""}
                 </span>
@@ -846,23 +835,23 @@ export default function UserProjectsPage() {
             </div>
 
             {/* Client Contact Info */}
-            <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 p-4 space-y-2 text-xs">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-1.5 text-xs">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Client Contact Information
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                <div className="flex items-center gap-1.5 text-foreground">
                   <User className="h-3.5 w-3.5 text-primary shrink-0" />
                   <span className="truncate">{viewProject.clientName || "User"}</span>
                 </div>
                 {viewProject.clientEmail && (
-                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                  <div className="flex items-center gap-1.5 text-foreground">
                     <Mail className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="truncate">{viewProject.clientEmail}</span>
                   </div>
                 )}
                 {viewProject.clientPhone && (
-                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                  <div className="flex items-center gap-1.5 text-foreground">
                     <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span>{viewProject.clientPhone}</span>
                   </div>
@@ -872,40 +861,40 @@ export default function UserProjectsPage() {
 
             {/* Admin Review & Quote Details if Approved */}
             {(viewProject.submissionStatus === "approved" || viewProject.adminNotes || viewProject.requirements) && (
-              <div className="rounded-xl bg-amber-500/10 p-4 border border-amber-500/20 space-y-2 text-xs">
+              <div className="rounded-xl bg-amber-500/10 p-3.5 border border-amber-500/20 space-y-2 text-xs">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Admin Quote &amp; Terms
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Approved Budget</span>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Approved Budget</span>
                     <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400">
                       {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Commission</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{viewProject.commissionPercent || 10}%</span>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
+                    <span className="font-semibold text-foreground">{viewProject.commissionPercent || 10}%</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Min Target</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Min Target</span>
+                    <span className="font-semibold text-foreground">
                       {viewProject.currency || "USD"} ${Number(viewProject.minBudget || viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
                 {viewProject.adminNotes && (
-                  <p className="text-xs text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/20">
+                  <p className="text-xs text-foreground bg-background/80 p-2.5 rounded-lg border border-amber-500/20">
                     <strong>Admin Note:</strong> {viewProject.adminNotes}
                   </p>
                 )}
                 {viewProject.requirements && (
-                  <p className="text-xs text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/20">
+                  <p className="text-xs text-foreground bg-background/80 p-2.5 rounded-lg border border-amber-500/20">
                     <strong>Admin Requirements:</strong> {viewProject.requirements}
                   </p>
                 )}
                 {viewProject.conditions && (
-                  <p className="text-xs text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/20">
+                  <p className="text-xs text-foreground bg-background/80 p-2.5 rounded-lg border border-amber-500/20">
                     <strong>Delivery Conditions:</strong> {viewProject.conditions}
                   </p>
                 )}
@@ -914,17 +903,17 @@ export default function UserProjectsPage() {
 
             {/* Submitted File Attachments */}
             {viewProject.attachmentFile && (
-              <div className="space-y-2">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Attached Scope &amp; Requirements File
                 </p>
-                <div className="flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 shadow-xs">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/40 shadow-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <FileText className="h-5 w-5 text-primary shrink-0" />
                     <div className="min-w-0">
-                      <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{viewProject.attachmentFile.name}</p>
+                      <p className="font-bold text-xs text-foreground truncate">{viewProject.attachmentFile.name}</p>
                       {viewProject.attachmentFile.size && (
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        <p className="text-[10px] text-muted-foreground">
                           {(viewProject.attachmentFile.size / (1024 * 1024)).toFixed(2)} MB
                         </p>
                       )}
@@ -935,7 +924,7 @@ export default function UserProjectsPage() {
                     download={viewProject.attachmentFile.name}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-3.5 py-1.5 rounded-lg shadow-xs hover:bg-primary/90 transition-all shrink-0 ml-3"
+                    className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs hover:bg-primary/90 transition-all shrink-0 ml-3"
                   >
                     <Download className="h-3.5 w-3.5" /> Download File
                   </a>
@@ -944,11 +933,12 @@ export default function UserProjectsPage() {
             )}
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-end pt-2 border-t border-border">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setViewProject(null)}
-                className="rounded-xl text-xs font-semibold cursor-pointer"
+                className="rounded-xl text-xs"
               >
                 Close
               </Button>

@@ -11,11 +11,19 @@ import { ProjectStatus } from '../entities/project.entity';
 import { PaymentType } from '../enums/payment-type.enum';
 
 export class CreateProjectDto {
+  @IsOptional()
+  @IsString()
+  projectId?: string;
+
   @IsString()
   title: string;
 
   @IsString()
   description: string;
+
+  @IsOptional()
+  @IsArray()
+  milestones?: any[];
 
   @IsOptional()
   @IsEnum(ProjectStatus)
