@@ -420,16 +420,32 @@ export const acceptProject = async (projectId: string, _token?: string) => {
   return { success: true, status: "in_progress" };
 };
 
-export const completeProject = async (
+export const markProjectComplete = async (
   projectId: string,
-  deliverableUrls: string[] = [],
+  payload?: {
+    deliverableUrls?: string[];
+    deliverableFiles?: any[];
+    completionNotes?: string;
+  } | string[],
   notes: string = '',
   _token?: string
 ) => {
+  let deliverableUrls: string[] = [];
+  let deliverableFiles: any[] = [];
+  let completionNotes = notes;
+
+  if (Array.isArray(payload)) {
+    deliverableUrls = payload;
+  } else if (payload && typeof payload === 'object') {
+    deliverableUrls = payload.deliverableUrls || [];
+    deliverableFiles = payload.deliverableFiles || [];
+    completionNotes = payload.completionNotes || notes;
+  }
+
   const local = readLocalProjects();
   const updated = local.map((p) =>
     p.projectId === projectId
-      ? { ...p, submissionStatus: "completed", deliverableUrls, completionNotes: notes }
+      ? { ...p, submissionStatus: "completed", deliverableUrls, deliverableFiles, completionNotes }
       : p
   );
   writeLocalProjects(updated);
@@ -437,15 +453,19 @@ export const completeProject = async (
   try {
     const res = await axiosInstance.post(`/technology/projects/${projectId}/complete`, {
       deliverableUrls,
-      notes,
+      deliverableFiles,
+      notes: completionNotes,
+      completionNotes,
     });
     return res?.data;
   } catch (e: any) {
-    console.warn("completeProject fallback:", e?.message || e);
+    console.warn("markProjectComplete fallback:", e?.message || e);
   }
 
   return { success: true, status: "completed" };
 };
+
+export const completeProject = markProjectComplete;
 
 export const reviewAcceptProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
