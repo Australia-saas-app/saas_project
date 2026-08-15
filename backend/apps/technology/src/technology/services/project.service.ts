@@ -36,39 +36,97 @@ export class ProjectService {
   ) {}
 
   private async triggerNotification(payload: {
-    userIds?: string[];
     userId?: string;
+    userIds?: string[];
+    role?: string;
     type: string;
     title: string;
     message: string;
     priority?: string;
     href?: string;
   }) {
-    try {
-      const notificationUrl =
-        process.env.NOTIFICATION_SERVICE_URL ||
-        'http://saas-backend-notification:3014/notification-service/internal/notifications';
-      await fetch(notificationUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: payload.userId,
-          userIds: payload.userIds,
-          role: payload.userId || payload.userIds?.length ? undefined : 'ADMIN',
-          type: payload.type,
-          title: payload.title,
-          message: payload.message,
-          priority: payload.priority || 'medium',
-          data: { href: payload.href },
-        }),
-      }).catch(() => undefined);
-    } catch {
-      // ignore notification dispatch failure
+    const urls = [
+      process.env.NOTIFICATION_SERVICE_URL,
+      'http://saas-backend-notification:3014/notification-service/internal/notifications',
+      'http://saas-backend-notification:3014/internal/notifications',
+      'http://notification-service:3014/notification-service/internal/notifications',
+      'http://notification-service:3014/internal/notifications',
+      'http://localhost:3014/notification-service/internal/notifications',
+      'http://localhost:3014/internal/notifications',
+    ].filter(Boolean) as string[];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: payload.userId,
+            userIds: payload.userIds,
+            role: payload.userId || payload.userIds?.length ? undefined : 'ADMIN',
+            type: payload.type,
+            title: payload.title,
+            message: payload.message,
+            priority: payload.priority || 'high',
+            data: { href: payload.href || '/admin/technical' },
+          }),
+        });
+        if (res.ok) break;
+      } catch {
+        // continue fallback
+      }
+    }
+  }
+
+  private async triggerActivityLog(payload: {
+    action: string;
+    resource: string;
+    userId: string;
+    userName?: string;
+    email?: string;
+  }) {
+    const urls = [
+      process.env.USER_PROFILE_SERVICE_URL ? `${process.env.USER_PROFILE_SERVICE_URL}/activity` : null,
+      'http://saas-backend-user-profile:3005/user-profile-service/activity',
+      'http://saas-backend-user-profile:3005/activity',
+      'http://user-profile-service:3005/user-profile-service/activity',
+      'http://user-profile-service:3005/activity',
+      'http://localhost:3005/user-profile-service/activity',
+      'http://localhost:3005/activity',
+    ].filter(Boolean) as string[];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: payload.action,
+            resource: payload.resource,
+            details: {
+              name: payload.userName || 'User',
+              email: payload.email || '',
+              userId: payload.userId,
+            },
+          }),
+        });
+        if (res.ok) break;
+      } catch {
+        // continue fallback
+      }
     }
   }
 
   async create(createDto: CreateProjectDto, createdBy: string): Promise<Project> {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const hh = pad(now.getHours());
+    const mm = pad(now.getMinutes());
+    const ss = pad(now.getSeconds());
+    const generatedProjectId = (createDto as any).projectId || `PRJ-${hh}${mm}${ss}`;
+
     const project = this.projectRepository.create({
+      projectId: generatedProjectId,
       title: createDto.title,
       description: createDto.description,
       startDate: createDto.startDate ? new Date(createDto.startDate) : null,
@@ -106,6 +164,24 @@ export class ProjectService {
         accountType: 'user',
       }),
     );
+
+    // Trigger Admin Notification
+    this.triggerNotification({
+      type: 'TECHNICAL_PROJECT_SUBMIT',
+      title: 'New Technical Project Submission',
+      message: `${savedProject.clientName || 'Client'} submitted "${savedProject.title}" (${savedProject.projectId}) for review.`,
+      priority: 'high',
+      href: '/technical',
+    });
+
+    // Trigger MongoDB Activity Log
+    this.triggerActivityLog({
+      action: 'PROJECT_SUBMITTED',
+      resource: `Submitted service project "${savedProject.title}" (${savedProject.projectId}) with target budget $${savedProject.price}`,
+      userId: createdBy,
+      userName: savedProject.clientName || createdBy,
+      email: savedProject.clientEmail || '',
+    });
 
     return savedProject;
   }
@@ -189,8 +265,18 @@ export class ProjectService {
   }
 
   async remove(projectId: string, userId: string): Promise<void> {
-    const project = await this.projectRepository.findOne({ where: { projectId } });
+    const project = await this.projectRepository.findOne({
+      where: { projectId },
+      relations: ['participants', 'proposals'],
+    });
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+
+    if (project.participants?.length) {
+      await this.participantRepository.remove(project.participants);
+    }
+    if (project.proposals?.length) {
+      await this.proposalRepository.remove(project.proposals);
+    }
     await this.projectRepository.remove(project);
   }
 

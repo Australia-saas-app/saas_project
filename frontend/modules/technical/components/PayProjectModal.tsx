@@ -79,20 +79,36 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
     }
   };
 
+  const isAlreadyPaid =
+    (project as any).paymentStatus === "paid" ||
+    (project as any).paymentStatus === "released" ||
+    (project as any).submissionStatus === "active" ||
+    (project as any).submissionStatus === "in_progress" ||
+    (project as any).submissionStatus === "completed" ||
+    (project as any).submissionStatus === "accepted";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-card border border-border text-card-foreground shadow-2xl transition-all">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-primary" />
+            {isAlreadyPaid ? (
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            ) : (
+              <CreditCard className="h-5 w-5 text-primary" />
+            )}
             <h3 className="text-lg font-bold text-foreground">
-              {isMilestone ? "Fund Project Milestone" : "Pay for Project Escrow"}
+              {isAlreadyPaid
+                ? "Escrow Payment Details"
+                : isMilestone
+                ? "Fund Project Milestone"
+                : "Pay for Project Escrow"}
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -106,6 +122,56 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
               <p className="text-xs text-muted-foreground max-w-xs">
                 Your project is now <strong>Live</strong> and open for verified businesses to accept and start working on deliverables.
               </p>
+            </div>
+          ) : isAlreadyPaid ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div>
+                  <p className="font-bold">Escrow Funded & Active</p>
+                  <p className="text-[11px] opacity-90">Payment is secured in platform escrow.</p>
+                </div>
+              </div>
+
+              {/* Project summary */}
+              <div className="rounded-xl border border-border p-3.5 space-y-1">
+                <p className="text-xs text-muted-foreground font-mono">{project.projectId}</p>
+                <p className="text-sm font-bold text-foreground line-clamp-1">{project.title}</p>
+              </div>
+
+              {/* Cost breakdown */}
+              <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Project Base Budget</span>
+                  <span className="font-semibold text-foreground">
+                    {currency} {baseBudget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Platform Fee ({commissionPercent}%)</span>
+                  <span className="font-semibold text-foreground">
+                    {currency} {commissionAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="border-t border-border pt-2 flex justify-between font-bold text-sm text-foreground">
+                  <span>Total Escrow Paid</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    {currency} {totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-muted/30 border border-border p-3 text-[11px] text-muted-foreground leading-relaxed">
+                🔒 Funds remain safely protected in escrow until deliverables are submitted and you confirm completion.
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full rounded-xl text-xs font-semibold"
+                onClick={onClose}
+              >
+                Close
+              </Button>
             </div>
           ) : (
             <>

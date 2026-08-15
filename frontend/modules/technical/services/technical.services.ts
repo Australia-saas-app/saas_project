@@ -3,6 +3,7 @@
  */
 
 import axiosInstance from "@/src/shared/lib/axiosInstance";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
 const LOCAL_PROJECTS_KEY = "platform_user_technical_projects";
 
@@ -28,12 +29,13 @@ export function writeLocalProjects(projects: any[]) {
   }
 }
 
-export function recordActivityLog(log: {
+export async function recordActivityLog(log: {
   title: string;
   description: string;
   category?: string;
   userId?: string;
   userName?: string;
+  email?: string;
   type?: string;
 }) {
   if (typeof window === "undefined") return;
@@ -49,23 +51,21 @@ export function recordActivityLog(log: {
     window.dispatchEvent(new Event("activity_logs_updated"));
   } catch {}
 
-  // Also persist to backend user-profile activity DB
+  // Save to backend MongoDB activity collection & trigger real log event
   try {
-    axiosInstance.post('/user-profile-service/activity', {
-      action: log.type || 'PROJECT_SUBMITTED',
-      resource: 'technical_project',
-      details: {
-        title: log.title,
-        description: log.description,
-        category: log.category || 'Technical Services',
-        userName: log.userName,
+    await recordRealActivity(
+      log.type || "PROJECT_SUBMITTED",
+      log.description || log.title,
+      {
         userId: log.userId,
-      },
-    }).catch(() => {});
+        name: log.userName,
+        email: log.email,
+      }
+    ).catch(() => undefined);
   } catch {}
 }
 
-export function dispatchAdminNotification(notif: {
+export async function dispatchAdminNotification(notif: {
   title: string;
   message: string;
   href?: string;
@@ -93,13 +93,13 @@ export function dispatchAdminNotification(notif: {
 
   // Permanently save notification into PostgreSQL DB
   try {
-    axiosInstance.post('/notifications', {
+    await axiosInstance.post('/notifications', {
       type: notif.type || 'TECHNICAL_PROJECT_SUBMIT',
       title: notif.title,
       message: notif.message,
       priority: 'high',
       data: { href: notif.href || '/admin/technical' },
-    }).catch(() => {});
+    }).catch(() => undefined);
   } catch {}
 }
 
@@ -213,11 +213,25 @@ export const fetchSkills = async (subcategories: string[] = []): Promise<string[
 
 // ─── Project CRUD ────────────────────────────────────────────────────────────
 
+export function generateTimeProjectId(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  return `PRJ-${hh}${mm}${ss}`;
+}
+
 export const createProject = async (payload: any, _token?: string) => {
   let createdProject: any = null;
 
+  const projectPayload = {
+    ...payload,
+    projectId: payload.projectId || generateTimeProjectId(),
+  };
+
   try {
-    const res = await axiosInstance.post('/technology/projects', payload);
+    const res = await axiosInstance.post('/technology/projects', projectPayload);
     createdProject = res?.data?.data || res?.data;
   } catch (e: any) {
     console.warn("Axios create project failed:", e?.message || e);
@@ -226,7 +240,7 @@ export const createProject = async (payload: any, _token?: string) => {
   if (!createdProject || !createdProject.projectId) {
     createdProject = {
       id: Date.now(),
-      projectId: `PRJ-${Date.now().toString().slice(-6)}`,
+      projectId: projectPayload.projectId,
       title: payload.title || "Untitled Project",
       description: payload.description || "",
       submissionStatus: "submitted",
@@ -258,7 +272,10 @@ export const createProject = async (payload: any, _token?: string) => {
     title: `Service Project Submitted: "${createdProject.title}"`,
     description: `Submitted by ${createdProject.clientName} (${createdProject.clientEmail || "User"}) with budget $${createdProject.price}.`,
     category: "Technical Services",
-    type: "project_created",
+    userId: payload.clientId || (createdProject as any).clientId,
+    userName: createdProject.clientName,
+    email: createdProject.clientEmail,
+    type: "PROJECT_SUBMITTED",
   });
 
   dispatchAdminNotification({
@@ -274,19 +291,16 @@ export const fetchMyProjects = async (_token?: string) => {
   try {
     const res = await axiosInstance.get('/technology/projects/mine');
     const data = res?.data;
-    if (data?.projects && Array.isArray(data.projects)) {
+    const rawList =
+      data?.data?.projects ||
+      data?.projects ||
+      data?.data ||
+      (Array.isArray(data) ? data : []);
+
+    if (Array.isArray(rawList)) {
       const local = readLocalProjects();
       const map = new Map<string, any>();
-      [...local, ...data.projects].forEach((p) => {
-        if (p?.projectId) map.set(p.projectId, p);
-      });
-      const merged = Array.from(map.values());
-      writeLocalProjects(merged);
-      return { projects: merged };
-    } else if (Array.isArray(data)) {
-      const local = readLocalProjects();
-      const map = new Map<string, any>();
-      [...local, ...data].forEach((p) => {
+      [...local, ...rawList].forEach((p) => {
         if (p?.projectId) map.set(p.projectId, p);
       });
       const merged = Array.from(map.values());
@@ -304,10 +318,14 @@ export const fetchPublicProjects = async (params?: Record<string, string>) => {
   try {
     const res = await axiosInstance.get('/technology/projects/public', { params });
     const data = res?.data;
-    if (data?.projects && Array.isArray(data.projects)) {
-      return data;
-    } else if (Array.isArray(data)) {
-      return { projects: data };
+    const rawList =
+      data?.data?.projects ||
+      data?.projects ||
+      data?.data ||
+      (Array.isArray(data) ? data : []);
+
+    if (Array.isArray(rawList)) {
+      return { projects: rawList };
     }
   } catch (e: any) {
     console.warn("fetchPublicProjects axios fallback:", e?.message || e);
@@ -319,10 +337,14 @@ export const fetchAssignedProjects = async (_token?: string) => {
   try {
     const res = await axiosInstance.get('/technology/projects/assigned');
     const data = res?.data;
-    if (data?.projects && Array.isArray(data.projects)) {
-      return data;
-    } else if (Array.isArray(data)) {
-      return { projects: data };
+    const rawList =
+      data?.data?.projects ||
+      data?.projects ||
+      data?.data ||
+      (Array.isArray(data) ? data : []);
+
+    if (Array.isArray(rawList)) {
+      return { projects: rawList };
     }
   } catch (e: any) {
     console.warn("fetchAssignedProjects fallback:", e?.message || e);
@@ -334,10 +356,14 @@ export const fetchAllProjects = async (_token?: string) => {
   try {
     const res = await axiosInstance.get('/technology/projects/all');
     const data = res?.data;
-    if (data?.projects && Array.isArray(data.projects)) {
-      return data;
-    } else if (Array.isArray(data)) {
-      return { projects: data };
+    const rawList =
+      data?.data?.projects ||
+      data?.projects ||
+      data?.data ||
+      (Array.isArray(data) ? data : []);
+
+    if (Array.isArray(rawList)) {
+      return { projects: rawList };
     }
   } catch (e: any) {
     console.warn("fetchAllProjects fallback:", e?.message || e);

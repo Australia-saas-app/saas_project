@@ -7,7 +7,7 @@ import { getCookie, setCookie } from "@/src/utils/cookie-utils";
 
 const axiosInstance = axios.create({
   baseURL: envConfig.apiBaseURL,
-  timeout: 3000,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },

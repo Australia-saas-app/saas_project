@@ -31,6 +31,7 @@ import {
   Briefcase,
   Calendar,
   ShieldCheck,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -78,19 +79,19 @@ const STATUS_CONFIG: Record<
     icon: <Clock className="h-3.5 w-3.5 text-amber-500" />,
   },
   approved: {
-    label: "Approved — Pay Now",
+    label: "Pending for Payment",
     color: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800",
-    icon: <CreditCard className="h-3.5 w-3.5" />,
+    icon: <DollarSign className="h-3.5 w-3.5 text-amber-500" />,
   },
   payment_pending: {
-    label: "Payment Pending",
+    label: "Pending for Payment",
     color: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800",
-    icon: <CreditCard className="h-3.5 w-3.5" />,
+    icon: <DollarSign className="h-3.5 w-3.5 text-amber-500" />,
   },
   active: {
-    label: "Active — Open for Businesses",
-    color: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    label: "Active",
+    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800",
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
   },
   in_progress: {
     label: "In Progress",
@@ -174,6 +175,7 @@ export default function UserProjectsPage() {
   const [revisionReason, setRevisionReason] = useState("");
 
   const loadProjects = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await fetchMyProjects();
       const list = data?.projects || [];
@@ -456,8 +458,9 @@ export default function UserProjectsPage() {
 
       {/* Main Content: Card Grid Design */}
       {loading ? (
-        <div className="flex min-h-[300px] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-card p-12 text-center shadow-xs">
+          <Loader2 className="h-9 w-9 animate-spin text-primary" />
+          <p className="text-xs font-semibold text-muted-foreground animate-pulse">Loading service projects...</p>
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-xs">
@@ -618,100 +621,116 @@ export default function UserProjectsPage() {
                   )}
                 </div>
 
-                {/* Actions Footer */}
-                <div className="mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    {/* View Project Details Button */}
-                    <button
-                      type="button"
-                      title="View Project Details"
-                      onClick={() => setViewProject(project)}
-                      className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
+                {/* Actions Footer: Eye (Left) | Payment/Action (Middle) | Trash (Right) */}
+                <div className="mt-4 pt-3 border-t border-border flex items-center justify-between gap-2">
+                  {/* Left: View Project Details Eye Button */}
+                  <button
+                    type="button"
+                    title="View Project Details"
+                    onClick={() => setViewProject(project)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
 
-                    {/* Delete Trash Icon Button */}
-                    <button
-                      type="button"
-                      title="Delete Project"
-                      disabled={isActioning}
-                      onClick={() => handleDelete(project.projectId)}
-                      className="p-2 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-border transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {isActioning ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
+                  {/* Middle: Action / Payment Button */}
+                  <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">
+                    {(project.submissionStatus === "approved" || project.submissionStatus === "payment_pending") && (
+                      <Button
+                        size="sm"
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs"
+                        onClick={() => setPayProject(project)}
+                      >
+                        <DollarSign className="mr-1 h-3.5 w-3.5" />
+                        Pay Escrow (${(
+                          Number(budget) +
+                          (Number(budget) * (project.commissionPercent !== undefined ? project.commissionPercent : 10)) / 100
+                        ).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                      </Button>
+                    )}
 
-                    {/* Chat button */}
                     {(project.submissionStatus === "active" ||
                       project.submissionStatus === "in_progress" ||
-                      project.submissionStatus === "completed") && (
+                      project.submissionStatus === "accepted") && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 truncate"
+                          onClick={() => setPayProject(project)}
+                        >
+                          <DollarSign className="mr-1 h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          View Payments
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setChatProject(project)}
+                          className="rounded-xl text-xs font-semibold border-border hover:bg-muted shrink-0"
+                        >
+                          <MessageSquare className="mr-1 h-3.5 w-3.5 text-primary" /> Live Chat
+                        </Button>
+                      </>
+                    )}
+
+                    {project.submissionStatus === "draft" && (
                       <Button
-                        variant="outline"
                         size="sm"
-                        onClick={() => setChatProject(project)}
-                        className="rounded-xl text-xs font-semibold border-border hover:bg-muted"
+                        onClick={() => handleSubmit(project)}
+                        disabled={isActioning}
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs"
                       >
-                        <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" /> Live Chat
+                        {isActioning ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                        Submit for Review
                       </Button>
+                    )}
+
+                    {(project.submissionStatus === "submitted" || project.submissionStatus === "admin_review") && (
+                      <span className="text-[11px] font-semibold text-muted-foreground text-center truncate">
+                        Under Admin Review
+                      </span>
+                    )}
+
+                    {project.submissionStatus === "completed" && (
+                      <div className="flex items-center gap-1.5 w-full">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setRevisionProject(project);
+                            setRevisionReason("");
+                          }}
+                          disabled={isActioning}
+                          className="flex-1 rounded-xl text-xs font-semibold text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
+                        >
+                          <RotateCcw className="mr-1 h-3 w-3" /> Revision
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAccept(project.projectId)}
+                          disabled={isActioning}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs"
+                        >
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> Accept &amp; Release
+                        </Button>
+                      </div>
                     )}
                   </div>
 
-                  {/* Status action buttons */}
-                  {project.submissionStatus === "draft" && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleSubmit(project)}
-                      disabled={isActioning}
-                      className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs ml-auto"
-                    >
-                      {isActioning ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                      Submit for Review
-                    </Button>
-                  )}
-
-                  {project.submissionStatus === "approved" && (
-                    <Button
-                      size="sm"
-                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs ml-auto shadow-sm"
-                      onClick={() => setPayProject(project)}
-                    >
-                      <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                      Pay Escrow — {project.currency || "USD"} ${(
-                        Number(budget) +
-                        (Number(budget) * (project.commissionPercent !== undefined ? project.commissionPercent : 10)) / 100
-                      ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </Button>
-                  )}
-
-                  {project.submissionStatus === "completed" && (
-                    <div className="flex items-center gap-1.5 ml-auto">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setRevisionProject(project);
-                          setRevisionReason("");
-                        }}
-                        disabled={isActioning}
-                        className="rounded-xl text-xs font-semibold text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
-                      >
-                        <RotateCcw className="mr-1 h-3 w-3" /> Revision
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAccept(project.projectId)}
-                        disabled={isActioning}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs"
-                      >
-                        <CheckCircle2 className="mr-1 h-3 w-3" /> Accept &amp; Release
-                      </Button>
-                    </div>
-                  )}
+                  {/* Right: Delete Trash Icon Button */}
+                  <button
+                    type="button"
+                    title="Delete Project"
+                    disabled={isActioning}
+                    onClick={() => handleDelete(project.projectId)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-border transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {isActioning ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
             );
@@ -721,10 +740,10 @@ export default function UserProjectsPage() {
 
       {/* VIEW PROJECT DETAILS MODAL */}
       {viewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B132B] p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-border pb-4">
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-primary font-bold">{viewProject.projectId}</span>
@@ -737,9 +756,9 @@ export default function UserProjectsPage() {
                     {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).label}
                   </span>
                 </div>
-                <h3 className="text-xl font-bold text-foreground mt-1">{viewProject.title}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Category: <strong className="text-foreground">{viewProject.category}</strong>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{viewProject.title}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Category: <strong className="text-slate-800 dark:text-slate-200">{viewProject.category}</strong>
                   {viewProject.subcategory && ` • ${viewProject.subcategory}`}
                   {viewProject.projectType && ` • ${viewProject.projectType}`}
                 </p>
@@ -748,36 +767,36 @@ export default function UserProjectsPage() {
               <button
                 type="button"
                 onClick={() => setViewProject(null)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Scope Summary & Description */}
-            <div className="rounded-xl bg-muted/40 p-4 border border-border space-y-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/80 p-4 border border-slate-100 dark:border-slate-800 space-y-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Project Scope &amp; Summary
               </p>
-              <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+              <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                 {viewProject.description || "No description provided."}
               </p>
             </div>
 
             {/* Tech Stack, Languages & Skills */}
-            <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/80 p-4 border border-slate-100 dark:border-slate-800 space-y-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Required Tech Stack &amp; Skills
               </p>
 
               {viewProject.preferredLanguages && viewProject.preferredLanguages.length > 0 && (
                 <div>
-                  <span className="text-[11px] text-muted-foreground font-medium mr-2">Languages:</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mr-2">Languages:</span>
                   <div className="inline-flex flex-wrap gap-1.5 mt-1">
                     {viewProject.preferredLanguages.map((l) => (
                       <span
                         key={l}
-                        className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-500"
+                        className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400"
                       >
                         {l}
                       </span>
@@ -788,7 +807,7 @@ export default function UserProjectsPage() {
 
               {viewProject.skills && viewProject.skills.length > 0 && (
                 <div>
-                  <span className="text-[11px] text-muted-foreground font-medium mr-2">Skills &amp; Frameworks:</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mr-2">Skills &amp; Frameworks:</span>
                   <div className="inline-flex flex-wrap gap-1.5 mt-1">
                     {viewProject.skills.map((s) => (
                       <span
@@ -804,22 +823,22 @@ export default function UserProjectsPage() {
             </div>
 
             {/* Budget, Milestones & Timeline Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-border bg-card text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-xs">
               <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Target Budget</span>
+                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Target Budget</span>
                 <span className="text-sm font-extrabold text-primary">
                   {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
                 </span>
               </div>
 
               <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Terms</span>
-                <span className="font-semibold text-foreground">{viewProject.paymentTerms || "One-time"}</span>
+                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Payment Terms</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{viewProject.paymentTerms || "One-time"}</span>
               </div>
 
               <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
-                <span className="font-semibold text-foreground">
+                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Timeline</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
                   {viewProject.startDate ? new Date(viewProject.startDate).toLocaleDateString() : "Flexible"}
                   {viewProject.endDate ? ` → ${new Date(viewProject.endDate).toLocaleDateString()}` : ""}
                 </span>
@@ -827,23 +846,23 @@ export default function UserProjectsPage() {
             </div>
 
             {/* Client Contact Info */}
-            <div className="rounded-xl border border-border p-4 space-y-2 text-xs">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 p-4 space-y-2 text-xs">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Client Contact Information
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="flex items-center gap-1.5 text-foreground">
+                <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
                   <User className="h-3.5 w-3.5 text-primary shrink-0" />
                   <span className="truncate">{viewProject.clientName || "User"}</span>
                 </div>
                 {viewProject.clientEmail && (
-                  <div className="flex items-center gap-1.5 text-foreground">
+                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
                     <Mail className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="truncate">{viewProject.clientEmail}</span>
                   </div>
                 )}
                 {viewProject.clientPhone && (
-                  <div className="flex items-center gap-1.5 text-foreground">
+                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
                     <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span>{viewProject.clientPhone}</span>
                   </div>
@@ -854,39 +873,39 @@ export default function UserProjectsPage() {
             {/* Admin Review & Quote Details if Approved */}
             {(viewProject.submissionStatus === "approved" || viewProject.adminNotes || viewProject.requirements) && (
               <div className="rounded-xl bg-amber-500/10 p-4 border border-amber-500/20 space-y-2 text-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-amber-600" /> Admin Quote &amp; Terms
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Admin Quote &amp; Terms
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Approved Budget</span>
-                    <span className="text-sm font-extrabold text-amber-600">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Approved Budget</span>
+                    <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400">
                       {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
-                    <span className="font-semibold text-foreground">{viewProject.commissionPercent || 10}%</span>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Commission</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{viewProject.commissionPercent || 10}%</span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Min Target</span>
-                    <span className="font-semibold text-foreground">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Min Target</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
                       {viewProject.currency || "USD"} ${Number(viewProject.minBudget || viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
                 {viewProject.adminNotes && (
-                  <p className="text-xs text-foreground bg-card/60 p-2.5 rounded-lg border border-border">
+                  <p className="text-xs text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/20">
                     <strong>Admin Note:</strong> {viewProject.adminNotes}
                   </p>
                 )}
                 {viewProject.requirements && (
-                  <p className="text-xs text-foreground bg-card/60 p-2.5 rounded-lg border border-border">
+                  <p className="text-xs text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/20">
                     <strong>Admin Requirements:</strong> {viewProject.requirements}
                   </p>
                 )}
                 {viewProject.conditions && (
-                  <p className="text-xs text-foreground bg-card/60 p-2.5 rounded-lg border border-border">
+                  <p className="text-xs text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-amber-500/20">
                     <strong>Delivery Conditions:</strong> {viewProject.conditions}
                   </p>
                 )}
@@ -896,16 +915,16 @@ export default function UserProjectsPage() {
             {/* Submitted File Attachments */}
             {viewProject.attachmentFile && (
               <div className="space-y-2">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Attached Scope &amp; Requirements File
                 </p>
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card shadow-xs">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 shadow-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <FileText className="h-5 w-5 text-primary shrink-0" />
                     <div className="min-w-0">
-                      <p className="font-bold text-xs text-foreground truncate">{viewProject.attachmentFile.name}</p>
+                      <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{viewProject.attachmentFile.name}</p>
                       {viewProject.attachmentFile.size && (
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500">
                           {(viewProject.attachmentFile.size / (1024 * 1024)).toFixed(2)} MB
                         </p>
                       )}
@@ -925,7 +944,7 @@ export default function UserProjectsPage() {
             )}
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end pt-3 border-t border-border">
+            <div className="flex items-center justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
               <Button
                 variant="outline"
                 onClick={() => setViewProject(null)}

@@ -229,9 +229,12 @@ export class Project {
   @BeforeInsert()
   async generateProjectId() {
     if (!this.projectId) {
-      const timestamp = Date.now().toString(36);
-      const random = Math.random().toString(36).substring(2, 8);
-      this.projectId = `PROJ-${timestamp}-${random}`.toUpperCase();
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const hh = pad(now.getHours());
+      const mm = pad(now.getMinutes());
+      const ss = pad(now.getSeconds());
+      this.projectId = `PRJ-${hh}${mm}${ss}`;
     }
   }
 }
