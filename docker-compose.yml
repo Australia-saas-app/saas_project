@@ -12,6 +12,10 @@ services:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
       KONG_CLIENT_MAX_BODY_SIZE: "50m"
+      KONG_DNS_RESOLVER: "127.0.0.11"
+      KONG_DNS_ORDER: "LAST,A,CNAME"
+      KONG_DNS_STALE_TTL: "4"
+      KONG_DNS_NOT_FOUND_TTL: "2"
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr

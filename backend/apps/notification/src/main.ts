@@ -12,8 +12,8 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
-  // Removed global prefix so Kong strip_path works uniformly
-  // app.setGlobalPrefix('notification-service');
+  // Global prefix for notification service
+  app.setGlobalPrefix('notification-service');
 
   // Global validation pipe
   app.useGlobalPipes(
