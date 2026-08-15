@@ -51,8 +51,10 @@ export default function TechnicalPageLayout() {
     const loadData = async () => {
       try {
         const res = await fetchPublicProjects().catch(() => null);
+        let projectsList: any[] = [];
+
         if (res?.projects && Array.isArray(res.projects) && res.projects.length > 0) {
-          const mapped = res.projects.map((p: any) => ({
+          projectsList = res.projects.map((p: any) => ({
             id: p.id || p.projectId,
             projectId: p.projectId,
             title: p.title,
@@ -66,15 +68,50 @@ export default function TechnicalPageLayout() {
             price: Number(p.adminBudget || p.price || 1500),
             priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
             modified: "Active Project",
-            languages: ["english"],
+            languages: p.preferredLanguages || ["english"],
             location: "Remote",
             description: p.description || p.requirements || "Professional technical service.",
           }));
-          setLiveApprovedProjects(mapped);
+        }
+
+        // Also merge local platform_user_technical_projects
+        const userProjectsRaw = localStorage.getItem("platform_user_technical_projects");
+        if (userProjectsRaw) {
+          const parsedUser = JSON.parse(userProjectsRaw);
+          if (Array.isArray(parsedUser)) {
+            const mappedUser = parsedUser.map((p: any) => ({
+              id: p.id || p.projectId,
+              projectId: p.projectId,
+              title: p.title,
+              category: p.category || "Software Development",
+              categoryFilter: "web",
+              projectType: p.projectType || "new-build",
+              subcategory: p.subcategory || "fullstack",
+              skills: p.skills?.length ? p.skills : ["React", "TypeScript", "Node.js"],
+              duration: "14 Days",
+              experience: "3+ Years",
+              price: Number(p.adminBudget || p.price || 1500),
+              priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
+              modified: p.submissionStatus === "approved" ? "Approved Project" : "Active Project",
+              languages: p.preferredLanguages || ["english"],
+              location: "Remote",
+              description: p.description || "Professional technical service.",
+            }));
+            
+            const map = new Map<string, any>();
+            [...projectsList, ...mappedUser].forEach((item) => {
+              if (item?.projectId) map.set(item.projectId, item);
+            });
+            projectsList = Array.from(map.values());
+          }
+        }
+
+        if (projectsList.length > 0) {
+          setLiveApprovedProjects(projectsList);
           return;
         }
 
-        // fallback to localStorage
+        // fallback to business_service_rows
         const raw = localStorage.getItem("business_service_rows");
         if (raw) {
           const parsed = JSON.parse(raw);

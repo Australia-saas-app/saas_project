@@ -31,10 +31,76 @@ export function writeLocalProjects(projects: any[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(LOCAL_PROJECTS_KEY, JSON.stringify(projects));
+    window.dispatchEvent(new Event("storage"));
   } catch {
     // ignore
   }
 }
+
+export function recordActivityLog(log: {
+  title: string;
+  description: string;
+  category?: string;
+  userId?: string;
+  userName?: string;
+  type?: string;
+}) {
+  if (typeof window === "undefined") return;
+  try {
+    const key = "platform_activity_logs";
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    const item = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      ...log,
+    };
+    localStorage.setItem(key, JSON.stringify([item, ...existing]));
+    window.dispatchEvent(new Event("activity_logs_updated"));
+  } catch {}
+}
+
+export function dispatchAdminNotification(notif: {
+  title: string;
+  message: string;
+  href?: string;
+  type?: string;
+}) {
+  if (typeof window === "undefined") return;
+  try {
+    const notifItem = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title: notif.title,
+      description: notif.message,
+      time: "Just now",
+      read: false,
+      href: notif.href || "/admin/technical",
+      type: notif.type || "system",
+    };
+
+    ["app_notifs_admin", "admin_notifications"].forEach((k) => {
+      const existing = JSON.parse(localStorage.getItem(k) || "[]");
+      localStorage.setItem(k, JSON.stringify([notifItem, ...existing]));
+    });
+
+    window.dispatchEvent(new Event("notifications_updated"));
+  } catch {}
+}
+
+export const fetchWalletBalance = async (token?: string): Promise<{ balance: number }> => {
+  try {
+    const res = await fetch('/api/wallet/balance', {
+      credentials: 'include',
+      headers: authHeaders(token),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { balance: Number(data?.balance ?? 50000) };
+    }
+  } catch (e) {
+    console.warn("Wallet balance fetched locally:", e);
+  }
+  return { balance: 50000 };
+};
 
 // ─── Category / Skill helpers ───────────────────────────────────────────────
 
@@ -79,26 +145,7 @@ export const fetchSkills = async (subcategories: string[] = []): Promise<string[
 // ─── Project CRUD ────────────────────────────────────────────────────────────
 
 export const createProject = async (payload: any, token?: string) => {
-  const localProject = {
-    id: Date.now(),
-    projectId: `PRJ-${Date.now().toString().slice(-6)}`,
-    title: payload.title || "Untitled Project",
-    description: payload.description || "",
-    submissionStatus: "draft",
-    paymentStatus: "unpaid",
-    price: payload.price || 0,
-    adminBudget: payload.price || 0,
-    currency: payload.currency || "USD",
-    category: payload.category || "Software Development",
-    subcategory: payload.subcategory || "General",
-    projectType: payload.projectType || "New Build",
-    skills: payload.skills || [],
-    clientName: payload.clientName || "Client",
-    createdAt: new Date().toISOString(),
-  };
-
-  const existing = readLocalProjects();
-  writeLocalProjects([localProject, ...existing]);
+  let createdProject: any = null;
 
   try {
     const res = await fetch(BASE, {
@@ -107,15 +154,60 @@ export const createProject = async (payload: any, token?: string) => {
       headers: authHeaders(token),
       body: JSON.stringify(payload),
     });
+
     if (res.ok) {
-      const data = await res.json();
-      return data;
+      const json = await res.json();
+      createdProject = json?.data || json;
     }
   } catch (e) {
-    console.warn("Backend unavailable, created project locally:", e);
+    console.warn("Backend error creating project:", e);
   }
 
-  return { success: true, projectId: localProject.projectId, data: localProject };
+  if (!createdProject) {
+    createdProject = {
+      id: Date.now(),
+      projectId: `PRJ-${Date.now().toString().slice(-6)}`,
+      title: payload.title || "Untitled Project",
+      description: payload.description || "",
+      submissionStatus: "submitted",
+      paymentStatus: "unpaid",
+      price: payload.price || 0,
+      adminBudget: payload.price || 0,
+      currency: payload.currency || "USD",
+      category: payload.category || "Software Development",
+      subcategory: payload.subcategory || "General",
+      projectType: payload.projectType || "New Build",
+      skills: payload.skills || [],
+      preferredLanguages: payload.preferredLanguages || [],
+      paymentTerms: payload.paymentTerms || "One-time",
+      clientName: payload.clientName || "Client",
+      clientEmail: payload.clientEmail || "",
+      clientPhone: payload.clientPhone || "",
+      attachmentFile: payload.attachmentFile,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const existing = readLocalProjects();
+  writeLocalProjects([createdProject, ...existing.filter((p) => p.projectId !== createdProject.projectId)]);
+
+  // Log activity & dispatch admin notification
+  recordActivityLog({
+    title: `Service Project Submitted: "${createdProject.title}"`,
+    description: `Submitted by ${createdProject.clientName} (${createdProject.clientEmail || "User"}) with budget $${createdProject.price}.`,
+    category: "Technical Services",
+    type: "project_created",
+  });
+
+  dispatchAdminNotification({
+    title: "New Technical Project Submitted",
+    message: `"${createdProject.title}" submitted by ${createdProject.clientName} ($${createdProject.price}). Needs review and quote.`,
+    href: "/admin/technical",
+  });
+
+  return { success: true, projectId: createdProject.projectId, data: createdProject };
 };
 
 export const fetchMyProjects = async (token?: string) => {
@@ -127,13 +219,15 @@ export const fetchMyProjects = async (token?: string) => {
     if (res.ok) {
       const data = await res.json();
       if (data?.projects && Array.isArray(data.projects)) {
-        // Merge remote and local
+        // Sync local cache with backend DB
         const local = readLocalProjects();
         const map = new Map<string, any>();
-        [...data.projects, ...local].forEach((p) => {
+        [...local, ...data.projects].forEach((p) => {
           if (p?.projectId) map.set(p.projectId, p);
         });
-        return { projects: Array.from(map.values()) };
+        const merged = Array.from(map.values());
+        writeLocalProjects(merged);
+        return { projects: merged };
       }
       return data;
     }
@@ -217,12 +311,30 @@ export const submitProject = async (projectId: string, token?: string) => {
 export const payProject = async (projectId: string, token?: string) => {
   // Update local
   const local = readLocalProjects();
-  const updated = local.map((p) =>
-    p.projectId === projectId
-      ? { ...p, submissionStatus: "active", paymentStatus: "paid" }
-      : p
-  );
+  let paidProject: any = null;
+  const updated = local.map((p) => {
+    if (p.projectId === projectId) {
+      paidProject = { ...p, submissionStatus: "active", paymentStatus: "paid" };
+      return paidProject;
+    }
+    return p;
+  });
   writeLocalProjects(updated);
+
+  if (paidProject) {
+    recordActivityLog({
+      title: `Project Escrow Funded & Published Publicly: "${paidProject.title}"`,
+      description: `Client funded $${paidProject.adminBudget || paidProject.price || 0} into escrow. Project is now published for verified businesses.`,
+      category: "Technical Services",
+      type: "project_paid_published",
+    });
+
+    dispatchAdminNotification({
+      title: "Project Payment Approved & Escrow Funded",
+      message: `"${paidProject.title}" has been funded by client ($${paidProject.adminBudget || paidProject.price}). Now live and open for businesses.`,
+      href: "/admin/technical",
+    });
+  }
 
   try {
     const res = await fetch(`${BASE}/${projectId}/pay`, {
@@ -238,12 +350,12 @@ export const payProject = async (projectId: string, token?: string) => {
   return { success: true, status: "active", paymentStatus: "paid" };
 };
 
-export const acceptProject = async (projectId: string, businessName: string, token?: string) => {
+export const acceptProject = async (projectId: string, token?: string) => {
   // Update local
   const local = readLocalProjects();
   const updated = local.map((p) =>
     p.projectId === projectId
-      ? { ...p, submissionStatus: "in_progress", assignedBusinessName: businessName }
+      ? { ...p, submissionStatus: "in_progress" }
       : p
   );
   writeLocalProjects(updated);
@@ -253,7 +365,6 @@ export const acceptProject = async (projectId: string, businessName: string, tok
       method: 'POST',
       credentials: 'include',
       headers: authHeaders(token),
-      body: JSON.stringify({ businessName }),
     });
     if (res.ok) return await res.json();
   } catch (e) {
@@ -265,8 +376,8 @@ export const acceptProject = async (projectId: string, businessName: string, tok
 
 export const markProjectComplete = async (
   projectId: string,
-  payload: { deliverableUrls?: string[]; deliverableFiles?: any[]; completionNotes?: string },
-  token?: string,
+  payload: { completionNotes?: string; deliverableUrls?: string[]; deliverableFiles?: any[] },
+  token?: string
 ) => {
   // Update local
   const local = readLocalProjects();
@@ -275,9 +386,9 @@ export const markProjectComplete = async (
       ? {
           ...p,
           submissionStatus: "completed",
+          completionNotes: payload.completionNotes,
           deliverableUrls: payload.deliverableUrls,
           deliverableFiles: payload.deliverableFiles,
-          completionNotes: payload.completionNotes,
         }
       : p
   );
@@ -302,12 +413,14 @@ export const reviewAcceptProject = async (projectId: string, token?: string) => 
   // Update local
   const local = readLocalProjects();
   const updated = local.map((p) =>
-    p.projectId === projectId ? { ...p, submissionStatus: "accepted" } : p
+    p.projectId === projectId
+      ? { ...p, submissionStatus: "accepted", paymentStatus: "released" }
+      : p
   );
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/accept-review`, {
+    const res = await fetch(`${BASE}/${projectId}/review-accept`, {
       method: 'POST',
       credentials: 'include',
       headers: authHeaders(token),
@@ -318,6 +431,37 @@ export const reviewAcceptProject = async (projectId: string, token?: string) => 
   }
 
   return { success: true, status: "accepted" };
+};
+
+export const deleteProject = async (projectId: string, token?: string) => {
+  // 1. Remove from local store
+  const local = readLocalProjects();
+  const target = local.find((p) => p.projectId === projectId || String(p.id) === String(projectId));
+  const updated = local.filter((p) => p.projectId !== projectId && String(p.id) !== String(projectId));
+  writeLocalProjects(updated);
+
+  if (target) {
+    recordActivityLog({
+      title: `Project Deleted: "${target.title}"`,
+      description: `Project ${target.projectId} (${target.title}) was permanently deleted.`,
+      category: "Technical Services",
+      type: "project_deleted",
+    });
+  }
+
+  // 2. Call backend DELETE endpoint
+  try {
+    const res = await fetch(`${BASE}/${projectId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: authHeaders(token),
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn("Deleted locally:", e);
+  }
+
+  return { success: true };
 };
 
 export const requestRevision = async (projectId: string, reason: string, token?: string) => {
@@ -331,7 +475,7 @@ export const requestRevision = async (projectId: string, reason: string, token?:
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/revision`, {
+    const res = await fetch(`${BASE}/${projectId}/request-revision`, {
       method: 'POST',
       credentials: 'include',
       headers: authHeaders(token),
@@ -343,157 +487,4 @@ export const requestRevision = async (projectId: string, reason: string, token?:
   }
 
   return { success: true, status: "revision" };
-};
-
-export const adminApproveProject = async (
-  projectId: string,
-  payload: {
-    adminBudget: number;
-    minBudget: number;
-    commissionPercent: number;
-    requirements?: string;
-    conditions?: string;
-    adminNotes?: string;
-  },
-  token?: string,
-) => {
-  // Update local
-  const local = readLocalProjects();
-  const updated = local.map((p) =>
-    p.projectId === projectId
-      ? {
-          ...p,
-          submissionStatus: "approved",
-          adminBudget: payload.adminBudget,
-          minBudget: payload.minBudget,
-          requirements: payload.requirements,
-          conditions: payload.conditions,
-        }
-      : p
-  );
-  writeLocalProjects(updated);
-
-  try {
-    const res = await fetch(`${BASE}/${projectId}/admin-approve`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Approved locally:", e);
-  }
-
-  return { success: true, status: "approved" };
-};
-
-export const adminRejectProject = async (projectId: string, reason: string, token?: string) => {
-  // Update local
-  const local = readLocalProjects();
-  const updated = local.map((p) =>
-    p.projectId === projectId ? { ...p, submissionStatus: "rejected", rejectReason: reason } : p
-  );
-  writeLocalProjects(updated);
-
-  try {
-    const res = await fetch(`${BASE}/${projectId}/admin-reject`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify({ reason }),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Rejected locally:", e);
-  }
-
-  return { success: true, status: "rejected" };
-};
-
-// ─── Wallet ──────────────────────────────────────────────────────────────────
-
-export const fetchWalletBalance = async (token?: string) => {
-  try {
-    const res = await fetch('/api/wallet/balance', {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (e) {
-    // fallback
-  }
-  return { balance: 5000 };
-};
-
-export const depositToWallet = async (amount: number, description?: string, token?: string) => {
-  const res = await fetch('/api/wallet/deposit', {
-    method: 'POST',
-    credentials: 'include',
-    headers: authHeaders(token),
-    body: JSON.stringify({ amount, description }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || 'Deposit failed');
-  return data;
-};
-
-export const fetchWalletTransactions = async (token?: string) => {
-  try {
-    const res = await fetch('/api/wallet/transactions', {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (e) {
-    // fallback
-  }
-  return { transactions: [] };
-};
-
-// ─── Real-Time Messages ──────────────────────────────────────────────────────
-
-export const fetchProjectMessages = async (projectId: string, token?: string) => {
-  try {
-    const res = await fetch(`${BASE}/${projectId}/messages`, {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (e) {
-    // fallback
-  }
-  return { messages: [] };
-};
-
-export const sendProjectMessage = async (
-  projectId: string,
-  content: string,
-  messageType: 'general' | 'update' | 'comment' | 'system' = 'general',
-  token?: string,
-) => {
-  try {
-    const res = await fetch(`${BASE}/${projectId}/messages`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify({ content, messageType }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (e) {
-    // fallback
-  }
-  return { success: true };
 };

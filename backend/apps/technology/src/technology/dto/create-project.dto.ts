@@ -42,12 +42,48 @@ export class CreateProjectDto {
   category?: string;
 
   @IsOptional()
+  @IsString()
+  subcategory?: string;
+
+  @IsOptional()
+  @IsString()
+  projectType?: string;
+
+  @IsOptional()
+  @IsString()
+  clientName?: string;
+
+  @IsOptional()
+  @IsString()
+  clientEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  clientPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentTerms?: string;
+
+  @IsOptional()
   @IsEnum(PaymentType)
   paymentType?: PaymentType;
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(5)
   @IsString({ each: true })
   skills?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  preferredLanguages?: string[];
+
+  @IsOptional()
+  attachmentFile?: {
+    name: string;
+    size?: number;
+    type?: string;
+    url: string;
+  };
 }

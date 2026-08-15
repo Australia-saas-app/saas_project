@@ -100,6 +100,12 @@ export class Project {
   clientName: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
+  clientEmail: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  clientPhone: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
   updatedBy: string;
 
   // Original budget submitted by client
@@ -146,6 +152,12 @@ export class Project {
 
   @Column({ type: 'simple-array', nullable: true })
   skills: string[];
+
+  @Column({ type: 'simple-array', nullable: true })
+  preferredLanguages: string[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  attachmentFile: { name: string; size?: number; type?: string; url: string };
 
   // Admin review fields
   @Column({ type: 'text', nullable: true })

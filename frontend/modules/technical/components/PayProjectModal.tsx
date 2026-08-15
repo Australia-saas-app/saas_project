@@ -48,7 +48,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
 
   useEffect(() => {
     fetchWalletBalance()
-      .then((d) => setBalance(d?.balance ?? null))
+      .then((d: { balance?: number }) => setBalance(d?.balance ?? null))
       .catch(() => setBalance(null))
       .finally(() => setLoadingBalance(false));
   }, []);
@@ -60,7 +60,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
     try {
       await payProject(project.projectId);
       setPaid(true);
-      toast.success("Payment successful! Your project is now funded & live.");
+      toast.success("Project is Published Publicly!");
       setTimeout(onSuccess, 1500);
     } catch (e: any) {
       toast.error(e.message || "Payment failed");

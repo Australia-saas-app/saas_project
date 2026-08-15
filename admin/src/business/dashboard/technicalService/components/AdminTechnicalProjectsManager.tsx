@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   X,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/src/core/store/hooks";
@@ -184,6 +185,41 @@ export default function AdminTechnicalProjectsManager() {
       } catch {}
     }
 
+    // Add User Notification & Activity Log
+    if (typeof window !== "undefined") {
+      try {
+        const notifItem = {
+          id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          title: "Technical Project Approved",
+          description: `"${reviewProject.title}" has been approved with quote $${b}. Please fund escrow to publish publicly.`,
+          time: "Just now",
+          read: false,
+          href: "/dashboard/user/technical",
+          type: "system",
+        };
+
+        ["app_notifs_user", "app_notifs_all"].forEach((k) => {
+          const existing = JSON.parse(localStorage.getItem(k) || "[]");
+          localStorage.setItem(k, JSON.stringify([notifItem, ...existing]));
+        });
+
+        const logKey = "platform_activity_logs";
+        const logs = JSON.parse(localStorage.getItem(logKey) || "[]");
+        const logItem = {
+          id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          timestamp: new Date().toISOString(),
+          title: `Technical Project Approved: "${reviewProject.title}"`,
+          description: `Admin approved quote of $${b} with ${commissionPercent}% commission.`,
+          category: "Technical Services",
+          type: "project_approved",
+        };
+        localStorage.setItem(logKey, JSON.stringify([logItem, ...logs]));
+
+        window.dispatchEvent(new Event("notifications_updated"));
+        window.dispatchEvent(new Event("activity_logs_updated"));
+      } catch {}
+    }
+
     try {
       const res = await fetch(`/admin/api/technology/projects/${reviewProject.projectId}/admin-approve`, {
         method: "POST",
@@ -295,6 +331,29 @@ export default function AdminTechnicalProjectsManager() {
       await loadProjects();
     } catch (err: any) {
       toast.error(err.message || "Failed to request revision");
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this project and all submitted data?")) return;
+    try {
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem("platform_user_technical_projects");
+        if (raw) {
+          const list: Project[] = JSON.parse(raw) || [];
+          const updated = list.filter((p) => p.projectId !== projectId && String(p.id) !== String(projectId));
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
+        }
+      }
+
+      await fetch(`/admin/api/technology/projects/${projectId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      toast.success("Project deleted successfully");
+      await loadProjects();
+    } catch {
+      toast.error("Failed to delete project");
     }
   };
 
@@ -461,10 +520,26 @@ export default function AdminTechnicalProjectsManager() {
                       <td className="px-4 py-3.5 text-gray-700">
                         {p.assignedBusinessName || "Unassigned"}
                       </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`inline-block rounded-md px-2.5 py-1 text-[10px] font-bold ${statusInfo.color}`}>
-                          {statusInfo.label}
-                        </span>
+                      <td className="px-4 py-3.5 space-y-1">
+                        <div>
+                          <span className={`inline-block rounded-md px-2.5 py-1 text-[10px] font-bold ${statusInfo.color}`}>
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                        {(p.paymentStatus === "paid" || p.submissionStatus === "active" || p.submissionStatus === "in_progress") && (
+                          <div>
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Payment Approved (Paid)
+                            </span>
+                          </div>
+                        )}
+                        {p.submissionStatus === "approved" && (
+                          <div>
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+                              <CreditCard className="h-3 w-3 text-amber-600" /> Awaiting Client Payment
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
@@ -502,9 +577,18 @@ export default function AdminTechnicalProjectsManager() {
 
                           <button
                             onClick={() => openReviewModal(p)}
-                            className="rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
+                            className="rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer"
                           >
                             Details
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Delete Project"
+                            onClick={() => handleDeleteProject(p.projectId)}
+                            className="rounded p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 border border-gray-200 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>

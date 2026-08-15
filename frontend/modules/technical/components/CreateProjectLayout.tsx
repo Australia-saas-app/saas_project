@@ -35,7 +35,6 @@ const projectSchema = z.object({
   projectType: z.string().min(1, "Please select a service type"),
   category: z.string().min(1, "Please select a category"),
   subcategory: z.string().optional(),
-  coverUrl: z.string().optional(),
   requiredSkills: z.array(z.string()).min(1, "Please select at least one required skill"),
   preferredLanguages: z.array(z.string()).min(1, "Please select at least one programming language"),
   expectedStartDate: z.string().optional(),
@@ -257,7 +256,6 @@ export default function CreateProjectLayout() {
       projectType: "New Build",
       category: "Software Development",
       subcategory: "Web Development",
-      coverUrl: "",
       requiredSkills: [],
       preferredLanguages: [],
       currency: "USD",
@@ -298,6 +296,33 @@ export default function CreateProjectLayout() {
   const onSubmit = async (data: ProjectForm) => {
     setSubmitting(true);
     try {
+      let attachmentData: any = null;
+      if (data.attachments && typeof data.attachments === "object" && data.attachments.name) {
+        try {
+          const toBase64 = (file: File) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(file);
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = (error) => reject(error);
+            });
+          const base64Url = await toBase64(data.attachments);
+          attachmentData = {
+            name: data.attachments.name,
+            size: data.attachments.size,
+            type: data.attachments.type,
+            url: base64Url,
+          };
+        } catch {
+          attachmentData = {
+            name: data.attachments.name,
+            size: data.attachments.size,
+            type: data.attachments.type,
+            url: URL.createObjectURL(data.attachments),
+          };
+        }
+      }
+
       const payload = {
         title: data.title,
         description: data.description || `${data.title} (${data.projectType})`,
@@ -308,9 +333,11 @@ export default function CreateProjectLayout() {
         projectType: data.projectType || "New Build",
         skills: data.requiredSkills || [],
         preferredLanguages: data.preferredLanguages || [],
+        paymentTerms: data.paymentTerms || "One-time",
         clientName: data.fullName || "User",
         clientEmail: data.email,
         clientPhone: data.phone,
+        attachmentFile: attachmentData,
         startDate: data.expectedStartDate ? new Date(data.expectedStartDate).toISOString() : undefined,
         endDate: data.expectedEndDate ? new Date(data.expectedEndDate).toISOString() : undefined,
       };
@@ -349,7 +376,11 @@ export default function CreateProjectLayout() {
     ["title"],
   ];
 
-  const next = async () => {
+  const next = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const fieldsToValidate = stepValidationFields[step];
     const isValid = await form.trigger(fieldsToValidate as any);
     if (!isValid) {
@@ -359,21 +390,27 @@ export default function CreateProjectLayout() {
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
-  const back = () => setStep((s) => Math.max(s - 1, 0));
+  const back = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setStep((s) => Math.max(s - 1, 0));
+  };
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
-      {/* Top Header matching Screenshot 2 */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
             <span>&lt;/&gt; TECHNICAL VERTICAL</span>
           </div>
           <h1 className="text-2xl font-extrabold text-foreground tracking-tight mt-1">
-            Post Technical Service
+            Submit Technical Project &amp; Service
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Create a high-impact technical service listing to offer to clients across the platform.
+            Specify your project requirements, scope, tech stack, and budget to get admin review and verified provider matching.
           </p>
         </div>
 
@@ -386,7 +423,7 @@ export default function CreateProjectLayout() {
         </Button>
       </div>
 
-      {/* Stepper Navigation Bar matching Screenshot 2 */}
+      {/* Stepper Navigation Bar with Blue Complete Tick */}
       <div className="rounded-2xl border border-border bg-card p-3 shadow-xs">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {STEPS.map((s) => {
@@ -413,7 +450,7 @@ export default function CreateProjectLayout() {
                     isActive
                       ? "bg-primary text-white shadow-xs"
                       : isCompleted
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-primary text-white shadow-xs"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -422,7 +459,7 @@ export default function CreateProjectLayout() {
                 <div className="min-w-0">
                   <p
                     className={`text-xs font-bold truncate ${
-                      isActive ? "text-primary" : "text-foreground"
+                      isActive || isCompleted ? "text-primary" : "text-foreground"
                     }`}
                   >
                     {s.label}
@@ -436,8 +473,8 @@ export default function CreateProjectLayout() {
 
       {/* Main Step Form Card */}
       <Card className="p-6 md:p-8 border border-border bg-card shadow-xs rounded-2xl">
-        <form onSubmit={handleSubmit(onSubmit)}>
-          {/* STEP 1: BASIC INFO (Screenshot 2) */}
+        <div>
+          {/* STEP 1: BASIC INFO */}
           {step === 0 && (
             <div className="space-y-5">
               <div className="flex items-center gap-2 border-b border-border pb-3">
@@ -511,7 +548,7 @@ export default function CreateProjectLayout() {
               {/* Short Service Summary (Max 50 chars) */}
               <div>
                 <div className="flex items-center justify-between">
-                  <Label>Short Service Summary * (Max 50 characters)</Label>
+                  <Label>Short Project / Service Summary * (Max 50 characters)</Label>
                   <span
                     className={`text-xs font-semibold ${
                       descriptionValue.length > 50
@@ -528,7 +565,7 @@ export default function CreateProjectLayout() {
                   {...register("description")}
                   maxLength={50}
                   rows={3}
-                  placeholder="Describe your technical service scope, codebase structure..."
+                  placeholder="Describe your project requirements, scope, architecture needs..."
                   className="w-full mt-1 p-3 border border-border rounded-xl bg-card text-foreground text-xs font-medium focus:border-primary focus:outline-none transition-colors resize-none"
                 />
                 {errors.description && (
@@ -869,7 +906,8 @@ export default function CreateProjectLayout() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit(onSubmit)}
                   disabled={submitting}
                   className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl px-8 text-xs cursor-pointer shadow-xs"
                 >
@@ -884,7 +922,7 @@ export default function CreateProjectLayout() {
               )}
             </div>
           </div>
-        </form>
+        </div>
       </Card>
     </div>
   );

@@ -84,8 +84,12 @@ export class ProjectService {
       projectType: (createDto as any).projectType,
       paymentType: createDto.paymentType,
       skills: createDto.skills,
+      preferredLanguages: createDto.preferredLanguages,
+      clientEmail: createDto.clientEmail,
+      clientPhone: createDto.clientPhone,
+      attachmentFile: createDto.attachmentFile,
       clientId: createdBy,
-      clientName: (createDto as any).clientName || createdBy,
+      clientName: createDto.clientName || createdBy,
       createdBy,
       updatedBy: createdBy,
     });

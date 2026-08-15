@@ -9,11 +9,9 @@ import {
   XCircle,
   AlertTriangle,
   CreditCard,
-  Eye,
   RotateCcw,
   Loader2,
   FolderOpen,
-  Plus,
   MessageSquare,
   Download,
   FileArchive,
@@ -21,19 +19,27 @@ import {
   FileCode,
   ExternalLink,
   Search,
-  Grid3x3,
-  List,
+  Trash2,
+  Eye,
+  X,
+  Tag,
+  Code2,
+  Phone,
+  Mail,
+  User,
+  Paperclip,
   Briefcase,
-  Layers,
-  ArrowUpDown,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
 import {
   fetchMyProjects,
+  readLocalProjects,
   reviewAcceptProject,
   requestRevision,
   submitProject,
+  deleteProject,
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
@@ -61,14 +67,14 @@ const STATUS_CONFIG: Record<
     icon: <FolderOpen className="h-3.5 w-3.5" />,
   },
   submitted: {
-    label: "Submitted (Pending Review)",
-    color: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800",
-    icon: <Clock className="h-3.5 w-3.5" />,
+    label: "Under Admin Review",
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/60",
+    icon: <Clock className="h-3.5 w-3.5 text-amber-500" />,
   },
   admin_review: {
     label: "Under Admin Review",
-    color: "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-400 dark:border-purple-800",
-    icon: <Eye className="h-3.5 w-3.5" />,
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/60",
+    icon: <Clock className="h-3.5 w-3.5 text-amber-500" />,
   },
   approved: {
     label: "Approved — Pay Now",
@@ -93,7 +99,7 @@ const STATUS_CONFIG: Record<
   completed: {
     label: "Completed — Ready to Review",
     color: "bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-800",
-    icon: <Eye className="h-3.5 w-3.5" />,
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
   },
   revision: {
     label: "Revision Requested",
@@ -124,7 +130,16 @@ interface Project {
   currency?: string;
   category?: string;
   subcategory?: string;
+  projectType?: string;
   skills?: string[];
+  preferredLanguages?: string[];
+  paymentTerms?: string;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  startDate?: string;
+  endDate?: string;
+  attachmentFile?: { name: string; size?: number; type?: string; url: string };
   coverUrl?: string;
   assignedBusinessName?: string;
   completionNotes?: string;
@@ -144,9 +159,9 @@ export default function UserProjectsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "budget_high" | "budget_low">("newest");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // Modals
+  const [viewProject, setViewProject] = useState<Project | null>(null);
   const [payProject, setPayProject] = useState<Project | null>(null);
   const [chatProject, setChatProject] = useState<Project | null>(null);
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
@@ -155,9 +170,16 @@ export default function UserProjectsPage() {
   const loadProjects = useCallback(async () => {
     try {
       const data = await fetchMyProjects();
-      setProjects(data?.projects || []);
+      const list = data?.projects || [];
+      const local = readLocalProjects();
+      const map = new Map<string, Project>();
+      [...list, ...local].forEach((p) => {
+        if (p?.projectId) map.set(p.projectId, p);
+      });
+      setProjects(Array.from(map.values()));
     } catch (err) {
       console.warn("Could not fetch remote projects, using local store:", err);
+      setProjects(readLocalProjects());
     } finally {
       setLoading(false);
     }
@@ -165,6 +187,12 @@ export default function UserProjectsPage() {
 
   useEffect(() => {
     loadProjects();
+    window.addEventListener("storage", loadProjects);
+    window.addEventListener("focus", loadProjects);
+    return () => {
+      window.removeEventListener("storage", loadProjects);
+      window.removeEventListener("focus", loadProjects);
+    };
   }, [loadProjects]);
 
   const handleSubmit = async (project: Project) => {
@@ -207,6 +235,20 @@ export default function UserProjectsPage() {
       await loadProjects();
     } catch (e: any) {
       toast.error(e.message || "Failed to request revision");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async (projectId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this project and all its submitted data?")) return;
+    setActionLoading(projectId);
+    try {
+      await deleteProject(projectId);
+      toast.success("Project deleted successfully");
+      await loadProjects();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete project");
     } finally {
       setActionLoading(null);
     }
@@ -293,9 +335,11 @@ export default function UserProjectsPage() {
       {/* Top Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Services</h1>
+          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
+            Technical Projects &amp; Services
+          </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Manage your service categories, client jobs, and delivery status.
+            Submit project requests, track quote approvals, manage escrow payments, and review deliverables.
           </p>
         </div>
 
@@ -304,12 +348,12 @@ export default function UserProjectsPage() {
           className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2.5 rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
         >
           <Link href="/dashboard/user/technical/create">
-            <Plus className="mr-1.5 h-4 w-4" /> + New Service
+            + New Service
           </Link>
         </Button>
       </div>
 
-      {/* Top 4 Stat Metric Cards (Matching Screenshot 1) */}
+      {/* Top 4 Stat Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
           <p className="text-xs font-semibold text-muted-foreground">Active Services</p>
@@ -334,7 +378,7 @@ export default function UserProjectsPage() {
         </div>
       </div>
 
-      {/* Filter and Control Bar (Matching Screenshot 1) */}
+      {/* Filter and Control Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-xs">
         {/* Status Filter Buttons */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
@@ -362,7 +406,7 @@ export default function UserProjectsPage() {
           })}
         </div>
 
-        {/* Right Search, Category Select, Sort & Layout Switcher */}
+        {/* Right Search, Category Select & Sort */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Category Dropdown */}
           <select
@@ -379,7 +423,7 @@ export default function UserProjectsPage() {
           </select>
 
           {/* Search Bar */}
-          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+          <div className="relative min-w-[220px] flex-1 sm:flex-initial">
             <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
@@ -401,38 +445,10 @@ export default function UserProjectsPage() {
             <option value="budget_high">Budget: High to Low</option>
             <option value="budget_low">Budget: Low to High</option>
           </select>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center rounded-xl border border-border bg-card p-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === "grid"
-                  ? "bg-primary text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="Grid View"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === "list"
-                  ? "bg-primary text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="List View"
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Main Content: Card Grid / List Design */}
+      {/* Main Content: Card Grid Design */}
       {loading ? (
         <div className="flex min-h-[300px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -452,21 +468,15 @@ export default function UserProjectsPage() {
           </div>
           <Button
             asChild
-            className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-xs"
+            className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-xs cursor-pointer"
           >
             <Link href="/dashboard/user/technical/create">
-              <Plus className="mr-1 h-3.5 w-3.5" /> + New Service
+              + New Service
             </Link>
           </Button>
         </div>
       ) : (
-        <div
-          className={
-            viewMode === "grid"
-              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-              : "space-y-3"
-          }
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => {
             const statusCfg = STATUS_CONFIG[project.submissionStatus] ?? STATUS_CONFIG.draft;
             const budget = project.adminBudget || project.price || 0;
@@ -478,7 +488,7 @@ export default function UserProjectsPage() {
                 className="group rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between"
               >
                 <div>
-                  {/* Status Badge & Category */}
+                  {/* Status Badge & Category & View / Delete Actions */}
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border ${statusCfg.color}`}
@@ -487,15 +497,51 @@ export default function UserProjectsPage() {
                       {statusCfg.label}
                     </span>
 
-                    {project.category && (
-                      <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground truncate">
-                        {project.category}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {project.category && (
+                        <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground truncate max-w-[120px]">
+                          {project.category}
+                        </span>
+                      )}
+
+                      {/* View Project Details Button */}
+                      <button
+                        type="button"
+                        title="View Project Details"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewProject(project);
+                        }}
+                        className="p-1 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+
+                      {/* Delete Trash Icon */}
+                      <button
+                        type="button"
+                        title="Delete Project"
+                        disabled={isActioning}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(project.projectId);
+                        }}
+                        className="p-1 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isActioning ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Title & Description */}
-                  <h3 className="text-base font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                  <h3
+                    onClick={() => setViewProject(project)}
+                    className="text-base font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors cursor-pointer"
+                  >
                     {project.title}
                   </h3>
                   <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
@@ -543,6 +589,26 @@ export default function UserProjectsPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Attachment indicator if user uploaded a file */}
+                  {project.attachmentFile && (
+                    <div className="mt-3 flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/60 text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="truncate text-[11px] font-medium text-foreground">
+                          {project.attachmentFile.name}
+                        </span>
+                      </div>
+                      <a
+                        href={project.attachmentFile.url}
+                        download={project.attachmentFile.name}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] font-bold text-primary hover:underline ml-2 shrink-0 flex items-center gap-0.5"
+                      >
+                        <Download className="h-3 w-3" /> Download
+                      </a>
+                    </div>
+                  )}
 
                   {/* Deliverables Section if uploaded by Business */}
                   {((project.deliverableFiles && project.deliverableFiles.length > 0) ||
@@ -647,6 +713,183 @@ export default function UserProjectsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* VIEW PROJECT DETAILS MODAL */}
+      {viewProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-border pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-primary font-bold">{viewProject.projectId}</span>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                      (STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).color
+                    }`}
+                  >
+                    {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).icon}
+                    {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).label}
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mt-1">{viewProject.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Category: <strong className="text-foreground">{viewProject.category}</strong>
+                  {viewProject.subcategory && ` • ${viewProject.subcategory}`}
+                  {viewProject.projectType && ` • ${viewProject.projectType}`}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewProject(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scope Summary & Description */}
+            <div className="rounded-xl bg-muted/40 p-4 border border-border space-y-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Project Scope &amp; Summary
+              </p>
+              <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                {viewProject.description || "No description provided."}
+              </p>
+            </div>
+
+            {/* Tech Stack, Languages & Skills */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Required Tech Stack &amp; Skills
+              </p>
+
+              {viewProject.preferredLanguages && viewProject.preferredLanguages.length > 0 && (
+                <div>
+                  <span className="text-[11px] text-muted-foreground font-medium mr-2">Languages:</span>
+                  <div className="inline-flex flex-wrap gap-1.5 mt-1">
+                    {viewProject.preferredLanguages.map((l) => (
+                      <span
+                        key={l}
+                        className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-500"
+                      >
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {viewProject.skills && viewProject.skills.length > 0 && (
+                <div>
+                  <span className="text-[11px] text-muted-foreground font-medium mr-2">Skills &amp; Frameworks:</span>
+                  <div className="inline-flex flex-wrap gap-1.5 mt-1">
+                    {viewProject.skills.map((s) => (
+                      <span
+                        key={s}
+                        className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Budget, Milestones & Timeline Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-border bg-card text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Target Budget</span>
+                <span className="text-sm font-extrabold text-primary">
+                  {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Terms</span>
+                <span className="font-semibold text-foreground">{viewProject.paymentTerms || "One-time"}</span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
+                <span className="font-semibold text-foreground">
+                  {viewProject.startDate ? new Date(viewProject.startDate).toLocaleDateString() : "Flexible"}
+                  {viewProject.endDate ? ` → ${new Date(viewProject.endDate).toLocaleDateString()}` : ""}
+                </span>
+              </div>
+            </div>
+
+            {/* Client Contact Info */}
+            <div className="rounded-xl border border-border p-4 space-y-2 text-xs">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Client Contact Information
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="flex items-center gap-1.5 text-foreground">
+                  <User className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="truncate">{viewProject.clientName || "User"}</span>
+                </div>
+                {viewProject.clientEmail && (
+                  <div className="flex items-center gap-1.5 text-foreground">
+                    <Mail className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="truncate">{viewProject.clientEmail}</span>
+                  </div>
+                )}
+                {viewProject.clientPhone && (
+                  <div className="flex items-center gap-1.5 text-foreground">
+                    <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>{viewProject.clientPhone}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Submitted File Attachments */}
+            {viewProject.attachmentFile && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Attached Scope &amp; Requirements File
+                </p>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card shadow-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FileText className="h-5 w-5 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-foreground truncate">{viewProject.attachmentFile.name}</p>
+                      {viewProject.attachmentFile.size && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {(viewProject.attachmentFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={viewProject.attachmentFile.url}
+                    download={viewProject.attachmentFile.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-3.5 py-1.5 rounded-lg shadow-xs hover:bg-primary/90 transition-all shrink-0 ml-3"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download File
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                onClick={() => setViewProject(null)}
+                className="rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
