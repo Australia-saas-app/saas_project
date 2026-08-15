@@ -32,9 +32,13 @@ async function bootstrap() {
 
   app.useLogger(app.get(Logger));
   app.useGlobalInterceptors(new LoggerErrorInterceptor());
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const cookieParser = require('cookie-parser');
-  app.use(cookieParser());
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const cookieParser = require('cookie-parser');
+    app.use(cookieParser());
+  } catch (e) {
+    console.warn('cookie-parser not loaded:', e);
+  }
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'same-origin' },
