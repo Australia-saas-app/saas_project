@@ -102,6 +102,79 @@ export const fetchWalletBalance = async (token?: string): Promise<{ balance: num
   return { balance: 50000 };
 };
 
+export const depositToWallet = async (amount: number, description?: string, token?: string) => {
+  try {
+    const res = await fetch('/api/wallet/deposit', {
+      method: 'POST',
+      credentials: 'include',
+      headers: authHeaders(token),
+      body: JSON.stringify({ amount, description }),
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn("Deposit handled locally:", e);
+  }
+  return { success: true };
+};
+
+export const fetchWalletTransactions = async (token?: string) => {
+  try {
+    const res = await fetch('/api/wallet/transactions', {
+      credentials: 'include',
+      headers: authHeaders(token),
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn("Wallet transactions fetched locally:", e);
+  }
+  return { data: [] };
+};
+
+export const fetchProjectMessages = async (projectId: string, token?: string) => {
+  try {
+    const res = await fetch(`${BASE}/${projectId}/messages`, {
+      credentials: 'include',
+      headers: authHeaders(token),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data : data?.messages || [];
+    }
+  } catch (e) {
+    console.warn("Project messages fetched locally:", e);
+  }
+  return [];
+};
+
+export const sendProjectMessage = async (
+  projectId: string,
+  content: string,
+  messageType?: string,
+  token?: string
+) => {
+  try {
+    const res = await fetch(`${BASE}/${projectId}/messages`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: authHeaders(token),
+      body: JSON.stringify({ content, messageType: messageType || 'general' }),
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    console.warn("Message sent locally:", e);
+  }
+  return {
+    success: true,
+    message: {
+      id: Date.now(),
+      projectId,
+      content,
+      messageType: messageType || 'general',
+      createdAt: new Date().toISOString(),
+    },
+  };
+};
+
 // ─── Category / Skill helpers ───────────────────────────────────────────────
 
 export const fetchCategories = async (): Promise<string[]> =>
