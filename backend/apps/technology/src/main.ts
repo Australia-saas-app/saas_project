@@ -30,8 +30,11 @@ async function bootstrap() {
     exposedHeaders: ['Authorization'],
   });
 
-  app.useLogger(app.get(Logger));
-  app.useGlobalInterceptors(new LoggerErrorInterceptor());
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { json, urlencoded } = require('express');
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const cookieParser = require('cookie-parser');

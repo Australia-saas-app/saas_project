@@ -7,10 +7,16 @@ function isAdminAppHost(): boolean {
 
 export function getAdminAppUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_ADMIN_URL;
-  if (fromEnv) return trimTrailingSlash(fromEnv);
+  if (fromEnv && !fromEnv.includes("localhost")) return trimTrailingSlash(fromEnv);
 
-  if (typeof window !== "undefined" && isAdminAppHost()) {
-    return window.location.origin;
+  if (typeof window !== "undefined") {
+    if (isAdminAppHost()) {
+      return window.location.origin;
+    }
+    const proto = window.location.protocol;
+    const host = window.location.hostname;
+    const port = window.location.port === "8080" ? "8001" : "3001";
+    return `${proto}//${host}:${port}`;
   }
 
   return "http://localhost:3001";

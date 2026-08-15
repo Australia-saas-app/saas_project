@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const adminAppUrl = (process.env.NEXT_PUBLIC_ADMIN_URL ?? "http://localhost:3001").replace(
-  /\/$/,
-  ""
-);
+const adminAppUrl = (process.env.NEXT_PUBLIC_ADMIN_URL ?? "").replace(/\/$/, "");
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -121,6 +118,31 @@ const nextConfig: NextConfig = {
   },
 
   async redirects() {
+    const adminRedirects = adminAppUrl
+      ? [
+          {
+            source: "/admin",
+            destination: `${adminAppUrl}/admin/dashboard`,
+            permanent: false,
+          },
+          {
+            source: "/admin/:path*",
+            destination: `${adminAppUrl}/admin/:path*`,
+            permanent: false,
+          },
+          {
+            source: "/account/admin/login",
+            destination: `${adminAppUrl}/account/admin/login`,
+            permanent: false,
+          },
+          {
+            source: "/account/admin/login/:path*",
+            destination: `${adminAppUrl}/account/admin/login/:path*`,
+            permanent: false,
+          },
+        ]
+      : [];
+
     return [
       {
         source: "/dashboard/affiliate",
@@ -152,26 +174,7 @@ const nextConfig: NextConfig = {
         destination: "/business/:path*",
         permanent: true,
       },
-      {
-        source: "/admin",
-        destination: `${adminAppUrl}/admin/dashboard`,
-        permanent: false,
-      },
-      {
-        source: "/admin/:path*",
-        destination: `${adminAppUrl}/admin/:path*`,
-        permanent: false,
-      },
-      {
-        source: "/account/admin/login",
-        destination: `${adminAppUrl}/account/admin/login`,
-        permanent: false,
-      },
-      {
-        source: "/account/admin/login/:path*",
-        destination: `${adminAppUrl}/account/admin/login/:path*`,
-        permanent: false,
-      },
+      ...adminRedirects,
     ];
   },
 
