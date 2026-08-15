@@ -11,8 +11,7 @@ COPY tsconfig*.json ./
 COPY nest-cli.json ./
 
 # Install dependencies
-# Using npm ci for faster, reliable, reproducible builds (requires package-lock.json)
-RUN npm ci && npm cache clean --force
+RUN (npm ci || npm install) && npm cache clean --force
 
 # Copy source code
 COPY src ./src
@@ -40,7 +39,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
 # Remove dev dependencies to reduce image size
-RUN npm prune --production && npm cache clean --force
+RUN (npm prune --production || true) && npm cache clean --force
 
 # Change ownership of app directory
 RUN chown -R nestjs:nodejs /app
