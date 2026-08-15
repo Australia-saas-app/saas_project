@@ -915,6 +915,10 @@ export class AuthService {
         twoFactorEnabled: user.twoFactorEnabled,
         twoFactorMethod: user.twoFactorMethod,
         createdAt: user.createdAt,
+        businessName: user.businessName,
+        businessType: user.businessType,
+        percentageRate: user.percentageRate,
+        businessInfo: user.businessInfo,
       },
     };
   }

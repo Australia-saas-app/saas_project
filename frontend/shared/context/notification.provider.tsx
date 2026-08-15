@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import type { NotificationItem } from "@/src/constants/notifications";
 import { useUser } from "@/src/context/user.provider";
 import { io, Socket } from "socket.io-client";
+import axiosInstance from "@/src/lib/axiosInstance";
 
 interface INotificationContext {
   notifications: NotificationItem[];
@@ -26,8 +27,6 @@ interface INotificationContext {
 }
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
-
-const notifApiBase = "/api/notifications";
 
 const getWsUrl = (): string => {
   if (typeof window === "undefined") return "http://localhost:8000";
@@ -74,12 +73,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
-    fetch(notifApiBase, { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
+    axiosInstance.get("/notifications", { timeout: 8000 })
       .then((res) => {
-        if (!res) return;
-        if (mounted && res.success && Array.isArray(res.data?.notifications)) {
-          const mapped = res.data.notifications.map((n: any) => ({
+        if (!mounted || !res.data) return;
+        const resData = res.data;
+        if (resData.success && Array.isArray(resData.data?.notifications)) {
+          const mapped = resData.data.notifications.map((n: any) => ({
             id: n.id,
             title: n.title,
             message: n.message,
@@ -184,20 +183,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!userId || typeof window === "undefined") return;
 
     const wsUrl = getWsUrl();
+    let hasLoggedError = false;
+
     const socket: Socket = io(`${wsUrl}/notifications`, {
       transports: ["websocket", "polling"],
       query: { userId, role: role || "user" },
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 5000,
+      reconnectionDelayMax: 15000,
+      timeout: 6000,
     });
 
     socket.on("connect", () => {
-      console.log("[Notifications] Connected:", wsUrl);
+      hasLoggedError = false;
     });
 
-    socket.on("connect_error", (err) => {
-      console.warn("[Notifications] Connect error:", err.message);
+    socket.on("connect_error", (_err) => {
+      if (!hasLoggedError) {
+        hasLoggedError = true;
+      }
     });
 
     socket.on("new_notification", (payload: any) => {
@@ -225,7 +230,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
         return next;
       });
-      fetch(`${notifApiBase}/${id}/read`, { method: "PUT", credentials: "include" }).catch(() => {});
+      axiosInstance.put(`/notifications/${id}/read`).catch(() => {});
     },
     [userId]
   );
@@ -240,7 +245,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-    fetch(`${notifApiBase}/read-all`, { method: "PUT", credentials: "include" }).catch(() => {});
+    axiosInstance.put("/notifications/read-all").catch(() => {});
   }, [userId]);
 
   const deleteNotification = useCallback(
@@ -254,7 +259,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
         return next;
       });
-      fetch(`${notifApiBase}/${id}`, { method: "DELETE", credentials: "include" }).catch(() => {});
+      axiosInstance.delete(`/notifications/${id}`).catch(() => {});
     },
     [userId]
   );
@@ -266,7 +271,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(`app_notifs_${userId}`);
       } catch {}
     }
-    fetch(`${notifApiBase}/all`, { method: "DELETE", credentials: "include" }).catch(() => {});
+    axiosInstance.delete("/notifications/all").catch(() => {});
   }, [userId]);
 
   const value = useMemo<INotificationContext>(

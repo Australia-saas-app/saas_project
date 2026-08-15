@@ -32,9 +32,9 @@ import { ALL_COUNTRIES, ALL_NATIONALITIES } from "@/src/shared/constants/countri
 import { recordRealActivity, getLogsForUser, LOG_ADDED_EVENT } from "@/src/shared/lib/real-activity-logger"
 
 const inputClass =
-  "w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-[#0B132B] px-3.5 py-2.5 text-sm text-gray-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-950/50"
-const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600 dark:text-slate-300"
-const cardClass = "rounded-2xl border border-gray-100 dark:border-slate-800/80 bg-white dark:bg-[#0F172A] p-5 shadow-sm md:p-6"
+  "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+const labelClass = "mb-1.5 block text-xs font-semibold text-gray-600"
+const cardClass = "rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6"
 const outlineBtn =
   "inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600"
 const primaryBtn =
@@ -108,22 +108,18 @@ export default function ProfilePageLayout() {
     e.target.value = "";
   };
 
-  const [username, setUsername] = useState(hookUsername || (isDemo ? "johndoe_business" : ""))
+  const [username, setUsername] = useState(hookUsername || "")
   const [gender, setGender] = useState(hookGender || "Select")
   const [nationality, setNationality] = useState(hookNationality || "")
-  const [dob, setDob] = useState(dateOfBirth || (isDemo ? "1990-05-15" : ""))
-  const [bio, setBio] = useState(
-    hookBio || (isDemo ? "Business partner and digital entrepreneur." : "")
-  )
-  const [telegram, setTelegram] = useState(isDemo ? "@johndoe" : "")
-  const [whatsapp, setWhatsapp] = useState(isDemo ? "+880 1234-567890" : "")
-  const [country, setCountry] = useState(permanentAddress?.country || (isDemo ? "Bangladesh" : ""))
-  const [state, setState] = useState(permanentAddress?.state || (isDemo ? "Dhaka" : ""))
-  const [city, setCity] = useState(permanentAddress?.city || (isDemo ? "Dhaka" : ""))
-  const [zip, setZip] = useState(permanentAddress?.zipCode || (isDemo ? "1205" : ""))
-  const [address, setAddress] = useState(
-    permanentAddress?.address || (isDemo ? "House-123, Road-5, Dhanmondi, Dhaka-1205, Bangladesh" : "")
-  )
+  const [dob, setDob] = useState(dateOfBirth || "")
+  const [bio, setBio] = useState(hookBio || "")
+  const [telegram, setTelegram] = useState("")
+  const [whatsapp, setWhatsapp] = useState("")
+  const [country, setCountry] = useState(permanentAddress?.country || "")
+  const [state, setState] = useState(permanentAddress?.state || "")
+  const [city, setCity] = useState(permanentAddress?.city || "")
+  const [zip, setZip] = useState(permanentAddress?.zipCode || "")
+  const [address, setAddress] = useState(permanentAddress?.address || "")
   const [language, setLanguage] = useState("English")
   const [currency, setCurrency] = useState(hookCurrency || "USD - US Dollar")
   const [timezone, setTimezone] = useState("(UTC+06:00) Dhaka, Bangladesh")
@@ -621,24 +617,22 @@ export default function ProfilePageLayout() {
               <div className="relative w-28 h-28 self-start md:ml-4">
                 {(() => {
                   const isPhotoDone = Boolean(
-                    hasCustomAvatar ||
-                    (user as any)?.avatarUrl ||
                     (user as any)?.profilePhoto ||
-                    (avatarUrl && !avatarUrl.includes("ui-avatars.com")) ||
-                    getProfileOverrides(rawUserId).avatarUrl
+                    (user as any)?.avatarUrl ||
+                    (hasCustomAvatar && avatarUrl && !avatarUrl.includes("ui-avatars.com"))
                   );
                   const isPersonalDone = Boolean(
-                    (dateOfBirth || (user as any)?.dateOfBirth || getProfileOverrides(rawUserId).dateOfBirth) &&
-                    (hookNationality || (user as any)?.nationality || getProfileOverrides(rawUserId).nationality) &&
-                    (hookGender || (user as any)?.gender || getProfileOverrides(rawUserId).gender) &&
-                    (hookGender || (user as any)?.gender || getProfileOverrides(rawUserId).gender) !== "Select" &&
-                    (hookGender || (user as any)?.gender || getProfileOverrides(rawUserId).gender) !== ""
+                    (dateOfBirth || (user as any)?.dateOfBirth) &&
+                    (hookNationality || (user as any)?.nationality) &&
+                    (hookGender || (user as any)?.gender) &&
+                    (hookGender || (user as any)?.gender) !== "Select" &&
+                    (hookGender || (user as any)?.gender) !== ""
                   );
                   const isAddressDone = Boolean(
-                    (permanentAddress?.country || (user as any)?.permanentAddress?.country || (getProfileOverrides(rawUserId).permanentAddress as any)?.country) &&
-                    (permanentAddress?.city || (user as any)?.permanentAddress?.city || (getProfileOverrides(rawUserId).permanentAddress as any)?.city) &&
-                    (permanentAddress?.state || (user as any)?.permanentAddress?.state || (getProfileOverrides(rawUserId).permanentAddress as any)?.state) &&
-                    (permanentAddress?.address || (user as any)?.permanentAddress?.address || (getProfileOverrides(rawUserId).permanentAddress as any)?.address)
+                    (permanentAddress?.country || (user as any)?.permanentAddress?.country) &&
+                    (permanentAddress?.city || (user as any)?.permanentAddress?.city) &&
+                    (permanentAddress?.state || (user as any)?.permanentAddress?.state) &&
+                    (permanentAddress?.address || (user as any)?.permanentAddress?.address)
                   );
                   const isBusinessDone = Boolean(
                     (businessName || (user as any)?.businessName) &&
@@ -654,9 +648,9 @@ export default function ProfilePageLayout() {
                     (user as any)?.businessType !== ""
                   );
                   const isIdentityDone = Boolean(
-                    (nationalIdentity || (user as any)?.governmentId || getProfileOverrides(rawUserId).nationalIdentity) &&
-                    (documentFrontUrl || (user as any)?.idDocument || getProfileOverrides(rawUserId).documentUrl) &&
-                    (governmentIdType || (user as any)?.governmentIdType || (getProfileOverrides(rawUserId) as any).governmentIdType)
+                    (nationalIdentity || (user as any)?.governmentId) &&
+                    (documentFrontUrl || (user as any)?.idDocument) &&
+                    (governmentIdType || (user as any)?.governmentIdType)
                   );
 
                   const completedCount = [isPhotoDone, isPersonalDone, isAddressDone, isBusinessDone, isIdentityDone].filter(Boolean).length;
@@ -1008,7 +1002,7 @@ export default function ProfilePageLayout() {
                       </label>
                       <input
                         type="text"
-                        className={`${inputClass} bg-gray-50 dark:bg-slate-800/60 text-gray-700 dark:text-slate-300 cursor-not-allowed`}
+                        className={`${inputClass} bg-gray-50 text-gray-700 cursor-not-allowed`}
                         value="20% (Platform Rate)"
                         readOnly
                         disabled
@@ -1016,17 +1010,17 @@ export default function ProfilePageLayout() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/30 p-3.5 text-xs space-y-1">
-                    <p className="font-semibold flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                      <Shield className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" /> Platform Business Tier
+                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5 text-blue-600">
+                      <Shield className="h-3.5 w-3.5 shrink-0 text-blue-600" /> Platform Business Tier
                     </p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11.5px] leading-relaxed">
+                    <p className="text-gray-600 text-[11.5px] leading-relaxed">
                       Standard 20% platform commission rate applies upon business name and industry type verification.
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-100 dark:border-slate-800/80 flex justify-end">
+                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
                   <button
                     type="button"
                     className={`${primaryBtn} flex items-center justify-center gap-2`}
@@ -1048,9 +1042,9 @@ export default function ProfilePageLayout() {
               <section id="identity" className={`${cardClass} flex flex-col justify-between h-full`}>
                 <div>
                   <div className="mb-4 flex items-center justify-between gap-2">
-                    <h2 className="text-base font-bold text-gray-900 dark:text-white">Identity Verification</h2>
+                    <h2 className="text-base font-bold text-gray-900">Identity Verification</h2>
                     {isKycVerified ? <VerifiedBadge /> : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-semibold text-gray-600 dark:text-slate-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 border border-gray-200 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
                         <Shield className="h-3.5 w-3.5" /> Unverified
                       </span>
                     )}
@@ -1085,13 +1079,13 @@ export default function ProfilePageLayout() {
                     ].map((f) => (
                       <li
                         key={f.name}
-                        className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50/80 px-3 py-2 cursor-pointer hover:bg-slate-100 transition"
                         onClick={(e) => {
                           if ((e.target as HTMLElement).closest('button')) return;
                           f.ref.current?.click();
                         }}
                       >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-xs font-bold text-indigo-600 dark:text-indigo-400 overflow-hidden">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-600 overflow-hidden">
                           {f.doc ? (
                             <img src={f.doc} alt={f.name} className="h-full w-full object-cover" />
                           ) : (
@@ -1099,8 +1093,8 @@ export default function ProfilePageLayout() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{f.name}</p>
-                          <p className="truncate text-[11px] text-gray-400 dark:text-slate-400">
+                          <p className="truncate text-sm font-semibold text-gray-900">{f.name}</p>
+                          <p className="truncate text-[11px] text-gray-400">
                             {f.doc ? (f.doc === f.dbUrl ? `${f.fileName ? f.fileName + " " : ""}Uploaded ${joiningDate || "on file"}` : `${f.fileName ? f.fileName + " " : ""}Ready to Update`) : "Click to select a JPG/PNG file"}
                           </p>
                         </div>
@@ -1108,7 +1102,7 @@ export default function ProfilePageLayout() {
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition"
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                               onClick={() => {
                                 setPreviewDoc({ url: f.doc, name: f.fileName, title: f.name });
                                 setPreviewModalOpen(true);
@@ -1118,7 +1112,7 @@ export default function ProfilePageLayout() {
                             </button>
                             <button
                               type="button"
-                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                               onClick={() => handleDeleteDoc(f.side)}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1130,7 +1124,7 @@ export default function ProfilePageLayout() {
                   </ul>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-100 dark:border-slate-800/80 flex justify-end">
+                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
                   <button
                     type="button"
                     className={`${primaryBtn} flex items-center justify-center gap-2`}

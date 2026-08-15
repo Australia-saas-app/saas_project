@@ -165,21 +165,27 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!userId || typeof window === "undefined") return;
     
     const wsUrl = getWsUrl();
+    let hasLoggedError = false;
+
     const socket: Socket = io(`${wsUrl}/notifications`, {
       transports: ["websocket", "polling"],
       query: { userId, role },
       auth: token ? { token } : {},
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 5000,
+      reconnectionDelayMax: 15000,
+      timeout: 6000,
     });
 
     socket.on("connect", () => {
-      console.log("[Admin Notifications] Connected:", wsUrl);
+      hasLoggedError = false;
     });
 
-    socket.on("connect_error", (err) => {
-      console.warn("[Admin Notifications] Connect error:", err.message);
+    socket.on("connect_error", (_err) => {
+      if (!hasLoggedError) {
+        hasLoggedError = true;
+      }
     });
 
     socket.on("new_notification", (payload: any) => {

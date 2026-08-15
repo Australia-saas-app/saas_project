@@ -1,7 +1,6 @@
 "use client";
 
-
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import * as React from "react";
 
 
@@ -45,6 +44,31 @@ export interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const unsubscribe = (toast as any).subscribe((toastItem: any) => {
+        if (
+          toastItem &&
+          toastItem.id &&
+          !toastItem.dismiss &&
+          toastItem.type !== "loading" &&
+          toastItem.duration !== Infinity
+        ) {
+          const duration = Number(toastItem.duration || 5000);
+          setTimeout(() => {
+            try {
+              toast.dismiss(toastItem.id);
+            } catch {}
+          }, duration);
+        }
+      });
+      return () => {
+        if (typeof unsubscribe === "function") unsubscribe();
+      };
+    } catch {}
+  }, []);
+
   return (
     <Provider store={store}>
       <HydrationWrapper>

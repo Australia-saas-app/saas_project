@@ -35,6 +35,7 @@ import {
   YAxis,
 } from "recharts"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
+import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import {
   ACCOUNT_SUMMARY,
   AFFILIAPRO_KPI,
@@ -100,15 +101,31 @@ function statusBadge(status: string) {
   return "bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10"
 }
 
+function getAvatarPrefix(name: string): string {
+  if (!name) return "B";
+  const trimmed = name.trim();
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  if (trimmed.length >= 2) {
+    return trimmed.substring(0, 2).toUpperCase();
+  }
+  return trimmed.toUpperCase() || "B";
+}
+
 export default function BusinessDashboardLayout() {
   const { demoOrEmpty } = useIsDemoAccount()
+  const { fullName, avatarUrl, hasCustomAvatar, initials, joiningDate, status, user } = useProfileDisplay()
+  const account = demoOrEmpty(ACCOUNT_SUMMARY, EMPTY_ACCOUNT_SUMMARY)
+  const displayName = fullName || (user as any)?.businessName || (user as any)?.name || account.name || "Business Account"
+
   const kpis = demoOrEmpty(AFFILIAPRO_KPI, EMPTY_AFFILIAPRO_KPI)
   const performance = demoOrEmpty(PERFORMANCE_OVERVIEW, [] as PerformancePoint[])
   const campaignSales = demoOrEmpty(TOP_CAMPAIGNS_BY_SALES, [] as CampaignSalesSlice[])
   const campaigns = demoOrEmpty(TOP_CAMPAIGN_ROWS, [] as TopCampaignRow[])
   const affiliates = demoOrEmpty(TOP_AFFILIATE_ROWS, [] as TopAffiliateRow[])
   const conversions = demoOrEmpty(RECENT_CONVERSION_ROWS, [] as RecentConversionRow[])
-  const account = demoOrEmpty(ACCOUNT_SUMMARY, EMPTY_ACCOUNT_SUMMARY)
   const activity = demoOrEmpty(DASHBOARD_ACTIVITY, [] as DashboardActivityItem[])
   const totalSalesLabel =
     campaignSales.length > 0
@@ -121,7 +138,7 @@ export default function BusinessDashboardLayout() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Business Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Welcome back, {account.name}! Here&apos;s what&apos;s happening with your campaigns.
+            Welcome back, {displayName}! Here&apos;s what&apos;s happening with your campaigns.
           </p>
         </div>
         <button
@@ -420,37 +437,54 @@ export default function BusinessDashboardLayout() {
         <aside className="space-y-5">
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-lg font-bold text-white">
-                T
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full overflow-hidden bg-indigo-500 text-lg font-bold text-white shadow-xs">
+                {hasCustomAvatar && avatarUrl && !avatarUrl.includes("ui-avatars.com") ? (
+                  <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover rounded-full" />
+                ) : (
+                  getAvatarPrefix(displayName)
+                )}
               </div>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate font-bold text-gray-900">{account.name}</p>
-                  {account.verified && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      <BadgeCheck className="h-3 w-3" />
-                      Verified
-                    </span>
-                  )}
-                </div>
+                <p className="truncate font-bold text-gray-900">{displayName}</p>
                 <p className="text-xs text-gray-500">Account Summary</p>
               </div>
             </div>
             <dl className="space-y-2.5 text-sm">
-              {[
-                { label: "Account Type", value: account.accountType },
-                { label: "Member Since", value: account.memberSince },
-                { label: "Balance", value: account.balance, highlight: true },
-                { label: "Total Spent", value: account.totalSpent },
-                { label: "Available Credit", value: account.availableCredit },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between gap-3">
-                  <dt className="text-gray-500">{item.label}</dt>
-                  <dd className={`font-semibold ${item.highlight ? "text-indigo-600" : "text-gray-900"}`}>
-                    {item.value}
-                  </dd>
-                </div>
-              ))}
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Account Type</dt>
+                <dd className="font-semibold text-gray-900">Business</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Member Since</dt>
+                <dd className="font-semibold text-gray-900">{joiningDate !== "—" ? joiningDate : account.memberSince}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Status</dt>
+                <dd>
+                  <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getStatusBadgeStyle(status).pill}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${getStatusBadgeStyle(status).dot} ${status === 'pending' ? 'animate-pulse' : ''}`} />
+                    {getStatusBadgeStyle(status).label}
+                  </span>
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Balance</dt>
+                <dd className="font-semibold text-indigo-600">
+                  {`$${Number((user as any)?.totalDepositBalance || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Total Spent</dt>
+                <dd className="font-semibold text-gray-900">
+                  {`$${Number((user as any)?.paidAmount || (user as any)?.totalAmount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Available Credit</dt>
+                <dd className="font-semibold text-gray-900">
+                  {`$${Number((user as any)?.dueAmount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                </dd>
+              </div>
             </dl>
             <Link
               href="/business/wallet"

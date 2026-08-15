@@ -433,7 +433,7 @@ export default function TechnicalProjectLayout() {
       </div>
 
       {/* Data Table */}
-      <div className="w-full overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 shadow-xs">
+      <div className="mt-2 w-full overflow-x-auto">
         <div className="min-w-[1000px]">
           <Table>
             <TableHeading>
