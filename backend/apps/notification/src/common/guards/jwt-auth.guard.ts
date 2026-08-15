@@ -22,6 +22,8 @@ export class JwtAuthGuard implements CanActivate {
       token = authHeader.split(' ')[1];
     } else if (request.cookies?.accessToken) {
       token = request.cookies.accessToken;
+    } else if (request.cookies?.token) {
+      token = request.cookies.token;
     }
 
     if (!token) {

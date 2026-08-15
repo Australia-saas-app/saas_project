@@ -21,6 +21,12 @@ interface Project {
   price?: number;
   currency?: string;
   paymentTerms?: string;
+  startDate?: string;
+  endDate?: string;
+  commissionPercent?: number;
+  adminNotes?: string;
+  requirements?: string;
+  conditions?: string;
   milestones?: Milestone[];
 }
 
@@ -31,7 +37,10 @@ interface Props {
 }
 
 export function PayProjectModal({ project, onClose, onSuccess }: Props) {
-  const totalBudget = Number(project.adminBudget || project.price || 0);
+  const baseBudget = Number(project.adminBudget || project.price || 0);
+  const commissionPercent = project.commissionPercent !== undefined ? project.commissionPercent : 10;
+  const commissionAmount = (baseBudget * commissionPercent) / 100;
+  const totalBudget = baseBudget + commissionAmount;
   const currency = project.currency || "USD";
   const isMilestone = project.paymentTerms === "milestone" && project.milestones && project.milestones.length > 0;
 
@@ -39,7 +48,9 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
     isMilestone ? project.milestones?.find((m) => m.status !== "funded" && m.status !== "released") || null : null
   );
 
-  const paymentAmount = isMilestone && selectedMilestone ? Number(selectedMilestone.amount) : totalBudget;
+  const basePaymentAmount = isMilestone && selectedMilestone ? Number(selectedMilestone.amount) : baseBudget;
+  const milestoneCommission = (basePaymentAmount * commissionPercent) / 100;
+  const paymentAmount = isMilestone && selectedMilestone ? basePaymentAmount + milestoneCommission : totalBudget;
 
   const [balance, setBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(true);
@@ -60,7 +71,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
     try {
       await payProject(project.projectId);
       setPaid(true);
-      toast.success("Project is Published Publicly!");
+      toast.success("Payment confirmed! Project is Live and Published Publicly.");
       setTimeout(onSuccess, 1500);
     } catch (e: any) {
       toast.error(e.message || "Payment failed");
@@ -76,7 +87,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-bold text-foreground">
-              {isMilestone ? "Fund Project Milestone" : "Pay for Project"}
+              {isMilestone ? "Fund Project Milestone" : "Pay for Project Escrow"}
             </h3>
           </div>
           <button
@@ -87,44 +98,52 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-4">
           {paid ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <CheckCircle2 className="h-14 w-14 text-green-500 animate-bounce" />
               <p className="text-lg font-bold text-foreground">Payment Successful!</p>
               <p className="text-xs text-muted-foreground max-w-xs">
-                Your project has been funded into escrow and is now open for verified businesses to accept.
+                Your project is now <strong>Live</strong> and open for verified businesses to accept and start working on deliverables.
               </p>
             </div>
           ) : (
             <>
-              {/* Project & Budget Summary */}
-              <div className="rounded-xl bg-muted/60 p-4 border border-border/50">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Project</p>
-                <p className="mt-1 font-bold text-foreground truncate">{project.title}</p>
-                
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {isMilestone && selectedMilestone ? `Milestone (${selectedMilestone.title})` : "Total Budget"}
-                    </p>
-                    <p className="mt-0.5 text-2xl font-extrabold text-primary">
-                      {currency} {paymentAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              {/* Project Details & Timeline Summary */}
+              <div className="rounded-xl bg-muted/50 p-3.5 border border-border space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-bold text-primary">{project.projectId}</span>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                     {isMilestone ? "Milestone-Based" : "One-Time Payment"}
                   </span>
                 </div>
+                <p className="font-bold text-sm text-foreground truncate">{project.title}</p>
+                
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
+                  <div>
+                    <span>Start: </span>
+                    <strong className="text-foreground">{project.startDate ? new Date(project.startDate).toLocaleDateString() : "Immediate"}</strong>
+                  </div>
+                  <div>
+                    <span>End: </span>
+                    <strong className="text-foreground">{project.endDate ? new Date(project.endDate).toLocaleDateString() : "Flexible"}</strong>
+                  </div>
+                </div>
+
+                {project.adminNotes && (
+                  <p className="text-[11px] text-muted-foreground italic bg-card/60 p-2 rounded-lg border border-border">
+                    <strong>Admin Note:</strong> "{project.adminNotes}"
+                  </p>
+                )}
               </div>
 
               {/* Milestone Selector if Milestone-based */}
               {isMilestone && project.milestones && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-foreground flex items-center gap-1">
                     <Flag className="h-3.5 w-3.5 text-primary" /> Select Milestone to Fund:
                   </p>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
                     {project.milestones.map((m) => {
                       const isSel = selectedMilestone?.id === m.id;
                       const isFunded = m.status === "funded" || m.status === "released";
@@ -134,7 +153,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                           type="button"
                           disabled={isFunded}
                           onClick={() => setSelectedMilestone(m)}
-                          className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-xs text-left transition-all ${
+                          className={`w-full flex items-center justify-between p-2 rounded-lg border text-xs text-left transition-all ${
                             isFunded
                               ? "bg-muted/30 border-border/40 text-muted-foreground opacity-60 cursor-not-allowed"
                               : isSel
@@ -143,7 +162,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                           }`}
                         >
                           <span className="truncate">{m.title}</span>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <span>{currency} {Number(m.amount).toLocaleString()}</span>
                             {isFunded && (
                               <span className="rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-1.5 py-0.5 text-[10px]">
@@ -158,8 +177,32 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                 </div>
               )}
 
+              {/* Detailed Financial Breakdown */}
+              <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Base Project Budget:</span>
+                  <strong className="text-foreground">
+                    {currency} {basePaymentAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+
+                <div className="flex items-center justify-between text-amber-600 font-medium">
+                  <span>Platform Commission ({commissionPercent}%):</span>
+                  <strong>
+                    +{currency} {(isMilestone && selectedMilestone ? milestoneCommission : commissionAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+
+                <div className="pt-2 border-t border-border flex items-baseline justify-between">
+                  <span className="font-bold text-foreground text-xs uppercase tracking-wider">Total Escrow Payable:</span>
+                  <span className="text-xl font-extrabold text-primary">
+                    {currency} {paymentAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
               {/* Wallet Balance Card */}
-              <div className="rounded-xl border border-border bg-card p-4">
+              <div className="rounded-xl border border-border bg-card p-3.5">
                 <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <Wallet className="h-4 w-4 text-primary" /> Available Wallet Balance
@@ -177,20 +220,20 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                 ) : balance === null ? (
                   <p className="mt-1 text-sm text-red-500">Could not load wallet balance</p>
                 ) : (
-                  <div className="mt-2 flex items-center justify-between">
+                  <div className="mt-1.5 flex items-center justify-between">
                     <p
-                      className={`text-xl font-bold ${
+                      className={`text-lg font-bold ${
                         sufficient ? "text-green-600 dark:text-green-400" : "text-red-500"
                       }`}
                     >
                       {currency} {balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                     {sufficient ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
                         <CheckCircle2 className="h-3 w-3" /> Sufficient
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
                         <AlertTriangle className="h-3 w-3" /> Insufficient
                       </span>
                     )}
@@ -200,8 +243,8 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
 
               {/* Insufficient Funds Callout */}
               {!loadingBalance && !sufficient && (
-                <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-3">
-                  <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-2.5 text-xs">
+                  <p className="text-amber-800 dark:text-amber-300 leading-relaxed">
                     You need{" "}
                     <strong>
                       {currency}{" "}
@@ -213,16 +256,16 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                       className="underline font-bold text-amber-900 dark:text-amber-200 hover:text-primary"
                       onClick={onClose}
                     >
-                      Deposit funds now →
+                      Deposit funds →
                     </Link>
                   </p>
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="space-y-2">
+              {/* Action Button */}
+              <div className="space-y-1.5 pt-1">
                 <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white font-bold text-sm py-5 shadow-sm"
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-bold text-sm py-4 shadow-sm"
                   onClick={handlePay}
                   disabled={!sufficient || paying || loadingBalance}
                 >
@@ -238,8 +281,8 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                   )}
                 </Button>
 
-                <p className="text-center text-[11px] text-muted-foreground">
-                  🔒 Funds are held securely in platform escrow and only released when deliverables are accepted.
+                <p className="text-center text-[10px] text-muted-foreground">
+                  🔒 Funds are held safely in escrow and only released upon your deliverable approval.
                 </p>
               </div>
             </>

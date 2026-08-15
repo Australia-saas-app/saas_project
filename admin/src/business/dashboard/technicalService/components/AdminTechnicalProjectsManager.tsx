@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/src/core/store/hooks";
+import { apiClient } from "@/src/infra/api/apiClient";
 
 export type SubmissionStatus =
   | "draft"
@@ -57,6 +58,10 @@ interface Project {
   requirements?: string;
   conditions?: string;
   adminNotes?: string;
+  paymentTerms?: string;
+  startDate?: string;
+  endDate?: string;
+  milestones?: { id?: string; title: string; amount: number; status?: string }[];
   clientName?: string;
   clientId?: string;
   assignedBusinessName?: string;
@@ -107,14 +112,13 @@ export default function AdminTechnicalProjectsManager() {
     setLoading(true);
     let remoteProjects: Project[] = [];
     try {
-      const res = await fetch("/admin/api/technology/projects/all", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.projects && Array.isArray(data.projects)) {
-          remoteProjects = data.projects;
-        }
+      const res = await apiClient.get<any>("/technology/projects/all", { skipErrorToast: true });
+      if (res?.projects && Array.isArray(res.projects)) {
+        remoteProjects = res.projects;
+      } else if (Array.isArray(res)) {
+        remoteProjects = res;
+      } else if (res?.data && Array.isArray(res.data)) {
+        remoteProjects = res.data;
       }
     } catch {
       // Gracefully handle without crashing
@@ -136,10 +140,16 @@ export default function AdminTechnicalProjectsManager() {
 
     setProjects(Array.from(map.values()));
     setLoading(false);
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     loadProjects();
+    window.addEventListener("storage", loadProjects);
+    window.addEventListener("focus", loadProjects);
+    return () => {
+      window.removeEventListener("storage", loadProjects);
+      window.removeEventListener("focus", loadProjects);
+    };
   }, [loadProjects]);
 
   const openReviewModal = (p: Project) => {
@@ -221,24 +231,14 @@ export default function AdminTechnicalProjectsManager() {
     }
 
     try {
-      const res = await fetch(`/admin/api/technology/projects/${reviewProject.projectId}/admin-approve`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          adminBudget: b,
-          minBudget: parseFloat(minBudget) || b,
-          commissionPercent: parseFloat(commissionPercent) || 10,
-          requirements,
-          conditions,
-          adminNotes,
-        }),
+      await apiClient.post(`/technology/projects/${reviewProject.projectId}/admin-approve`, {
+        adminBudget: b,
+        minBudget: parseFloat(minBudget) || b,
+        commissionPercent: parseFloat(commissionPercent) || 10,
+        requirements,
+        conditions,
+        adminNotes,
       });
-      if (res.ok) {
-        await res.json();
-      }
     } catch {}
 
     toast.success(`Project "${reviewProject.title}" approved! Client notified to make payment.`);
@@ -266,13 +266,8 @@ export default function AdminTechnicalProjectsManager() {
     }
 
     try {
-      await fetch(`/admin/api/technology/projects/${projectId}/admin-reject`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ reason: adminNotes || "Does not meet platform guidelines." }),
+      await apiClient.post(`/technology/projects/${projectId}/admin-reject`, {
+        reason: adminNotes || "Does not meet platform guidelines.",
       });
     } catch {}
 
@@ -300,13 +295,7 @@ export default function AdminTechnicalProjectsManager() {
     }
 
     try {
-      await fetch(`/admin/api/technology/projects/${projectId}/review-accept`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      await apiClient.post(`/technology/projects/${projectId}/review-accept`, {});
     } catch {}
 
     toast.success("Project accepted and payment successfully released to the business wallet!");
@@ -316,15 +305,9 @@ export default function AdminTechnicalProjectsManager() {
   const handleRequestRevision = async () => {
     if (!revisionProject || !revisionReason.trim()) return;
     try {
-      const res = await fetch(`/admin/api/technology/projects/${revisionProject.projectId}/request-revision`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ reason: revisionReason.trim() }),
+      await apiClient.post(`/technology/projects/${revisionProject.projectId}/request-revision`, {
+        reason: revisionReason.trim(),
       });
-      if (!res.ok) throw new Error("Failed to request revision");
       toast.success("Revision request sent to the business.");
       setRevisionProject(null);
       setRevisionReason("");
@@ -346,10 +329,7 @@ export default function AdminTechnicalProjectsManager() {
         }
       }
 
-      await fetch(`/admin/api/technology/projects/${projectId}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      await apiClient.delete(`/technology/projects/${projectId}`);
       toast.success("Project deleted successfully");
       await loadProjects();
     } catch {
@@ -618,21 +598,57 @@ export default function AdminTechnicalProjectsManager() {
               </button>
             </div>
 
-            <div className="rounded-xl bg-gray-50 p-4 text-xs space-y-2">
-              <p className="font-bold text-sm text-gray-900">{reviewProject.title}</p>
-              <p className="text-gray-600">{reviewProject.description}</p>
-              <div className="flex flex-wrap gap-4 text-gray-700 pt-1">
-                <span>Client: <strong>{reviewProject.clientName || "Client"}</strong></span>
-                <span>Category: <strong>{reviewProject.category || "Software"}</strong></span>
-                <span>Client Stated Budget: <strong>${Number(reviewProject.price || 0).toLocaleString()}</strong></span>
+            {/* Submitted Project Summary */}
+            <div className="rounded-xl bg-gray-50 p-4 text-xs space-y-2 border border-gray-200">
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-primary">{reviewProject.projectId}</span>
+                <span className="rounded-full bg-blue-100 text-blue-800 px-2.5 py-0.5 font-bold text-[10px]">
+                  {reviewProject.category || "Technical Service"}
+                </span>
               </div>
+              <p className="font-bold text-sm text-gray-900">{reviewProject.title}</p>
+              <p className="text-gray-600 line-clamp-2">{reviewProject.description}</p>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-gray-200 text-[11px]">
+                <div>
+                  <span className="text-gray-500 block">Submitted Budget:</span>
+                  <strong className="text-gray-900 text-xs">${Number(reviewProject.price || 0).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500 block">Payment Terms:</span>
+                  <strong className="text-gray-900">{reviewProject.paymentTerms === "milestone" ? "Milestone-Based" : "One-Time"}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500 block">Start Date:</span>
+                  <strong className="text-gray-900">{reviewProject.startDate ? new Date(reviewProject.startDate).toLocaleDateString() : "Immediate"}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500 block">End Date:</span>
+                  <strong className="text-gray-900">{reviewProject.endDate ? new Date(reviewProject.endDate).toLocaleDateString() : "Flexible"}</strong>
+                </div>
+              </div>
+
+              {/* Show Milestones if Milestone-based (Read-only as submitted by user) */}
+              {reviewProject.paymentTerms === "milestone" && reviewProject.milestones && reviewProject.milestones.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                  <p className="font-bold text-gray-700 text-[10px] uppercase">User Defined Milestones:</p>
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {reviewProject.milestones.map((m, idx) => (
+                      <div key={idx} className="flex justify-between bg-white px-2 py-1 rounded border border-gray-200 text-[10px]">
+                        <span className="truncate">{m.title}</span>
+                        <strong className="text-primary">${Number(m.amount).toLocaleString()}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleApprove} className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    Approved Amount / Budget (USD)*
+                    Approved Quote Budget (USD)*
                   </label>
                   <input
                     type="number"
@@ -641,25 +657,12 @@ export default function AdminTechnicalProjectsManager() {
                     value={adminBudget}
                     onChange={(e) => setAdminBudget(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 p-2.5 text-xs text-gray-900 outline-none focus:border-primary"
-                    placeholder="1200.00"
+                    placeholder="1300.00"
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    Minimum Budget (USD)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={minBudget}
-                    onChange={(e) => setMinBudget(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 p-2.5 text-xs text-gray-900 outline-none focus:border-primary"
-                    placeholder="1000.00"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    Company Commission (%)
+                    Platform Commission (%) <span className="text-gray-400 font-normal">(Default 10%)</span>
                   </label>
                   <input
                     type="number"
@@ -674,14 +677,14 @@ export default function AdminTechnicalProjectsManager() {
 
               <div>
                 <label className="mb-1 block text-xs font-semibold text-gray-700">
-                  Project Requirements &amp; Scope*
+                  Admin Notes &amp; Quote Guidance <span className="text-gray-400 font-normal">(Visible to client)</span>
                 </label>
                 <textarea
-                  rows={3}
-                  value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
+                  rows={2}
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 p-2.5 text-xs text-gray-900 outline-none focus:border-primary"
-                  placeholder="Outline required features, tech stack, and deliverable standards..."
+                  placeholder="e.g. Approved with standard 10% platform commission. Please fund escrow to activate project."
                 />
               </div>
 

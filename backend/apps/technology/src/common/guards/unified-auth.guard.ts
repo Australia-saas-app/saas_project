@@ -51,13 +51,20 @@ export class UnifiedAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const authHeader = request.headers.authorization;
+    let token: string | undefined;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Authorization header missing');
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (request.cookies?.accessToken) {
+      token = request.cookies.accessToken;
+    } else if (request.cookies?.token) {
+      token = request.cookies.token;
     }
 
-    const token = authHeader.split(' ')[1];
+    if (!token) {
+      throw new UnauthorizedException('Authorization token missing');
+    }
 
     // Try verifying as Admin token first (usually has audience 'admin')
     try {

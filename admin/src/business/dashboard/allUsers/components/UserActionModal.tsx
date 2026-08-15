@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2, Trash2, X, Shield } from "lucide-react";
+import { useAppSelector } from "@/src/core/store/hooks";
 
 interface BackendUser {
   userId: string;
@@ -29,14 +30,25 @@ interface UserActionModalProps {
 
 const statuses = ["ACTIVE", "SUSPENDED", "DORMANT", "CLOSED", "BLOCKED"];
 
-export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete }: UserActionModalProps) {
+export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelete, token: propToken }: UserActionModalProps) {
+  const reduxToken = useAppSelector((state: any) => state.auth.token);
+  const token = propToken || reduxToken;
   const [selectedStatus, setSelectedStatus] = useState(user?.status?.toUpperCase() || "ACTIVE");
   const [updatingAction, setUpdatingAction] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bName, setBName] = useState((user as any)?.businessName || user?.fullName || "");
+  const [bType, setBType] = useState((user as any)?.businessType || "Technology");
+  const [pRate, setPRate] = useState((user as any)?.percentageRate ? String((user as any).percentageRate).replace('%', '') : "20");
+  const [isUpdatingBusiness, setIsUpdatingBusiness] = useState(false);
 
   useEffect(() => {
-    if (user) setSelectedStatus(user.status?.toUpperCase() || "ACTIVE");
+    if (user) {
+      setSelectedStatus(user.status?.toUpperCase() || "ACTIVE");
+      setBName((user as any)?.businessName || user?.fullName || "");
+      setBType((user as any)?.businessType || "Technology");
+      setPRate((user as any)?.percentageRate ? String((user as any).percentageRate).replace('%', '') : "20");
+    }
   }, [user]);
 
   if (!isOpen || !user) return null;
@@ -149,6 +161,98 @@ export function UserActionModal({ user, isOpen, onClose, onStatusUpdate, onDelet
                   <span className="font-bold text-slate-800 dark:text-slate-200">{createdAt}</span>
                 </div>
               </div>
+
+              {/* Business Info Controls (For Business accounts) */}
+              {role.toLowerCase().includes("business") && (
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider">
+                      Business Details (Live DB)
+                    </span>
+                    <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                      Live Profile Data
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="text-slate-400 font-semibold text-xs block mb-1">Business Name</label>
+                      <input
+                        type="text"
+                        value={bName}
+                        onChange={(e) => setBName(e.target.value)}
+                        placeholder="Registered Business Name"
+                        className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 font-semibold text-xs block mb-1">Business Type</label>
+                      <select
+                        value={bType}
+                        onChange={(e) => setBType(e.target.value)}
+                        className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
+                      >
+                        <option value="Technology">Technology</option>
+                        <option value="Real Estate">Real Estate</option>
+                        <option value="Visa">Visa</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Careers">Careers</option>
+                        <option value="Courses">Courses</option>
+                        <option value="Transport">Transport</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 font-semibold text-xs block mb-1">Commission Rate (%)</label>
+                      <input
+                        type="number"
+                        value={pRate}
+                        onChange={(e) => setPRate(e.target.value)}
+                        placeholder="20"
+                        min="0"
+                        max="100"
+                        className="w-full h-9 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      disabled={isUpdatingBusiness}
+                      onClick={async () => {
+                        setIsUpdatingBusiness(true);
+                        try {
+                          const res = await fetch(`/admin/api/sso/auth/admin/users/${user.userId || (user as any).id}/business-info`, {
+                            method: "PATCH",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({
+                              businessName: bName,
+                              businessType: bType,
+                              percentageRate: Number(pRate) || 20,
+                            }),
+                          });
+                          if (!res.ok) throw new Error("Failed to update business info");
+                          toast.success("Business details updated in live database");
+                          window.dispatchEvent(new CustomEvent("vero:account_changed"));
+                          onClose();
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to update business info");
+                        } finally {
+                          setIsUpdatingBusiness(false);
+                        }
+                      }}
+                      className="px-4 h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {isUpdatingBusiness ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Business Details"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Status Controls */}
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800">

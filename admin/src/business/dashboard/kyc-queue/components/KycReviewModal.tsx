@@ -85,6 +85,49 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           }
         } catch { }
 
+        // 3. User notification dispatch & persistent DB write
+        try {
+          const isApprove = kycStatus === "approved";
+          const userNotif = {
+            id: `notif-kyc-res-${Date.now()}`,
+            userId: uid,
+            title: isApprove ? "KYC Verification Approved" : "KYC Verification Update",
+            description: isApprove
+              ? "Congratulations! Your KYC verification has been reviewed and approved."
+              : "Your KYC verification was not approved. Please review your documents and resubmit.",
+            message: isApprove
+              ? "Congratulations! Your KYC verification has been reviewed and approved."
+              : "Your KYC verification was not approved. Please review your documents and resubmit.",
+            time: "Just now",
+            read: false,
+            href: "/dashboard/user/profile",
+            type: isApprove ? "kyc_approved" : "kyc_rejected",
+          };
+
+          ["app_notifs_user", "app_notifs_all", "notifications"].forEach((k) => {
+            const existing = JSON.parse(localStorage.getItem(k) || "[]");
+            localStorage.setItem(k, JSON.stringify([userNotif, ...existing]));
+          });
+
+          window.dispatchEvent(new Event("notifications_updated"));
+
+          fetch("/admin/api/notifications", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              userId: uid,
+              title: userNotif.title,
+              message: userNotif.message,
+              type: userNotif.type,
+              priority: "high",
+              data: { href: userNotif.href },
+            }),
+          }).catch(() => {});
+        } catch {}
+
         try {
           localStorage.setItem("vero_account_sync", JSON.stringify({ userId: uid, action: kycStatus, t: Date.now() }));
           localStorage.setItem("vero_kyc_sync", JSON.stringify({
@@ -297,6 +340,46 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     </div>
                   </div>
                 </div>
+
+                {/* Business Information Snapshot Section */}
+                {(accountType.toLowerCase() === "business" || snap.businessName || user.businessName) && (
+                  <div className="mb-6 relative z-10">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">
+                        Business Information
+                      </h4>
+                      <span className="rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">
+                        {snap.commissionRate || user.percentageRate || 20}% Platform Commission Rate
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">
+                          Registered Business Name
+                        </span>
+                        <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                          {snap.businessName || user.businessName || user.businessInfo?.businessName || fullName || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">
+                          Business Type / Industry
+                        </span>
+                        <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                          {snap.businessType || user.businessType || user.businessInfo?.businessIndustry || "Technology"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">
+                          Percentage / Commission Rate
+                        </span>
+                        <p className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                          {snap.commissionRate || user.percentageRate || 20}% (Standard Rate)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             );
           })()}

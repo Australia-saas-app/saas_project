@@ -205,6 +205,19 @@ export class AuthController {
     return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email, typeof ipAddress === 'string' ? ipAddress : ipAddress[0]);
   }
 
+  @Patch('admin/users/:userId/business-info')
+  @UseGuards(JwtAuthGuard)
+  updateBusinessInfo(
+    @Param('userId') userId: string,
+    @Body() body: { businessName?: string; businessType?: string; percentageRate?: number; commissionRate?: number },
+    @Request() req: any,
+  ) {
+    if (!['super_admin', 'admin', 'sub_admin'].includes(req.user?.role)) {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.authService.updateBusinessInfo(userId, body);
+  }
+
   @Post('users/:userId/kyc/apply')
   @UseGuards(JwtAuthGuard)
   applyForKyc(

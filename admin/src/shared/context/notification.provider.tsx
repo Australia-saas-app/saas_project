@@ -55,50 +55,90 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
-  // Load from cache on first render
-  useEffect(() => {
-    if (!userId || typeof window === "undefined") return;
+  // Load and merge notifications from local store & DB
+  const loadNotifications = useCallback(async () => {
+    let localNotifs: NotificationItem[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const keys = [
+          userId ? `admin_notifs_${userId}` : null,
+          "app_notifs_admin",
+          "admin_notifications",
+        ].filter(Boolean) as string[];
+
+        const map = new Map<string, NotificationItem>();
+        for (const k of keys) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const list: any[] = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              list.forEach((n) => {
+                if (n && (n.id || n.title)) {
+                  const id = String(n.id || n.title);
+                  map.set(id, {
+                    id,
+                    title: n.title,
+                    message: n.message || n.description,
+                    time: n.time || "Just now",
+                    read: Boolean(n.read),
+                    href: n.href || "/admin/technical",
+                  });
+                }
+              });
+            }
+          }
+        }
+        localNotifs = Array.from(map.values());
+      } catch {}
+    }
+
+    let remoteNotifs: NotificationItem[] = [];
     try {
-      const cached = localStorage.getItem(`admin_notifs_${userId}`);
-      if (cached) {
-        setItems(JSON.parse(cached));
+      const res = await fetch(notifApiBase, {
+        credentials: "omit",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => null);
+
+      if (res && res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data?.data?.notifications)
+          ? data.data.notifications
+          : Array.isArray(data?.notifications)
+          ? data.notifications
+          : Array.isArray(data)
+          ? data
+          : [];
+
+        remoteNotifs = list.map((n: any) => ({
+          id: String(n.id || n.notificationId),
+          title: n.title || n.subject,
+          message: n.message || n.content || "",
+          time: n.createdAt ? new Date(n.createdAt).toLocaleDateString() : "Just now",
+          read: Boolean(n.isRead || n.read),
+          href: n.data?.href || n.href,
+        }));
       }
     } catch {}
-  }, [userId]);
 
-  // Fetch initial notifications from DB whenever user or token is available
-  useEffect(() => {
-    if (!userId) {
-      setItems([]);
-      return;
-    }
-    
-    let mounted = true;
-    fetch(notifApiBase, {
-      credentials: "omit",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(res => res.json())
-      .then(res => {
-        if (mounted && res.success && Array.isArray(res.data?.notifications)) {
-          const mapped = res.data.notifications.map((n: any) => ({
-            id: n.id,
-            title: n.title,
-            message: n.message,
-            time: new Date(n.createdAt).toLocaleDateString(),
-            read: n.isRead,
-            href: n.data?.href,
-          }));
-          setItems(mapped);
-          try {
-            localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(mapped));
-          } catch {}
-        }
-      })
-      .catch(err => console.error("Failed to load notifications:", err));
+    const combinedMap = new Map<string, NotificationItem>();
+    [...remoteNotifs, ...localNotifs].forEach((n) => {
+      if (n && n.id) combinedMap.set(n.id, n);
+    });
 
-    return () => { mounted = false; };
+    setItems(Array.from(combinedMap.values()));
   }, [userId, token]);
+
+  useEffect(() => {
+    loadNotifications();
+    window.addEventListener("notifications_updated", loadNotifications);
+    window.addEventListener("storage", loadNotifications);
+    window.addEventListener("focus", loadNotifications);
+    return () => {
+      window.removeEventListener("notifications_updated", loadNotifications);
+      window.removeEventListener("storage", loadNotifications);
+      window.removeEventListener("focus", loadNotifications);
+    };
+  }, [loadNotifications]);
 
   const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
     const entry: NotificationItem = {

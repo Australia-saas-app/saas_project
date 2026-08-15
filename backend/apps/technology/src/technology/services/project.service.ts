@@ -54,6 +54,7 @@ export class ProjectService {
         body: JSON.stringify({
           userId: payload.userId,
           userIds: payload.userIds,
+          role: payload.userId || payload.userIds?.length ? undefined : 'ADMIN',
           type: payload.type,
           title: payload.title,
           message: payload.message,

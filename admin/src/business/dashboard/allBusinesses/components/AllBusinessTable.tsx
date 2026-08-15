@@ -88,27 +88,35 @@ const AllBusinessTable: React.FC = () => {
         
         if (!active) return
 
-        let filtered = (resData.data.users || resData.data || []).map((u: any) => ({
-          userId: u.userId || u.id,
-          businessId: u.userId || (u.id || '').slice(0,5),
-          accountType: u.accountType || 'business',
-          fullName: u.businessName || u.fullName || 'Unknown Business',
-          email: u.email,
-          phone: u.phone,
-          businessName: u.businessName || u.fullName || 'Unknown Business',
-          businessType: u.businessType || 'NA',
-          createdAt: u.createdAt,
-          nationality: u.nationality,
-          dateOfBirth: u.dateOfBirth,
-          governmentId: u.governmentId || u.nationalIdentity,
-          idDocument: u.idDocument || u.documentUrl,
-          securityDeposit: `${u.securityDeposit || 0} ${u.currency || 'USD'}`,
-          dueAmount: `${u.dueAmount || 0} ${u.currency || 'USD'}`,
-          percentageRate: `${u.percentageRate || 0}%`,
-          paidAmount: `${u.paidAmount || 0} ${u.currency || 'USD'}`,
-          status: (u.status || 'ACTIVE').toUpperCase(),
-          kycStatus: u.kycStatus
-        }))
+        let filtered = (resData.data.users || resData.data || []).map((u: any) => {
+          const bName = u.businessName && u.businessName !== 'NA' ? u.businessName : (u.businessInfo?.businessName || u.fullName || 'Unknown Business');
+          const bType = u.businessType && u.businessType !== 'NA' ? u.businessType : (u.businessInfo?.businessIndustry || 'Technology');
+          const pRate = (u.percentageRate !== undefined && u.percentageRate !== null && Number(u.percentageRate) > 0)
+            ? u.percentageRate
+            : (u.commissionRate !== undefined && u.commissionRate !== null && Number(u.commissionRate) > 0 ? u.commissionRate : 20);
+
+          return {
+            userId: u.userId || u.id,
+            businessId: u.userId || (u.id || '').slice(0,5),
+            accountType: u.accountType || 'business',
+            fullName: bName,
+            email: u.email,
+            phone: u.phone,
+            businessName: bName,
+            businessType: bType,
+            createdAt: u.createdAt,
+            nationality: u.nationality,
+            dateOfBirth: u.dateOfBirth,
+            governmentId: u.governmentId || u.nationalIdentity,
+            idDocument: u.idDocument || u.documentUrl,
+            securityDeposit: `${u.securityDeposit || 0} ${u.currency || 'USD'}`,
+            dueAmount: `${u.dueAmount || 0} ${u.currency || 'USD'}`,
+            percentageRate: `${pRate}%`,
+            paidAmount: `${u.paidAmount || 0} ${u.currency || 'USD'}`,
+            status: (u.status || 'ACTIVE').toUpperCase(),
+            kycStatus: u.kycStatus
+          };
+        })
 
         const q = debouncedQuery.toLowerCase()
         if (q) {
@@ -272,11 +280,12 @@ const AllBusinessTable: React.FC = () => {
               <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 rounded-md shadow-lg z-[100]">
                 <SelectItem value="All Business" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Business</SelectItem>
                 <SelectItem value="Technology">Technology</SelectItem>
-                <SelectItem value="Retail">Retail</SelectItem>
                 <SelectItem value="Real Estate">Real Estate</SelectItem>
-                <SelectItem value="Visa & Travel">Visa & Travel</SelectItem>
-                <SelectItem value="Finance">Finance</SelectItem>
-                <SelectItem value="Healthcare">Healthcare</SelectItem>
+                <SelectItem value="Visa">Visa</SelectItem>
+                <SelectItem value="Travel">Travel</SelectItem>
+                <SelectItem value="Careers">Careers</SelectItem>
+                <SelectItem value="Courses">Courses</SelectItem>
+                <SelectItem value="Transport">Transport</SelectItem>
               </SelectContent>
             </Select>
 

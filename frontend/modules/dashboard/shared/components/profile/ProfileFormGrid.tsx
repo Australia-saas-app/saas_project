@@ -69,6 +69,8 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const [secondaryEmail, setSecondaryEmail] = useState(initialSecondaryEmail || "");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [documentUrl, setDocumentUrl] = useState(initialDocumentUrl || "");
+  const [businessName, setBusinessName] = useState((user as any)?.businessName || (user as any)?.businessInfo?.businessName || fullName || "");
+  const [businessType, setBusinessType] = useState((user as any)?.businessType || (user as any)?.businessInfo?.businessIndustry || "Technology");
 
   const parsedDocs = React.useMemo(() => {
     try {
@@ -204,6 +206,12 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       if (secondaryEmail !== (initialSecondaryEmail || "")) patchData.secondaryEmail = secondaryEmail;
       if (currency !== (initialCurrency || "USD")) patchData.currency = currency;
       if (documentUrl !== (initialDocumentUrl || "")) patchData.documentUrl = documentUrl;
+      if (accountType === "business") {
+        if (businessName) patchData.businessName = businessName;
+        if (businessType) patchData.businessType = businessType;
+        patchData.percentageRate = 20;
+        patchData.commissionRate = 20;
+      }
 
       if (Object.keys(patchData).length === 1) { // only resubmitted
         toast.info("Profile Already Updated");
@@ -269,6 +277,61 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
               className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground cursor-not-allowed opacity-90 truncate"
             />
           </div>
+
+          {accountType === "business" && (
+            <>
+              {/* Business Name */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span>Business Name</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Enter registered business name"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
+                />
+              </div>
+
+              {/* Business Type */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span>Business Type</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <select
+                  value={businessType}
+                  onChange={(e) => setBusinessType(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
+                >
+                  <option value="Technology">Technology</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Visa">Visa</option>
+                  <option value="Travel">Travel</option>
+                  <option value="Careers">Careers</option>
+                  <option value="Courses">Courses</option>
+                  <option value="Transport">Transport</option>
+                </select>
+              </div>
+
+              {/* Commission Rate (20% Default) */}
+              <div className="flex flex-col gap-2 min-w-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <span>Commission Rate</span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">Standard Rate</span>
+                </label>
+                <input
+                  type="text"
+                  value="20% (Default Platform Rate)"
+                  readOnly
+                  disabled
+                  className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground cursor-not-allowed opacity-90 truncate"
+                />
+              </div>
+            </>
+          )}
 
           {/* 2. Nationality (Mandatory A-Z Dropdown using Nationalities) */}
           <div className="flex flex-col gap-2 min-w-0">

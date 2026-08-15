@@ -1,17 +1,8 @@
 /**
- * Technical Service API — all calls go through Next.js proxy → Kong → technology backend
- * Base path: /api/technology/projects  (Kong strips /api/v1/ → technology service)
+ * Technical Service API — all calls go through axiosInstance → Kong / Backend → PostgreSQL database
  */
 
-const BASE = '/api/technology/projects';
-
-function authHeaders(token?: string): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
+import axiosInstance from "@/src/shared/lib/axiosInstance";
 
 const LOCAL_PROJECTS_KEY = "platform_user_technical_projects";
 
@@ -57,6 +48,21 @@ export function recordActivityLog(log: {
     localStorage.setItem(key, JSON.stringify([item, ...existing]));
     window.dispatchEvent(new Event("activity_logs_updated"));
   } catch {}
+
+  // Also persist to backend user-profile activity DB
+  try {
+    axiosInstance.post('/user-profile-service/activity', {
+      action: log.type || 'PROJECT_SUBMITTED',
+      resource: 'technical_project',
+      details: {
+        title: log.title,
+        description: log.description,
+        category: log.category || 'Technical Services',
+        userName: log.userName,
+        userId: log.userId,
+      },
+    }).catch(() => {});
+  } catch {}
 }
 
 export function dispatchAdminNotification(notif: {
@@ -84,64 +90,56 @@ export function dispatchAdminNotification(notif: {
 
     window.dispatchEvent(new Event("notifications_updated"));
   } catch {}
+
+  // Permanently save notification into PostgreSQL DB
+  try {
+    axiosInstance.post('/notifications', {
+      type: notif.type || 'TECHNICAL_PROJECT_SUBMIT',
+      title: notif.title,
+      message: notif.message,
+      priority: 'high',
+      data: { href: notif.href || '/admin/technical' },
+    }).catch(() => {});
+  } catch {}
 }
 
-export const fetchWalletBalance = async (token?: string): Promise<{ balance: number }> => {
+export const fetchWalletBalance = async (_token?: string): Promise<{ balance: number }> => {
   try {
-    const res = await fetch('/api/wallet/balance', {
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return { balance: Number(data?.balance ?? 50000) };
-    }
+    const res = await axiosInstance.get('/wallet/balance');
+    return { balance: Number(res?.data?.balance ?? 50000) };
   } catch (e) {
-    console.warn("Wallet balance fetched locally:", e);
+    console.warn("Wallet balance fallback:", e);
   }
   return { balance: 50000 };
 };
 
-export const depositToWallet = async (amount: number, description?: string, token?: string) => {
+export const depositToWallet = async (amount: number, description?: string, _token?: string) => {
   try {
-    const res = await fetch('/api/wallet/deposit', {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify({ amount, description }),
-    });
-    if (res.ok) return await res.json();
+    const res = await axiosInstance.post('/wallet/deposit', { amount, description });
+    return res?.data;
   } catch (e) {
     console.warn("Deposit handled locally:", e);
   }
   return { success: true };
 };
 
-export const fetchWalletTransactions = async (token?: string) => {
+export const fetchWalletTransactions = async (_token?: string) => {
   try {
-    const res = await fetch('/api/wallet/transactions', {
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) return await res.json();
+    const res = await axiosInstance.get('/wallet/transactions');
+    return res?.data || { data: [] };
   } catch (e) {
-    console.warn("Wallet transactions fetched locally:", e);
+    console.warn("Wallet transactions fallback:", e);
   }
   return { data: [] };
 };
 
-export const fetchProjectMessages = async (projectId: string, token?: string) => {
+export const fetchProjectMessages = async (projectId: string, _token?: string) => {
   try {
-    const res = await fetch(`${BASE}/${projectId}/messages`, {
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return Array.isArray(data) ? data : data?.messages || [];
-    }
+    const res = await axiosInstance.get(`/technology/projects/${projectId}/messages`);
+    const data = res?.data;
+    return Array.isArray(data) ? data : data?.messages || [];
   } catch (e) {
-    console.warn("Project messages fetched locally:", e);
+    console.warn("Project messages fallback:", e);
   }
   return [];
 };
@@ -150,16 +148,14 @@ export const sendProjectMessage = async (
   projectId: string,
   content: string,
   messageType?: string,
-  token?: string
+  _token?: string
 ) => {
   try {
-    const res = await fetch(`${BASE}/${projectId}/messages`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify({ content, messageType: messageType || 'general' }),
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/messages`, {
+      content,
+      messageType: messageType || 'general',
     });
-    if (res.ok) return await res.json();
+    return res?.data;
   } catch (e) {
     console.warn("Message sent locally:", e);
   }
@@ -217,26 +213,17 @@ export const fetchSkills = async (subcategories: string[] = []): Promise<string[
 
 // ─── Project CRUD ────────────────────────────────────────────────────────────
 
-export const createProject = async (payload: any, token?: string) => {
+export const createProject = async (payload: any, _token?: string) => {
   let createdProject: any = null;
 
   try {
-    const res = await fetch(BASE, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      const json = await res.json();
-      createdProject = json?.data || json;
-    }
-  } catch (e) {
-    console.warn("Backend error creating project:", e);
+    const res = await axiosInstance.post('/technology/projects', payload);
+    createdProject = res?.data?.data || res?.data;
+  } catch (e: any) {
+    console.warn("Axios create project failed:", e?.message || e);
   }
 
-  if (!createdProject) {
+  if (!createdProject || !createdProject.projectId) {
     createdProject = {
       id: Date.now(),
       projectId: `PRJ-${Date.now().toString().slice(-6)}`,
@@ -283,29 +270,31 @@ export const createProject = async (payload: any, token?: string) => {
   return { success: true, projectId: createdProject.projectId, data: createdProject };
 };
 
-export const fetchMyProjects = async (token?: string) => {
+export const fetchMyProjects = async (_token?: string) => {
   try {
-    const res = await fetch(`${BASE}/mine`, {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.projects && Array.isArray(data.projects)) {
-        // Sync local cache with backend DB
-        const local = readLocalProjects();
-        const map = new Map<string, any>();
-        [...local, ...data.projects].forEach((p) => {
-          if (p?.projectId) map.set(p.projectId, p);
-        });
-        const merged = Array.from(map.values());
-        writeLocalProjects(merged);
-        return { projects: merged };
-      }
-      return data;
+    const res = await axiosInstance.get('/technology/projects/mine');
+    const data = res?.data;
+    if (data?.projects && Array.isArray(data.projects)) {
+      const local = readLocalProjects();
+      const map = new Map<string, any>();
+      [...local, ...data.projects].forEach((p) => {
+        if (p?.projectId) map.set(p.projectId, p);
+      });
+      const merged = Array.from(map.values());
+      writeLocalProjects(merged);
+      return { projects: merged };
+    } else if (Array.isArray(data)) {
+      const local = readLocalProjects();
+      const map = new Map<string, any>();
+      [...local, ...data].forEach((p) => {
+        if (p?.projectId) map.set(p.projectId, p);
+      });
+      const merged = Array.from(map.values());
+      writeLocalProjects(merged);
+      return { projects: merged };
     }
-  } catch (e) {
-    console.warn("Backend unavailable, using local projects cache:", e);
+  } catch (e: any) {
+    console.warn("fetchMyProjects axios fallback:", e?.message || e);
   }
 
   return { projects: readLocalProjects() };
@@ -313,76 +302,69 @@ export const fetchMyProjects = async (token?: string) => {
 
 export const fetchPublicProjects = async (params?: Record<string, string>) => {
   try {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    const res = await fetch(`${BASE}/public${qs}`, { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
+    const res = await axiosInstance.get('/technology/projects/public', { params });
+    const data = res?.data;
+    if (data?.projects && Array.isArray(data.projects)) {
       return data;
+    } else if (Array.isArray(data)) {
+      return { projects: data };
     }
-  } catch (e) {
-    console.warn("Could not fetch public projects:", e);
+  } catch (e: any) {
+    console.warn("fetchPublicProjects axios fallback:", e?.message || e);
   }
   return { projects: readLocalProjects().filter((p) => p.submissionStatus === "active") };
 };
 
-export const fetchAssignedProjects = async (token?: string) => {
+export const fetchAssignedProjects = async (_token?: string) => {
   try {
-    const res = await fetch(`${BASE}/assigned`, {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.ok) {
-      const data = await res.json();
+    const res = await axiosInstance.get('/technology/projects/assigned');
+    const data = res?.data;
+    if (data?.projects && Array.isArray(data.projects)) {
       return data;
+    } else if (Array.isArray(data)) {
+      return { projects: data };
     }
-  } catch (e) {
-    console.warn("Could not fetch assigned projects:", e);
+  } catch (e: any) {
+    console.warn("fetchAssignedProjects fallback:", e?.message || e);
   }
   return { projects: readLocalProjects() };
 };
 
-export const fetchAllProjects = async (token?: string) => {
+export const fetchAllProjects = async (_token?: string) => {
   try {
-    const res = await fetch(`${BASE}/all`, {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (res.ok) {
-      const data = await res.json();
+    const res = await axiosInstance.get('/technology/projects/all');
+    const data = res?.data;
+    if (data?.projects && Array.isArray(data.projects)) {
       return data;
+    } else if (Array.isArray(data)) {
+      return { projects: data };
     }
-  } catch (e) {
-    console.warn("Could not fetch all projects:", e);
+  } catch (e: any) {
+    console.warn("fetchAllProjects fallback:", e?.message || e);
   }
   return { projects: readLocalProjects() };
 };
 
-// ─── Lifecycle ───────────────────────────────────────────────────────────────
-
-export const submitProject = async (projectId: string, token?: string) => {
-  // Update local
+export const submitProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   const updated = local.map((p) =>
-    p.projectId === projectId ? { ...p, submissionStatus: "admin_review" } : p
+    p.projectId === projectId
+      ? { ...p, submissionStatus: "submitted" }
+      : p
   );
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/submit`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Submitted locally:", e);
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/submit`);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("submitProject fallback:", e?.message || e);
   }
 
-  return { success: true, status: "admin_review" };
+  return { success: true, status: "submitted" };
 };
 
-export const payProject = async (projectId: string, token?: string) => {
-  // Update local
+export const payProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   let paidProject: any = null;
   const updated = local.map((p) => {
@@ -410,21 +392,16 @@ export const payProject = async (projectId: string, token?: string) => {
   }
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/pay`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Paid locally:", e);
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/pay`);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("payProject fallback:", e?.message || e);
   }
 
   return { success: true, status: "active", paymentStatus: "paid" };
 };
 
-export const acceptProject = async (projectId: string, token?: string) => {
-  // Update local
+export const acceptProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   const updated = local.map((p) =>
     p.projectId === projectId
@@ -434,56 +411,43 @@ export const acceptProject = async (projectId: string, token?: string) => {
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/accept`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Accepted locally:", e);
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/accept`);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("acceptProject fallback:", e?.message || e);
   }
 
   return { success: true, status: "in_progress" };
 };
 
-export const markProjectComplete = async (
+export const completeProject = async (
   projectId: string,
-  payload: { completionNotes?: string; deliverableUrls?: string[]; deliverableFiles?: any[] },
-  token?: string
+  deliverableUrls: string[] = [],
+  notes: string = '',
+  _token?: string
 ) => {
-  // Update local
   const local = readLocalProjects();
   const updated = local.map((p) =>
     p.projectId === projectId
-      ? {
-          ...p,
-          submissionStatus: "completed",
-          completionNotes: payload.completionNotes,
-          deliverableUrls: payload.deliverableUrls,
-          deliverableFiles: payload.deliverableFiles,
-        }
+      ? { ...p, submissionStatus: "completed", deliverableUrls, completionNotes: notes }
       : p
   );
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/complete`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify(payload),
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/complete`, {
+      deliverableUrls,
+      notes,
     });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Completed locally:", e);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("completeProject fallback:", e?.message || e);
   }
 
   return { success: true, status: "completed" };
 };
 
-export const reviewAcceptProject = async (projectId: string, token?: string) => {
-  // Update local
+export const reviewAcceptProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   const updated = local.map((p) =>
     p.projectId === projectId
@@ -493,21 +457,16 @@ export const reviewAcceptProject = async (projectId: string, token?: string) => 
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/review-accept`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Accepted review locally:", e);
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/review-accept`);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("reviewAcceptProject fallback:", e?.message || e);
   }
 
   return { success: true, status: "accepted" };
 };
 
-export const deleteProject = async (projectId: string, token?: string) => {
-  // 1. Remove from local store
+export const deleteProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   const target = local.find((p) => p.projectId === projectId || String(p.id) === String(projectId));
   const updated = local.filter((p) => p.projectId !== projectId && String(p.id) !== String(projectId));
@@ -522,41 +481,30 @@ export const deleteProject = async (projectId: string, token?: string) => {
     });
   }
 
-  // 2. Call backend DELETE endpoint
   try {
-    const res = await fetch(`${BASE}/${projectId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: authHeaders(token),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Deleted locally:", e);
+    const res = await axiosInstance.delete(`/technology/projects/${projectId}`);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("deleteProject fallback:", e?.message || e);
   }
 
   return { success: true };
 };
 
-export const requestRevision = async (projectId: string, reason: string, token?: string) => {
-  // Update local
+export const requestRevision = async (projectId: string, reason: string, _token?: string) => {
   const local = readLocalProjects();
   const updated = local.map((p) =>
     p.projectId === projectId
-      ? { ...p, submissionStatus: "revision", revisionReason: reason }
+      ? { ...p, submissionStatus: "revision", adminNotes: reason }
       : p
   );
   writeLocalProjects(updated);
 
   try {
-    const res = await fetch(`${BASE}/${projectId}/request-revision`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: authHeaders(token),
-      body: JSON.stringify({ reason }),
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    console.warn("Requested revision locally:", e);
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/request-revision`, { reason });
+    return res?.data;
+  } catch (e: any) {
+    console.warn("requestRevision fallback:", e?.message || e);
   }
 
   return { success: true, status: "revision" };

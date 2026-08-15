@@ -30,6 +30,7 @@ import {
   Paperclip,
   Briefcase,
   Calendar,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -126,6 +127,7 @@ interface Project {
   submissionStatus: SubmissionStatus;
   paymentStatus: string;
   adminBudget?: number;
+  minBudget?: number;
   price?: number;
   currency?: string;
   category?: string;
@@ -134,6 +136,10 @@ interface Project {
   skills?: string[];
   preferredLanguages?: string[];
   paymentTerms?: string;
+  commissionPercent?: number;
+  adminNotes?: string;
+  requirements?: string;
+  conditions?: string;
   clientName?: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -488,53 +494,20 @@ export default function UserProjectsPage() {
                 className="group rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between"
               >
                 <div>
-                  {/* Status Badge & Category & View / Delete Actions */}
+                  {/* Status Badge & Category in one clean row */}
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border ${statusCfg.color}`}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
                     >
                       {statusCfg.icon}
                       {statusCfg.label}
                     </span>
 
-                    <div className="flex items-center gap-1.5">
-                      {project.category && (
-                        <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground truncate max-w-[120px]">
-                          {project.category}
-                        </span>
-                      )}
-
-                      {/* View Project Details Button */}
-                      <button
-                        type="button"
-                        title="View Project Details"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewProject(project);
-                        }}
-                        className="p-1 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all cursor-pointer"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </button>
-
-                      {/* Delete Trash Icon */}
-                      <button
-                        type="button"
-                        title="Delete Project"
-                        disabled={isActioning}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(project.projectId);
-                        }}
-                        className="p-1 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {isActioning ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </div>
+                    {project.category && (
+                      <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground whitespace-nowrap truncate max-w-[150px]">
+                        {project.category}
+                      </span>
+                    )}
                   </div>
 
                   {/* Title & Description */}
@@ -571,7 +544,7 @@ export default function UserProjectsPage() {
                   <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        Budget
+                        {project.submissionStatus === "approved" ? "Approved Budget" : "Budget"}
                       </p>
                       <p className="text-sm font-extrabold text-primary">
                         {project.currency || "USD"} ${Number(budget).toLocaleString()}
@@ -590,23 +563,23 @@ export default function UserProjectsPage() {
                     )}
                   </div>
 
-                  {/* Attachment indicator if user uploaded a file */}
-                  {project.attachmentFile && (
-                    <div className="mt-3 flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/60 text-xs">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="truncate text-[11px] font-medium text-foreground">
-                          {project.attachmentFile.name}
+                  {/* Admin Approved Quote Breakdown on Card */}
+                  {project.submissionStatus === "approved" && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between text-amber-600 font-bold text-[11px]">
+                        <span className="flex items-center gap-1">
+                          <ShieldCheck className="h-3.5 w-3.5 text-amber-600" /> Admin Quote Ready
                         </span>
+                        <span>{project.commissionPercent || 10}% Commission</span>
                       </div>
-                      <a
-                        href={project.attachmentFile.url}
-                        download={project.attachmentFile.name}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] font-bold text-primary hover:underline ml-2 shrink-0 flex items-center gap-0.5"
-                      >
-                        <Download className="h-3 w-3" /> Download
-                      </a>
+                      {project.adminNotes && (
+                        <p className="text-[11px] text-muted-foreground italic line-clamp-2">
+                          "{project.adminNotes}"
+                        </p>
+                      )}
+                      <p className="text-[10px] text-amber-600 font-medium">
+                        • Fund escrow to publish project live to businesses.
+                      </p>
                     </div>
                   )}
 
@@ -647,19 +620,46 @@ export default function UserProjectsPage() {
 
                 {/* Actions Footer */}
                 <div className="mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
-                  {/* Chat button */}
-                  {(project.submissionStatus === "active" ||
-                    project.submissionStatus === "in_progress" ||
-                    project.submissionStatus === "completed") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setChatProject(project)}
-                      className="rounded-xl text-xs font-semibold border-border hover:bg-muted"
+                  <div className="flex items-center gap-1.5">
+                    {/* View Project Details Button */}
+                    <button
+                      type="button"
+                      title="View Project Details"
+                      onClick={() => setViewProject(project)}
+                      className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer"
                     >
-                      <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" /> Live Chat
-                    </Button>
-                  )}
+                      <Eye className="h-4 w-4" />
+                    </button>
+
+                    {/* Delete Trash Icon Button */}
+                    <button
+                      type="button"
+                      title="Delete Project"
+                      disabled={isActioning}
+                      onClick={() => handleDelete(project.projectId)}
+                      className="p-2 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-border transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isActioning ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </button>
+
+                    {/* Chat button */}
+                    {(project.submissionStatus === "active" ||
+                      project.submissionStatus === "in_progress" ||
+                      project.submissionStatus === "completed") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setChatProject(project)}
+                        className="rounded-xl text-xs font-semibold border-border hover:bg-muted"
+                      >
+                        <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" /> Live Chat
+                      </Button>
+                    )}
+                  </div>
 
                   {/* Status action buttons */}
                   {project.submissionStatus === "draft" && (
@@ -677,11 +677,14 @@ export default function UserProjectsPage() {
                   {project.submissionStatus === "approved" && (
                     <Button
                       size="sm"
-                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs ml-auto"
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs ml-auto shadow-sm"
                       onClick={() => setPayProject(project)}
                     >
                       <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                      Pay Escrow — {project.currency || "USD"} ${Number(budget).toLocaleString()}
+                      Pay Escrow — {project.currency || "USD"} ${(
+                        Number(budget) +
+                        (Number(budget) * (project.commissionPercent !== undefined ? project.commissionPercent : 10)) / 100
+                      ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </Button>
                   )}
 
@@ -719,7 +722,7 @@ export default function UserProjectsPage() {
       {/* VIEW PROJECT DETAILS MODAL */}
       {viewProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
+          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4">
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-border pb-4">
               <div>
@@ -847,6 +850,48 @@ export default function UserProjectsPage() {
                 )}
               </div>
             </div>
+
+            {/* Admin Review & Quote Details if Approved */}
+            {(viewProject.submissionStatus === "approved" || viewProject.adminNotes || viewProject.requirements) && (
+              <div className="rounded-xl bg-amber-500/10 p-4 border border-amber-500/20 space-y-2 text-xs">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-amber-600" /> Admin Quote &amp; Terms
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Approved Budget</span>
+                    <span className="text-sm font-extrabold text-amber-600">
+                      {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
+                    <span className="font-semibold text-foreground">{viewProject.commissionPercent || 10}%</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Min Target</span>
+                    <span className="font-semibold text-foreground">
+                      {viewProject.currency || "USD"} ${Number(viewProject.minBudget || viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                {viewProject.adminNotes && (
+                  <p className="text-xs text-foreground bg-card/60 p-2.5 rounded-lg border border-border">
+                    <strong>Admin Note:</strong> {viewProject.adminNotes}
+                  </p>
+                )}
+                {viewProject.requirements && (
+                  <p className="text-xs text-foreground bg-card/60 p-2.5 rounded-lg border border-border">
+                    <strong>Admin Requirements:</strong> {viewProject.requirements}
+                  </p>
+                )}
+                {viewProject.conditions && (
+                  <p className="text-xs text-foreground bg-card/60 p-2.5 rounded-lg border border-border">
+                    <strong>Delivery Conditions:</strong> {viewProject.conditions}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Submitted File Attachments */}
             {viewProject.attachmentFile && (

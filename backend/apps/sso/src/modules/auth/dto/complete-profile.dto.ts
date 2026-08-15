@@ -41,6 +41,10 @@ export class CompleteProfileDto {
   @IsOptional() @IsString() passportNumber?: string;
   @IsOptional() twoFactorEnabled?: boolean;
   @IsOptional() @IsString() twoFactorMethod?: string;
+  @IsOptional() @IsString() businessName?: string;
+  @IsOptional() @IsString() businessType?: string;
+  @IsOptional() percentageRate?: number;
+  @IsOptional() commissionRate?: number;
 
   // Agency specific
   @IsOptional() @ValidateNested() @Type(() => AgencyServiceAreaDto) serviceArea?: AgencyServiceAreaDto;

@@ -40,7 +40,7 @@ export default function RoleProfileCard({
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
-  const { refreshUser } = useUser();
+  const { user, refreshUser } = useUser();
 
   const effectiveKycStatus = kycStatus;
   const effectiveIsKycVerified = kycStatus === 'approved';
@@ -61,6 +61,14 @@ export default function RoleProfileCard({
     if (!documentFrontUrl) missingFields.push("ID Document Front");
     if (!documentBackUrl) missingFields.push("ID Document Back");
     if (!hasCustomAvatar) missingFields.push("Profile Photo");
+
+    const isBusiness = String((user as any)?.accountType || (user as any)?.role || "").toLowerCase().includes("business");
+    if (isBusiness) {
+      const bName = (user as any)?.businessName || (user as any)?.businessInfo?.businessName;
+      const bType = (user as any)?.businessType || (user as any)?.businessInfo?.businessIndustry;
+      if (!bName || !bName.trim()) missingFields.push("Business Name");
+      if (!bType || !bType.trim()) missingFields.push("Business Type");
+    }
 
     if (missingFields.length > 0) {
       toast.error(`Please complete the following fields before applying for KYC: ${missingFields.join(', ')}`);

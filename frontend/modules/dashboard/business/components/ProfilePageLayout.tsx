@@ -131,6 +131,59 @@ export default function ProfilePageLayout() {
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false)
   const [isUpdatingVerification, setIsUpdatingVerification] = useState(false)
   const [usernameError, setUsernameError] = useState("")
+  const [businessName, setBusinessName] = useState(
+    (user as any)?.businessName || (user as any)?.businessInfo?.businessName || fullName || ""
+  )
+  const [businessType, setBusinessType] = useState(
+    (user as any)?.businessType || (user as any)?.businessInfo?.businessIndustry || "Technology"
+  )
+  const [isUpdatingBusiness, setIsUpdatingBusiness] = useState(false)
+
+  // Sync business details if user object updates
+  useEffect(() => {
+    if ((user as any)?.businessName && !businessName) {
+      setBusinessName((user as any).businessName)
+    }
+    if ((user as any)?.businessType && (!businessType || businessType === "Technology")) {
+      setBusinessType((user as any).businessType)
+    }
+  }, [user])
+
+  const handleUpdateBusinessInfo = async () => {
+    if (!businessName.trim()) {
+      toast.error("Please enter your business name.")
+      return
+    }
+    if (!businessType) {
+      toast.error("Please select a business type.")
+      return
+    }
+
+    setIsUpdatingBusiness(true)
+    try {
+      await updateProfile({
+        businessName,
+        businessType,
+        percentageRate: 20,
+        commissionRate: 20,
+      } as any)
+
+      await recordRealActivity(
+        "BUSINESS_PROFILE_UPDATED",
+        `Business info updated: ${businessName} (${businessType}) with 20% platform commission rate`,
+        { userId: rawUserId, email: profileEmail, name: fullName }
+      ).catch(() => {})
+
+      if (refreshUser) {
+        await refreshUser().catch(() => {})
+      }
+      toast.success("Business Information Updated Successfully")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update business info.")
+    } finally {
+      setIsUpdatingBusiness(false)
+    }
+  }
 
   const [idType, setIdType] = useState(governmentIdType || "National ID Card")
   const [idNumber, setIdNumber] = useState(nationalIdentity || "")
@@ -404,6 +457,8 @@ export default function ProfilePageLayout() {
     const missingFields: string[] = [];
     if (!fullName) missingFields.push("Full Name");
     if (!profilePhone && !profileEmail) missingFields.push("Phone or Email");
+    if (!businessName?.trim()) missingFields.push("Business Name");
+    if (!businessType?.trim()) missingFields.push("Business Type");
     if (!dob) missingFields.push("Date of Birth");
     if (!nationality) missingFields.push("Nationality");
     if (!nationalIdentity) missingFields.push("ID Number");
@@ -715,6 +770,79 @@ export default function ProfilePageLayout() {
                   >
                     {isUpdatingProfile && <Loader2 className="h-4 w-4 animate-spin" />}
                     Update Profile
+                  </button>
+                </div>
+              </section>
+
+              {/* Business Information Card */}
+              <section id="business-info" className={cardClass}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold text-gray-900">Business Information</h2>
+                  <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                    20% Commission Rate
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className={labelClass}>
+                      Business Name <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="Enter Registered Business / Company Name"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1">
+                    <label className={labelClass}>
+                      Business Type <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <select
+                      className={inputClass}
+                      value={businessType}
+                      onChange={(e) => setBusinessType(e.target.value)}
+                    >
+                      <option value="Technology">Technology</option>
+                      <option value="Real Estate">Real Estate</option>
+                      <option value="Visa">Visa</option>
+                      <option value="Travel">Travel</option>
+                      <option value="Careers">Careers</option>
+                      <option value="Courses">Courses</option>
+                      <option value="Transport">Transport</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-1">
+                    <label className={labelClass}>
+                      Percentage Rate / Commission
+                    </label>
+                    <input
+                      type="text"
+                      className={`${inputClass} bg-gray-50 text-gray-700 cursor-not-allowed`}
+                      value="20% (Default Platform Rate)"
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    className={`${primaryBtn} flex items-center justify-center gap-2`}
+                    disabled={isUpdatingBusiness}
+                    onClick={handleUpdateBusinessInfo}
+                  >
+                    {isUpdatingBusiness ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Updating...
+                      </>
+                    ) : (
+                      "Update Business Info"
+                    )}
                   </button>
                 </div>
               </section>

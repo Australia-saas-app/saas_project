@@ -73,7 +73,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('notification-service/docs', app, document);
 
-  const port = process.env.PORT || 3005;
+  const port = process.env.PORT || 3014;
   await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 Notification Service running on http://0.0.0.0:${port}`);

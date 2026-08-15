@@ -32,6 +32,9 @@ async function bootstrap() {
 
   app.useLogger(app.get(Logger));
   app.useGlobalInterceptors(new LoggerErrorInterceptor());
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const cookieParser = require('cookie-parser');
+  app.use(cookieParser());
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'same-origin' },
@@ -64,7 +67,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/technical/docs', app, document);
 
-  const port = process.env.PORT || 3011;
+  const port = process.env.PORT || 3010;
   await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 Technology Service running on http://0.0.0.0:${port}`);

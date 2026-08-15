@@ -45,6 +45,14 @@ export default function KycApplicationModal({
       if (!hasFrontDoc) missing.push("Front ID Document");
       if (isDualDoc && !hasBackDoc) missing.push("Back ID Document");
 
+      const isBusiness = String(user.accountType || user.accountLabel || user.role || "").toLowerCase().includes("business");
+      if (isBusiness) {
+        const bName = (user as any).businessName || (user as any).businessInfo?.businessName;
+        const bType = (user as any).businessType || (user as any).businessInfo?.businessIndustry;
+        if (!bName || !bName.trim()) missing.push("Business Name");
+        if (!bType || !bType.trim()) missing.push("Business Type");
+      }
+
       if (missing.length > 0) {
         toast.error(`Please complete the following before applying for KYC: ${missing.join(", ")}`);
         return;
@@ -68,6 +76,10 @@ export default function KycApplicationModal({
         documentFrontUrl: user.documentFrontUrl,
         documentBackUrl: user.documentBackUrl,
         avatarUrl: user.avatarUrl || user.profilePhoto,
+        // Business KYC Details Snapshot
+        businessName: (user as any).businessName || (user as any).businessInfo?.businessName || user.fullName || "",
+        businessType: (user as any).businessType || (user as any).businessInfo?.businessIndustry || "Technology",
+        commissionRate: 20,
         appliedAt: new Date().toISOString(),
       };
       const res = await applyForKyc(targetUid, snapData);
@@ -85,6 +97,24 @@ export default function KycApplicationModal({
           "Submitted KYC verification application documents for review",
           { email: user.email, userId: uid, name: user.fullName || user.firstName || "User" }
         ).catch(() => {});
+
+        // Dispatch notification to Admin
+        try {
+          const notifItem = {
+            id: `notif-kyc-${Date.now()}`,
+            title: "New KYC Verification Application",
+            description: `${user.fullName || user.email || "User"} submitted KYC verification documents for approval.`,
+            time: "Just now",
+            read: false,
+            href: "/admin/users",
+            type: "kyc_application",
+          };
+          ["app_notifs_admin", "admin_notifications"].forEach((k) => {
+            const existing = JSON.parse(localStorage.getItem(k) || "[]");
+            localStorage.setItem(k, JSON.stringify([notifItem, ...existing]));
+          });
+          window.dispatchEvent(new Event("notifications_updated"));
+        } catch {}
 
         // Broadcast to admin side and other tabs
         if (typeof window !== "undefined") {
@@ -434,13 +464,54 @@ export default function KycApplicationModal({
                     </div>
                   </div>
                 </div>
-                  <div className="h-px bg-border w-full my-6" />
 
-                  {/* Documents */}
-                  <div className="mb-4 relative z-10">
-                    <h4 className="font-bold text-base text-foreground mb-3">Attached Documents</h4>
-                    {renderDocuments()}
+                {/* Business Information Section (Only for Business Accounts) */}
+                {(displayAccountType.toLowerCase() === "business" || snap.businessName || (user as any).businessName) && (
+                  <div className="mb-6 relative z-10">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-base text-foreground uppercase tracking-wide text-xs">
+                        Business Information
+                      </h4>
+                      <span className="rounded-full bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 text-[10px] font-bold text-indigo-500">
+                        {snap.commissionRate || 20}% Platform Commission
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border border-border bg-muted/20">
+                      <div>
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                          Registered Business Name
+                        </span>
+                        <p className="font-bold text-foreground text-xs sm:text-sm">
+                          {snap.businessName || (user as any).businessName || (user as any).businessInfo?.businessName || displayFullName || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                          Business Type / Sector
+                        </span>
+                        <p className="font-bold text-foreground text-xs sm:text-sm">
+                          {snap.businessType || (user as any).businessType || (user as any).businessInfo?.businessIndustry || "Technology"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                          Platform Commission Rate
+                        </span>
+                        <p className="font-bold text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">
+                          {snap.commissionRate || 20}% (Standard Rate)
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                )}
+
+                <div className="h-px bg-border w-full my-6" />
+
+                {/* Documents */}
+                <div className="mb-4 relative z-10">
+                  <h4 className="font-bold text-base text-foreground mb-3">Attached Documents</h4>
+                  {renderDocuments()}
+                </div>
 
                   {/* Applicant Signature Section */}
                   <div className="mt-8 pt-4 flex justify-end relative z-10">

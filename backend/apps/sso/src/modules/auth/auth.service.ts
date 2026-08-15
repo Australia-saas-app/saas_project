@@ -1034,6 +1034,28 @@ export class AuthService {
       } as any;
     }
 
+    if (dto.businessName !== undefined) {
+      user.businessName = dto.businessName;
+      user.businessInfo = {
+        ...(user.businessInfo || {}),
+        businessName: dto.businessName,
+      } as any;
+    }
+
+    if (dto.businessType !== undefined) {
+      user.businessType = dto.businessType;
+      user.businessInfo = {
+        ...(user.businessInfo || {}),
+        businessIndustry: dto.businessType,
+      } as any;
+    }
+
+    if (dto.percentageRate !== undefined || dto.commissionRate !== undefined) {
+      user.percentageRate = Number(dto.percentageRate ?? dto.commissionRate ?? 20);
+    } else if (!user.percentageRate && user.accountType === AccountType.BUSINESS) {
+      user.percentageRate = 20;
+    }
+
     if (!user.status) {
       user.status = UserStatus.ACTIVE;
     }
@@ -1396,6 +1418,46 @@ export class AuthService {
     };
   }
 
+  async updateBusinessInfo(userId: string, body: { businessName?: string; businessType?: string; percentageRate?: number; commissionRate?: number }) {
+    const user = await this.findUserByAnyId(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (body.businessName !== undefined) {
+      user.businessName = body.businessName;
+      user.businessInfo = {
+        ...(user.businessInfo || {}),
+        businessName: body.businessName,
+      } as any;
+    }
+
+    if (body.businessType !== undefined) {
+      user.businessType = body.businessType;
+      user.businessInfo = {
+        ...(user.businessInfo || {}),
+        businessIndustry: body.businessType,
+      } as any;
+    }
+
+    if (body.percentageRate !== undefined || body.commissionRate !== undefined) {
+      user.percentageRate = Number(body.percentageRate ?? body.commissionRate ?? 20);
+    }
+
+    await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: 'Business information updated successfully in database',
+      data: {
+        userId: user.userId,
+        businessName: user.businessName,
+        businessType: user.businessType,
+        percentageRate: user.percentageRate,
+      },
+    };
+  }
+
   async applyForKyc(userId: string, clientApplicationData?: any) {
     const user = await this.findUserByAnyId(userId);
     if (!user) {
@@ -1448,9 +1510,23 @@ export class AuthService {
       documentFrontUrl: clientApplicationData?.documentFrontUrl || (user as any).documentFrontUrl,
       documentBackUrl: clientApplicationData?.documentBackUrl || (user as any).documentBackUrl,
       avatarUrl: clientApplicationData?.avatarUrl || user.profilePhoto || (user as any).avatarUrl,
+      // Business profile fields snapshot
+      businessName: clientApplicationData?.businessName || user.businessName || user.businessInfo?.businessName || '',
+      businessType: clientApplicationData?.businessType || user.businessType || user.businessInfo?.businessIndustry || 'Technology',
+      commissionRate: clientApplicationData?.commissionRate !== undefined ? Number(clientApplicationData.commissionRate) : (user.percentageRate ? Number(user.percentageRate) : 20),
       appliedAt: new Date().toISOString(),
       ...(isResubmission ? { resubmittedAt: new Date().toISOString() } : {}),
     };
+
+    if (clientApplicationData?.businessName) {
+      user.businessName = clientApplicationData.businessName;
+    }
+    if (clientApplicationData?.businessType) {
+      user.businessType = clientApplicationData.businessType;
+    }
+    if (user.accountType === AccountType.BUSINESS && !user.percentageRate) {
+      user.percentageRate = 20;
+    }
 
     // Upsert into kyc_application table (create or update)
     if (kycRecord) {
