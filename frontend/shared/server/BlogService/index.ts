@@ -8,7 +8,7 @@ const log = logger.child("BlogService")
 
 export const getBlogs = async () => {
   try {
-    const data = await PublicServerFetchJson(`/platform-service/blogs?page=${1}&limit=${20}`)
+    const data = await PublicServerFetchJson(`/platform/blogs?page=${1}&limit=${20}`)
     return data
   } catch (error) {
     if (isBackendOfflineError(error)) {
@@ -22,7 +22,7 @@ export const getBlogs = async () => {
 
 export const getBlogById = async (id: string) => {
   try {
-    const data = await PublicServerFetchJson(`/platform-service/blogs/${id}`)
+    const data = await PublicServerFetchJson(`/platform/blogs/${id}`)
     return data
   } catch (error) {
     if (isBackendOfflineError(error)) {

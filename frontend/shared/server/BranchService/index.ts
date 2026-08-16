@@ -8,7 +8,7 @@ const log = logger.child("BranchService")
 
 export const getBranches = async () => {
   try {
-    const data = await PublicServerFetchJson(`/platform-service/branches?page=${1}&limit=${20}`)
+    const data = await PublicServerFetchJson(`/platform/branches?page=${1}&limit=${20}`)
     return data
   } catch (error) {
     if (isBackendOfflineError(error)) {
