@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
-import type { NotificationItem } from "@/src/constants/notifications";
+import { type NotificationItem, formatNotificationTime } from "@/src/constants/notifications";
 import { useUser } from "@/src/context/user.provider";
 import { io, Socket } from "socket.io-client";
 import axiosInstance from "@/src/lib/axiosInstance";
@@ -56,7 +56,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       const combinedMap = new Map<string, NotificationItem>();
       [...emailNotifs, ...userNotifs].forEach((n) => {
-        if (n && n.id) combinedMap.set(n.id, n);
+        if (n && n.id) {
+          combinedMap.set(n.id, {
+            ...n,
+            time: formatNotificationTime(n.createdAt || n.time),
+          });
+        }
       });
 
       if (combinedMap.size > 0) {
@@ -79,17 +84,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const resData = res.data;
         if (resData.success && Array.isArray(resData.data?.notifications)) {
           const mapped = resData.data.notifications.map((n: any) => ({
-            id: n.id,
+            id: String(n.id || n.notificationId),
             title: n.title,
             message: n.message,
-            time: new Date(n.createdAt).toLocaleDateString(),
-            read: n.isRead,
-            href: n.data?.href,
+            createdAt: n.createdAt,
+            time: formatNotificationTime(n.createdAt),
+            read: Boolean(n.isRead || n.read),
+            href: n.data?.href || n.href,
           }));
           setItems((prev) => {
             const map = new Map<string, NotificationItem>();
             [...mapped, ...prev].forEach((item) => {
-              if (item && item.id) map.set(item.id, item);
+              if (item && item.id) {
+                map.set(item.id, {
+                  ...item,
+                  time: formatNotificationTime(item.createdAt || item.time),
+                });
+              }
             });
             const merged = Array.from(map.values()).slice(0, 50);
             try {
@@ -108,10 +119,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const notify = useCallback(
     (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
+      const now = new Date().toISOString();
       const entry: NotificationItem = {
         ...item,
         id: item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        time: "Just now",
+        createdAt: item.createdAt || now,
+        time: formatNotificationTime(item.createdAt || now),
         read: false,
       };
       setItems((prev) => {

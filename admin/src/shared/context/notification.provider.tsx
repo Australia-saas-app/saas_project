@@ -18,10 +18,63 @@ export type NotificationItem = {
   id: string;
   title: string;
   message: string;
-  time: string;
+  time?: string;
+  createdAt?: string | Date;
   read: boolean;
   href?: string;
 };
+
+export function formatNotificationTime(input?: string | number | Date | null): string {
+  if (!input) return "Just now";
+
+  // If already relative formatted
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (trimmed.toLowerCase() === "just now") return "Just now";
+    if (trimmed.toLowerCase().endsWith("ago")) return trimmed;
+  }
+
+  const date = new Date(input);
+  if (isNaN(date.getTime())) {
+    return typeof input === "string" ? input : "Just now";
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+
+  // Less than 1 minute
+  if (diffSeconds < 60) {
+    return "Just now";
+  }
+
+  // 1 to 59 minutes ago
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min${diffMinutes === 1 ? "" : "s"} ago`;
+  }
+
+  // Check if same calendar day
+  const isSameDay =
+    now.getFullYear() === date.getFullYear() &&
+    now.getMonth() === date.getMonth() &&
+    now.getDate() === date.getDate();
+
+  if (isSameDay) {
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
+  // Different calendar day: Aug 08, 2026
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
 
 interface INotificationContext {
   notifications: NotificationItem[];
@@ -43,7 +96,7 @@ const getWsUrl = (): string => {
   if (typeof window === "undefined") return "http://localhost:8000";
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
   const host = window.location.host;
-  const kongHost = host.replace(/:8001$/, ":8000").replace(/:3001$/, ":8000");
+  const kongHost = host.replace(/:8080$/, ":8000").replace(/:3000$/, ":8000");
   return `${proto}://${kongHost}`;
 };
 
@@ -60,13 +113,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     let localNotifs: NotificationItem[] = [];
     if (typeof window !== "undefined") {
       try {
+        const map = new Map<string, NotificationItem>();
         const keys = [
-          userId ? `admin_notifs_${userId}` : null,
-          "app_notifs_admin",
           "admin_notifications",
+          "app_notifs_admin",
+          userId ? `admin_notifs_${userId}` : null,
         ].filter(Boolean) as string[];
 
-        const map = new Map<string, NotificationItem>();
         for (const k of keys) {
           const raw = localStorage.getItem(k);
           if (raw) {
@@ -79,7 +132,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                     id,
                     title: n.title,
                     message: n.message || n.description,
-                    time: n.time || "Just now",
+                    createdAt: n.createdAt,
+                    time: formatNotificationTime(n.createdAt || n.time),
                     read: Boolean(n.read),
                     href: n.href || "/admin/technical",
                   });
@@ -113,7 +167,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           id: String(n.id || n.notificationId),
           title: n.title || n.subject,
           message: n.message || n.content || "",
-          time: n.createdAt ? new Date(n.createdAt).toLocaleDateString() : "Just now",
+          createdAt: n.createdAt,
+          time: formatNotificationTime(n.createdAt),
           read: Boolean(n.isRead || n.read),
           href: n.data?.href || n.href,
         }));
@@ -122,7 +177,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const combinedMap = new Map<string, NotificationItem>();
     [...remoteNotifs, ...localNotifs].forEach((n) => {
-      if (n && n.id) combinedMap.set(n.id, n);
+      if (n && n.id) {
+        combinedMap.set(n.id, {
+          ...n,
+          time: formatNotificationTime(n.createdAt || n.time),
+        });
+      }
     });
 
     setItems(Array.from(combinedMap.values()));
@@ -141,10 +201,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [loadNotifications]);
 
   const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
+    const now = new Date().toISOString();
     const entry: NotificationItem = {
       ...item,
       id: item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      time: "Just now",
+      createdAt: item.createdAt || now,
+      time: formatNotificationTime(item.createdAt || now),
       read: false,
     };
     setItems((prev) => {

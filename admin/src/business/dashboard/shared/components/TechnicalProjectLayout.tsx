@@ -53,8 +53,10 @@ export interface ProjectItem {
   currency?: string;
   submissionStatus: string;
   paymentStatus: string;
+  paidAmount?: number;
   startDate?: string;
   endDate?: string;
+  clientId?: string;
   clientName?: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -116,7 +118,7 @@ export default function TechnicalProjectLayout() {
     }
 
     const map = new Map<string, ProjectItem>();
-    [...remoteProjects, ...localProjects].forEach((p) => {
+    remoteProjects.forEach((p) => {
       if (p && (p.projectId || (p as any).id)) {
         const key = p.projectId || String((p as any).id);
         map.set(key, {
@@ -124,6 +126,35 @@ export default function TechnicalProjectLayout() {
           id: key,
           projectId: p.projectId || key,
         });
+      }
+    });
+
+    localProjects.forEach((p) => {
+      if (p && (p.projectId || (p as any).id)) {
+        const key = p.projectId || String((p as any).id);
+        const existing = map.get(key);
+        if (!existing) {
+          map.set(key, {
+            ...p,
+            id: key,
+            projectId: p.projectId || key,
+          });
+        } else {
+          const isPaid =
+            p.paymentStatus?.toLowerCase() === "paid" ||
+            existing.paymentStatus?.toLowerCase() === "paid" ||
+            p.submissionStatus === "active" ||
+            existing.submissionStatus === "active";
+
+          map.set(key, {
+            ...existing,
+            ...p,
+            id: key,
+            projectId: p.projectId || key,
+            paymentStatus: isPaid ? "paid" : existing.paymentStatus || p.paymentStatus,
+            submissionStatus: isPaid && existing.submissionStatus === "approved" ? "active" : (p.submissionStatus || existing.submissionStatus),
+          });
+        }
       }
     });
 
@@ -195,6 +226,28 @@ export default function TechnicalProjectLayout() {
             );
             localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
           }
+
+          // Dispatch notification to user
+          const clientNotif = {
+            id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title: "Project Approved — Ready for Payment",
+            message: `Admin approved "${selectedProject.title}" with a budget of ${selectedProject.currency || "USD"} ${b}. Please pay to publish.`,
+            time: "Just now",
+            read: false,
+            href: "/dashboard/user/technical",
+            type: "TECHNICAL_PROJECT_APPROVED",
+          };
+          const clientKeys = [
+            `app_notifs_${selectedProject.clientId}`,
+            `app_notifs_${selectedProject.clientEmail}`,
+            "app_notifs_user",
+          ].filter(Boolean) as string[];
+
+          clientKeys.forEach((k) => {
+            const ex = JSON.parse(localStorage.getItem(k) || "[]");
+            localStorage.setItem(k, JSON.stringify([clientNotif, ...ex]));
+          });
+          window.dispatchEvent(new Event("notifications_updated"));
         } catch {}
       }
 
@@ -234,6 +287,28 @@ export default function TechnicalProjectLayout() {
             );
             localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
           }
+
+          // Dispatch notification to user
+          const clientNotif = {
+            id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            title: "Project Review Update",
+            message: `Your project "${selectedProject.title}" was not approved: ${adminNotesInput || "Does not meet requirements"}.`,
+            time: "Just now",
+            read: false,
+            href: "/dashboard/user/technical",
+            type: "TECHNICAL_PROJECT_REJECTED",
+          };
+          const clientKeys = [
+            `app_notifs_${selectedProject.clientId}`,
+            `app_notifs_${selectedProject.clientEmail}`,
+            "app_notifs_user",
+          ].filter(Boolean) as string[];
+
+          clientKeys.forEach((k) => {
+            const ex = JSON.parse(localStorage.getItem(k) || "[]");
+            localStorage.setItem(k, JSON.stringify([clientNotif, ...ex]));
+          });
+          window.dispatchEvent(new Event("notifications_updated"));
         } catch {}
       }
 
@@ -476,10 +551,17 @@ export default function TechnicalProjectLayout() {
                   const isPaid =
                     p.paymentStatus?.toLowerCase() === "paid" ||
                     p.paymentStatus?.toLowerCase() === "released" ||
-                    ["active", "in_progress", "completed", "accepted"].includes(p.submissionStatus);
+                    Boolean(p.paidAmount && Number(p.paidAmount) > 0) ||
+                    ["active", "in_progress", "completed", "accepted"].includes(
+                      (p.submissionStatus || "").toLowerCase()
+                    );
 
-                  const paidAmountStr = isPaid ? `${currency} $${totalAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : `${currency} $0.00`;
-                  const dueAmountStr = isPaid ? `${currency} $0.00` : `${currency} $${totalAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                  const paidAmountStr = isPaid
+                    ? `${currency} $${totalAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                    : `${currency} $0.00`;
+                  const dueAmountStr = isPaid
+                    ? `${currency} $0.00`
+                    : `${currency} $${totalAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
                   const rawStatus = (p.submissionStatus || "pending").toLowerCase();
                   let displayStatus = "Pending";
@@ -621,21 +703,26 @@ export default function TechnicalProjectLayout() {
         const totalDue = calcBudget + (calcBudget * calcComm) / 100;
         const currency = selectedProject.currency || "USD";
         const createdAtFormatted = selectedProject.createdAt && !isNaN(new Date(selectedProject.createdAt).getTime())
-          ? new Date(selectedProject.createdAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "2-digit",
-              year: "numeric",
-            })
-          : "NA";
+            ? new Date(selectedProject.createdAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "2-digit",
+                year: "numeric",
+              })
+            : "NA";
+
+        const isPending =
+          selectedProject.submissionStatus === "pending" ||
+          selectedProject.submissionStatus === "submitted" ||
+          !selectedProject.submissionStatus;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-hidden">
             <div
-              style={{ maxWidth: "620px" }}
-              className="relative w-full rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[88vh] overflow-y-auto my-auto animate-in fade-in duration-200"
+              style={{ maxWidth: "580px", width: "100%" }}
+              className="relative w-full rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[82vh] animate-in fade-in duration-200 overflow-hidden"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3.5">
+              {/* Header (Sticky / Fixed at top) */}
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-5 py-3 shrink-0 bg-white dark:bg-slate-900">
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
                     {selectedProject.projectId}
@@ -647,190 +734,217 @@ export default function TechnicalProjectLayout() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Client Information Section */}
-              <div className="rounded-xl bg-slate-50 dark:bg-slate-950/60 p-4 border border-slate-100 dark:border-slate-800 space-y-2.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  Client Contact Information
-                </span>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 font-semibold block text-[10px]">Full Name</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mt-0.5">
-                      <User className="h-3.5 w-3.5 text-blue-500" /> {selectedProject.clientName || "User"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-semibold block text-[10px]">Email</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 mt-0.5">
-                      <Mail className="h-3.5 w-3.5 text-blue-500" /> {selectedProject.clientEmail || "No Email"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-semibold block text-[10px]">Phone</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mt-0.5">
-                      <Phone className="h-3.5 w-3.5 text-blue-500" /> {selectedProject.clientPhone || "No Phone"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-semibold block text-[10px]">Created At</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mt-0.5">
-                      <Calendar className="h-3.5 w-3.5 text-blue-500" /> {createdAtFormatted}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Project Info Section */}
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-3 text-xs">
-                <div>
+              {/* Scrollable Content Body */}
+              <div className="p-4 sm:p-5 space-y-3 overflow-y-auto flex-1">
+                {/* Client Information Section */}
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-950/60 p-3.5 border border-slate-100 dark:border-slate-800 space-y-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Project Scope &amp; Info
+                    Client Contact Information
                   </span>
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white mt-1">
-                    {selectedProject.title}
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Category: <strong className="text-slate-800 dark:text-slate-200">{selectedProject.category}</strong>
-                    {selectedProject.subcategory && ` • ${selectedProject.subcategory}`}
-                    {selectedProject.projectType && ` • ${selectedProject.projectType}`}
-                  </p>
-                </div>
-
-                {selectedProject.description && (
-                  <div className="bg-slate-50 dark:bg-slate-950/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                    {selectedProject.description}
-                  </div>
-                )}
-
-                {/* Tech Stack Skills */}
-                {selectedProject.skills && selectedProject.skills.length > 0 && (
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Required Skills</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedProject.skills.map((s) => (
-                        <span
-                          key={s}
-                          className="rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900 px-2 py-0.5 text-[11px] font-semibold"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Attachment File */}
-                {selectedProject.attachmentFile && (
-                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-4 w-4 text-blue-600 shrink-0" />
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                        {selectedProject.attachmentFile.name}
+                  <div className="grid grid-cols-2 gap-2.5 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px]">Full Name</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mt-0.5">
+                        <User className="h-3.5 w-3.5 text-blue-500" /> {selectedProject.clientName || "User"}
                       </span>
                     </div>
-                    <a
-                      href={selectedProject.attachmentFile.url}
-                      download={selectedProject.attachmentFile.name}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:underline shrink-0 ml-2"
-                    >
-                      <Download className="h-3 w-3" /> Download
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* Admin Approval & Quote Section */}
-              <div className="rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-4 space-y-3 text-xs">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-amber-600" /> Admin Pricing &amp; Terms
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Approved Budget ($)</label>
-                    <input
-                      type="number"
-                      value={adminBudgetInput}
-                      onChange={(e) => setAdminBudgetInput(e.target.value)}
-                      className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Commission Rate (%)</label>
-                    <input
-                      type="number"
-                      value={commissionPercentInput}
-                      onChange={(e) => setCommissionPercentInput(e.target.value)}
-                      className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Total Escrow Due</label>
-                    <div className="h-8 px-2.5 flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-extrabold text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700">
-                      {currency} ${totalDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px]">Email</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 mt-0.5">
+                        <Mail className="h-3.5 w-3.5 text-blue-500" /> {selectedProject.clientEmail || "No Email"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px]">Phone</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mt-0.5">
+                        <Phone className="h-3.5 w-3.5 text-blue-500" /> {selectedProject.clientPhone || "No Phone"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px]">Created At</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mt-0.5">
+                        <Calendar className="h-3.5 w-3.5 text-blue-500" /> {createdAtFormatted}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Delivery Requirements</label>
-                  <input
-                    type="text"
-                    value={requirementsInput}
-                    onChange={(e) => setRequirementsInput(e.target.value)}
-                    placeholder="Technical specifications and acceptance criteria"
-                    className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
-                  />
+                {/* Project Info Section */}
+                <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3.5 space-y-2.5 text-xs">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Project Scope &amp; Info
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                      {selectedProject.title}
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Category: <strong className="text-slate-800 dark:text-slate-200">{selectedProject.category}</strong>
+                      {selectedProject.subcategory && ` • ${selectedProject.subcategory}`}
+                      {selectedProject.projectType && ` • ${selectedProject.projectType}`}
+                    </p>
+                  </div>
+
+                  {selectedProject.description && (
+                    <div className="bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {selectedProject.description}
+                    </div>
+                  )}
+
+                  {/* Tech Stack Skills */}
+                  {selectedProject.skills && selectedProject.skills.length > 0 && (
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Required Skills</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedProject.skills.map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900 px-2 py-0.5 text-[11px] font-semibold"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attachment File */}
+                  {selectedProject.attachmentFile && (
+                    <div className="flex items-center justify-between p-2 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          {selectedProject.attachmentFile.name}
+                        </span>
+                      </div>
+                      <a
+                        href={selectedProject.attachmentFile.url}
+                        download={selectedProject.attachmentFile.name}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:underline shrink-0 ml-2"
+                      >
+                        <Download className="h-3 w-3" /> Download
+                      </a>
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Admin Notes</label>
-                  <input
-                    type="text"
-                    value={adminNotesInput}
-                    onChange={(e) => setAdminNotesInput(e.target.value)}
-                    placeholder="Internal or feedback note to client"
-                    className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500"
-                  />
+              {/* Admin Approval & Quote Section */}
+                <div className="rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 p-3.5 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-amber-600" /> Admin Pricing &amp; Terms
+                    </span>
+                    {!isPending && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
+                        Status: {selectedProject.submissionStatus}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">Approved Budget ($)</label>
+                      <input
+                        type="number"
+                        disabled={!isPending}
+                        value={adminBudgetInput}
+                        onChange={(e) => setAdminBudgetInput(e.target.value)}
+                        className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500 disabled:opacity-75 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">Commission Rate (%)</label>
+                      <input
+                        type="number"
+                        disabled={!isPending}
+                        value={commissionPercentInput}
+                        onChange={(e) => setCommissionPercentInput(e.target.value)}
+                        className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500 disabled:opacity-75 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">Total Escrow Due</label>
+                      <div className="h-8 px-2.5 flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-extrabold text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700">
+                        {currency} ${totalDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Delivery Requirements</label>
+                    <input
+                      type="text"
+                      disabled={!isPending}
+                      value={requirementsInput}
+                      onChange={(e) => setRequirementsInput(e.target.value)}
+                      placeholder="Technical specifications and acceptance criteria"
+                      className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500 disabled:opacity-75 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Admin Notes</label>
+                    <input
+                      type="text"
+                      disabled={!isPending}
+                      value={adminNotesInput}
+                      onChange={(e) => setAdminNotesInput(e.target.value)}
+                      placeholder="Internal or feedback note to client"
+                      className="w-full h-8 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-blue-500 disabled:opacity-75 disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 dark:border-slate-800 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  disabled={actionLoading}
-                  className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={handleReject}
-                  className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
-                  Reject
-                </button>
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={handleApprove}
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
-                >
-                  {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  Approve Project
-                </button>
+              {/* Action Buttons (Sticky / Fixed at bottom) */}
+              <div className="flex items-center justify-between gap-2.5 border-t border-slate-100 dark:border-slate-800 px-5 py-3 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="text-[11px] text-slate-500 font-medium">
+                  {!isPending && (
+                    <span className="capitalize font-semibold text-slate-700 dark:text-slate-300">
+                      Action already applied ({selectedProject.submissionStatus})
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    disabled={actionLoading}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  {isPending && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={handleReject}
+                        className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={handleApprove}
+                        className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+                      >
+                        {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        Approve Project
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>

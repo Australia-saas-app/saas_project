@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, Trash2 } from "lucide-react";
-import { useNotifications, type NotificationItem } from "@/src/shared/context/notification.provider";
+import { useNotifications, type NotificationItem, formatNotificationTime } from "@/src/shared/context/notification.provider";
 
 type NotificationBellProps = {
   viewAllHref?: string;
@@ -178,7 +178,7 @@ function NotificationRow({ item, isDark }: { item: NotificationItem; isDark: boo
           {item.message}
         </p>
         <p className={`mt-1 text-[11px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-          {item.time}
+          {formatNotificationTime(item.createdAt || item.time)}
         </p>
       </div>
     </div>

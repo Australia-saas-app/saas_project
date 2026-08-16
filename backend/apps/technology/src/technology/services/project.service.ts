@@ -176,11 +176,9 @@ export class ProjectService {
 
     // Trigger MongoDB Activity Log
     this.triggerActivityLog({
-      action: 'PROJECT_SUBMITTED',
-      resource: `Submitted service project "${savedProject.title}" (${savedProject.projectId}) with target budget $${savedProject.price}`,
+      action: 'PROJECT_CREATED',
+      resource: `New Project Created: "${savedProject.title}" (${savedProject.projectId}) - Submitted with budget $${savedProject.price || 0}`,
       userId: createdBy,
-      userName: savedProject.clientName || createdBy,
-      email: savedProject.clientEmail || '',
     });
 
     return savedProject;
@@ -269,15 +267,47 @@ export class ProjectService {
       where: { projectId },
       relations: ['participants', 'proposals'],
     });
-    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
+    if (!project) {
+      throw new NotFoundException(`Project ${projectId} not found`);
+    }
+
+    const isPaid =
+      project.paymentStatus === PaymentStatus.PAID ||
+      project.paymentStatus === PaymentStatus.RELEASED ||
+      project.submissionStatus === SubmissionStatus.ACTIVE ||
+      project.submissionStatus === SubmissionStatus.IN_PROGRESS;
+
+    if (isPaid) {
+      throw new BadRequestException('Funded and active projects cannot be deleted.');
+    }
+
+    const projectTitle = project.title;
+    const projectCode = project.projectId;
+    const projectBudget = project.adminBudget || project.price || 0;
+
+    // Clean up related proposals and participants
     if (project.participants?.length) {
-      await this.participantRepository.remove(project.participants);
+      try {
+        await this.participantRepository.remove(project.participants);
+      } catch {}
     }
+
     if (project.proposals?.length) {
-      await this.proposalRepository.remove(project.proposals);
+      try {
+        await this.proposalRepository.remove(project.proposals);
+      } catch {}
     }
+
+    // Delete project completely from database
     await this.projectRepository.remove(project);
+
+    // Record Activity Log
+    this.triggerActivityLog({
+      action: 'PROJECT_DELETED',
+      resource: `Project Deleted: "${projectTitle}" (${projectCode}) - Submitted with budget $${projectBudget}`,
+      userId,
+    });
   }
 
   // ─── LIFECYCLE ──────────────────────────────────────────────────────────────
@@ -341,14 +371,18 @@ export class ProjectService {
     const saved = await this.projectRepository.save(project);
 
     // Notify Client that project has been quoted and approved
-    if (project.clientId) {
+    const targetUserId = project.clientId || project.createdBy;
+    const targetUserIds = [targetUserId, project.clientEmail, project.clientId, project.createdBy].filter(Boolean) as string[];
+
+    if (targetUserId) {
       this.triggerNotification({
-        userId: project.clientId,
+        userId: targetUserId,
+        userIds: targetUserIds,
         type: 'TECHNICAL_PROJECT_APPROVED',
         title: 'Project Approved — Ready for Payment',
         message: `Admin approved "${project.title}" with a budget of ${project.currency || 'USD'} ${data.adminBudget}. Please pay to publish.`,
         priority: 'high',
-        href: '/user/technical',
+        href: '/dashboard/user/technical',
       });
     }
 
@@ -366,14 +400,18 @@ export class ProjectService {
     project.updatedBy = adminId;
     const saved = await this.projectRepository.save(project);
 
-    if (project.clientId) {
+    const targetUserId = project.clientId || project.createdBy;
+    const targetUserIds = [targetUserId, project.clientEmail, project.clientId, project.createdBy].filter(Boolean) as string[];
+
+    if (targetUserId) {
       this.triggerNotification({
-        userId: project.clientId,
+        userId: targetUserId,
+        userIds: targetUserIds,
         type: 'TECHNICAL_PROJECT_REJECTED',
-        title: 'Project Update',
+        title: 'Project Review Update',
         message: `Your project "${project.title}" was not approved: ${reason || 'Does not meet requirements'}.`,
         priority: 'high',
-        href: '/user/technical',
+        href: '/dashboard/user/technical',
       });
     }
 
@@ -425,13 +463,31 @@ export class ProjectService {
     project.updatedBy = clientId;
     const saved = await this.projectRepository.save(project);
 
+    // Notify Admin that client has paid escrow and project is active
+    this.triggerNotification({
+      role: 'ADMIN',
+      type: 'TECHNICAL_PROJECT_PAID',
+      title: 'Project Payment Approved & Escrow Funded',
+      message: `Client paid $${amount} into escrow for "${project.title}" (${project.projectId}). Project is now Active for Public.`,
+      priority: 'high',
+      href: '/technical',
+    });
+
     // Notify Business network that a new project is public
     this.triggerNotification({
+      role: 'BUSINESS',
       type: 'TECHNICAL_PROJECT_FUNDED',
       title: 'New Funded Project Available',
       message: `"${project.title}" has been funded (${project.currency || 'USD'} ${amount}) and is open for acceptance!`,
       priority: 'high',
       href: '/business/technical',
+    });
+
+    // Trigger Activity Log
+    this.triggerActivityLog({
+      action: 'PROJECT_PAID',
+      resource: `Project Escrow Funded: "${project.title}" (${project.projectId}) - Submitted with budget $${amount}`,
+      userId: clientId,
     });
 
     return saved;

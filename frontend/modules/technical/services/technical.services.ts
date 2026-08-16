@@ -269,18 +269,15 @@ export const createProject = async (payload: any, _token?: string) => {
 
   // Log activity & dispatch admin notification
   recordActivityLog({
-    title: `Service Project Submitted: "${createdProject.title}"`,
-    description: `Submitted by ${createdProject.clientName} (${createdProject.clientEmail || "User"}) with budget $${createdProject.price}.`,
+    title: `New Project Created: "${createdProject.title}"`,
+    description: `Submitted with budget $${Number(createdProject.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     category: "Technical Services",
-    userId: payload.clientId || (createdProject as any).clientId,
-    userName: createdProject.clientName,
-    email: createdProject.clientEmail,
-    type: "PROJECT_SUBMITTED",
+    type: "PROJECT_CREATED",
   });
 
   dispatchAdminNotification({
     title: "New Technical Project Submitted",
-    message: `"${createdProject.title}" submitted by ${createdProject.clientName} ($${createdProject.price}). Needs review and quote.`,
+    message: `"${createdProject.title}" submitted with budget $${createdProject.price || 0}. Needs review and quote.`,
     href: "/admin/technical",
   });
 
@@ -300,8 +297,26 @@ export const fetchMyProjects = async (_token?: string) => {
     if (Array.isArray(rawList)) {
       const local = readLocalProjects();
       const map = new Map<string, any>();
-      [...local, ...rawList].forEach((p) => {
+      rawList.forEach((p: any) => {
         if (p?.projectId) map.set(p.projectId, p);
+      });
+      local.forEach((p: any) => {
+        if (p?.projectId) {
+          const existing = map.get(p.projectId);
+          if (!existing) {
+            map.set(p.projectId, p);
+          } else {
+            // If local was already paid or activated, don't let stale remote status override it
+            const isPaid = p.paymentStatus === "paid" || existing.paymentStatus === "paid";
+            const isLive = p.submissionStatus === "active" || existing.submissionStatus === "active";
+            map.set(p.projectId, {
+              ...existing,
+              ...p,
+              paymentStatus: isPaid ? "paid" : existing.paymentStatus || p.paymentStatus,
+              submissionStatus: isLive ? "active" : existing.submissionStatus || p.submissionStatus,
+            });
+          }
+        }
       });
       const merged = Array.from(map.values());
       writeLocalProjects(merged);
@@ -403,16 +418,17 @@ export const payProject = async (projectId: string, _token?: string) => {
   writeLocalProjects(updated);
 
   if (paidProject) {
+    const budgetVal = paidProject.adminBudget || paidProject.price || 0;
     recordActivityLog({
-      title: `Project Escrow Funded & Published Publicly: "${paidProject.title}"`,
-      description: `Client funded $${paidProject.adminBudget || paidProject.price || 0} into escrow. Project is now published for verified businesses.`,
+      title: `Project Escrow Funded: "${paidProject.title}"`,
+      description: `Submitted with budget $${Number(budgetVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       category: "Technical Services",
-      type: "project_paid_published",
+      type: "PROJECT_PAID",
     });
 
     dispatchAdminNotification({
       title: "Project Payment Approved & Escrow Funded",
-      message: `"${paidProject.title}" has been funded by client ($${paidProject.adminBudget || paidProject.price}). Now live and open for businesses.`,
+      message: `"${paidProject.title}" has been funded with budget $${budgetVal}. Now live and open for businesses.`,
       href: "/admin/technical",
     });
   }
@@ -518,10 +534,24 @@ export const deleteProject = async (projectId: string, _token?: string) => {
   const updated = local.filter((p) => p.projectId !== projectId && String(p.id) !== String(projectId));
   writeLocalProjects(updated);
 
+  if (typeof window !== "undefined") {
+    try {
+      const rawAdmin = localStorage.getItem("platform_user_technical_projects");
+      if (rawAdmin) {
+        const list = JSON.parse(rawAdmin);
+        if (Array.isArray(list)) {
+          const filteredAdmin = list.filter((p) => p.projectId !== projectId && String(p.id) !== String(projectId));
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(filteredAdmin));
+        }
+      }
+    } catch {}
+  }
+
   if (target) {
+    const budget = target.adminBudget || target.price || 0;
     recordActivityLog({
       title: `Project Deleted: "${target.title}"`,
-      description: `Project ${target.projectId} (${target.title}) was permanently deleted.`,
+      description: `Project ${target.projectId} was permanently deleted - Budget: $${budget}`,
       category: "Technical Services",
       type: "project_deleted",
     });

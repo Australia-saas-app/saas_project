@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Wallet, Loader2, AlertTriangle, CheckCircle2, X, Layers, Flag } from "lucide-react";
+import { CreditCard, Wallet, Loader2, AlertTriangle, CheckCircle2, X, XCircle, ShieldAlert, Layers, Flag } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
 import { fetchWalletBalance, payProject } from "../services/technical.services";
+import { useUser } from "@/src/context/user.provider";
+import { useRouter } from "next/navigation";
+import axiosInstance from "@/src/lib/axiosInstance";
 import Link from "next/link";
 
 interface Milestone {
@@ -37,6 +40,9 @@ interface Props {
 }
 
 export function PayProjectModal({ project, onClose, onSuccess }: Props) {
+  const { user } = useUser();
+  const router = useRouter();
+
   const baseBudget = Number(project.adminBudget || project.price || 0);
   const commissionPercent = project.commissionPercent !== undefined ? project.commissionPercent : 10;
   const commissionAmount = (baseBudget * commissionPercent) / 100;
@@ -56,6 +62,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [kycFailed, setKycFailed] = useState(false);
 
   useEffect(() => {
     fetchWalletBalance()
@@ -68,13 +75,54 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
 
   const handlePay = async () => {
     setPaying(true);
+    setKycFailed(false);
+
     try {
+      // 1. Check user KYC verification status with spinner active
+      let isVerified = false;
+      try {
+        const res = await axiosInstance.get("/users/me").catch(() => null);
+        const latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
+        const kyc = String(latestUser?.kycStatus || (user as any)?.kycStatus || "").toLowerCase();
+        const st = String(latestUser?.status || (user as any)?.status || "").toLowerCase();
+        isVerified = kyc === "approved" || kyc === "verified" || st === "verified";
+      } catch {
+        const kyc = String((user as any)?.kycStatus || "").toLowerCase();
+        const st = String((user as any)?.status || "").toLowerCase();
+        isVerified = kyc === "approved" || kyc === "verified" || st === "verified";
+      }
+
+      // Check local storage overrides as well
+      if (typeof window !== "undefined" && !isVerified) {
+        try {
+          const uid = (user as any)?.id || (user as any)?.userId;
+          if (uid) {
+            const raw = localStorage.getItem(`user_profile_overrides_${uid}`);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed?.kycStatus?.toLowerCase() === "approved") {
+                isVerified = true;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // If unverified, show "Failed to Pay" KYC screen
+      if (!isVerified) {
+        await new Promise((r) => setTimeout(r, 600));
+        setKycFailed(true);
+        setPaying(false);
+        return;
+      }
+
+      // 2. If verified, continue payment flow
       await payProject(project.projectId);
       setPaid(true);
       toast.success("Payment confirmed! Project is Live and Published Publicly.");
-      setTimeout(onSuccess, 1500);
     } catch (e: any) {
       toast.error(e.message || "Payment failed");
+    } finally {
       setPaying(false);
     }
   };
@@ -88,18 +136,29 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
     (project as any).submissionStatus === "accepted";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-card border border-border text-card-foreground shadow-2xl transition-all">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
+      <div
+        style={{ width: "420px", maxWidth: "calc(100vw - 32px)" }}
+        className="rounded-2xl bg-card border border-border text-card-foreground shadow-2xl transition-all my-auto max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
-            {isAlreadyPaid ? (
+            {paid ? (
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            ) : kycFailed ? (
+              <AlertTriangle className="h-5 w-5 text-rose-500" />
+            ) : isAlreadyPaid ? (
               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
             ) : (
               <CreditCard className="h-5 w-5 text-primary" />
             )}
             <h3 className="text-lg font-bold text-foreground">
-              {isAlreadyPaid
+              {paid
+                ? "Payment Successful"
+                : kycFailed
+                ? "Payment Failed"
+                : isAlreadyPaid
                 ? "Escrow Payment Details"
                 : isMilestone
                 ? "Fund Project Milestone"
@@ -107,7 +166,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
             </h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={paid ? onSuccess : onClose}
             className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
@@ -122,6 +181,46 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
               <p className="text-xs text-muted-foreground max-w-xs">
                 Your project is now <strong>Live</strong> and open for verified businesses to accept and start working on deliverables.
               </p>
+              <Button
+                type="button"
+                onClick={onSuccess}
+                className="w-full mt-3 rounded-xl font-bold py-2.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-md"
+              >
+                OK
+              </Button>
+            </div>
+          ) : kycFailed ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500">
+                <AlertTriangle className="h-8 w-8 text-rose-500" />
+              </div>
+              <p className="text-lg font-bold text-foreground">Failed to Pay</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Your account is unverified you have not applied for KYC.
+              </p>
+              <div className="w-full space-y-2 pt-3">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push("/dashboard/user/profile");
+                  }}
+                  className="w-full rounded-xl font-bold py-2.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-md"
+                >
+                  Apply KYC
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setKycFailed(false);
+                    onClose();
+                  }}
+                  className="w-full rounded-xl font-semibold py-2.5 border-border text-foreground hover:bg-muted cursor-pointer"
+                >
+                  OK
+                </Button>
+              </div>
             </div>
           ) : isAlreadyPaid ? (
             <div className="space-y-4">

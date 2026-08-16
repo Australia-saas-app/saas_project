@@ -48,6 +48,7 @@ import { ProjectChatModal } from "./ProjectChatModal";
 
 type SubmissionStatus =
   | "draft"
+  | "pending"
   | "submitted"
   | "admin_review"
   | "approved"
@@ -67,6 +68,11 @@ const STATUS_CONFIG: Record<
     label: "Draft",
     color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     icon: <FolderOpen className="h-3.5 w-3.5" />,
+  },
+  pending: {
+    label: "Under Admin Review",
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/60",
+    icon: <Clock className="h-3.5 w-3.5 text-amber-500" />,
   },
   submitted: {
     label: "Under Admin Review",
@@ -89,8 +95,8 @@ const STATUS_CONFIG: Record<
     icon: <DollarSign className="h-3.5 w-3.5 text-amber-500" />,
   },
   active: {
-    label: "Active",
-    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800",
+    label: "Active for Public",
+    color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700/60",
     icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
   },
   in_progress: {
@@ -173,6 +179,8 @@ export default function UserProjectsPage() {
   const [chatProject, setChatProject] = useState<Project | null>(null);
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
   const [revisionReason, setRevisionReason] = useState("");
+  const [deleteModalProject, setDeleteModalProject] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -248,32 +256,46 @@ export default function UserProjectsPage() {
     }
   };
 
-  const handleDelete = async (projectId: string) => {
-    if (!confirm("Are you sure you want to permanently delete this project and all its submitted data?")) return;
-    setActionLoading(projectId);
+  const handleConfirmDelete = async () => {
+    if (!deleteModalProject) return;
+    setDeleting(true);
     try {
-      await deleteProject(projectId);
-      toast.success("Project deleted successfully");
+      await deleteProject(deleteModalProject.projectId);
+      toast.success("Project and all related data deleted successfully.");
+      setDeleteModalProject(null);
       await loadProjects();
     } catch (e: any) {
-      toast.error(e.message || "Failed to delete project");
+      toast.error(e?.message || "Failed to delete project");
     } finally {
-      setActionLoading(null);
+      setDeleting(false);
     }
   };
 
   // Top metric stats calculation
   const stats = useMemo(() => {
     const activeCount = projects.filter(
-      (p) => p.submissionStatus === "active" || p.submissionStatus === "in_progress"
-    ).length;
-    const pendingCount = projects.filter(
       (p) =>
+        p.submissionStatus === "active" ||
+        p.submissionStatus === "in_progress" ||
+        p.paymentStatus === "paid" ||
+        p.paymentStatus === "released"
+    ).length;
+    const pendingCount = projects.filter((p) => {
+      const isPaid =
+        p.paymentStatus === "paid" ||
+        p.paymentStatus === "released" ||
+        p.submissionStatus === "active" ||
+        p.submissionStatus === "in_progress";
+      if (isPaid) return false;
+      return (
         p.submissionStatus === "submitted" ||
+        p.submissionStatus === "pending" ||
         p.submissionStatus === "admin_review" ||
         p.submissionStatus === "approved" ||
-        p.submissionStatus === "payment_pending"
-    ).length;
+        p.submissionStatus === "payment_pending" ||
+        p.submissionStatus === "draft"
+      );
+    }).length;
     const completedCount = projects.filter(
       (p) => p.submissionStatus === "completed" || p.submissionStatus === "accepted"
     ).length;
@@ -289,15 +311,25 @@ export default function UserProjectsPage() {
   const filteredProjects = useMemo(() => {
     return projects
       .filter((p) => {
+        const isPaid =
+          p.paymentStatus === "paid" ||
+          p.paymentStatus === "released" ||
+          p.submissionStatus === "active" ||
+          p.submissionStatus === "in_progress";
+
         // Status filter
         if (statusFilter === "active") {
-          if (p.submissionStatus !== "active" && p.submissionStatus !== "in_progress") return false;
+          if (!isPaid && p.submissionStatus !== "active" && p.submissionStatus !== "in_progress") return false;
         } else if (statusFilter === "pending") {
+          // If already paid / active, it is NOT pending
+          if (isPaid) return false;
           if (
             p.submissionStatus !== "submitted" &&
+            p.submissionStatus !== "pending" &&
             p.submissionStatus !== "admin_review" &&
             p.submissionStatus !== "approved" &&
-            p.submissionStatus !== "payment_pending"
+            p.submissionStatus !== "payment_pending" &&
+            p.submissionStatus !== "draft"
           )
             return false;
         } else if (statusFilter === "completed") {
@@ -490,6 +522,10 @@ export default function UserProjectsPage() {
             const statusCfg = STATUS_CONFIG[project.submissionStatus] ?? STATUS_CONFIG.draft;
             const budget = project.adminBudget || project.price || 0;
             const isActioning = actionLoading === project.projectId;
+            const isPaid =
+              project.paymentStatus === "paid" ||
+              project.paymentStatus === "released" ||
+              ["active", "in_progress", "completed", "accepted"].includes(project.submissionStatus);
 
             return (
               <div
@@ -566,22 +602,39 @@ export default function UserProjectsPage() {
                     )}
                   </div>
 
-                  {/* Admin Approved Quote Breakdown on Card */}
-                  {project.submissionStatus === "approved" && (
-                    <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between text-amber-600 font-bold text-[11px]">
-                        <span className="flex items-center gap-1">
-                          <ShieldCheck className="h-3.5 w-3.5 text-amber-600" /> Admin Quote Ready
-                        </span>
-                        <span>{project.commissionPercent || 10}% Commission</span>
-                      </div>
-                      {project.adminNotes && (
-                        <p className="text-[11px] text-muted-foreground italic line-clamp-2">
-                          "{project.adminNotes}"
+                  {/* Admin Approved Quote Breakdown on Card (Only when approved and unpaid) */}
+                  {(project.submissionStatus === "approved" || project.submissionStatus === "payment_pending") &&
+                    project.paymentStatus !== "paid" && (
+                      <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-bold text-[11px]">
+                          <span className="flex items-center gap-1">
+                            <ShieldCheck className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /> Admin Quote Ready
+                          </span>
+                          <span>
+                            {project.commissionPercent !== undefined
+                              ? Number(project.commissionPercent).toFixed(2)
+                              : "10.00"}% Commission
+                          </span>
+                        </div>
+                        {project.adminNotes && (
+                          <p className="text-[11px] text-muted-foreground italic line-clamp-2">
+                            "{project.adminNotes}"
+                          </p>
+                        )}
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                          • Fund escrow to publish project live to businesses.
                         </p>
-                      )}
-                      <p className="text-[10px] text-amber-600 font-medium">
-                        • Fund escrow to publish project live to businesses.
+                      </div>
+                    )}
+
+                  {/* Escrow Funded & Active Message once paid */}
+                  {(project.submissionStatus === "active" || project.paymentStatus === "paid") && (
+                    <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Escrow Funded &amp; Active for Public
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Published live. Verified businesses can now accept and submit deliverables.
                       </p>
                     </div>
                   )}
@@ -635,43 +688,36 @@ export default function UserProjectsPage() {
 
                   {/* Middle: Action / Payment Button */}
                   <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">
-                    {(project.submissionStatus === "approved" || project.submissionStatus === "payment_pending") && (
-                      <Button
-                        size="sm"
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs"
-                        onClick={() => setPayProject(project)}
-                      >
-                        <DollarSign className="mr-1 h-3.5 w-3.5" />
-                        Pay Escrow (${(
-                          Number(budget) +
-                          (Number(budget) * (project.commissionPercent !== undefined ? project.commissionPercent : 10)) / 100
-                        ).toLocaleString(undefined, { minimumFractionDigits: 2 })})
-                      </Button>
-                    )}
+                    {(project.submissionStatus === "approved" || project.submissionStatus === "payment_pending") &&
+                      project.paymentStatus !== "paid" && (
+                        <Button
+                          size="sm"
+                          className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs"
+                          onClick={() => setPayProject(project)}
+                        >
+                          <DollarSign className="mr-1 h-3.5 w-3.5" />
+                          Pay Escrow (${(
+                            Number(budget) +
+                            (Number(budget) * (project.commissionPercent !== undefined ? project.commissionPercent : 10)) / 100
+                          ).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                        </Button>
+                      )}
 
                     {(project.submissionStatus === "active" ||
                       project.submissionStatus === "in_progress" ||
-                      project.submissionStatus === "accepted") && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 truncate"
-                          onClick={() => setPayProject(project)}
-                        >
-                          <DollarSign className="mr-1 h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                          View Payments
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setChatProject(project)}
-                          className="rounded-xl text-xs font-semibold border-border hover:bg-muted shrink-0"
-                        >
-                          <MessageSquare className="mr-1 h-3.5 w-3.5 text-primary" /> Live Chat
-                        </Button>
-                      </>
-                    )}
+                      project.paymentStatus === "paid") &&
+                      project.submissionStatus !== "completed" && (
+                        <div className="flex items-center justify-end w-full gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setChatProject(project)}
+                            className="w-full rounded-xl text-xs font-semibold border-border hover:bg-muted"
+                          >
+                            <MessageSquare className="mr-1 h-3.5 w-3.5 text-primary" /> Live Chat
+                          </Button>
+                        </div>
+                      )}
 
                     {project.submissionStatus === "draft" && (
                       <Button
@@ -718,19 +764,26 @@ export default function UserProjectsPage() {
                   </div>
 
                   {/* Right: Delete Trash Icon Button */}
-                  <button
-                    type="button"
-                    title="Delete Project"
-                    disabled={isActioning}
-                    onClick={() => handleDelete(project.projectId)}
-                    className="p-2 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-border transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    {isActioning ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
-                    ) : (
+                  {isPaid ? (
+                    <button
+                      type="button"
+                      disabled
+                      title="Funded and active projects cannot be deleted"
+                      className="p-2 rounded-xl text-muted-foreground/30 border border-border/40 cursor-not-allowed shrink-0"
+                    >
                       <Trash2 className="h-4 w-4" />
-                    )}
-                  </button>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Delete Project"
+                      disabled={isActioning || deleting}
+                      onClick={() => setDeleteModalProject(project)}
+                      className="p-2 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 border border-border transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -741,7 +794,10 @@ export default function UserProjectsPage() {
       {/* VIEW PROJECT DETAILS MODAL */}
       {viewProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
+          <div
+            style={{ maxWidth: "560px", width: "100%" }}
+            className="w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto"
+          >
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
@@ -859,47 +915,110 @@ export default function UserProjectsPage() {
               </div>
             </div>
 
-            {/* Admin Review & Quote Details if Approved */}
-            {(viewProject.submissionStatus === "approved" || viewProject.adminNotes || viewProject.requirements) && (
-              <div className="rounded-xl bg-amber-500/10 p-3.5 border border-amber-500/20 space-y-2 text-xs">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Admin Quote &amp; Terms
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Approved Budget</span>
-                    <span className="text-sm font-extrabold text-amber-600 dark:text-amber-400">
-                      {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
-                    </span>
+            {/* Admin Review & Quote Details if Approved or Active */}
+            {(viewProject.submissionStatus === "approved" ||
+              viewProject.submissionStatus === "active" ||
+              viewProject.submissionStatus === "in_progress" ||
+              viewProject.submissionStatus === "completed" ||
+              viewProject.submissionStatus === "accepted" ||
+              viewProject.adminNotes ||
+              viewProject.requirements) && (() => {
+                const isPaid =
+                  viewProject.paymentStatus === "paid" ||
+                  viewProject.paymentStatus === "released" ||
+                  ["active", "in_progress", "completed", "accepted"].includes(viewProject.submissionStatus);
+
+                return (
+                  <div
+                    className={`rounded-xl p-3.5 border space-y-2 text-xs transition-all ${
+                      isPaid
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100"
+                        : "bg-amber-500/10 border-amber-500/20 text-amber-950 dark:text-amber-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p
+                        className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                          isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
+                        {isPaid ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        )}
+                        {isPaid ? "Escrow Funded & Agreed Terms" : "Admin Quote & Terms"}
+                      </p>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                          isPaid
+                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                        }`}
+                      >
+                        {isPaid ? "Active for Public" : "Pending Escrow Payment"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">
+                          {isPaid ? "Funded Escrow Budget" : "Approved Budget"}
+                        </span>
+                        <span
+                          className={`text-sm font-extrabold ${
+                            isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          {viewProject.currency || "USD"} ${Number(viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
+                        <span className="font-semibold text-foreground">{viewProject.commissionPercent || 10}%</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Status</span>
+                        <span
+                          className={`font-semibold capitalize ${
+                            isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          {isPaid ? "Paid in Escrow" : "Unpaid"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {viewProject.adminNotes && (
+                      <p
+                        className={`text-xs p-2.5 rounded-lg border bg-background/80 ${
+                          isPaid ? "border-emerald-500/20" : "border-amber-500/20"
+                        }`}
+                      >
+                        <strong>Admin Note:</strong> {viewProject.adminNotes}
+                      </p>
+                    )}
+                    {viewProject.requirements && (
+                      <p
+                        className={`text-xs p-2.5 rounded-lg border bg-background/80 ${
+                          isPaid ? "border-emerald-500/20" : "border-amber-500/20"
+                        }`}
+                      >
+                        <strong>Admin Requirements:</strong> {viewProject.requirements}
+                      </p>
+                    )}
+                    {viewProject.conditions && (
+                      <p
+                        className={`text-xs p-2.5 rounded-lg border bg-background/80 ${
+                          isPaid ? "border-emerald-500/20" : "border-amber-500/20"
+                        }`}
+                      >
+                        <strong>Delivery Conditions:</strong> {viewProject.conditions}
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
-                    <span className="font-semibold text-foreground">{viewProject.commissionPercent || 10}%</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Min Target</span>
-                    <span className="font-semibold text-foreground">
-                      {viewProject.currency || "USD"} ${Number(viewProject.minBudget || viewProject.adminBudget || viewProject.price || 0).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-                {viewProject.adminNotes && (
-                  <p className="text-xs text-foreground bg-background/80 p-2.5 rounded-lg border border-amber-500/20">
-                    <strong>Admin Note:</strong> {viewProject.adminNotes}
-                  </p>
-                )}
-                {viewProject.requirements && (
-                  <p className="text-xs text-foreground bg-background/80 p-2.5 rounded-lg border border-amber-500/20">
-                    <strong>Admin Requirements:</strong> {viewProject.requirements}
-                  </p>
-                )}
-                {viewProject.conditions && (
-                  <p className="text-xs text-foreground bg-background/80 p-2.5 rounded-lg border border-amber-500/20">
-                    <strong>Delivery Conditions:</strong> {viewProject.conditions}
-                  </p>
-                )}
-              </div>
-            )}
+                );
+              })()}
 
             {/* Submitted File Attachments */}
             {viewProject.attachmentFile && (
@@ -1002,6 +1121,51 @@ export default function UserProjectsPage() {
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : null}
                 Send Revision Request
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM DELETE CONFIRMATION MODAL */}
+      {deleteModalProject && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
+          <div
+            style={{ width: "380px", maxWidth: "calc(100vw - 32px)" }}
+            className="rounded-2xl bg-card border border-border text-card-foreground shadow-2xl p-6 text-center mx-auto my-auto animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="w-14 h-14 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-rose-500" strokeWidth={1.8} />
+            </div>
+
+            <h3 className="text-lg font-bold text-foreground mb-1">Delete Project</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed mb-5">
+              Are you sure you want to delete <strong className="text-foreground">"{deleteModalProject.title}"</strong>? All submitted requirements, files, and project records will be permanently deleted from the database.
+            </p>
+
+            <div className="flex items-center gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setDeleteModalProject(null)}
+                className="flex-1 rounded-xl border-border text-foreground hover:bg-muted py-2.5 text-xs font-semibold cursor-pointer"
+              >
+                No, Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={deleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  "Yes, Delete"
+                )}
               </Button>
             </div>
           </div>
