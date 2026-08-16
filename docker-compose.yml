@@ -96,7 +96,7 @@ services:
       - REDIS_HOST=saas-redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://saas-redis:6379
-      - SSO_SYNCHRONIZE=true
+      - SSO_SYNCHRONIZE=false
       - SMTP_USER=abdulrafiumahesar@gmail.com
       - SMTP_PASSWORD=kkzdajqzqvwkybgq
       - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
