@@ -19,10 +19,11 @@ services:
         strip_path: true
 
   - name: platform-service
-    url: http://saas-backend-platform:3006
+    url: http://saas-backend-platform:3006/platform-service
     routes:
       - name: platform-route
         paths:
+          - /api/v1/platform-service
           - /api/v1/platform
         strip_path: true
 
