@@ -6,6 +6,29 @@ import { Bell, Trash2 } from "lucide-react";
 import { type NotificationItem, formatNotificationTime } from "@/src/constants/notifications";
 import { useNotifications } from "@/src/shared/context/notification.provider";
 
+function useIsDarkMode() {
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const updateTheme = () => {
+      if (typeof document !== "undefined") {
+        setIsDark(document.documentElement.classList.contains("dark"));
+      }
+    };
+    updateTheme();
+
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return isDark;
+}
+
 type NotificationBellProps = {
   viewAllHref: string;
   emptyLabel?: string;
@@ -16,6 +39,7 @@ export function NotificationBell({
   emptyLabel = "You're all caught up",
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
+  const isDark = useIsDarkMode();
   const { notifications, unreadCount, markRead, markAllRead, deleteNotification, deleteAllNotifications } = useNotifications();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -48,17 +72,34 @@ export function NotificationBell({
 
       {open && (
         <div
-          style={{ zIndex: 999999 }}
-          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),380px)] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl backdrop-blur-md dark:bg-[#0f172a] dark:border-slate-800"
+          style={{
+            zIndex: 999999,
+            backgroundColor: isDark ? "#0f172a" : "#ffffff",
+            borderColor: isDark ? "#1e293b" : "#e2e8f0",
+            color: isDark ? "#f8fafc" : "#0f172a",
+          }}
+          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),380px)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md"
           role="menu"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border bg-muted/60 dark:bg-slate-900/90 dark:border-slate-800 px-4 py-3">
+          <div
+            style={{
+              backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "#f8fafc",
+              borderBottom: isDark ? "1px solid #1e293b" : "1px solid #f1f5f9",
+            }}
+            className="flex items-center justify-between px-4 py-3"
+          >
             <div>
-              <p className="text-sm font-bold text-foreground dark:text-white">
+              <p
+                style={{ color: isDark ? "#ffffff" : "#0f172a", fontWeight: 700 }}
+                className="text-sm"
+              >
                 Notifications
               </p>
-              <p className="text-xs text-muted-foreground dark:text-slate-400">
+              <p
+                style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                className="text-xs"
+              >
                 {unreadCount > 0 ? `${unreadCount} unread` : emptyLabel}
               </p>
             </div>
@@ -66,7 +107,8 @@ export function NotificationBell({
               <button
                 type="button"
                 onClick={deleteAllNotifications}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                style={{ color: "#ef4444" }}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-rose-500/10 cursor-pointer transition-colors"
               >
                 Delete all
               </button>
@@ -74,16 +116,31 @@ export function NotificationBell({
           </div>
 
           {/* List */}
-          <ul className="max-h-80 overflow-y-auto divide-y divide-border dark:divide-white/5 bg-popover dark:bg-[#0f172a]">
+          <ul
+            style={{ backgroundColor: isDark ? "#0f172a" : "#ffffff" }}
+            className="max-h-80 overflow-y-auto divide-y divide-border"
+          >
             {notifications.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted dark:bg-white/5 text-muted-foreground dark:text-slate-400">
+                <div
+                  style={{
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#f1f5f9",
+                    color: isDark ? "#94a3b8" : "#64748b",
+                  }}
+                  className="mb-3 flex h-12 w-12 items-center justify-center rounded-full"
+                >
                   <Bell className="h-6 w-6 opacity-50" />
                 </div>
-                <p className="text-sm font-medium text-foreground dark:text-white">
+                <p
+                  style={{ color: isDark ? "#ffffff" : "#0f172a" }}
+                  className="text-sm font-medium"
+                >
                   No notifications yet
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground dark:text-slate-400">
+                <p
+                  style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                  className="mt-1 text-xs"
+                >
                   {emptyLabel}
                 </p>
               </li>
@@ -97,25 +154,41 @@ export function NotificationBell({
                         markRead(item.id);
                         setOpen(false);
                       }}
-                      className={`block px-4 py-3 pr-10 transition-colors ${
-                        !item.read
-                          ? "bg-blue-50/70 hover:bg-blue-100/60 border-l-2 border-l-blue-600 dark:bg-white/[0.05] dark:hover:bg-white/[0.09] dark:border-l-blue-500"
-                          : "bg-transparent hover:bg-muted/40 dark:hover:bg-white/[0.03] border-l-2 border-l-transparent"
-                      }`}
+                      style={{
+                        backgroundColor: !item.read
+                          ? isDark
+                            ? "rgba(255, 255, 255, 0.05)"
+                            : "#f0f9ff"
+                          : "transparent",
+                        borderLeft: !item.read
+                          ? isDark
+                            ? "3px solid #3b82f6"
+                            : "3px solid #2563eb"
+                          : "3px solid transparent",
+                      }}
+                      className="block px-4 py-3 pr-10 transition-colors hover:opacity-90"
                     >
-                      <NotificationRow item={item} />
+                      <NotificationRow item={item} isDark={isDark} />
                     </Link>
                   ) : (
                     <button
                       type="button"
                       onClick={() => markRead(item.id)}
-                      className={`block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer ${
-                        !item.read
-                          ? "bg-blue-50/70 hover:bg-blue-100/60 border-l-2 border-l-blue-600 dark:bg-white/[0.05] dark:hover:bg-white/[0.09] dark:border-l-blue-500"
-                          : "bg-transparent hover:bg-muted/40 dark:hover:bg-white/[0.03] border-l-2 border-l-transparent"
-                      }`}
+                      style={{
+                        backgroundColor: !item.read
+                          ? isDark
+                            ? "rgba(255, 255, 255, 0.05)"
+                            : "#f0f9ff"
+                          : "transparent",
+                        borderLeft: !item.read
+                          ? isDark
+                            ? "3px solid #3b82f6"
+                            : "3px solid #2563eb"
+                          : "3px solid transparent",
+                      }}
+                      className="block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer hover:opacity-90"
                     >
-                      <NotificationRow item={item} />
+                      <NotificationRow item={item} isDark={isDark} />
                     </button>
                   )}
                   <button
@@ -125,7 +198,8 @@ export function NotificationBell({
                       e.stopPropagation();
                       deleteNotification(item.id);
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 dark:text-slate-400 dark:hover:text-rose-400 dark:hover:bg-white/10 cursor-pointer"
+                    style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -136,14 +210,21 @@ export function NotificationBell({
 
           {/* Footer */}
           {unreadCount > 0 && (
-            <div className="border-t border-border bg-muted/60 dark:bg-slate-900/90 dark:border-slate-800 px-4 py-2.5">
+            <div
+              style={{
+                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "#f8fafc",
+                borderTop: isDark ? "1px solid #1e293b" : "1px solid #f1f5f9",
+              }}
+              className="px-4 py-2.5"
+            >
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   markAllRead();
                 }}
-                className="block w-full text-center text-xs font-bold text-primary dark:text-blue-400 hover:underline cursor-pointer"
+                style={{ color: isDark ? "#60a5fa" : "#2563eb" }}
+                className="block w-full text-center text-xs font-bold hover:underline cursor-pointer"
               >
                 Read all
               </button>
@@ -155,36 +236,62 @@ export function NotificationBell({
   );
 }
 
-function NotificationRow({ item }: { item: NotificationItem }) {
+function NotificationRow({ item, isDark }: { item: NotificationItem; isDark: boolean }) {
   return (
     <div className="flex items-start gap-3">
       <span
-        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-          item.read
-            ? "bg-muted-foreground/30 dark:bg-slate-600"
-            : "bg-blue-600 dark:bg-blue-500 ring-2 ring-blue-600/30 dark:ring-blue-500/40"
-        }`}
+        style={{
+          backgroundColor: !item.read
+            ? isDark
+              ? "#3b82f6"
+              : "#2563eb"
+            : isDark
+            ? "#475569"
+            : "#cbd5e1",
+          boxShadow: !item.read
+            ? isDark
+              ? "0 0 0 3px rgba(59, 130, 246, 0.3)"
+              : "0 0 0 3px rgba(37, 99, 235, 0.2)"
+            : "none",
+        }}
+        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
       />
       <div className="min-w-0 flex-1">
         <p
-          className={`truncate text-xs ${
-            !item.read
-              ? "font-bold text-foreground dark:text-white"
-              : "font-semibold text-muted-foreground dark:text-slate-300"
-          }`}
+          style={{
+            color: !item.read
+              ? isDark
+                ? "#ffffff"
+                : "#0f172a"
+              : isDark
+              ? "#cbd5e1"
+              : "#475569",
+            fontWeight: !item.read ? 700 : 600,
+          }}
+          className="truncate text-xs"
         >
           {item.title}
         </p>
         <p
-          className={`mt-0.5 line-clamp-2 text-xs leading-relaxed ${
-            !item.read
-              ? "text-foreground/90 dark:text-slate-200"
-              : "text-muted-foreground dark:text-slate-400"
-          }`}
+          style={{
+            color: !item.read
+              ? isDark
+                ? "#e2e8f0"
+                : "#334155"
+              : isDark
+              ? "#94a3b8"
+              : "#64748b",
+          }}
+          className="mt-0.5 line-clamp-2 text-xs leading-relaxed"
         >
           {item.message}
         </p>
-        <p className="mt-1 text-[10px] font-medium text-muted-foreground/80 dark:text-slate-400">
+        <p
+          style={{
+            color: isDark ? "#94a3b8" : "#64748b",
+          }}
+          className="mt-1 text-[10px] font-medium"
+        >
           {formatNotificationTime(item.createdAt || item.time)}
         </p>
       </div>
