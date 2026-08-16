@@ -8,7 +8,6 @@ import { useNotifications } from "@/src/shared/context/notification.provider";
 
 type NotificationBellProps = {
   viewAllHref: string;
-  variant?: "light" | "dark";
   emptyLabel?: string;
 };
 
@@ -49,15 +48,28 @@ export function NotificationBell({
 
       {open && (
         <div
-          style={{ zIndex: 999999 }}
-          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),380px)] overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl backdrop-blur-md"
+          style={{
+            zIndex: 999999,
+            backgroundColor: "#0f172a",
+            borderColor: "#1e293b",
+            color: "#f8fafc",
+          }}
+          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),380px)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md"
           role="menu"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-3">
+          <div
+            style={{
+              backgroundColor: "rgba(15, 23, 42, 0.98)",
+              borderBottom: "1px solid #1e293b",
+            }}
+            className="flex items-center justify-between px-4 py-3"
+          >
             <div>
-              <p className="text-sm font-bold text-foreground">Notifications</p>
-              <p className="text-xs text-muted-foreground">
+              <p style={{ color: "#ffffff", fontWeight: 700 }} className="text-sm">
+                Notifications
+              </p>
+              <p style={{ color: "#94a3b8" }} className="text-xs">
                 {unreadCount > 0 ? `${unreadCount} unread` : emptyLabel}
               </p>
             </div>
@@ -65,7 +77,8 @@ export function NotificationBell({
               <button
                 type="button"
                 onClick={deleteAllNotifications}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                style={{ color: "#f43f5e" }}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-rose-500/10 cursor-pointer transition-colors"
               >
                 Delete all
               </button>
@@ -73,14 +86,24 @@ export function NotificationBell({
           </div>
 
           {/* List */}
-          <ul className="max-h-80 overflow-y-auto divide-y divide-white/5 bg-card">
+          <ul
+            style={{ backgroundColor: "#0f172a" }}
+            className="max-h-80 overflow-y-auto divide-y divide-white/5"
+          >
             {notifications.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-slate-400">
+                <div
+                  style={{ backgroundColor: "rgba(255, 255, 255, 0.05)", color: "#94a3b8" }}
+                  className="mb-3 flex h-12 w-12 items-center justify-center rounded-full"
+                >
                   <Bell className="h-6 w-6 opacity-50" />
                 </div>
-                <p className="text-sm font-medium text-white">No notifications yet</p>
-                <p className="mt-1 text-xs text-slate-400">{emptyLabel}</p>
+                <p style={{ color: "#ffffff" }} className="text-sm font-medium">
+                  No notifications yet
+                </p>
+                <p style={{ color: "#94a3b8" }} className="mt-1 text-xs">
+                  {emptyLabel}
+                </p>
               </li>
             ) : (
               notifications.map((item) => (
@@ -92,11 +115,11 @@ export function NotificationBell({
                         markRead(item.id);
                         setOpen(false);
                       }}
-                      className={`block px-4 py-3 pr-10 transition-colors ${
-                        !item.read
-                          ? "bg-white/[0.05] hover:bg-white/[0.09] border-l-2 border-l-blue-500"
-                          : "bg-transparent hover:bg-white/[0.03]"
-                      }`}
+                      style={{
+                        backgroundColor: !item.read ? "rgba(255, 255, 255, 0.05)" : "transparent",
+                        borderLeft: !item.read ? "3px solid #3b82f6" : "3px solid transparent",
+                      }}
+                      className="block px-4 py-3 pr-10 transition-colors hover:bg-white/[0.08]"
                     >
                       <NotificationRow item={item} />
                     </Link>
@@ -104,11 +127,11 @@ export function NotificationBell({
                     <button
                       type="button"
                       onClick={() => markRead(item.id)}
-                      className={`block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer ${
-                        !item.read
-                          ? "bg-white/[0.05] hover:bg-white/[0.09] border-l-2 border-l-blue-500"
-                          : "bg-transparent hover:bg-white/[0.03]"
-                      }`}
+                      style={{
+                        backgroundColor: !item.read ? "rgba(255, 255, 255, 0.05)" : "transparent",
+                        borderLeft: !item.read ? "3px solid #3b82f6" : "3px solid transparent",
+                      }}
+                      className="block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer hover:bg-white/[0.08]"
                     >
                       <NotificationRow item={item} />
                     </button>
@@ -120,7 +143,8 @@ export function NotificationBell({
                       e.stopPropagation();
                       deleteNotification(item.id);
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-rose-400 hover:bg-white/10 cursor-pointer"
+                    style={{ color: "#94a3b8" }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-400 hover:bg-white/10 cursor-pointer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -131,14 +155,21 @@ export function NotificationBell({
 
           {/* Footer */}
           {unreadCount > 0 && (
-            <div className="border-t border-border px-4 py-2.5 bg-muted/30">
+            <div
+              style={{
+                backgroundColor: "rgba(15, 23, 42, 0.98)",
+                borderTop: "1px solid #1e293b",
+              }}
+              className="px-4 py-2.5"
+            >
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   markAllRead();
                 }}
-                className="block w-full text-center text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                style={{ color: "#60a5fa" }}
+                className="block w-full text-center text-xs font-bold hover:text-blue-300 hover:underline cursor-pointer"
               >
                 Read all
               </button>
@@ -154,26 +185,36 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   return (
     <div className="flex items-start gap-3">
       <span
-        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-          item.read
-            ? "bg-slate-600"
-            : "bg-blue-500 ring-2 ring-blue-500/40"
-        }`}
+        style={{
+          backgroundColor: !item.read ? "#3b82f6" : "#475569",
+          boxShadow: !item.read ? "0 0 0 3px rgba(59, 130, 246, 0.3)" : "none",
+        }}
+        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
       />
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-xs font-bold ${!item.read ? "text-white" : "text-slate-300"}`}>
+        <p
+          style={{
+            color: !item.read ? "#ffffff" : "#cbd5e1",
+            fontWeight: !item.read ? 700 : 600,
+          }}
+          className="truncate text-xs"
+        >
           {item.title}
         </p>
         <p
-          className={`mt-0.5 line-clamp-2 text-xs leading-relaxed ${
-            !item.read
-              ? "text-slate-200"
-              : "text-slate-400"
-          }`}
+          style={{
+            color: !item.read ? "#f1f5f9" : "#94a3b8",
+          }}
+          className="mt-0.5 line-clamp-2 text-xs leading-relaxed"
         >
           {item.message}
         </p>
-        <p className="mt-1 text-[10px] text-slate-400 font-medium">
+        <p
+          style={{
+            color: "#94a3b8",
+          }}
+          className="mt-1 text-[10px] font-medium"
+        >
           {formatNotificationTime(item.createdAt || item.time)}
         </p>
       </div>
