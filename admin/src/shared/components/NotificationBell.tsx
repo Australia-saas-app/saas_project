@@ -13,7 +13,6 @@ type NotificationBellProps = {
 
 export function NotificationBell({
   viewAllHref = "/notifications",
-  variant = "light",
   emptyLabel = "You're all caught up",
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
@@ -29,43 +28,35 @@ export function NotificationBell({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
 
-  const isDark = variant === "dark";
-  const buttonClass = isDark
-    ? "relative p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-500 hover:text-gray-100"
-    : "relative p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-900";
-
-  const panelClass = isDark
-    ? "absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,360px)] overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-white shadow-2xl"
-    : "absolute right-0 top-full z-50 mt-2 w-[min(100vw-2rem,360px)] overflow-hidden rounded-xl border border-gray-200 bg-white text-gray-900 shadow-xl";
-
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative z-50">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className={buttonClass}
+        className="relative p-2 hover:bg-muted/80 rounded-xl transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
         aria-expanded={open}
         aria-haspopup="menu"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white border-2 border-white dark:border-gray-900">
+          <span className="absolute top-0 right-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white border-2 border-background">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className={panelClass} role="menu">
-          <div
-            className={`flex items-center justify-between border-b px-4 py-3 ${
-              isDark ? "border-gray-800" : "border-gray-100"
-            }`}
-          >
+        <div
+          style={{ zIndex: 999999 }}
+          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl backdrop-blur-md"
+          role="menu"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-3">
             <div>
-              <p className="text-sm font-semibold">Notifications</p>
-              <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+              <p className="text-sm font-bold text-foreground">Notifications</p>
+              <p className="text-xs text-muted-foreground">
                 {unreadCount > 0 ? `${unreadCount} unread` : emptyLabel}
               </p>
             </div>
@@ -73,23 +64,22 @@ export function NotificationBell({
               <button
                 type="button"
                 onClick={deleteAllNotifications}
-                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
-                  isDark ? "text-red-400 hover:bg-red-400/10" : "text-red-600 hover:bg-red-50"
-                }`}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
               >
                 Delete all
               </button>
             )}
           </div>
 
-          <ul className="max-h-80 overflow-y-auto">
+          {/* List */}
+          <ul className="max-h-80 overflow-y-auto divide-y divide-border bg-card">
             {notifications.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
-                <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ${isDark ? "bg-white/5 text-slate-500" : "bg-gray-50 text-gray-400"}`}>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                   <Bell className="h-6 w-6 opacity-50" />
                 </div>
-                <p className={`text-sm font-medium ${isDark ? "text-slate-300" : "text-gray-600"}`}>No notifications yet</p>
-                <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>{emptyLabel}</p>
+                <p className="text-sm font-medium text-foreground">No notifications yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">{emptyLabel}</p>
               </li>
             ) : (
               notifications.map((item) => (
@@ -101,25 +91,25 @@ export function NotificationBell({
                         markRead(item.id);
                         setOpen(false);
                       }}
-                      className={`block border-b px-4 py-3 pr-10 transition-colors last:border-0 ${
-                        isDark
-                          ? `border-gray-800 hover:bg-gray-800/50 ${!item.read ? "bg-gray-800/30" : "bg-transparent"}`
-                          : `border-gray-50 hover:bg-gray-50 ${!item.read ? "bg-blue-50/50" : "bg-transparent"}`
+                      className={`block px-4 py-3 pr-10 transition-colors ${
+                        !item.read
+                          ? "bg-blue-500/5 dark:bg-blue-500/10 hover:bg-blue-500/10 dark:hover:bg-blue-500/15 border-l-2 border-l-blue-500"
+                          : "bg-transparent hover:bg-muted/40 text-muted-foreground"
                       }`}
                     >
-                      <NotificationRow item={item} isDark={isDark} />
+                      <NotificationRow item={item} />
                     </Link>
                   ) : (
                     <button
                       type="button"
                       onClick={() => markRead(item.id)}
-                      className={`block w-full border-b px-4 py-3 pr-10 text-left transition-colors last:border-0 ${
-                        isDark
-                          ? `border-gray-800 hover:bg-gray-800/50 ${!item.read ? "bg-gray-800/30" : "bg-transparent"}`
-                          : `border-gray-50 hover:bg-gray-50 ${!item.read ? "bg-blue-50/50" : "bg-transparent"}`
+                      className={`block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer ${
+                        !item.read
+                          ? "bg-blue-500/5 dark:bg-blue-500/10 hover:bg-blue-500/10 dark:hover:bg-blue-500/15 border-l-2 border-l-blue-500"
+                          : "bg-transparent hover:bg-muted/40 text-muted-foreground"
                       }`}
                     >
-                      <NotificationRow item={item} isDark={isDark} />
+                      <NotificationRow item={item} />
                     </button>
                   )}
                   <button
@@ -129,9 +119,7 @@ export function NotificationBell({
                       e.stopPropagation();
                       deleteNotification(item.id);
                     }}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
-                      isDark ? "text-gray-400 hover:bg-gray-800 hover:text-red-400" : "text-gray-400 hover:bg-gray-200 hover:text-red-500"
-                    }`}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -140,19 +128,16 @@ export function NotificationBell({
             )}
           </ul>
 
+          {/* Footer */}
           {unreadCount > 0 && (
-            <div
-              className={`border-t px-4 py-2.5 ${isDark ? "border-gray-800 bg-gray-900/50" : "border-gray-100 bg-gray-50"}`}
-            >
+            <div className="border-t border-border px-4 py-2.5 bg-muted/30">
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   markAllRead();
                 }}
-                className={`block w-full text-center text-xs font-semibold ${
-                  isDark ? "text-blue-400 hover:text-blue-300" : "text-primary hover:underline"
-                }`}
+                className="block w-full text-center text-xs font-bold text-primary hover:underline cursor-pointer"
               >
                 Read all
               </button>
@@ -164,20 +149,30 @@ export function NotificationBell({
   );
 }
 
-function NotificationRow({ item, isDark }: { item: NotificationItem; isDark: boolean }) {
+function NotificationRow({ item }: { item: NotificationItem }) {
   return (
     <div className="flex items-start gap-3">
       <span
         className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-          item.read ? (isDark ? "bg-gray-600" : "bg-gray-300") : "bg-blue-500"
+          item.read
+            ? "bg-muted-foreground/30"
+            : "bg-blue-500 ring-2 ring-blue-500/40"
         }`}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{item.title}</p>
-        <p className={`mt-0.5 line-clamp-2 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+        <p className={`truncate text-sm font-bold ${!item.read ? "text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300 font-semibold"}`}>
+          {item.title}
+        </p>
+        <p
+          className={`mt-0.5 line-clamp-2 text-xs leading-relaxed ${
+            !item.read
+              ? "text-slate-700 dark:text-slate-200"
+              : "text-slate-500 dark:text-slate-400"
+          }`}
+        >
           {item.message}
         </p>
-        <p className={`mt-1 text-[11px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400 font-medium">
           {formatNotificationTime(item.createdAt || item.time)}
         </p>
       </div>

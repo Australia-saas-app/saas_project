@@ -171,7 +171,7 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
       )}
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6">
+        <header className="relative z-50 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
