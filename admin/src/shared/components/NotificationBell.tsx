@@ -47,7 +47,6 @@ export function NotificationBell({
       </button>
 
       {open && (
-      {open && (
         <div
           style={{
             zIndex: 999999,
