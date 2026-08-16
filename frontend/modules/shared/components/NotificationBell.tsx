@@ -73,14 +73,14 @@ export function NotificationBell({
           </div>
 
           {/* List */}
-          <ul className="max-h-80 overflow-y-auto divide-y divide-border bg-card">
+          <ul className="max-h-80 overflow-y-auto divide-y divide-white/5 bg-card">
             {notifications.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-slate-400">
                   <Bell className="h-6 w-6 opacity-50" />
                 </div>
-                <p className="text-sm font-medium text-foreground">No notifications yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">{emptyLabel}</p>
+                <p className="text-sm font-medium text-white">No notifications yet</p>
+                <p className="mt-1 text-xs text-slate-400">{emptyLabel}</p>
               </li>
             ) : (
               notifications.map((item) => (
@@ -94,8 +94,8 @@ export function NotificationBell({
                       }}
                       className={`block px-4 py-3 pr-10 transition-colors ${
                         !item.read
-                          ? "bg-blue-500/5 dark:bg-blue-500/10 hover:bg-blue-500/10 dark:hover:bg-blue-500/15 border-l-2 border-l-blue-500"
-                          : "bg-transparent hover:bg-muted/40 text-muted-foreground"
+                          ? "bg-white/[0.05] hover:bg-white/[0.09] border-l-2 border-l-blue-500"
+                          : "bg-transparent hover:bg-white/[0.03]"
                       }`}
                     >
                       <NotificationRow item={item} />
@@ -106,8 +106,8 @@ export function NotificationBell({
                       onClick={() => markRead(item.id)}
                       className={`block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer ${
                         !item.read
-                          ? "bg-blue-500/5 dark:bg-blue-500/10 hover:bg-blue-500/10 dark:hover:bg-blue-500/15 border-l-2 border-l-blue-500"
-                          : "bg-transparent hover:bg-muted/40 text-muted-foreground"
+                          ? "bg-white/[0.05] hover:bg-white/[0.09] border-l-2 border-l-blue-500"
+                          : "bg-transparent hover:bg-white/[0.03]"
                       }`}
                     >
                       <NotificationRow item={item} />
@@ -120,7 +120,7 @@ export function NotificationBell({
                       e.stopPropagation();
                       deleteNotification(item.id);
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-rose-400 hover:bg-white/10 cursor-pointer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -138,7 +138,7 @@ export function NotificationBell({
                   e.preventDefault();
                   markAllRead();
                 }}
-                className="block w-full text-center text-xs font-bold text-primary hover:underline cursor-pointer"
+                className="block w-full text-center text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
               >
                 Read all
               </button>
@@ -156,24 +156,24 @@ function NotificationRow({ item }: { item: NotificationItem }) {
       <span
         className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
           item.read
-            ? "bg-muted-foreground/30"
+            ? "bg-slate-600"
             : "bg-blue-500 ring-2 ring-blue-500/40"
         }`}
       />
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-xs font-bold ${!item.read ? "text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300 font-semibold"}`}>
+        <p className={`truncate text-xs font-bold ${!item.read ? "text-white" : "text-slate-300"}`}>
           {item.title}
         </p>
         <p
           className={`mt-0.5 line-clamp-2 text-xs leading-relaxed ${
             !item.read
-              ? "text-slate-700 dark:text-slate-200"
-              : "text-slate-500 dark:text-slate-400"
+              ? "text-slate-200"
+              : "text-slate-400"
           }`}
         >
           {item.message}
         </p>
-        <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-400 font-medium">
+        <p className="mt-1 text-[10px] text-slate-400 font-medium">
           {formatNotificationTime(item.createdAt || item.time)}
         </p>
       </div>
