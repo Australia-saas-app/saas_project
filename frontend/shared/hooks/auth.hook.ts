@@ -93,6 +93,8 @@ export const getDashboardRedirect = (role?: string, userId?: string) => {
     return ROUTES.home;
 };
 
+import { setCookie, deleteCookie } from "@/src/utils/cookie-utils";
+
 export const useUserLogin = (redirectUrl?: string | null) => {
     const router = useRouter();
     const { refreshUser } = useUser();
@@ -119,6 +121,12 @@ export const useUserLogin = (redirectUrl?: string | null) => {
             const redirectTo = resolvePostLoginRedirect(redirectUrl, getDashboardRedirect(role, userId));
 
             if (typeof window !== "undefined") {
+                if (tokenStr) {
+                    localStorage.setItem("accessToken", tokenStr);
+                    localStorage.setItem("token", tokenStr);
+                    setCookie("accessToken", tokenStr);
+                    setCookie("client_access_token", tokenStr);
+                }
                 sessionStorage.setItem("show_login_success_toast", "true");
             }
             const email = userObj?.email || decoded?.email;
@@ -217,6 +225,10 @@ export const useLogout = () => {
             toast.success('Logged out');
             if (typeof window !== "undefined") {
               try {
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("token");
+                deleteCookie("accessToken");
+                deleteCookie("client_access_token");
                 sessionStorage.setItem("manual_logout", "true");
               } catch {}
 
@@ -249,6 +261,10 @@ export const useLogout = () => {
             setUser(null);
             if (typeof window !== "undefined") {
                 try {
+                  localStorage.removeItem("accessToken");
+                  localStorage.removeItem("token");
+                  deleteCookie("accessToken");
+                  deleteCookie("client_access_token");
                   sessionStorage.setItem("manual_logout", "true");
                 } catch {}
                 const pathname = window.location.pathname;

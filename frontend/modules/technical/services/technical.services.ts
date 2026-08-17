@@ -105,15 +105,15 @@ export async function dispatchAdminNotification(notif: {
 
 export const fetchWalletBalance = async (_token?: string): Promise<{ balance: number }> => {
   try {
-    const res = await axiosInstance.get('/wallet/balance');
-    if (res?.data?.balance !== undefined && res.data.balance !== null) {
-      return { balance: Number(res.data.balance) };
+    const ssoRes = await axiosInstance.get('/sso/wallet/balance');
+    if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null) {
+      return { balance: Number(ssoRes.data.balance) };
     }
   } catch (e) {
     try {
-      const ssoRes = await axiosInstance.get('/sso/wallet/balance');
-      if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null) {
-        return { balance: Number(ssoRes.data.balance) };
+      const res = await axiosInstance.get('/wallet/balance');
+      if (res?.data?.balance !== undefined && res.data.balance !== null) {
+        return { balance: Number(res.data.balance) };
       }
     } catch {}
   }
@@ -159,6 +159,7 @@ export const depositToWallet = async (
       expiryMonth: string;
       expiryYear: string;
       cardBrand?: string;
+      isDefault?: boolean;
     };
     paymentCardId?: number;
     method?: string;
@@ -225,18 +226,26 @@ export const saveWalletCard = async (cardData: {
 export const fetchWalletTransactions = async (_token?: string) => {
   try {
     const res = await axiosInstance.get('/sso/wallet/transactions');
-    if (res?.data && Array.isArray(res.data)) return res.data;
-    return res?.data?.data || res?.data || [];
+    const items = Array.isArray(res?.data?.data)
+      ? res.data.data
+      : Array.isArray(res?.data)
+      ? res.data
+      : [];
+    return items;
   } catch (e) {
     try {
       const pRes = await axiosInstance.get('/wallet/transactions');
-      if (pRes?.data && Array.isArray(pRes.data)) return pRes.data;
-      return pRes?.data?.data || pRes?.data || [];
+      const pItems = Array.isArray(pRes?.data?.data)
+        ? pRes.data.data
+        : Array.isArray(pRes?.data)
+        ? pRes.data
+        : [];
+      return pItems;
     } catch {
       console.warn("Wallet transactions fallback:", e);
     }
   }
-  return { data: [] };
+  return [];
 };
 
 export const fetchProjectMessages = async (projectId: string, _token?: string) => {

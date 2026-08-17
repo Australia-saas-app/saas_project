@@ -13,23 +13,36 @@ export class JwtAuthGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    const authHeader = request.headers.authorization;
+    let token: string | undefined;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (request.headers['x-access-token']) {
+      token = String(request.headers['x-access-token']);
+    } else if ((request as any).cookies) {
+      token =
+        (request as any).cookies['accessToken'] ||
+        (request as any).cookies['token'] ||
+        (request as any).cookies['client_access_token'];
+    }
+
+    if (!token && (request as any).query?.token) {
+      token = String((request as any).query.token);
+    }
+
+    if (!token) {
       throw new UnauthorizedException('Authorization header missing');
     }
 
-    const token = authHeader.split(' ')[1];
     let payload: any = this.jwtService.verifyAccessToken(token);
 
     if (!payload) {
       // Try verifying as admin token
       payload = this.jwtService.verifyAdminToken(token);
-      console.log('Admin token payload:', payload);
     }
 
     if (!payload) {
-      console.log('No valid payload found');
       throw new UnauthorizedException('Invalid or expired token');
     }
 

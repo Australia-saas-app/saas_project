@@ -144,16 +144,29 @@ export default function WalletFinancePanel() {
     if (!userId) return;
     try {
       const res = await fetchWalletTransactions();
-      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        const dbRows: WalletLedgerRecord[] = res.data.map((tx: any) => ({
-          id: tx.id ? `TX-${tx.id.toString().slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`,
+      const rawList = Array.isArray(res)
+        ? res
+        : Array.isArray((res as any)?.data)
+        ? (res as any).data
+        : [];
+
+      if (rawList && rawList.length > 0) {
+        const dbRows: WalletLedgerRecord[] = rawList.map((tx: any) => ({
+          id: tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`,
           userId: tx.userId || userId,
-          userName: "Account",
+          userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Account"),
           amount: `$${Number(tx.amount || 0).toFixed(2)}`,
-          kind: tx.type?.toLowerCase() === "deposit" ? "deposit" : tx.type?.toLowerCase() === "refund" ? "refund" : "deposit",
-          method: tx.description || "Wallet Transaction",
+          kind:
+            tx.type?.toLowerCase() === "deposit"
+              ? "deposit"
+              : tx.type?.toLowerCase() === "refund"
+              ? "refund"
+              : tx.type?.toLowerCase() === "withdrawal" || tx.type?.toLowerCase() === "withdraw_hold"
+              ? "withdraw_hold"
+              : "deposit",
+          method: tx.description || (tx.paymentMethod ? `Deposit via ${tx.paymentMethod}` : "Wallet Transaction"),
           date: new Date(tx.createdAt || Date.now()).toLocaleDateString(),
-          status: tx.status === "completed" ? "Complete" : "Pending",
+          status: tx.status === "completed" || tx.status === "COMPLETED" ? "Complete" : "Pending",
         }));
         setRows(dbRows);
         return;

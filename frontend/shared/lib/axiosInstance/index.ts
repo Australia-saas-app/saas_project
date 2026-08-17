@@ -29,7 +29,16 @@ axiosInstance.interceptors.request.use(
       }
     }
 
-    const accessToken = getCookie("accessToken");
+    const accessToken =
+      getCookie("client_access_token") ||
+      getCookie("accessToken") ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("accessToken") ||
+          localStorage.getItem("token") ||
+          sessionStorage.getItem("accessToken") ||
+          sessionStorage.getItem("token")
+        : null);
+
     // Only attach Authorization if it isn't already explicitly set
     if (accessToken && !(config.headers && "Authorization" in config.headers)) {
       // Use Bearer prefix to match the REST standard and serverFetch.ts
@@ -52,16 +61,20 @@ axiosInstance.interceptors.response.use(
       typeof config?.url === "string" && config.url.includes("/auth/refresh-token");
     if (error?.response?.status === 401 && !config?._retry && !isRefreshCall) {
       config._retry = true;
-      try {
-        const res = await getNewAccessToken();
-        const accessToken = res?.data?.accessToken;
-        if (accessToken) {
-          config.headers["Authorization"] = `Bearer ${accessToken}`;
-          setCookie("accessToken", accessToken);
-          return axiosInstance(config);
+      if (typeof window !== "undefined") {
+        try {
+          const res = await getNewAccessToken().catch(() => null);
+          const accessToken = res?.data?.accessToken;
+          if (accessToken) {
+            config.headers["Authorization"] = `Bearer ${accessToken}`;
+            localStorage.setItem("accessToken", accessToken);
+            setCookie("accessToken", accessToken);
+            setCookie("client_access_token", accessToken);
+            return axiosInstance(config);
+          }
+        } catch (refreshError) {
+          logger.warn("Token refresh failed", refreshError, "AxiosInstance");
         }
-      } catch (refreshError) {
-        logger.warn("Token refresh failed", refreshError, "AxiosInstance");
       }
     }
     // Normalize every failure into an ApiError (status + message + fieldErrors)

@@ -87,6 +87,13 @@ async function persistSessionTokens(payload: unknown, rememberMe: boolean = fals
 
   const cookieStore = await cookies();
   cookieStore.set("accessToken", accessToken, getCookieOptions(rememberMe));
+  cookieStore.set("client_access_token", accessToken, {
+    httpOnly: false,
+    secure: shouldUseSecureCookies(),
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: rememberMe ? 604800 : undefined,
+  });
   if (data?.refreshToken) {
     cookieStore.set("refreshToken", data.refreshToken, getRefreshCookieOptions(rememberMe));
   }
@@ -364,6 +371,7 @@ export const logout = async () => {
     // ignore logout API errors
   }
   cookieStore.delete("accessToken");
+  cookieStore.delete("client_access_token");
   cookieStore.delete("refreshToken");
   cookieStore.delete("user");
 };
@@ -388,6 +396,8 @@ export const getCurrentUser = async () => {
       id: (parsed.id as string) ?? (parsed.sub as string) ?? (parsed.userId as string),
       userId: (parsed.userId as string) ?? (parsed.sub as string),
       role: (parsed.role as string) ?? (parsed.accountType as string),
+      accessToken: token,
+      token,
     };
     if (userCookie) {
       try {
@@ -473,6 +483,7 @@ export const getCurrentUser = async () => {
     } catch (error: any) {
       if (error?.response?.status === 401 || error?.status === 401) {
         cookieStore.delete("accessToken");
+        cookieStore.delete("client_access_token");
         cookieStore.delete("refreshToken");
         cookieStore.delete("user");
         return null;
@@ -484,6 +495,7 @@ export const getCurrentUser = async () => {
   } catch {
     try {
       cookieStore.delete("accessToken");
+      cookieStore.delete("client_access_token");
     } catch { }
     return null;
   }

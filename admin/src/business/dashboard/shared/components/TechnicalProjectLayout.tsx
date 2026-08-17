@@ -61,6 +61,9 @@ export interface ProjectItem {
   clientEmail?: string;
   clientPhone?: string;
   attachmentFile?: { name: string; url: string; size?: number; type?: string };
+  commissionAmount?: number;
+  totalAmount?: number;
+  dueAmount?: number;
   requirements?: string;
   conditions?: string;
   adminNotes?: string;
@@ -82,19 +85,24 @@ export default function TechnicalProjectLayout() {
 
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const isInitialMount = React.useRef(true);
 
-  // Review Modal State
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [adminBudgetInput, setAdminBudgetInput] = useState("");
   const [commissionPercentInput, setCommissionPercentInput] = useState("10");
   const [requirementsInput, setRequirementsInput] = useState("");
   const [conditionsInput, setConditionsInput] = useState("");
   const [adminNotesInput, setAdminNotesInput] = useState("");
-  const [actionLoading, setActionLoading] = useState<"approve" | "reject" | null>(null);
 
-  const loadProjects = useCallback(async () => {
-    setLoading(true);
+  const loadProjects = useCallback(async (isSilent = false) => {
+    if (!isSilent && isInitialMount.current) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
     let remoteProjects: ProjectItem[] = [];
     try {
       const res = await apiClient.get<any>("/technology/projects/all?limit=200", { skipErrorToast: true });
@@ -167,14 +175,18 @@ export default function TechnicalProjectLayout() {
       } catch {}
     }
     setLoading(false);
+    setIsRefreshing(false);
+    isInitialMount.current = false;
   }, []);
 
   useEffect(() => {
-    loadProjects();
-    window.addEventListener("storage", loadProjects);
-    window.addEventListener("focus", loadProjects);
-    window.addEventListener("platform_projects_updated", loadProjects);
-    window.addEventListener("notifications_updated", loadProjects);
+    loadProjects(false);
+    const handleSilentSync = () => loadProjects(true);
+
+    window.addEventListener("storage", handleSilentSync);
+    window.addEventListener("focus", handleSilentSync);
+    window.addEventListener("platform_projects_updated", handleSilentSync);
+    window.addEventListener("notifications_updated", handleSilentSync);
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -182,22 +194,22 @@ export default function TechnicalProjectLayout() {
         bc = new BroadcastChannel("vero_channel");
         bc.onmessage = (ev) => {
           if (ev.data?.type === "PROJECT_PAID" || ev.data?.type === "PROJECT_SUBMITTED" || ev.data?.type?.includes("PROJECT")) {
-            loadProjects();
+            loadProjects(true);
           }
         };
       }
     } catch {}
 
-    // Polling interval to ensure real-time status sync
+    // Polling interval to ensure real-time status sync silently in background
     const pollInterval = setInterval(() => {
-      loadProjects();
+      loadProjects(true);
     }, 4000);
 
     return () => {
-      window.removeEventListener("storage", loadProjects);
-      window.removeEventListener("focus", loadProjects);
-      window.removeEventListener("platform_projects_updated", loadProjects);
-      window.removeEventListener("notifications_updated", loadProjects);
+      window.removeEventListener("storage", handleSilentSync);
+      window.removeEventListener("focus", handleSilentSync);
+      window.removeEventListener("platform_projects_updated", handleSilentSync);
+      window.removeEventListener("notifications_updated", handleSilentSync);
       if (bc) bc.close();
       clearInterval(pollInterval);
     };
@@ -416,7 +428,7 @@ export default function TechnicalProjectLayout() {
         <PageHeader title="Technical" />
         <button
           type="button"
-          onClick={loadProjects}
+          onClick={() => loadProjects(false)}
           className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs cursor-pointer transition-all"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh

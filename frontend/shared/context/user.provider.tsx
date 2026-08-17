@@ -17,6 +17,8 @@ import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user";
 import { setStorageUserScope } from "@/src/shared/lib/storage-scope";
 import { useIdleTimeout } from "@/src/shared/hooks/useIdleTimeout";
 
+import { setCookie } from "@/src/utils/cookie-utils";
+
 /** Log the user out after 15 minutes of no mouse/keyboard/touch activity. */
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
@@ -39,7 +41,17 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
     (async () => {
       try {
         const userData = await getCurrentUser();
-        if (mounted) setUser(userData);
+        if (mounted) {
+          if (userData && typeof window !== "undefined") {
+            const tok = (userData as any).accessToken || (userData as any).token;
+            if (tok) {
+              localStorage.setItem("accessToken", tok);
+              setCookie("accessToken", tok);
+              setCookie("client_access_token", tok);
+            }
+          }
+          setUser(userData);
+        }
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -139,6 +151,14 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshUser = async () => {
     const userData = await getCurrentUser();
+    if (userData && typeof window !== "undefined") {
+      const tok = (userData as any).accessToken || (userData as any).token;
+      if (tok) {
+        localStorage.setItem("accessToken", tok);
+        setCookie("accessToken", tok);
+        setCookie("client_access_token", tok);
+      }
+    }
     setUser(userData);
   };
 
