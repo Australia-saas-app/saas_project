@@ -13,7 +13,7 @@ export class WalletController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get wallet details' })
   async getWallet(@Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.getWallet(userId);
   }
 
@@ -22,7 +22,7 @@ export class WalletController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get wallet balance' })
   async getBalance(@Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     const balance = await this.walletService.getBalance(userId);
     return { balance };
   }
@@ -32,7 +32,7 @@ export class WalletController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get saved payment cards' })
   async getCards(@Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.getCards(userId);
   }
 
@@ -52,7 +52,7 @@ export class WalletController {
       isDefault?: boolean;
     },
   ) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.addCard(userId, body);
   }
 
@@ -83,7 +83,7 @@ export class WalletController {
       cardData?: any;
     },
   ) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.deposit(userId, body.amount, body.description, {
       cardData: body.cardData,
       paymentCardId: body.paymentCardId,
@@ -105,7 +105,7 @@ export class WalletController {
     },
   })
   async withdraw(@Request() req: any, @Body() body: { amount: number; description?: string }) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.withdraw(userId, body.amount, body.description);
   }
 
@@ -116,7 +116,7 @@ export class WalletController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getTransactions(@Request() req: any, @Query('page') page: number = 1, @Query('limit') limit: number = 20) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.getTransactions(userId, page, limit);
   }
 
@@ -125,7 +125,7 @@ export class WalletController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Create wallet for user' })
   async createWallet(@Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
     return await this.walletService.createWallet(userId);
   }
 

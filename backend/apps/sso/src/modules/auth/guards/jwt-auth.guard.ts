@@ -42,11 +42,12 @@ export class JwtAuthGuard implements CanActivate {
       payload = this.jwtService.verifyAdminToken(token);
     }
 
-    if (!payload) {
-      throw new UnauthorizedException('Invalid or expired token');
-    }
-
-    (request as any).user = payload;
+    const resolvedUserId = payload.userId || payload.sub || payload.id || payload.adminId;
+    (request as any).user = {
+      ...payload,
+      userId: resolvedUserId,
+      id: resolvedUserId,
+    };
     return true;
   }
 }

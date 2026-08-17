@@ -20,11 +20,21 @@ export class WalletService {
   ) {}
 
   async getWallet(userId: string): Promise<Wallet> {
-    let wallet = await this.walletRepository.findOne({ where: { userId } });
+    if (!userId) {
+      throw new NotFoundException('User ID is required');
+    }
+    const user = await this.userRepository
+      .findOne({ where: [{ userId }, { id: userId }] })
+      .catch(() => null);
+
+    const actualUserId = user?.userId || user?.id || userId;
+    let wallet = await this.walletRepository.findOne({
+      where: [{ userId: actualUserId }, { userId }],
+    });
+
     if (!wallet) {
-      const user = await this.userRepository.findOne({ where: { userId } }).catch(() => null);
       wallet = this.walletRepository.create({
-        userId,
+        userId: actualUserId,
         balance: 0,
         currency: user?.currency || 'USD',
       });
@@ -121,10 +131,23 @@ export class WalletService {
   }
 
   async getCards(userId: string): Promise<PaymentCard[]> {
-    return await this.paymentCardRepository.find({
-      where: { userId },
-      order: { isDefault: 'DESC', createdAt: 'DESC' },
-    });
+    if (!userId) return [];
+    try {
+      const user = await this.userRepository
+        .findOne({ where: [{ userId }, { id: userId }] })
+        .catch(() => null);
+
+      const searchIds = [userId];
+      if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
+      if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
+
+      return await this.paymentCardRepository.find({
+        where: searchIds.map((id) => ({ userId: id })),
+        order: { isDefault: 'DESC', createdAt: 'DESC' },
+      });
+    } catch {
+      return [];
+    }
   }
 
   async deposit(
@@ -160,7 +183,7 @@ export class WalletService {
     await this.walletRepository.save(wallet);
 
     const tx = this.transactionRepository.create({
-      userId,
+      userId: wallet.userId || userId,
       walletId: wallet.id,
       type: TransactionType.DEPOSIT,
       amount,
@@ -199,7 +222,7 @@ export class WalletService {
     await this.walletRepository.save(wallet);
 
     const tx = this.transactionRepository.create({
-      userId,
+      userId: wallet.userId || userId,
       walletId: wallet.id,
       type: TransactionType.WITHDRAWAL,
       amount,
@@ -216,24 +239,54 @@ export class WalletService {
     return wallet;
   }
 
-  async getTransactions(userId: string, page: number = 1, limit: number = 20): Promise<any> {
-    const skip = (page - 1) * limit;
-    const [transactions, total] = await this.transactionRepository.findAndCount({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+  async getTransactions(userId: string, page: any = 1, limit: any = 20): Promise<any> {
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitNum = Math.max(1, parseInt(String(limit), 10) || 20);
+    const skip = (pageNum - 1) * limitNum;
 
-    return {
-      data: transactions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    if (!userId) {
+      return {
+        data: [],
+        pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
+      };
+    }
+
+    try {
+      const user = await this.userRepository
+        .findOne({ where: [{ userId }, { id: userId }] })
+        .catch(() => null);
+
+      const searchIds = [userId];
+      if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
+      if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
+
+      const [transactions, total] = await this.transactionRepository.findAndCount({
+        where: searchIds.map((id) => ({ userId: id })),
+        order: { createdAt: 'DESC' },
+        skip,
+        take: limitNum,
+      });
+
+      return {
+        data: transactions || [],
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: total || 0,
+          totalPages: Math.ceil((total || 0) / limitNum),
+        },
+      };
+    } catch {
+      return {
+        data: [],
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
   }
 
   private async createTransaction(

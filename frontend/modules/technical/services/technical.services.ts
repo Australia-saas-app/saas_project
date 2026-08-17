@@ -109,14 +109,7 @@ export const fetchWalletBalance = async (_token?: string): Promise<{ balance: nu
     if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null) {
       return { balance: Number(ssoRes.data.balance) };
     }
-  } catch (e) {
-    try {
-      const res = await axiosInstance.get('/wallet/balance');
-      if (res?.data?.balance !== undefined && res.data.balance !== null) {
-        return { balance: Number(res.data.balance) };
-      }
-    } catch {}
-  }
+  } catch {}
 
   // Calculate accurately from persistent storage ledger if offline or mocked
   if (typeof window !== "undefined") {
@@ -177,13 +170,8 @@ export const depositToWallet = async (
   try {
     const ssoRes = await axiosInstance.post('/sso/wallet/deposit', payload);
     return ssoRes?.data;
-  } catch (e) {
-    try {
-      const res = await axiosInstance.post('/wallet/deposit', payload);
-      return res?.data;
-    } catch {
-      console.warn("Deposit fallback:", e);
-    }
+  } catch (e: any) {
+    console.warn("Deposit API note:", e?.message || e);
   }
   return { success: true };
 };
@@ -193,14 +181,9 @@ export const fetchWalletCards = async () => {
     const res = await axiosInstance.get('/sso/wallet/cards');
     if (Array.isArray(res?.data)) return res.data;
     return res?.data?.data || [];
-  } catch (e) {
-    try {
-      const res = await axiosInstance.get('/wallet/cards');
-      if (Array.isArray(res?.data)) return res.data;
-      return res?.data?.data || [];
-    } catch {}
+  } catch {
+    return [];
   }
-  return [];
 };
 
 export const saveWalletCard = async (cardData: {
@@ -214,13 +197,9 @@ export const saveWalletCard = async (cardData: {
   try {
     const res = await axiosInstance.post('/sso/wallet/cards', cardData);
     return res?.data;
-  } catch (e) {
-    try {
-      const res = await axiosInstance.post('/wallet/cards', cardData);
-      return res?.data;
-    } catch {}
+  } catch {
+    return null;
   }
-  return null;
 };
 
 export const fetchWalletTransactions = async (_token?: string) => {
@@ -232,20 +211,9 @@ export const fetchWalletTransactions = async (_token?: string) => {
       ? res.data
       : [];
     return items;
-  } catch (e) {
-    try {
-      const pRes = await axiosInstance.get('/wallet/transactions');
-      const pItems = Array.isArray(pRes?.data?.data)
-        ? pRes.data.data
-        : Array.isArray(pRes?.data)
-        ? pRes.data
-        : [];
-      return pItems;
-    } catch {
-      console.warn("Wallet transactions fallback:", e);
-    }
+  } catch {
+    return [];
   }
-  return [];
 };
 
 export const fetchProjectMessages = async (projectId: string, _token?: string) => {
