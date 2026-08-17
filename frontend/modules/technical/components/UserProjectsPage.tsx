@@ -190,12 +190,8 @@ export default function UserProjectsPage() {
     try {
       const data = await fetchMyProjects();
       const list = data?.projects || [];
-      const local = readLocalProjects();
-      const map = new Map<string, Project>();
-      [...list, ...local].forEach((p) => {
-        if (p?.projectId) map.set(p.projectId, p);
-      });
-      setProjects(Array.from(map.values()));
+      setProjects(list);
+      writeLocalProjects(list);
     } catch (err) {
       console.warn("Could not fetch remote projects, using local store:", err);
       setProjects(readLocalProjects());
@@ -261,14 +257,18 @@ export default function UserProjectsPage() {
 
   const handleConfirmDelete = async () => {
     if (!deleteModalProject) return;
+    const targetId = deleteModalProject.projectId;
     setDeleting(true);
+    // Optimistically remove from state immediately
+    setProjects((prev) => prev.filter((p) => p.projectId !== targetId));
+    setDeleteModalProject(null);
     try {
-      await deleteProject(deleteModalProject.projectId);
+      await deleteProject(targetId);
       toast.success("Project and all related data deleted successfully.");
-      setDeleteModalProject(null);
       await loadProjects();
     } catch (e: any) {
       toast.error(e?.message || "Failed to delete project");
+      await loadProjects();
     } finally {
       setDeleting(false);
     }

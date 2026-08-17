@@ -671,6 +671,12 @@ export const reviewAcceptProject = async (projectId: string, _token?: string) =>
 };
 
 export const deleteProject = async (projectId: string, _token?: string) => {
+  try {
+    await axiosInstance.delete(`/technology/projects/${projectId}`);
+  } catch (e: any) {
+    console.warn("deleteProject API note:", e?.message || e);
+  }
+
   const local = readLocalProjects();
   const target = local.find((p) => p.projectId === projectId || String(p.id) === String(projectId));
   const updated = local.filter((p) => p.projectId !== projectId && String(p.id) !== String(projectId));
@@ -697,13 +703,6 @@ export const deleteProject = async (projectId: string, _token?: string) => {
       category: "Technical Services",
       type: "project_deleted",
     });
-  }
-
-  try {
-    const res = await axiosInstance.delete(`/technology/projects/${projectId}`);
-    return res?.data;
-  } catch (e: any) {
-    console.warn("deleteProject fallback:", e?.message || e);
   }
 
   return { success: true };

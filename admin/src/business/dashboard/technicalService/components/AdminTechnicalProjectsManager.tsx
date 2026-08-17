@@ -111,34 +111,40 @@ export default function AdminTechnicalProjectsManager() {
   const loadProjects = useCallback(async () => {
     setLoading(true);
     let remoteProjects: Project[] = [];
+    let isDbSuccess = false;
     try {
       const res = await apiClient.get<any>("/technology/projects/all", { skipErrorToast: true });
       if (res?.projects && Array.isArray(res.projects)) {
         remoteProjects = res.projects;
+        isDbSuccess = true;
       } else if (Array.isArray(res)) {
         remoteProjects = res;
+        isDbSuccess = true;
       } else if (res?.data && Array.isArray(res.data)) {
         remoteProjects = res.data;
+        isDbSuccess = true;
       }
     } catch {
       // Gracefully handle without crashing
     }
 
-    // Merge with local projects store
-    let localProjects: Project[] = [];
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("platform_user_technical_projects");
-        if (raw) localProjects = JSON.parse(raw) || [];
-      } catch {}
+    if (isDbSuccess) {
+      setProjects(remoteProjects);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(remoteProjects));
+        } catch {}
+      }
+    } else {
+      let localProjects: Project[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("platform_user_technical_projects");
+          if (raw) localProjects = JSON.parse(raw) || [];
+        } catch {}
+      }
+      setProjects(localProjects);
     }
-
-    const map = new Map<string, Project>();
-    [...remoteProjects, ...localProjects].forEach((p) => {
-      if (p && p.projectId) map.set(p.projectId, p);
-    });
-
-    setProjects(Array.from(map.values()));
     setLoading(false);
   }, []);
 

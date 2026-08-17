@@ -57,7 +57,7 @@ export default function TechnicalPageLayout() {
         const res = await fetchPublicProjects().catch(() => null);
         let projectsList: any[] = [];
 
-        if (res?.projects && Array.isArray(res.projects) && res.projects.length > 0) {
+        if (res && res.projects && Array.isArray(res.projects)) {
           projectsList = res.projects
             .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
             .map((p: any) => ({
@@ -78,39 +78,33 @@ export default function TechnicalPageLayout() {
               location: "Remote",
               description: p.description || p.requirements || "Professional technical service.",
             }));
-        }
-
-        // Also merge local platform_user_technical_projects strictly if active/paid
-        const userProjectsRaw = localStorage.getItem("platform_user_technical_projects");
-        if (userProjectsRaw) {
-          const parsedUser = JSON.parse(userProjectsRaw);
-          if (Array.isArray(parsedUser)) {
-            const mappedUser = parsedUser
-              .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
-              .map((p: any) => ({
-                id: p.id || p.projectId,
-                projectId: p.projectId || `PRJ-${String(p.id).slice(0, 6)}`,
-                title: p.title,
-                category: p.category || "Software Development",
-                categoryFilter: "web",
-                projectType: p.projectType || "new-build",
-                subcategory: p.subcategory || "fullstack",
-                tech: p.subcategory || p.projectType || p.category || "Software Development",
-                skills: (p.requiredSkills?.length ? p.requiredSkills : (p.skills?.length ? p.skills : ["React", "TypeScript", "Tailwind CSS"])),
-                duration: p.duration ? `${p.duration} Days` : "14 Days",
-                price: Number(p.adminBudget || p.price || 1500),
-                priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
-                modified: "Active Project",
-                languages: (p.preferredLanguages?.length ? p.preferredLanguages : (p.languages?.length ? p.languages : ["JavaScript", "TypeScript"])),
-                location: "Remote",
-                description: p.description || "Professional technical service.",
-              }));
-            
-            const map = new Map<string, any>();
-            [...projectsList, ...mappedUser].forEach((item) => {
-              if (item?.projectId) map.set(item.projectId, item);
-            });
-            projectsList = Array.from(map.values());
+        } else {
+          // Offline fallback only when network fails
+          const userProjectsRaw = localStorage.getItem("platform_user_technical_projects");
+          if (userProjectsRaw) {
+            const parsedUser = JSON.parse(userProjectsRaw);
+            if (Array.isArray(parsedUser)) {
+              projectsList = parsedUser
+                .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
+                .map((p: any) => ({
+                  id: p.id || p.projectId,
+                  projectId: p.projectId || `PRJ-${String(p.id).slice(0, 6)}`,
+                  title: p.title,
+                  category: p.category || "Software Development",
+                  categoryFilter: "web",
+                  projectType: p.projectType || "new-build",
+                  subcategory: p.subcategory || "fullstack",
+                  tech: p.subcategory || p.projectType || p.category || "Software Development",
+                  skills: (p.requiredSkills?.length ? p.requiredSkills : (p.skills?.length ? p.skills : ["React", "TypeScript", "Tailwind CSS"])),
+                  duration: p.duration ? `${p.duration} Days` : "14 Days",
+                  price: Number(p.adminBudget || p.price || 1500),
+                  priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
+                  modified: "Active Project",
+                  languages: (p.preferredLanguages?.length ? p.preferredLanguages : (p.languages?.length ? p.languages : ["JavaScript", "TypeScript"])),
+                  location: "Remote",
+                  description: p.description || "Professional technical service.",
+                }));
+            }
           }
         }
 

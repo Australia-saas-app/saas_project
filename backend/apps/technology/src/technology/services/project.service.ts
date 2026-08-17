@@ -269,13 +269,15 @@ export class ProjectService {
   }
 
   async remove(projectId: string, userId: string): Promise<void> {
-    const project = await this.projectRepository.findOne({
-      where: { projectId },
+    const numId = !isNaN(Number(projectId)) ? Number(projectId) : -1;
+    let project = await this.projectRepository.findOne({
+      where: [{ projectId }, ...(numId > 0 ? [{ id: numId }] : [])],
       relations: ['participants', 'proposals'],
     });
 
     if (!project) {
-      throw new NotFoundException(`Project ${projectId} not found`);
+      // Idempotent delete: if already removed from database, exit cleanly without error
+      return;
     }
 
     const isPaid =

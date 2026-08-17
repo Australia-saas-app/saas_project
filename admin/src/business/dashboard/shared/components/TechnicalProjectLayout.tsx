@@ -104,76 +104,60 @@ export default function TechnicalProjectLayout() {
       setIsRefreshing(true);
     }
     let remoteProjects: ProjectItem[] = [];
+    let isDbSuccess = false;
     try {
       const res = await apiClient.get<any>("/technology/projects/all?limit=200", { skipErrorToast: true });
       if (res?.projects && Array.isArray(res.projects)) {
         remoteProjects = res.projects;
+        isDbSuccess = true;
       } else if (Array.isArray(res)) {
         remoteProjects = res;
+        isDbSuccess = true;
       } else if (res?.data && Array.isArray(res.data)) {
         remoteProjects = res.data;
+        isDbSuccess = true;
       }
     } catch {
       // ignore
     }
 
-    let localProjects: ProjectItem[] = [];
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("platform_user_technical_projects");
-        if (raw) localProjects = JSON.parse(raw) || [];
-      } catch {}
-    }
-
-    const map = new Map<string, ProjectItem>();
-
-    // 1. First seed with local storage (optimistic / offline cache)
-    localProjects.forEach((p) => {
-      if (p && (p.projectId || (p as any).id)) {
+    if (isDbSuccess) {
+      const finalProjects = remoteProjects.map((p) => {
         const key = p.projectId || String((p as any).id);
-        map.set(key, {
-          ...p,
-          id: key,
-          projectId: p.projectId || key,
-        });
-      }
-    });
-
-    // 2. Overwrite with fresh DB records (Database is single source of truth)
-    remoteProjects.forEach((p) => {
-      if (p && (p.projectId || (p as any).id)) {
-        const key = p.projectId || String((p as any).id);
-        const localCopy = map.get(key);
         const isPaid =
           p.paymentStatus?.toLowerCase() === "paid" ||
           p.paymentStatus?.toLowerCase() === "released" ||
           p.submissionStatus === "active" ||
           p.submissionStatus === "in_progress" ||
           p.submissionStatus === "completed" ||
-          p.submissionStatus === "accepted" ||
-          localCopy?.paymentStatus?.toLowerCase() === "paid" ||
-          localCopy?.submissionStatus === "active";
+          p.submissionStatus === "accepted";
 
-        map.set(key, {
-          ...localCopy,
+        return {
           ...p,
           id: key,
           projectId: p.projectId || key,
           paymentStatus: isPaid ? "paid" : (p.paymentStatus || "none"),
           submissionStatus: isPaid && (p.submissionStatus === "approved" || !p.submissionStatus) ? "active" : (p.submissionStatus || "pending"),
-        });
+        };
+      });
+
+      setProjects(finalProjects);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(finalProjects));
+        } catch {}
       }
-    });
-
-    const finalProjects = Array.from(map.values());
-    setProjects(finalProjects);
-
-    // Sync updated DB cache to local storage
-    if (typeof window !== "undefined" && remoteProjects.length > 0) {
-      try {
-        localStorage.setItem("platform_user_technical_projects", JSON.stringify(finalProjects));
-      } catch {}
+    } else {
+      let localProjects: ProjectItem[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("platform_user_technical_projects");
+          if (raw) localProjects = JSON.parse(raw) || [];
+        } catch {}
+      }
+      setProjects(localProjects);
     }
+
     setLoading(false);
     setIsRefreshing(false);
     isInitialMount.current = false;
