@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Briefcase, ShieldAlert, MapPin } from "lucide-react";
+import { Loader2, Briefcase, ShieldAlert, MapPin, BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
 import type { TechnicalProject } from "../types/project.type";
 import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
@@ -63,7 +63,8 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => {
-        const isApplied = isBusiness && appliedIds.includes(String(project.projectId || (project as any).id));
+        const pId = String(project.projectId || project.id);
+        const isApplied = isBusiness && (appliedIds.includes(pId) || appliedIds.includes(String(project.projectId)) || appliedIds.includes(String(project.id)));
 
         return (
           <article
@@ -74,22 +75,32 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
 
             <div className="flex flex-1 flex-col p-5">
               <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
-                    {project.category}
+                <div className="flex flex-col gap-1.5">
+                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start">
+                    {project.projectId || `PRJ-${project.id}`}
                   </span>
-                  {isApplied && (
+                  {isApplied ? (
                     <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                       Pending for Client Approval
                     </span>
+                  ) : (
+                    <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                      Active for Public
+                    </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                    {project.location || "Remote"}
+
+                <div className="flex flex-col items-end gap-1">
+                  <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    {project.category || "Software Development"}
                   </span>
-                  <span className="text-sm font-bold text-primary">{project.priceRange}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                      {project.location || "Remote"}
+                    </span>
+                    <span className="text-sm font-bold text-primary">{project.priceRange}</span>
+                  </div>
                 </div>
               </div>
 
@@ -113,7 +124,7 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
               </div>
 
               {isApplied ? (
-                <div className="flex items-center justify-between gap-3 pt-2">
+                <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
                   <Button
                     type="button"
                     variant="outline"
@@ -122,14 +133,15 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                   >
                     {t.technical.viewProject}
                   </Button>
-                  <div className="inline-flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-xs select-none">
+                  <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none">
+                    <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
                     Applied
                   </div>
                 </div>
               ) : (
                 <Button
                   type="button"
-                  className="w-full bg-primary font-semibold hover:bg-primary/90"
+                  className="w-full bg-primary font-semibold hover:bg-primary/90 cursor-pointer mt-auto"
                   onClick={() => onViewProject?.(project)}
                 >
                   {t.technical.viewProject}
@@ -245,9 +257,9 @@ export function useTechnicalProjectModal() {
       if (appliedKey && typeof window !== "undefined") {
         try {
           const existing = JSON.parse(localStorage.getItem(appliedKey) || "[]");
-          if (!existing.includes(pId)) {
-            localStorage.setItem(appliedKey, JSON.stringify([...existing, pId]));
-          }
+          const idsToAdd = [pId, selected.projectId, String((selected as any).id)].filter(Boolean);
+          const merged = Array.from(new Set([...existing, ...idsToAdd]));
+          localStorage.setItem(appliedKey, JSON.stringify(merged));
         } catch {}
       }
 

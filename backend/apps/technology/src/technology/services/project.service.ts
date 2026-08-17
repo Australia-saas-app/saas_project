@@ -765,10 +765,20 @@ export class ProjectService {
   }
 
   async applyForProject(projectId: string, applyDto: ApplyProjectDto, userId: string): Promise<ProjectProposal> {
-    const project = await this.projectRepository.findOne({ where: { projectId } });
+    const numericId = Number(projectId);
+    const whereConditions: any[] = [{ projectId }];
+    if (!isNaN(numericId) && numericId > 0) {
+      whereConditions.push({ id: numericId });
+    }
+
+    const project = await this.projectRepository.findOne({
+      where: whereConditions,
+    });
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-    let existing = await this.proposalRepository.findOne({ where: { projectId: project.id, userId } });
+    let existing = await this.proposalRepository.findOne({
+      where: { projectId: project.id, userId },
+    });
     if (existing) {
       return existing;
     }
@@ -820,8 +830,15 @@ export class ProjectService {
       order: { createdAt: 'DESC' },
     });
 
+    const allProjects = await this.projectRepository.find();
+    const projectMap = new Map<string, Project>();
+    allProjects.forEach((p) => {
+      if (p.id) projectMap.set(String(p.id), p);
+      if (p.projectId) projectMap.set(String(p.projectId), p);
+    });
+
     const projects = proposals.map((p) => {
-      const proj = p.project || {};
+      const proj = p.project || projectMap.get(String(p.projectId)) || ({} as Partial<Project>);
       return {
         ...proj,
         isApplied: true,
@@ -831,8 +848,19 @@ export class ProjectService {
       };
     });
 
+    const appliedProjectIds = Array.from(
+      new Set(
+        proposals
+          .flatMap((p) => {
+            const proj = p.project || projectMap.get(String(p.projectId));
+            return [proj?.projectId, proj?.id !== undefined ? String(proj.id) : undefined, String(p.projectId)];
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
     return {
-      appliedProjectIds: proposals.map((p) => p.project?.projectId).filter(Boolean),
+      appliedProjectIds,
       proposals,
       projects,
     };
@@ -842,7 +870,13 @@ export class ProjectService {
     const { page = 1, limit = 10, timeline, paymentType } = query;
     const skip = (page - 1) * limit;
 
-    const project = await this.projectRepository.findOne({ where: { projectId } });
+    const numericId = Number(projectId);
+    const whereConditions: any[] = [{ projectId }];
+    if (!isNaN(numericId) && numericId > 0) {
+      whereConditions.push({ id: numericId });
+    }
+
+    const project = await this.projectRepository.findOne({ where: whereConditions });
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
     const qb = this.proposalRepository

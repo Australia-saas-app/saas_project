@@ -18,6 +18,7 @@ import {
   Eye,
   Settings,
   ShieldAlert,
+  BadgeCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -127,10 +128,23 @@ export default function BusinessServicesLayout() {
 
       const publicProjects = Array.isArray(pubProjRes?.projects) ? pubProjRes.projects : [];
       const assignedProjects = Array.isArray(assignedProjRes?.projects) ? assignedProjRes.projects : [];
+      const appliedProjects = Array.isArray(myAppsRes?.projects) ? myAppsRes.projects : [];
 
-      const mappedProjects: BusinessServiceRow[] = [...publicProjects, ...assignedProjects].map((p: any) => {
+      const seenProjectIds = new Set<string>();
+      const combinedProjects = [...appliedProjects, ...assignedProjects, ...publicProjects].filter((p: any) => {
+        const key = String(p.projectId || p.id || "");
+        if (!key || seenProjectIds.has(key)) return false;
+        seenProjectIds.add(key);
+        return true;
+      });
+
+      const mappedProjects: BusinessServiceRow[] = combinedProjects.map((p: any) => {
         const pId = p.projectId || `PRJ-${p.id}`;
-        const isApplied = appliedIds.includes(pId);
+        const isApplied =
+          Boolean((p as any).isApplied) ||
+          appliedIds.includes(pId) ||
+          appliedIds.includes(String(p.id)) ||
+          appliedIds.includes(String(p.projectId));
         const isAssigned = p.assignedBusinessId && uId && p.assignedBusinessId === uId;
         const isCompleted = p.submissionStatus === "completed";
         const isActive = isAssigned && (p.submissionStatus === "active" || p.submissionStatus === "in_progress");
@@ -685,7 +699,8 @@ export default function BusinessServicesLayout() {
                           >
                             View Project
                           </button>
-                          <div className="inline-flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-xs select-none">
+                          <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none">
+                            <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
                             Applied
                           </div>
                         </div>

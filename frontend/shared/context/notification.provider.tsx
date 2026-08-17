@@ -45,6 +45,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
+  const knownIdsRef = useMemo(() => new Set<string>(), []);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   // Load from cache on first render (by userId and by userEmail)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -58,6 +61,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const combinedMap = new Map<string, NotificationItem>();
       [...emailNotifs, ...userNotifs].forEach((n) => {
         if (n && n.id) {
+          knownIdsRef.add(String(n.id));
           combinedMap.set(n.id, {
             ...n,
             time: formatNotificationTime(n.createdAt || n.time),
@@ -69,65 +73,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setItems(Array.from(combinedMap.values()).slice(0, 50));
       }
     } catch {}
-  }, [userId, userEmail]);
-
-  // Fetch initial notifications from DB on mount / user change
-  useEffect(() => {
-    if (!userId) {
-      if (!userEmail) setItems([]);
-      return;
-    }
-
-    let mounted = true;
-    axiosInstance.get("/notifications", { timeout: 8000 })
-      .then((res) => {
-        if (!mounted || !res.data) return;
-        const resData = res.data;
-        if (resData.success && Array.isArray(resData.data?.notifications)) {
-          const mapped = resData.data.notifications.map((n: any) => ({
-            id: String(n.id || n.notificationId),
-            title: n.title,
-            message: n.message,
-            createdAt: n.createdAt,
-            time: formatNotificationTime(n.createdAt),
-            read: Boolean(n.isRead || n.read),
-            href: n.data?.href || n.href,
-          }));
-          setItems((prev) => {
-            const map = new Map<string, NotificationItem>();
-            [...mapped, ...prev].forEach((item) => {
-              if (item && item.id) {
-                map.set(item.id, {
-                  ...item,
-                  time: formatNotificationTime(item.createdAt || item.time),
-                });
-              }
-            });
-            const merged = Array.from(map.values()).slice(0, 50);
-            try {
-              localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
-            } catch {}
-            return merged;
-          });
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      mounted = false;
-    };
-  }, [userId, userEmail]);
+  }, [userId, userEmail, knownIdsRef]);
 
   const notify = useCallback(
-    (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
+    (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }, suppressToast = false) => {
       const now = new Date().toISOString();
+      const entryId = item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      knownIdsRef.add(String(entryId));
+
       const entry: NotificationItem = {
         ...item,
-        id: item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: entryId,
         createdAt: item.createdAt || now,
         time: formatNotificationTime(item.createdAt || now),
         read: false,
       };
+
       setItems((prev) => {
         const next = [entry, ...prev.filter((i) => i.id !== entry.id)].slice(0, 50);
         if (userId) {
@@ -143,12 +104,151 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      toast.info("You have received a new notification", {
-        duration: 5000,
-      });
+      if (!suppressToast) {
+        toast.info("You have received a new notification", {
+          duration: 5000,
+        });
+      }
+
+      // Broadcast across tabs
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: entry, timestamp: Date.now() }));
+          if ("BroadcastChannel" in window) {
+            const bc = new BroadcastChannel("vero_channel");
+            bc.postMessage({ type: "vero:new_notification", payload: entry });
+            bc.close();
+          }
+        }
+      } catch {}
     },
-    [userId, userEmail]
+    [userId, userEmail, knownIdsRef]
   );
+
+  // Fetch notifications from DB and periodically poll every 4s for instant arrival
+  useEffect(() => {
+    if (!userId && !userEmail) {
+      setItems([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchNotifications = async (triggerToast = false) => {
+      try {
+        const res = await axiosInstance.get("/notifications", { timeout: 8000 }).catch(() => null);
+        if (!isMounted || !res?.data) return;
+        const resData = res.data;
+        if (resData.success && Array.isArray(resData.data?.notifications)) {
+          const mapped: NotificationItem[] = resData.data.notifications.map((n: any) => ({
+            id: String(n.id || n.notificationId),
+            title: n.title,
+            message: n.message,
+            createdAt: n.createdAt,
+            time: formatNotificationTime(n.createdAt),
+            read: Boolean(n.isRead || n.read),
+            href: n.data?.href || n.href,
+          }));
+
+          let hasNewUnread = false;
+
+          setItems((prev) => {
+            const map = new Map<string, NotificationItem>();
+            [...mapped, ...prev].forEach((item) => {
+              if (item && item.id) {
+                if (triggerToast && !knownIdsRef.has(String(item.id)) && !item.read) {
+                  hasNewUnread = true;
+                }
+                knownIdsRef.add(String(item.id));
+                map.set(item.id, {
+                  ...item,
+                  time: formatNotificationTime(item.createdAt || item.time),
+                });
+              }
+            });
+            const merged = Array.from(map.values()).slice(0, 50);
+            try {
+              if (userId) localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
+              if (userEmail) localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+
+          if (hasNewUnread) {
+            toast.info("You have received a new notification", { duration: 5000 });
+          }
+
+          if (!hasInitialized) setHasInitialized(true);
+        }
+      } catch {}
+    };
+
+    fetchNotifications(false);
+
+    // 4-second background poll
+    const pollInterval = setInterval(() => {
+      fetchNotifications(true);
+    }, 4000);
+
+    const handleFocus = () => fetchNotifications(true);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("notifications_updated", () => fetchNotifications(true));
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [userId, userEmail, knownIdsRef, hasInitialized]);
+
+  // Cross-tab BroadcastChannel & Local Storage sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:new_notification" && event.data.payload) {
+            const p = event.data.payload;
+            if (!knownIdsRef.has(String(p.id))) {
+              notify(p, false);
+            }
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_notif_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.item && !knownIdsRef.has(String(parsed.item.id))) {
+            notify(parsed.item, false);
+          }
+        } catch {}
+      }
+    };
+
+    const handleCustomEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        notify(detail, false);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("new_notification", handleCustomEvent);
+    window.addEventListener("vero:new_notification", handleCustomEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("new_notification", handleCustomEvent);
+      window.removeEventListener("vero:new_notification", handleCustomEvent);
+      if (bc) bc.close();
+    };
+  }, [notify, knownIdsRef]);
 
   // Realtime Platform Email Notifications
   useEffect(() => {

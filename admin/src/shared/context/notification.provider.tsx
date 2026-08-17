@@ -108,8 +108,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
 
+  const knownAdminIdsRef = useMemo(() => new Set<string>(), []);
+  const [hasAdminInit, setHasAdminInit] = useState(false);
+
   // Load and merge notifications from local store & DB
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (triggerToast = false) => {
     let remoteNotifs: NotificationItem[] = [];
     let fetchSuccess = false;
 
@@ -143,7 +146,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     } catch {}
 
     if (fetchSuccess) {
+      let hasNewUnread = false;
+      remoteNotifs.forEach((item) => {
+        if (triggerToast && !knownAdminIdsRef.has(String(item.id)) && !item.read) {
+          hasNewUnread = true;
+        }
+        knownAdminIdsRef.add(String(item.id));
+      });
+
       setItems(remoteNotifs);
+
+      if (hasNewUnread) {
+        toast.info("You have received a new notification", { duration: 5000 });
+      }
+
+      if (!hasAdminInit) setHasAdminInit(true);
+
       if (typeof window !== "undefined") {
         try {
           if (userId) {
@@ -163,45 +181,119 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
+            parsed.forEach((n: any) => { if (n?.id) knownAdminIdsRef.add(String(n.id)); });
             setItems(parsed);
           }
         }
       } catch {}
     }
-  }, [userId, token]);
+  }, [userId, token, knownAdminIdsRef, hasAdminInit]);
 
   useEffect(() => {
-    loadNotifications();
-    window.addEventListener("notifications_updated", loadNotifications);
-    window.addEventListener("storage", loadNotifications);
-    window.addEventListener("focus", loadNotifications);
+    loadNotifications(false);
+
+    const pollInterval = setInterval(() => {
+      loadNotifications(true);
+    }, 4000);
+
+    const handleFocus = () => loadNotifications(true);
+    window.addEventListener("notifications_updated", () => loadNotifications(true));
+    window.addEventListener("focus", handleFocus);
+
     return () => {
-      window.removeEventListener("notifications_updated", loadNotifications);
-      window.removeEventListener("storage", loadNotifications);
-      window.removeEventListener("focus", loadNotifications);
+      clearInterval(pollInterval);
+      window.removeEventListener("notifications_updated", () => loadNotifications(true));
+      window.removeEventListener("focus", handleFocus);
     };
   }, [loadNotifications]);
 
-  const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }) => {
+  const notify = useCallback((item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }, suppressToast = false) => {
     const now = new Date().toISOString();
+    const entryId = item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    knownAdminIdsRef.add(String(entryId));
+
     const entry: NotificationItem = {
       ...item,
-      id: item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: entryId,
       createdAt: item.createdAt || now,
       time: formatNotificationTime(item.createdAt || now),
       read: false,
     };
     setItems((prev) => {
-      const next = [entry, ...prev].slice(0, 50);
+      const next = [entry, ...prev.filter((i) => i.id !== entry.id)].slice(0, 50);
       if (userId) {
         try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
       }
       return next;
     });
-    toast.info("You have received a new notification", {
-      duration: 5000,
-    });
-  }, [userId]);
+
+    if (!suppressToast) {
+      toast.info("You have received a new notification", {
+        duration: 5000,
+      });
+    }
+
+    // Broadcast across tabs
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: entry, timestamp: Date.now() }));
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:new_notification", payload: entry });
+          bc.close();
+        }
+      }
+    } catch {}
+  }, [userId, knownAdminIdsRef]);
+
+  // Cross-tab BroadcastChannel & Local Storage sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:new_notification" && event.data.payload) {
+            const p = event.data.payload;
+            if (!knownAdminIdsRef.has(String(p.id))) {
+              notify(p, false);
+            }
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "vero_notif_sync" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.item && !knownAdminIdsRef.has(String(parsed.item.id))) {
+            notify(parsed.item, false);
+          }
+        } catch {}
+      }
+    };
+
+    const handleCustomEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        notify(detail, false);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("new_notification", handleCustomEvent);
+    window.addEventListener("vero:new_notification", handleCustomEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("new_notification", handleCustomEvent);
+      window.removeEventListener("vero:new_notification", handleCustomEvent);
+      if (bc) bc.close();
+    };
+  }, [notify, knownAdminIdsRef]);
 
   // Connect to Notification WebSocket for live instant notifications
   useEffect(() => {

@@ -1023,17 +1023,17 @@ export default function ProfilePageLayout() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs space-y-1">
-                    <p className="font-semibold flex items-center gap-1.5 text-blue-600">
-                      <Shield className="h-3.5 w-3.5 shrink-0 text-blue-600" /> Platform Business Tier
+                  <div className="mt-4 rounded-xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/30 p-3.5 text-xs space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                      <Shield className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" /> Platform Business Tier
                     </p>
-                    <p className="text-gray-600 text-[11.5px] leading-relaxed">
+                    <p className="text-gray-600 dark:text-slate-300 text-[11.5px] leading-relaxed">
                       Standard 20% platform commission rate applies upon business name and industry type verification.
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
+                <div className="mt-6 pt-4 border-t border-border flex justify-end">
                   <button
                     type="button"
                     className={`${primaryBtn} flex items-center justify-center gap-2`}
