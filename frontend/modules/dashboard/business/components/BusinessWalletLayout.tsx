@@ -19,6 +19,7 @@ import { withdrawDetailFields } from "@/src/modules/dashboard/shared/utils/withd
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { getWithdrawalsForUser } from "@/src/shared/lib/wallet-store";
+import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { EMPTY_BUSINESS_STATS } from "@/src/shared/lib/dashboard-empty-stats";
 import { BUSINESS_STATS } from "../data/business-demo-data";
 
@@ -37,6 +38,23 @@ export default function BusinessWalletLayout() {
   const [earningSearch, setEarningSearch] = useState("");
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
+  const [realBalance, setRealBalance] = useState<number | null>(null);
+
+  const loadRealBalance = async () => {
+    try {
+      const res = await fetchWalletBalance();
+      if (res?.balance !== undefined && res.balance !== null) {
+        setRealBalance(res.balance);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadRealBalance();
+    const onWalletUpdated = () => loadRealBalance();
+    window.addEventListener("wallet_updated", onWalletUpdated);
+    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
+  }, []);
 
   useEffect(() => {
     if (!isReady || !userId) return;
@@ -55,11 +73,13 @@ export default function BusinessWalletLayout() {
 
   const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
 
+  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
+
   const walletStats = [
     { label: w.totalCommission, value: stats.totalCommission },
     { label: w.totalWithdrawn, value: stats.totalWithdrawn },
     { label: w.pendingPayout, value: isDemo ? "$640" : "$0" },
-    { label: w.availableBalance, value: stats.currentBalance, highlight: true },
+    { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 
   const filteredWithdraw = useMemo(() => {

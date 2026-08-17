@@ -106,29 +106,135 @@ export async function dispatchAdminNotification(notif: {
 export const fetchWalletBalance = async (_token?: string): Promise<{ balance: number }> => {
   try {
     const res = await axiosInstance.get('/wallet/balance');
-    return { balance: Number(res?.data?.balance ?? 50000) };
+    if (res?.data?.balance !== undefined && res.data.balance !== null) {
+      return { balance: Number(res.data.balance) };
+    }
   } catch (e) {
-    console.warn("Wallet balance fallback:", e);
+    try {
+      const ssoRes = await axiosInstance.get('/sso/wallet/balance');
+      if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null) {
+        return { balance: Number(ssoRes.data.balance) };
+      }
+    } catch {}
   }
-  return { balance: 50000 };
+
+  // Calculate accurately from persistent storage ledger if offline or mocked
+  if (typeof window !== "undefined") {
+    try {
+      const rawLedger = localStorage.getItem("platform_wallet_ledger");
+      const rawUser = localStorage.getItem("auth_user") || localStorage.getItem("user");
+      let uid = "";
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        uid = u.id || u.userId || u.email;
+      }
+      if (rawLedger) {
+        const parsed: any[] = JSON.parse(rawLedger);
+        if (Array.isArray(parsed)) {
+          const userDeposits = parsed
+            .filter((r) => (!uid || r.userId === uid) && (r.kind === "deposit" || r.type?.toLowerCase() === "deposit") && (r.status === "Complete" || r.status === "Completed" || r.status === "Pending"))
+            .reduce((acc, r) => acc + (parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0), 0);
+          
+          const userPayments = parsed
+            .filter((r) => (!uid || r.userId === uid) && (r.kind === "payment" || r.type?.toLowerCase() === "payment" || r.kind === "withdraw_hold"))
+            .reduce((acc, r) => acc + (parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0), 0);
+
+          const available = Math.max(0, userDeposits - userPayments);
+          return { balance: available };
+        }
+      }
+    } catch {}
+  }
+
+  return { balance: 0 };
 };
 
-export const depositToWallet = async (amount: number, description?: string, _token?: string) => {
+export const depositToWallet = async (
+  amount: number,
+  description?: string,
+  options?: {
+    cardData?: {
+      cardHolderName: string;
+      cardNumber: string;
+      expiryMonth: string;
+      expiryYear: string;
+      cardBrand?: string;
+    };
+    paymentCardId?: number;
+    method?: string;
+  },
+  _token?: string
+) => {
+  const payload = {
+    amount,
+    description: description || 'Wallet Deposit',
+    method: options?.method || 'Credit / Debit Card',
+    paymentCardId: options?.paymentCardId,
+    cardData: options?.cardData,
+  };
+
   try {
-    const res = await axiosInstance.post('/wallet/deposit', { amount, description });
-    return res?.data;
+    const ssoRes = await axiosInstance.post('/sso/wallet/deposit', payload);
+    return ssoRes?.data;
   } catch (e) {
-    console.warn("Deposit handled locally:", e);
+    try {
+      const res = await axiosInstance.post('/wallet/deposit', payload);
+      return res?.data;
+    } catch {
+      console.warn("Deposit fallback:", e);
+    }
   }
   return { success: true };
 };
 
+export const fetchWalletCards = async () => {
+  try {
+    const res = await axiosInstance.get('/sso/wallet/cards');
+    if (Array.isArray(res?.data)) return res.data;
+    return res?.data?.data || [];
+  } catch (e) {
+    try {
+      const res = await axiosInstance.get('/wallet/cards');
+      if (Array.isArray(res?.data)) return res.data;
+      return res?.data?.data || [];
+    } catch {}
+  }
+  return [];
+};
+
+export const saveWalletCard = async (cardData: {
+  cardHolderName: string;
+  cardNumber: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cardBrand?: string;
+  isDefault?: boolean;
+}) => {
+  try {
+    const res = await axiosInstance.post('/sso/wallet/cards', cardData);
+    return res?.data;
+  } catch (e) {
+    try {
+      const res = await axiosInstance.post('/wallet/cards', cardData);
+      return res?.data;
+    } catch {}
+  }
+  return null;
+};
+
 export const fetchWalletTransactions = async (_token?: string) => {
   try {
-    const res = await axiosInstance.get('/wallet/transactions');
-    return res?.data || { data: [] };
+    const res = await axiosInstance.get('/sso/wallet/transactions');
+    if (res?.data && Array.isArray(res.data)) return res.data;
+    return res?.data?.data || res?.data || [];
   } catch (e) {
-    console.warn("Wallet transactions fallback:", e);
+    try {
+      const pRes = await axiosInstance.get('/wallet/transactions');
+      if (pRes?.data && Array.isArray(pRes.data)) return pRes.data;
+      return pRes?.data?.data || pRes?.data || [];
+    } catch {
+      console.warn("Wallet transactions fallback:", e);
+    }
   }
   return { data: [] };
 };
@@ -267,18 +373,12 @@ export const createProject = async (payload: any, _token?: string) => {
   const existing = readLocalProjects();
   writeLocalProjects([createdProject, ...existing.filter((p) => p.projectId !== createdProject.projectId)]);
 
-  // Log activity & dispatch admin notification
+  // Log activity in MongoDB & storage
   recordActivityLog({
-    title: `New Project Created: "${createdProject.title}"`,
+    title: `User submitted project: "${createdProject.title}" (${createdProject.projectId})`,
     description: `Submitted with budget $${Number(createdProject.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     category: "Technical Services",
-    type: "PROJECT_CREATED",
-  });
-
-  dispatchAdminNotification({
-    title: "New Technical Project Submitted",
-    message: `"${createdProject.title}" submitted with budget $${createdProject.price || 0}. Needs review and quote.`,
-    href: "/admin/technical",
+    type: "PROJECT_SUBMITTED",
   });
 
   return { success: true, projectId: createdProject.projectId, data: createdProject };
@@ -410,27 +510,92 @@ export const payProject = async (projectId: string, _token?: string) => {
   let paidProject: any = null;
   const updated = local.map((p) => {
     if (p.projectId === projectId) {
-      paidProject = { ...p, submissionStatus: "active", paymentStatus: "paid" };
+      const baseBudget = Number(p.adminBudget || p.price || 0);
+      const commPercent = Number(p.commissionPercent !== undefined ? p.commissionPercent : 10);
+      const commissionAmount = Number(((baseBudget * commPercent) / 100).toFixed(2));
+      const totalPaymentAmount = Number((baseBudget + commissionAmount).toFixed(2));
+
+      paidProject = {
+        ...p,
+        submissionStatus: "active",
+        paymentStatus: "paid",
+        status: "active",
+        paidAmount: totalPaymentAmount,
+        dueAmount: 0,
+        totalAmount: totalPaymentAmount,
+        commissionAmount,
+      };
       return paidProject;
     }
     return p;
   });
   writeLocalProjects(updated);
 
+  // Broadcast real-time payment sync across tabs
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("platform_projects_last_updated", String(Date.now()));
+      window.dispatchEvent(new Event("platform_projects_updated"));
+      window.dispatchEvent(new Event("notifications_updated"));
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({ type: "PROJECT_PAID", projectId });
+        bc.close();
+      }
+    } catch {}
+  }
+
   if (paidProject) {
-    const budgetVal = paidProject.adminBudget || paidProject.price || 0;
+    const budgetVal = Number(paidProject.adminBudget || paidProject.price || 0);
+    const commVal = Number(paidProject.commissionAmount || 0);
+    const totalVal = Number(paidProject.totalAmount || budgetVal + commVal);
+
+    // Deduct from local wallet ledger
+    if (typeof window !== "undefined") {
+      try {
+        const rawLedger = localStorage.getItem("platform_wallet_ledger");
+        const ledger = rawLedger ? JSON.parse(rawLedger) : [];
+        const paymentTx = {
+          id: `TX-ESCROW-${Date.now().toString().slice(-6)}`,
+          kind: "payment",
+          userId: paidProject.userId || paidProject.clientId || "user",
+          userName: paidProject.clientName || "Client",
+          amount: `-$${totalVal.toFixed(2)} USD`,
+          method: `Escrow Fund: ${paidProject.title}`,
+          status: "Complete",
+          date: new Date().toLocaleDateString(),
+        };
+        localStorage.setItem("platform_wallet_ledger", JSON.stringify([paymentTx, ...ledger]));
+        window.dispatchEvent(new Event("wallet_updated"));
+      } catch {}
+    }
+
     recordActivityLog({
-      title: `Project Escrow Funded: "${paidProject.title}"`,
-      description: `Submitted with budget $${Number(budgetVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      title: `Project Escrow Funded: "${paidProject.title}" (${paidProject.projectId})`,
+      description: `Funded $${totalVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} (Budget $${budgetVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} + 10% Platform Fee $${commVal.toLocaleString(undefined, { minimumFractionDigits: 2 })})`,
       category: "Technical Services",
       type: "PROJECT_PAID",
     });
 
-    dispatchAdminNotification({
-      title: "Project Payment Approved & Escrow Funded",
-      message: `"${paidProject.title}" has been funded with budget $${budgetVal}. Now live and open for businesses.`,
-      href: "/admin/technical",
-    });
+    // Record admin notification for real-time notification bell & toast
+    if (typeof window !== "undefined") {
+      try {
+        const notifItem = {
+          id: `notif-pay-${Date.now()}`,
+          title: "Project Payment Approved & Escrow Funded",
+          description: `Client paid $${totalVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} into escrow for "${paidProject.title}" (${paidProject.projectId}). Project is now Active for Public.`,
+          time: "Just now",
+          read: false,
+          href: "/technical",
+          type: "TECHNICAL_PROJECT_PAID",
+        };
+        ["app_notifs_admin", "admin_notifications"].forEach((k) => {
+          const ex = JSON.parse(localStorage.getItem(k) || "[]");
+          localStorage.setItem(k, JSON.stringify([notifItem, ...ex]));
+        });
+        window.dispatchEvent(new Event("notifications_updated"));
+      } catch {}
+    }
   }
 
   try {

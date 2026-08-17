@@ -1,16 +1,20 @@
 export type TechnicalUserRole = "unauthorized" | "normal" | "affiliate" | "business"
 
 export interface TechnicalProject {
-  id: number
+  id: string | number
+  projectId?: string
   title: string
   category: string
-  categoryFilter: "software" | "web" | "mobile"
-  projectType: "new-build" | "upgrade" | "troubleshooting" | "maintenance" | "installation"
-  subcategory: "frontend" | "backend" | "fullstack"
+  categoryFilter?: string
+  projectType?: string
+  subcategory?: string
+  tech?: string
   skills: string[]
-  languages: string[]
-  duration: string
-  experience: string
+  requiredSkills?: string[]
+  languages?: string[]
+  preferredLanguages?: string[]
+  duration?: string
+  experience?: string
   priceRange: string
   price: number
   description: string

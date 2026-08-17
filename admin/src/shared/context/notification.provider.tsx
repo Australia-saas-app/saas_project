@@ -216,10 +216,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-    toast(item.title || "New Notification", {
-      description: item.message,
+    toast.info("You have received a new notification", {
       duration: 5000,
-      icon: <Bell className="h-5 w-5 text-primary" />,
     });
   }, [userId]);
 

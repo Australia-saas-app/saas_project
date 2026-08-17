@@ -91,13 +91,13 @@ export default function TechnicalProjectLayout() {
   const [requirementsInput, setRequirementsInput] = useState("");
   const [conditionsInput, setConditionsInput] = useState("");
   const [adminNotesInput, setAdminNotesInput] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<"approve" | "reject" | null>(null);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
     let remoteProjects: ProjectItem[] = [];
     try {
-      const res = await apiClient.get<any>("/technology/projects/all", { skipErrorToast: true });
+      const res = await apiClient.get<any>("/technology/projects/all?limit=200", { skipErrorToast: true });
       if (res?.projects && Array.isArray(res.projects)) {
         remoteProjects = res.projects;
       } else if (Array.isArray(res)) {
@@ -118,7 +118,9 @@ export default function TechnicalProjectLayout() {
     }
 
     const map = new Map<string, ProjectItem>();
-    remoteProjects.forEach((p) => {
+
+    // 1. First seed with local storage (optimistic / offline cache)
+    localProjects.forEach((p) => {
       if (p && (p.projectId || (p as any).id)) {
         const key = p.projectId || String((p as any).id);
         map.set(key, {
@@ -129,36 +131,41 @@ export default function TechnicalProjectLayout() {
       }
     });
 
-    localProjects.forEach((p) => {
+    // 2. Overwrite with fresh DB records (Database is single source of truth)
+    remoteProjects.forEach((p) => {
       if (p && (p.projectId || (p as any).id)) {
         const key = p.projectId || String((p as any).id);
-        const existing = map.get(key);
-        if (!existing) {
-          map.set(key, {
-            ...p,
-            id: key,
-            projectId: p.projectId || key,
-          });
-        } else {
-          const isPaid =
-            p.paymentStatus?.toLowerCase() === "paid" ||
-            existing.paymentStatus?.toLowerCase() === "paid" ||
-            p.submissionStatus === "active" ||
-            existing.submissionStatus === "active";
+        const localCopy = map.get(key);
+        const isPaid =
+          p.paymentStatus?.toLowerCase() === "paid" ||
+          p.paymentStatus?.toLowerCase() === "released" ||
+          p.submissionStatus === "active" ||
+          p.submissionStatus === "in_progress" ||
+          p.submissionStatus === "completed" ||
+          p.submissionStatus === "accepted" ||
+          localCopy?.paymentStatus?.toLowerCase() === "paid" ||
+          localCopy?.submissionStatus === "active";
 
-          map.set(key, {
-            ...existing,
-            ...p,
-            id: key,
-            projectId: p.projectId || key,
-            paymentStatus: isPaid ? "paid" : existing.paymentStatus || p.paymentStatus,
-            submissionStatus: isPaid && existing.submissionStatus === "approved" ? "active" : (p.submissionStatus || existing.submissionStatus),
-          });
-        }
+        map.set(key, {
+          ...localCopy,
+          ...p,
+          id: key,
+          projectId: p.projectId || key,
+          paymentStatus: isPaid ? "paid" : (p.paymentStatus || "none"),
+          submissionStatus: isPaid && (p.submissionStatus === "approved" || !p.submissionStatus) ? "active" : (p.submissionStatus || "pending"),
+        });
       }
     });
 
-    setProjects(Array.from(map.values()));
+    const finalProjects = Array.from(map.values());
+    setProjects(finalProjects);
+
+    // Sync updated DB cache to local storage
+    if (typeof window !== "undefined" && remoteProjects.length > 0) {
+      try {
+        localStorage.setItem("platform_user_technical_projects", JSON.stringify(finalProjects));
+      } catch {}
+    }
     setLoading(false);
   }, []);
 
@@ -166,9 +173,33 @@ export default function TechnicalProjectLayout() {
     loadProjects();
     window.addEventListener("storage", loadProjects);
     window.addEventListener("focus", loadProjects);
+    window.addEventListener("platform_projects_updated", loadProjects);
+    window.addEventListener("notifications_updated", loadProjects);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === "PROJECT_PAID" || ev.data?.type === "PROJECT_SUBMITTED" || ev.data?.type?.includes("PROJECT")) {
+            loadProjects();
+          }
+        };
+      }
+    } catch {}
+
+    // Polling interval to ensure real-time status sync
+    const pollInterval = setInterval(() => {
+      loadProjects();
+    }, 4000);
+
     return () => {
       window.removeEventListener("storage", loadProjects);
       window.removeEventListener("focus", loadProjects);
+      window.removeEventListener("platform_projects_updated", loadProjects);
+      window.removeEventListener("notifications_updated", loadProjects);
+      if (bc) bc.close();
+      clearInterval(pollInterval);
     };
   }, [loadProjects]);
 
@@ -192,7 +223,7 @@ export default function TechnicalProjectLayout() {
     }
 
     const comm = parseFloat(commissionPercentInput) || 10;
-    setActionLoading(true);
+    setActionLoading("approve");
 
     try {
       await apiClient.post(`/technology/projects/${selectedProject.projectId}/admin-approve`, {
@@ -257,13 +288,13 @@ export default function TechnicalProjectLayout() {
     } catch (e: any) {
       toast.error(e?.message || "Failed to approve project");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
   const handleReject = async () => {
     if (!selectedProject) return;
-    setActionLoading(true);
+    setActionLoading("reject");
 
     try {
       await apiClient.post(`/technology/projects/${selectedProject.projectId}/admin-reject`, {
@@ -318,7 +349,7 @@ export default function TechnicalProjectLayout() {
     } catch (e: any) {
       toast.error(e?.message || "Failed to reject project");
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
@@ -544,8 +575,12 @@ export default function TechnicalProjectLayout() {
               ) : (
                 paginatedProjects.map((p) => {
                   const baseBudget = Number(p.adminBudget || p.price || 0);
-                  const commission = (baseBudget * (p.commissionPercent !== undefined ? p.commissionPercent : 10)) / 100;
-                  const totalAmountNum = baseBudget + commission;
+                  const commission = Number(
+                    p.commissionAmount !== undefined
+                      ? p.commissionAmount
+                      : (baseBudget * (p.commissionPercent !== undefined ? p.commissionPercent : 10)) / 100
+                  );
+                  const totalAmountNum = Number(p.totalAmount || (baseBudget + commission));
                   const currency = p.currency || "USD";
 
                   const isPaid =
@@ -556,12 +591,15 @@ export default function TechnicalProjectLayout() {
                       (p.submissionStatus || "").toLowerCase()
                     );
 
-                  const paidAmountStr = isPaid
-                    ? `${currency} $${totalAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                    : `${currency} $0.00`;
-                  const dueAmountStr = isPaid
-                    ? `${currency} $0.00`
-                    : `${currency} $${totalAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                  const paidAmountNum = isPaid
+                    ? Number(p.paidAmount || totalAmountNum)
+                    : Number(p.paidAmount || 0);
+                  const dueAmountNum = isPaid
+                    ? Number(p.dueAmount || 0)
+                    : Number(p.dueAmount !== undefined ? p.dueAmount : totalAmountNum);
+
+                  const paidAmountStr = `${currency} $${paidAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                  const dueAmountStr = `${currency} $${dueAmountNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
                   const rawStatus = (p.submissionStatus || "pending").toLowerCase();
                   let displayStatus = "Pending";
@@ -569,7 +607,7 @@ export default function TechnicalProjectLayout() {
 
                   if (rawStatus === "approved" || rawStatus === "payment_pending") {
                     displayStatus = "Approved";
-                    statusBadgeStyle = "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900";
+                    statusBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
                   } else if (rawStatus === "active" || rawStatus === "in_progress") {
                     displayStatus = "Active";
                     statusBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
@@ -917,8 +955,8 @@ export default function TechnicalProjectLayout() {
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    disabled={actionLoading}
-                    className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    disabled={Boolean(actionLoading)}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     Close
                   </button>
@@ -926,20 +964,20 @@ export default function TechnicalProjectLayout() {
                     <>
                       <button
                         type="button"
-                        disabled={actionLoading}
+                        disabled={Boolean(actionLoading)}
                         onClick={handleReject}
                         className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                       >
-                        {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                        {actionLoading === "reject" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
                         Reject
                       </button>
                       <button
                         type="button"
-                        disabled={actionLoading}
+                        disabled={Boolean(actionLoading)}
                         onClick={handleApprove}
                         className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
                       >
-                        {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {actionLoading === "approve" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                         Approve Project
                       </button>
                     </>

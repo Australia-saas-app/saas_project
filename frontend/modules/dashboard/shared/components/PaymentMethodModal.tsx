@@ -15,6 +15,7 @@ import {
   type PaymentMethodType,
 } from "@/src/shared/lib/payment-method-config";
 import { savePaymentMethod, type SavedPaymentMethod } from "@/src/shared/lib/payment-methods-store";
+import { saveWalletCard } from "@/src/modules/technical/services/technical.services";
 
 export { PAYMENT_METHOD_OPTIONS, type PaymentMethodType };
 export type { SavedPaymentMethod };
@@ -74,7 +75,30 @@ export default function PaymentMethodModal({ open, onClose, onSaved }: PaymentMe
     const finalLabel = (useCustomLabel ? label : autoLabel).trim() || autoLabel;
 
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 400));
+    if (type === "Credit / Debit Card" || sanitized.cardNumber) {
+      try {
+        const parts = (sanitized.expiry || "").split("/");
+        const expMonth = parts[0]?.trim() || "12";
+        const expYearRaw = parts[1]?.trim() || "2030";
+        const expYear = expYearRaw.length === 2 ? `20${expYearRaw}` : expYearRaw;
+        await saveWalletCard({
+          cardHolderName: sanitized.cardholderName || sanitized.cardHolderName || "Cardholder",
+          cardNumber: (sanitized.cardNumber || "").replace(/\s+/g, ""),
+          expiryMonth: expMonth,
+          expiryYear: expYear,
+          cardBrand: (sanitized.cardNumber || "").startsWith("4")
+            ? "Visa"
+            : (sanitized.cardNumber || "").startsWith("5")
+            ? "Mastercard"
+            : (sanitized.cardNumber || "").startsWith("3")
+            ? "American Express"
+            : "Card",
+          isDefault: isDefault,
+        });
+      } catch {}
+    } else {
+      await new Promise((r) => setTimeout(r, 400));
+    }
     const saved = savePaymentMethod({
       type,
       label: finalLabel,
@@ -84,6 +108,9 @@ export default function PaymentMethodModal({ open, onClose, onSaved }: PaymentMe
     });
     setSubmitting(false);
     toast.success(`${type} payout method saved.`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("wallet_updated"));
+    }
     onSaved?.(saved);
     onClose();
   };

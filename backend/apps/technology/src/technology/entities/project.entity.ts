@@ -124,6 +124,22 @@ export class Project {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 10 })
   commissionPercent: number;
 
+  // Calculated commission amount (e.g. 10% = 130 for 1300 budget)
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  commissionAmount: number;
+
+  // Total project amount including platform commission (e.g. 1300 + 130 = 1430)
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  totalAmount: number;
+
+  // Total amount paid by user into escrow
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  paidAmount: number;
+
+  // Remaining due amount to be paid
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  dueAmount: number;
+
   @Column({ type: 'varchar', length: 10, default: 'USD' })
   currency: string;
 

@@ -142,20 +142,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      toast(item.title || "You have a new notification", {
-        description: item.message,
-        duration: 6000,
-        icon: <Bell className="h-5 w-5 text-primary" />,
-        action: item.href
-          ? {
-              label: "View message",
-              onClick: () => {
-                if (typeof window !== "undefined") {
-                  window.location.href = item.href!;
-                }
-              },
-            }
-          : undefined,
+      toast.info("You have received a new notification", {
+        duration: 5000,
       });
     },
     [userId, userEmail]

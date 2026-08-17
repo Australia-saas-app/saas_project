@@ -32,9 +32,11 @@ import {
   Calendar,
   ShieldCheck,
   DollarSign,
+  Users,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
+import { useUser } from "@/src/context/user.provider";
 import {
   fetchMyProjects,
   readLocalProjects,
@@ -177,6 +179,7 @@ export default function UserProjectsPage() {
   const [viewProject, setViewProject] = useState<Project | null>(null);
   const [payProject, setPayProject] = useState<Project | null>(null);
   const [chatProject, setChatProject] = useState<Project | null>(null);
+  const [appliedModalProject, setAppliedModalProject] = useState<Project | null>(null);
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
   const [revisionReason, setRevisionReason] = useState("");
   const [deleteModalProject, setDeleteModalProject] = useState<Project | null>(null);
@@ -271,16 +274,42 @@ export default function UserProjectsPage() {
     }
   };
 
+  const { user } = useUser();
+
+  // Filter projects strictly belonging to the currently logged in user
+  const userProjects = useMemo(() => {
+    if (!user) return projects;
+    const uid = String((user as any)?.id || (user as any)?.userId || (user as any)?.sub || "").toLowerCase();
+    const email = String((user as any)?.email || "").toLowerCase();
+    const name = String((user as any)?.name || (user as any)?.fullName || "").toLowerCase();
+
+    return projects.filter((p: any) => {
+      const pClientId = String(p.clientId || "").toLowerCase();
+      const pCreatedBy = String(p.createdBy || "").toLowerCase();
+      const pEmail = String(p.clientEmail || "").toLowerCase();
+      const pName = String(p.clientName || "").toLowerCase();
+
+      // If project has no owner tags at all (e.g. freshly created locally without ID), allow it
+      if (!pClientId && !pCreatedBy && !pEmail && !pName) return true;
+
+      return (
+        (uid && (pClientId === uid || pCreatedBy === uid)) ||
+        (email && (pEmail === email || pClientId === email || pCreatedBy === email)) ||
+        (name && pName === name)
+      );
+    });
+  }, [projects, user]);
+
   // Top metric stats calculation
   const stats = useMemo(() => {
-    const activeCount = projects.filter(
+    const activeCount = userProjects.filter(
       (p) =>
         p.submissionStatus === "active" ||
         p.submissionStatus === "in_progress" ||
         p.paymentStatus === "paid" ||
         p.paymentStatus === "released"
     ).length;
-    const pendingCount = projects.filter((p) => {
+    const pendingCount = userProjects.filter((p) => {
       const isPaid =
         p.paymentStatus === "paid" ||
         p.paymentStatus === "released" ||
@@ -296,20 +325,20 @@ export default function UserProjectsPage() {
         p.submissionStatus === "draft"
       );
     }).length;
-    const completedCount = projects.filter(
+    const completedCount = userProjects.filter(
       (p) => p.submissionStatus === "completed" || p.submissionStatus === "accepted"
     ).length;
-    const totalBudget = projects.reduce((sum, p) => {
+    const totalBudget = userProjects.reduce((sum, p) => {
       const b = p.adminBudget || p.price || 0;
       return sum + Number(b);
     }, 0);
 
     return { activeCount, pendingCount, completedCount, totalBudget };
-  }, [projects]);
+  }, [userProjects]);
 
   // Filtered and sorted projects
   const filteredProjects = useMemo(() => {
-    return projects
+    return userProjects
       .filter((p) => {
         const isPaid =
           p.paymentStatus === "paid" ||
@@ -533,17 +562,22 @@ export default function UserProjectsPage() {
                 className="group rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between"
               >
                 <div>
-                  {/* Status Badge & Category in one clean row */}
+                  {/* Status Badge & Category in one clean row with Project ID on left */}
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
-                    >
-                      {statusCfg.icon}
-                      {statusCfg.label}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap">
+                        {project.projectId}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
+                      >
+                        {statusCfg.icon}
+                        {statusCfg.label}
+                      </span>
+                    </div>
 
                     {project.category && (
-                      <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground whitespace-nowrap truncate max-w-[150px]">
+                      <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground whitespace-nowrap truncate max-w-[140px]">
                         {project.category}
                       </span>
                     )}
@@ -711,10 +745,10 @@ export default function UserProjectsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setChatProject(project)}
-                            className="w-full rounded-xl text-xs font-semibold border-border hover:bg-muted"
+                            onClick={() => setAppliedModalProject(project)}
+                            className="w-full rounded-xl text-xs font-semibold border-border hover:bg-muted cursor-pointer"
                           >
-                            <MessageSquare className="mr-1 h-3.5 w-3.5 text-primary" /> Live Chat
+                            <Users className="mr-1 h-3.5 w-3.5 text-primary" /> Applied
                           </Button>
                         </div>
                       )}
@@ -1122,6 +1156,119 @@ export default function UserProjectsPage() {
                 ) : null}
                 Send Revision Request
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* APPLIED APPLICANTS MODAL */}
+      {appliedModalProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-hidden">
+          <div
+            style={{ maxWidth: "920px", width: "100%" }}
+            className="relative w-full rounded-2xl bg-card shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            {/* Fixed Header (Does not scroll) */}
+            <div className="flex items-start justify-between border-b border-border px-6 py-4 bg-card shrink-0">
+              <div className="space-y-1 min-w-0 pr-4">
+                <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md inline-block">
+                  {appliedModalProject.projectId}
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                  {appliedModalProject.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAppliedModalProject(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer shrink-0"
+                title="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Table Container (Only table body scrolls) */}
+            <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all">
+              <table className="w-full text-left border-collapse min-w-[760px]">
+                <thead className="bg-muted/60 border-b border-border sticky top-0 z-10 backdrop-blur-md">
+                  <tr>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      Full Name
+                    </th>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      Business Name
+                    </th>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      Business Type
+                    </th>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      Account
+                    </th>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                      Message
+                    </th>
+                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider text-right">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {appliedModalProject.assignedBusinessName ? (
+                    <tr className="hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-3.5 font-mono text-xs font-bold text-primary">
+                        APP-101
+                      </td>
+                      <td className="px-4 py-3.5 text-xs font-bold text-foreground">
+                        {appliedModalProject.assignedBusinessName}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs font-semibold text-foreground">
+                        {appliedModalProject.assignedBusinessName} Tech
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
+                        {appliedModalProject.category || "Technology & Development"}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                          Business
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground max-w-[240px] truncate" title={appliedModalProject.completionNotes || "Application submitted for this project"}>
+                        {appliedModalProject.completionNotes || "Ready to execute the deliverables according to project specifications."}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const p = appliedModalProject;
+                            setAppliedModalProject(null);
+                            setChatProject(p);
+                          }}
+                          className="h-7 text-xs px-2.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 cursor-pointer"
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" /> Contact
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 border border-border">
+                          <Users className="w-6 h-6 text-muted-foreground/60" />
+                        </div>
+                        <p className="text-sm font-bold text-foreground">No applications submitted yet</p>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                          When verified business service providers apply for this project, their applications and proposal details will appear here.
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

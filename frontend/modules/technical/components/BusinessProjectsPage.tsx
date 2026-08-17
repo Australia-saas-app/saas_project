@@ -212,9 +212,14 @@ export default function BusinessProjectsPage() {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                          <CheckCircle2 className="h-3 w-3" /> Paid &amp; Ready to Accept
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap">
+                            {project.projectId}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                            <CheckCircle2 className="h-3 w-3" /> Paid &amp; Ready to Accept
+                          </span>
+                        </div>
                         <h3 className="mt-2 text-base font-bold text-foreground">{project.title}</h3>
                       </div>
                       <p className="text-lg font-extrabold text-primary">
@@ -301,7 +306,10 @@ export default function BusinessProjectsPage() {
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap">
+                          {project.projectId}
+                        </span>
                         {project.submissionStatus === "in_progress" && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
                             <Clock className="h-3 w-3" /> In Progress

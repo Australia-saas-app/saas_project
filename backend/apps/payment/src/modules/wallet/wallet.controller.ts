@@ -122,6 +122,25 @@ export class WalletController {
   }
 
   /**
+   * Deposit funds to wallet
+   * POST /sso/wallet/deposit
+   */
+  @Post('deposit')
+  @HttpCode(HttpStatus.CREATED)
+  async deposit(@Request() req: any, @Body() body: any) {
+    if (!req.user?.userId) {
+      throw new ForbiddenException('Invalid authentication payload');
+    }
+    const buyDto: BuyDto = {
+      amount: Number(body.amount),
+      description: body.description || 'Wallet Deposit',
+      cardId: body.paymentCardId || body.cardId,
+      paymentMethod: body.method || 'card',
+    };
+    return this.walletService.buy(req.user.userId, buyDto);
+  }
+
+  /**
    * Refund a transaction
    * POST /sso/wallet/refund
    */

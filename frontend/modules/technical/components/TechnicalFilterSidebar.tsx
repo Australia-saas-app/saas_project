@@ -110,16 +110,16 @@ export default function TechnicalFilterSidebar({
 
   return (
     <aside
-      className={`${isOpen ? "w-72" : "w-12"} ${
-        isMobile && isOpen ? "fixed left-0 top-0 z-40 h-screen" : "relative"
-      } flex h-full flex-col border-r border-border bg-card transition-all duration-300 ease-in-out shrink-0`}
+      className={`${isOpen ? "w-72" : "w-14"} ${
+        isMobile && isOpen ? "fixed left-0 top-0 z-40 h-screen" : "sticky top-0 h-screen"
+      } flex flex-col border-r border-border bg-card transition-all duration-300 ease-in-out shrink-0 z-20`}
     >
       <div className="flex items-center justify-end border-b border-border p-3">
         <button
           type="button"
           onClick={onToggle}
           aria-label={isOpen ? "Collapse filters" : "Expand filters"}
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/60"
+          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/60 cursor-pointer"
         >
           <Play
             className={`h-4 w-4 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
@@ -128,11 +128,11 @@ export default function TechnicalFilterSidebar({
       </div>
 
       {isOpen ? (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="border-b border-border px-5 py-4">
+        <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+          <div className="border-b border-border px-5 py-4 shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eef2f8] text-primary">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eef2f8] dark:bg-primary/10 text-primary">
                   <SlidersHorizontal className="h-4 w-4" />
                 </div>
                 <div>
@@ -149,13 +149,13 @@ export default function TechnicalFilterSidebar({
             <button
               type="button"
               onClick={clearFilters}
-              className="mt-3 text-xs font-semibold text-primary hover:underline"
+              className="mt-3 text-xs font-semibold text-primary hover:underline cursor-pointer"
             >
               {t.technical.filters.clearAll}
             </button>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 min-h-0 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all">
             <FilterSection title={t.technical.filters.projectType}>
               <Select
                 value={filters.projectType}

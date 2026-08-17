@@ -63,6 +63,7 @@ export default function KycApplicationModal({
     try {
       const targetUid = user.userId || user.id || user.rawUserId || "self";
       const uid = user.rawUserId || targetUid;
+      const isBusiness = String(user.accountType || user.accountLabel || user.role || "").toLowerCase().includes("business") || String(user.role || "").toLowerCase() === "seller";
       const snapData = {
         fullName: user.fullName,
         email: user.email,
@@ -76,10 +77,15 @@ export default function KycApplicationModal({
         documentFrontUrl: user.documentFrontUrl,
         documentBackUrl: user.documentBackUrl,
         avatarUrl: user.avatarUrl || user.profilePhoto,
-        // Business KYC Details Snapshot
-        businessName: (user as any).businessName || (user as any).businessInfo?.businessName || user.fullName || "",
-        businessType: (user as any).businessType || (user as any).businessInfo?.businessIndustry || "Technology",
-        commissionRate: 20,
+        accountType: isBusiness ? "business" : (user.accountType || user.role || "user"),
+        role: isBusiness ? "business" : (user.role || "user"),
+        // Business KYC Details Snapshot (Strictly for Business Accounts)
+        ...(isBusiness ? {
+          businessName: (user as any).businessName || (user as any).businessInfo?.businessName || "",
+          businessType: (user as any).businessType || (user as any).businessInfo?.businessIndustry || (user as any).businessInfo?.businessType || "",
+          commissionRate: (user as any).percentageRate || (user as any).commissionRate || 20,
+          percentageRate: (user as any).percentageRate || (user as any).commissionRate || 20,
+        } : {}),
         appliedAt: new Date().toISOString(),
       };
       const res = await applyForKyc(targetUid, snapData);
@@ -465,15 +471,15 @@ export default function KycApplicationModal({
                   </div>
                 </div>
 
-                {/* Business Information Section (Only for Business Accounts) */}
-                {(displayAccountType.toLowerCase() === "business" || snap.businessName || (user as any).businessName) && (
+                {/* Business Information Section (Strictly for Business Accounts Only) */}
+                {(displayAccountType.toLowerCase() === "business" || String(user.role || "").toLowerCase() === "business" || String(user.role || "").toLowerCase() === "seller") && (
                   <div className="mb-6 relative z-10">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-bold text-base text-foreground uppercase tracking-wide text-xs">
                         Business Information
                       </h4>
                       <span className="rounded-full bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 text-[10px] font-bold text-indigo-500">
-                        {snap.commissionRate || 20}% Platform Commission
+                        {snap.commissionRate || (user as any).percentageRate || (user as any).commissionRate || 20}% Platform Commission
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border border-border bg-muted/20">
@@ -482,7 +488,7 @@ export default function KycApplicationModal({
                           Registered Business Name
                         </span>
                         <p className="font-bold text-foreground text-xs sm:text-sm">
-                          {snap.businessName || (user as any).businessName || (user as any).businessInfo?.businessName || displayFullName || "N/A"}
+                          {snap.businessName || (user as any).businessName || (user as any).businessInfo?.businessName || "Not specified"}
                         </p>
                       </div>
                       <div>
@@ -490,7 +496,7 @@ export default function KycApplicationModal({
                           Business Type / Sector
                         </span>
                         <p className="font-bold text-foreground text-xs sm:text-sm">
-                          {snap.businessType || (user as any).businessType || (user as any).businessInfo?.businessIndustry || "Technology"}
+                          {snap.businessType || (user as any).businessType || (user as any).businessInfo?.businessIndustry || (user as any).businessInfo?.businessType || "Not specified"}
                         </p>
                       </div>
                       <div>
@@ -498,7 +504,7 @@ export default function KycApplicationModal({
                           Platform Commission Rate
                         </span>
                         <p className="font-bold text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">
-                          {snap.commissionRate || 20}% (Standard Rate)
+                          {snap.commissionRate || (user as any).percentageRate || (user as any).commissionRate || 20}% (Standard Rate)
                         </p>
                       </div>
                     </div>

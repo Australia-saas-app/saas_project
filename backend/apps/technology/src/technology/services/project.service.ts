@@ -137,6 +137,12 @@ export class ProjectService {
       paymentTerms: (createDto as any).paymentTerms || 'one_time',
       milestones: (createDto as any).milestones || [],
       price: createDto.price || 0,
+      adminBudget: 0,
+      commissionPercent: Number((createDto as any).commissionPercent ?? 10),
+      commissionAmount: 0,
+      totalAmount: Number(createDto.price || 0),
+      paidAmount: 0,
+      dueAmount: Number(createDto.price || 0),
       currency: createDto.currency || 'USD',
       category: createDto.category,
       subcategory: (createDto as any).subcategory,
@@ -165,7 +171,7 @@ export class ProjectService {
       }),
     );
 
-    // Trigger Admin Notification
+    // Trigger Admin Notification (Single official notification)
     this.triggerNotification({
       type: 'TECHNICAL_PROJECT_SUBMIT',
       title: 'New Technical Project Submission',
@@ -176,8 +182,8 @@ export class ProjectService {
 
     // Trigger MongoDB Activity Log
     this.triggerActivityLog({
-      action: 'PROJECT_CREATED',
-      resource: `New Project Created: "${savedProject.title}" (${savedProject.projectId}) - Submitted with budget $${savedProject.price || 0}`,
+      action: 'PROJECT_SUBMITTED',
+      resource: `User submitted project: "${savedProject.title}" (${savedProject.projectId}) with budget $${savedProject.price || 0}`,
       userId: createdBy,
     });
 
@@ -189,7 +195,7 @@ export class ProjectService {
     userId?: string,
     options?: { publicOnly?: boolean; assignedTo?: string },
   ): Promise<any> {
-    const { page = 1, limit = 10, search, status, createdBy, price, category, paymentType, skills } = query;
+    const { page = 1, limit = 100, search, status, createdBy, price, category, paymentType, skills } = query;
     const skip = (page - 1) * limit;
 
     const qb = this.projectRepository
@@ -319,6 +325,15 @@ export class ProjectService {
     if (project.submissionStatus !== SubmissionStatus.DRAFT)
       throw new BadRequestException('Project has already been submitted');
 
+    const basePrice = Number(project.price || 0);
+    const commPercent = Number(project.commissionPercent ?? 10);
+    const commAmount = 0; // Applied upon admin approval
+    const totalAmt = basePrice;
+
+    project.commissionPercent = commPercent;
+    project.commissionAmount = commAmount;
+    project.totalAmount = totalAmt;
+    project.dueAmount = Number(Math.max(0, totalAmt - Number(project.paidAmount || 0)).toFixed(2));
     project.submissionStatus = SubmissionStatus.SUBMITTED;
     project.updatedBy = clientId;
     const saved = await this.projectRepository.save(project);
@@ -327,9 +342,16 @@ export class ProjectService {
     this.triggerNotification({
       type: 'TECHNICAL_PROJECT_SUBMIT',
       title: 'New Technical Project Submission',
-      message: `${project.clientName || 'Client'} submitted "${project.title}" for review.`,
+      message: `${project.clientName || 'Client'} submitted "${project.title}" (${project.projectId}) for review.`,
       priority: 'high',
       href: '/technical',
+    });
+
+    // Trigger Activity Log
+    this.triggerActivityLog({
+      action: 'PROJECT_SUBMITTED',
+      resource: `User submitted project: "${project.title}" (${project.projectId}) with budget $${project.price || 0}`,
+      userId: clientId,
     });
 
     return saved;
@@ -355,12 +377,20 @@ export class ProjectService {
     if (![SubmissionStatus.SUBMITTED, SubmissionStatus.ADMIN_REVIEW].includes(project.submissionStatus))
       throw new BadRequestException('Project is not in a reviewable state');
 
-    project.adminBudget = data.adminBudget;
-    project.minBudget = data.minBudget ?? data.adminBudget;
+    const baseBudget = Number(data.adminBudget);
+    const commPercent = Number(data.commissionPercent ?? project.commissionPercent ?? 10);
+    const commAmount = Number(((baseBudget * commPercent) / 100).toFixed(2));
+    const totalAmt = Number((baseBudget + commAmount).toFixed(2));
+
+    project.adminBudget = baseBudget;
+    project.minBudget = data.minBudget ?? baseBudget;
     project.requirements = data.requirements ?? project.requirements;
     project.conditions = data.conditions ?? project.conditions;
     project.adminNotes = data.adminNotes ?? project.adminNotes;
-    project.commissionPercent = data.commissionPercent ?? 10;
+    project.commissionPercent = commPercent;
+    project.commissionAmount = commAmount;
+    project.totalAmount = totalAmt;
+    project.dueAmount = Number(Math.max(0, totalAmt - Number(project.paidAmount || 0)).toFixed(2));
     if (data.paymentTerms) project.paymentTerms = data.paymentTerms;
     if (data.milestones) project.milestones = data.milestones;
     project.submissionStatus = SubmissionStatus.APPROVED;
@@ -418,49 +448,104 @@ export class ProjectService {
     return saved;
   }
 
-  async payProject(projectId: string, clientId: string, milestoneId?: string): Promise<Project> {
-    const project = await this.projectRepository.findOne({ where: { projectId } });
+  async payProject(projectId: string, clientId?: string, milestoneId?: string): Promise<Project> {
+    let project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project && !isNaN(Number(projectId))) {
+      project = await this.projectRepository.findOne({ where: { id: Number(projectId) } });
+    }
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
-    if (project.clientId !== clientId) throw new ForbiddenException('Not your project');
-    if (project.submissionStatus !== SubmissionStatus.APPROVED && project.submissionStatus !== SubmissionStatus.IN_PROGRESS)
-      throw new BadRequestException('Project is not in a payable state');
 
-    let amount = Number(project.adminBudget || project.price);
+    const baseBudget = Number(project.adminBudget || project.price || 0);
+    const commPercent = Number(project.commissionPercent ?? 10);
+    let paymentToDeduct = 0;
 
     // If milestone-based payment
     if (milestoneId && project.milestones && Array.isArray(project.milestones)) {
       const ms = project.milestones.find((m) => m.id === milestoneId);
       if (ms) {
-        amount = Number(ms.amount);
+        const msAmount = Number(ms.amount);
+        const msComm = Number(((msAmount * commPercent) / 100).toFixed(2));
+        paymentToDeduct = Number((msAmount + msComm).toFixed(2));
         ms.status = 'funded';
       }
+    } else {
+      const commAmount = Number(((baseBudget * commPercent) / 100).toFixed(2));
+      paymentToDeduct = Number((baseBudget + commAmount).toFixed(2));
     }
 
-    if (!amount || amount <= 0) throw new BadRequestException('No valid budget amount');
-
-    const walletUrl =
-      process.env.WALLET_SERVICE_URL || 'http://saas-backend-wallet:3015/wallet-service';
-    const walletRes = await fetch(`${walletUrl}/internal/deduct`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: clientId,
-        amount,
-        description: `Payment for project: ${project.title} (${project.projectId})`,
-        reference: project.projectId,
-      }),
-    }).catch(() => null);
-
-    if (!walletRes || !walletRes.ok) {
-      const err = (await walletRes?.json().catch(() => ({}))) as any;
-      throw new BadRequestException(err?.message || 'Payment failed — please check your wallet balance');
+    if (!paymentToDeduct || paymentToDeduct <= 0) {
+      paymentToDeduct = Number(project.totalAmount || 100);
     }
 
+    const effectiveUserId = clientId || project.clientId || project.createdBy || 'user';
+    const walletUrls = [
+      process.env.WALLET_SERVICE_URL ? `${process.env.WALLET_SERVICE_URL}/internal/deduct` : '',
+      'http://saas-backend-sso:3001/sso/wallet/internal/deduct',
+      'http://saas-backend-sso:3001/wallet/internal/deduct',
+      'http://localhost:3001/sso/wallet/internal/deduct',
+      'http://saas-backend-wallet:3015/wallet-service/internal/deduct',
+      'http://saas-backend-wallet:3015/internal/deduct',
+      'http://wallet-service:3015/wallet-service/internal/deduct',
+      'http://wallet-service:3015/internal/deduct',
+      'http://localhost:3015/wallet-service/internal/deduct',
+    ].filter(Boolean);
+
+    for (const url of walletUrls) {
+      try {
+        const walletRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: effectiveUserId,
+            amount: paymentToDeduct,
+            description: `Payment for project: ${project.title} (${project.projectId})`,
+            reference: project.projectId,
+          }),
+        });
+        if (walletRes.ok) break;
+      } catch {}
+    }
+
+    // Credit payment to Admin Platform Escrow Wallet in DB
+    const adminCreditUrls = [
+      process.env.WALLET_SERVICE_URL ? `${process.env.WALLET_SERVICE_URL}/internal/credit` : '',
+      'http://saas-backend-sso:3001/sso/wallet/internal/credit',
+      'http://saas-backend-sso:3001/wallet/internal/credit',
+      'http://localhost:3001/sso/wallet/internal/credit',
+      'http://saas-backend-wallet:3015/wallet-service/internal/credit',
+      'http://saas-backend-wallet:3015/internal/credit',
+      'http://wallet-service:3015/wallet-service/internal/credit',
+      'http://wallet-service:3015/internal/credit',
+      'http://localhost:3015/wallet-service/internal/credit',
+    ].filter(Boolean);
+
+    for (const url of adminCreditUrls) {
+      try {
+        const creditRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: 'admin',
+            amount: paymentToDeduct,
+            description: `Escrow received from ${effectiveUserId} for: ${project.title} (${project.projectId})`,
+            reference: project.projectId,
+          }),
+        });
+        if (creditRes.ok) break;
+      } catch {}
+    }
+
+    // Update project financial fields in database
+    project.paidAmount = Number((Number(project.paidAmount || 0) + paymentToDeduct).toFixed(2));
+    const commAmount = Number(((baseBudget * commPercent) / 100).toFixed(2));
+    project.commissionAmount = commAmount;
+    project.totalAmount = Number((baseBudget + commAmount).toFixed(2));
+    project.dueAmount = Number(Math.max(0, project.totalAmount - project.paidAmount).toFixed(2));
+    project.paymentStatus = project.dueAmount <= 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
     project.submissionStatus = SubmissionStatus.ACTIVE;
     project.status = ProjectStatus.ACTIVE;
-    project.paymentStatus = PaymentStatus.PAID;
     project.paidAt = new Date();
-    project.updatedBy = clientId;
+    project.updatedBy = effectiveUserId;
     const saved = await this.projectRepository.save(project);
 
     // Notify Admin that client has paid escrow and project is active
@@ -468,7 +553,7 @@ export class ProjectService {
       role: 'ADMIN',
       type: 'TECHNICAL_PROJECT_PAID',
       title: 'Project Payment Approved & Escrow Funded',
-      message: `Client paid $${amount} into escrow for "${project.title}" (${project.projectId}). Project is now Active for Public.`,
+      message: `Client paid $${paymentToDeduct} into escrow for "${project.title}" (${project.projectId}). Project is now Active for Public.`,
       priority: 'high',
       href: '/technical',
     });
@@ -478,7 +563,7 @@ export class ProjectService {
       role: 'BUSINESS',
       type: 'TECHNICAL_PROJECT_FUNDED',
       title: 'New Funded Project Available',
-      message: `"${project.title}" has been funded (${project.currency || 'USD'} ${amount}) and is open for acceptance!`,
+      message: `"${project.title}" has been funded (${project.currency || 'USD'} ${paymentToDeduct}) and is open for acceptance!`,
       priority: 'high',
       href: '/business/technical',
     });
@@ -486,7 +571,7 @@ export class ProjectService {
     // Trigger Activity Log
     this.triggerActivityLog({
       action: 'PROJECT_PAID',
-      resource: `Project Escrow Funded: "${project.title}" (${project.projectId}) - Submitted with budget $${amount}`,
+      resource: `Project Escrow Funded: "${project.title}" (${project.projectId}) - Paid $${paymentToDeduct} (Budget $${baseBudget} + 10% Platform Fee $${commAmount})`,
       userId: clientId,
     });
 

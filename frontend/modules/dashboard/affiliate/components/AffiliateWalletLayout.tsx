@@ -17,6 +17,7 @@ import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { getWithdrawalsForUser } from "@/src/shared/lib/wallet-store";
+import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { EMPTY_AFFILIATE_STATS } from "@/src/shared/lib/dashboard-empty-stats";
 import { AFFILIATE_STATS, AFFILIATE_LEVELS } from "../data/affiliate-demo-data";
 
@@ -33,6 +34,23 @@ export default function AffiliateWalletLayout() {
   const [earningSearch, setEarningSearch] = useState("");
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
+  const [realBalance, setRealBalance] = useState<number | null>(null);
+
+  const loadRealBalance = async () => {
+    try {
+      const res = await fetchWalletBalance();
+      if (res?.balance !== undefined && res.balance !== null) {
+        setRealBalance(res.balance);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadRealBalance();
+    const onWalletUpdated = () => loadRealBalance();
+    window.addEventListener("wallet_updated", onWalletUpdated);
+    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
+  }, []);
 
   useEffect(() => {
     if (!isReady || !userId) return;
@@ -51,11 +69,13 @@ export default function AffiliateWalletLayout() {
 
   const earningRows = demoOrEmpty(EARNING_ROWS.slice(0, 20), [] as typeof EARNING_ROWS);
 
+  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
+
   const walletStats = [
     { label: w.totalCommission, value: stats.totalCommission },
     { label: w.totalWithdrawn, value: stats.totalWithdrawn },
     { label: w.pendingPayout, value: stats.pendingPayout },
-    { label: w.availableBalance, value: stats.currentBalance, highlight: true },
+    { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 
   const filteredWithdraw = useMemo(() => {

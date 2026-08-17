@@ -17,6 +17,7 @@ import WalletFinancePanel from "@/src/modules/dashboard/shared/components/Wallet
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { getWithdrawalsForUser } from "@/src/shared/lib/wallet-store";
+import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { USER_STATS } from "../data/user-demo-data";
 
 const PAGE_SIZE = 5;
@@ -56,11 +57,31 @@ export default function UserWalletLayout() {
 
   const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
 
+  const [realBalance, setRealBalance] = useState<number | null>(null);
+
+  const loadRealBalance = async () => {
+    try {
+      const res = await fetchWalletBalance();
+      if (res?.balance !== undefined && res.balance !== null) {
+        setRealBalance(res.balance);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadRealBalance();
+    const onWalletUpdated = () => loadRealBalance();
+    window.addEventListener("wallet_updated", onWalletUpdated);
+    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
+  }, []);
+
+  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
+
   const walletStats = [
     { label: w.totalEarnings, value: stats.totalEarnings },
     { label: w.totalWithdrawn, value: stats.totalWithdrawn },
     { label: w.pendingPayout, value: isDemo ? "$12" : "$0" },
-    { label: w.availableBalance, value: stats.currentBalance, highlight: true },
+    { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 
   const filteredWithdraw = useMemo(() => {

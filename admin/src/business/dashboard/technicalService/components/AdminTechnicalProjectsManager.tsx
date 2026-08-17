@@ -102,7 +102,7 @@ export default function AdminTechnicalProjectsManager() {
   const [requirements, setRequirements] = useState("");
   const [conditions, setConditions] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<"approve" | "reject" | null>(null);
 
   // Revision Modal State
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
@@ -168,7 +168,7 @@ export default function AdminTechnicalProjectsManager() {
     const b = parseFloat(adminBudget);
     if (!b || b <= 0) return toast.error("Enter a valid approved budget amount.");
 
-    setActionLoading(true);
+    setActionLoading("approve");
 
     // Update local storage sync
     if (typeof window !== "undefined") {
@@ -198,25 +198,23 @@ export default function AdminTechnicalProjectsManager() {
     // Add User Notification & Activity Log
     if (typeof window !== "undefined") {
       try {
-        const notifItem = {
-          id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        const notifKey = `app_notifs_${reviewProject.clientId}`;
+        const existingNotifs = JSON.parse(localStorage.getItem(notifKey) || "[]");
+        const newNotif = {
+          id: `notif-${Date.now()}`,
           title: "Technical Project Approved",
-          description: `"${reviewProject.title}" has been approved with quote $${b}. Please fund escrow to publish publicly.`,
+          description: `Your project "${reviewProject.title}" has been approved with quote $${b}. Ready for payment!`,
           time: "Just now",
           read: false,
           href: "/dashboard/user/technical",
-          type: "system",
+          type: "project_approved",
         };
+        localStorage.setItem(notifKey, JSON.stringify([newNotif, ...existingNotifs]));
 
-        ["app_notifs_user", "app_notifs_all"].forEach((k) => {
-          const existing = JSON.parse(localStorage.getItem(k) || "[]");
-          localStorage.setItem(k, JSON.stringify([notifItem, ...existing]));
-        });
-
-        const logKey = "platform_activity_logs";
+        const logKey = `activity_logs_${reviewProject.clientId}`;
         const logs = JSON.parse(localStorage.getItem(logKey) || "[]");
         const logItem = {
-          id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          id: `log-${Date.now()}`,
           timestamp: new Date().toISOString(),
           title: `Technical Project Approved: "${reviewProject.title}"`,
           description: `Admin approved quote of $${b} with ${commissionPercent}% commission.`,
@@ -243,12 +241,13 @@ export default function AdminTechnicalProjectsManager() {
 
     toast.success(`Project "${reviewProject.title}" approved! Client notified to make payment.`);
     setReviewProject(null);
-    setActionLoading(false);
+    setActionLoading(null);
     await loadProjects();
   };
 
   const handleReject = async (projectId: string) => {
     if (!confirm("Are you sure you want to reject this project?")) return;
+    setActionLoading("reject");
 
     if (typeof window !== "undefined") {
       try {
@@ -269,7 +268,9 @@ export default function AdminTechnicalProjectsManager() {
       await apiClient.post(`/technology/projects/${projectId}/admin-reject`, {
         reason: adminNotes || "Does not meet platform guidelines.",
       });
-    } catch {}
+    } catch {} finally {
+      setActionLoading(null);
+    }
 
     toast.success("Project rejected.");
     setReviewProject(null);
@@ -726,26 +727,29 @@ export default function AdminTechnicalProjectsManager() {
               <div className="flex items-center justify-between border-t border-gray-100 pt-4">
                 <button
                   type="button"
+                  disabled={Boolean(actionLoading)}
                   onClick={() => handleReject(reviewProject.projectId)}
-                  className="rounded-lg border border-red-200 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
+                  className="rounded-lg border border-red-200 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1.5"
                 >
+                  {actionLoading === "reject" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Reject Project
                 </button>
 
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    disabled={Boolean(actionLoading)}
                     onClick={() => setReviewProject(null)}
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={actionLoading}
+                    disabled={Boolean(actionLoading)}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-xs font-bold text-white hover:bg-primary/90 disabled:opacity-50"
                   >
-                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     Approve &amp; Set Quote
                   </button>
                 </div>

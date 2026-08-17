@@ -2,12 +2,14 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Grid3x3, List, Plus, SlidersHorizontal, FolderKanban, Compass } from "lucide-react";
 import { SearchInput } from "@/src/components/form/search-input";
 import { Button } from "@/src/components/ui/button";
 import { Pagination } from "@/src/components/ui/pagination";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { usePermission } from "@/src/hooks/permission.hook";
+import { useRequireAuth } from "@/src/shared/hooks/use-require-auth";
 import { DEFAULT_TECHNICAL_FILTERS } from "../constants/technical-filter.constants";
 import type { TechnicalUserRole } from "../types/project.type";
 import { filterTechnicalProjects } from "../utils/filter-projects";
@@ -20,6 +22,8 @@ import UserProjectsPage from "./UserProjectsPage";
 const PAGE_SIZE = 9;
 
 export default function TechnicalPageLayout() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const { t } = useLocale();
   const { isBusiness } = usePermission();
   const createProjectHref = isBusiness
@@ -30,7 +34,7 @@ export default function TechnicalPageLayout() {
   const [userRole] = useState<TechnicalUserRole>("normal");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState<number>(9);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_TECHNICAL_FILTERS);
@@ -54,49 +58,53 @@ export default function TechnicalPageLayout() {
         let projectsList: any[] = [];
 
         if (res?.projects && Array.isArray(res.projects) && res.projects.length > 0) {
-          projectsList = res.projects.map((p: any) => ({
-            id: p.id || p.projectId,
-            projectId: p.projectId,
-            title: p.title,
-            category: p.category || "Software Development",
-            categoryFilter: "web",
-            projectType: p.projectType || "new-build",
-            subcategory: p.subcategory || "fullstack",
-            skills: p.skills?.length ? p.skills : ["React", "TypeScript", "Node.js"],
-            duration: "14 Days",
-            experience: "3+ Years",
-            price: Number(p.adminBudget || p.price || 1500),
-            priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
-            modified: "Active Project",
-            languages: p.preferredLanguages || ["english"],
-            location: "Remote",
-            description: p.description || p.requirements || "Professional technical service.",
-          }));
-        }
-
-        // Also merge local platform_user_technical_projects
-        const userProjectsRaw = localStorage.getItem("platform_user_technical_projects");
-        if (userProjectsRaw) {
-          const parsedUser = JSON.parse(userProjectsRaw);
-          if (Array.isArray(parsedUser)) {
-            const mappedUser = parsedUser.map((p: any) => ({
+          projectsList = res.projects
+            .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
+            .map((p: any) => ({
               id: p.id || p.projectId,
-              projectId: p.projectId,
+              projectId: p.projectId || `PRJ-${String(p.id).slice(0, 6)}`,
               title: p.title,
               category: p.category || "Software Development",
               categoryFilter: "web",
               projectType: p.projectType || "new-build",
               subcategory: p.subcategory || "fullstack",
-              skills: p.skills?.length ? p.skills : ["React", "TypeScript", "Node.js"],
-              duration: "14 Days",
-              experience: "3+ Years",
+              tech: p.subcategory || p.projectType || p.category || "Software Development",
+              skills: (p.requiredSkills?.length ? p.requiredSkills : (p.skills?.length ? p.skills : ["React", "TypeScript", "Tailwind CSS"])),
+              duration: p.duration ? `${p.duration} Days` : "14 Days",
               price: Number(p.adminBudget || p.price || 1500),
               priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
-              modified: p.submissionStatus === "approved" ? "Approved Project" : "Active Project",
-              languages: p.preferredLanguages || ["english"],
+              modified: "Active Project",
+              languages: (p.preferredLanguages?.length ? p.preferredLanguages : (p.languages?.length ? p.languages : ["JavaScript", "TypeScript"])),
               location: "Remote",
-              description: p.description || "Professional technical service.",
+              description: p.description || p.requirements || "Professional technical service.",
             }));
+        }
+
+        // Also merge local platform_user_technical_projects strictly if active/paid
+        const userProjectsRaw = localStorage.getItem("platform_user_technical_projects");
+        if (userProjectsRaw) {
+          const parsedUser = JSON.parse(userProjectsRaw);
+          if (Array.isArray(parsedUser)) {
+            const mappedUser = parsedUser
+              .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
+              .map((p: any) => ({
+                id: p.id || p.projectId,
+                projectId: p.projectId || `PRJ-${String(p.id).slice(0, 6)}`,
+                title: p.title,
+                category: p.category || "Software Development",
+                categoryFilter: "web",
+                projectType: p.projectType || "new-build",
+                subcategory: p.subcategory || "fullstack",
+                tech: p.subcategory || p.projectType || p.category || "Software Development",
+                skills: (p.requiredSkills?.length ? p.requiredSkills : (p.skills?.length ? p.skills : ["React", "TypeScript", "Tailwind CSS"])),
+                duration: p.duration ? `${p.duration} Days` : "14 Days",
+                price: Number(p.adminBudget || p.price || 1500),
+                priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
+                modified: "Active Project",
+                languages: (p.preferredLanguages?.length ? p.preferredLanguages : (p.languages?.length ? p.languages : ["JavaScript", "TypeScript"])),
+                location: "Remote",
+                description: p.description || "Professional technical service.",
+              }));
             
             const map = new Map<string, any>();
             [...projectsList, ...mappedUser].forEach((item) => {
@@ -171,20 +179,20 @@ export default function TechnicalPageLayout() {
     [allProjects, filters, query]
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const start = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const end = Math.min(page * PAGE_SIZE, filtered.length);
+  const displayedProjects = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
 
   const { setSelected, modal } = useTechnicalProjectModal();
 
   const handleFiltersChange = (next: typeof filters) => {
     setFilters(next);
-    setPage(1);
+    setVisibleCount(9);
   };
 
   return (
-    <div className="relative flex min-h-screen bg-background">
+    <div className="relative flex h-screen max-h-screen overflow-hidden bg-background">
       {activeTab === "explore" && isMobile && sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 lg:hidden"
@@ -202,7 +210,7 @@ export default function TechnicalPageLayout() {
         />
       )}
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 h-full overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 flex flex-col">
         <div className="border-b border-border bg-card px-4 py-5 shadow-sm md:px-8">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -218,7 +226,7 @@ export default function TechnicalPageLayout() {
                   size="sm"
                   variant={activeTab === "explore" ? "default" : "outline"}
                   onClick={() => setActiveTab("explore")}
-                  className={activeTab === "explore" ? "bg-primary text-white" : ""}
+                  className={activeTab === "explore" ? "bg-primary text-white cursor-pointer" : "cursor-pointer"}
                 >
                   <Compass className="mr-1.5 h-4 w-4" />
                   Explore Projects
@@ -226,11 +234,17 @@ export default function TechnicalPageLayout() {
                 <Button
                   size="sm"
                   variant={activeTab === "my-projects" ? "default" : "outline"}
-                  onClick={() => setActiveTab("my-projects")}
-                  className={activeTab === "my-projects" ? "bg-primary text-white" : ""}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      router.push(`/account/user/login?redirect=${encodeURIComponent("/technical")}`);
+                      return;
+                    }
+                    setActiveTab("my-projects");
+                  }}
+                  className={`cursor-pointer ${activeTab === "my-projects" ? "bg-primary text-white" : ""}`}
                 >
                   <FolderKanban className="mr-1.5 h-4 w-4" />
-                  My Projects &amp; Orders
+                  My Projects
                 </Button>
               </div>
             </div>
@@ -255,12 +269,13 @@ export default function TechnicalPageLayout() {
                     value={query}
                     onChange={(value) => {
                       setQuery(value);
-                      setPage(1);
+                      setVisibleCount(9);
                     }}
                     placeholder={t.technical.searchPlaceholder}
                     className="w-full sm:w-72"
                   />
 
+                  {/* Grid / List view toggle commented out - Grid View is exclusively active
                   <div className="flex items-center gap-2">
                     <div className="flex rounded-lg border border-border bg-muted/60 p-1">
                       <Button
@@ -283,18 +298,23 @@ export default function TechnicalPageLayout() {
                       </Button>
                     </div>
                   </div>
+                  */}
                 </>
               )}
 
-              {/* Top-Right Create Button */}
+              {/* Top-Right Create Button with Auth Check */}
               <Button
-                asChild
-                className="bg-primary hover:bg-primary/90 text-white font-bold shadow-md transition-all active:scale-95 px-4 py-2"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    router.push(`/account/user/login?redirect=${encodeURIComponent(createProjectHref)}`);
+                    return;
+                  }
+                  router.push(createProjectHref);
+                }}
+                className="bg-primary hover:bg-primary/90 text-white font-bold shadow-md transition-all active:scale-95 px-4 py-2 cursor-pointer"
               >
-                <Link href={createProjectHref}>
-                  <Plus className="mr-1.5 h-4 w-4 stroke-[3]" />
-                  Create Project
-                </Link>
+                <Plus className="mr-1.5 h-4 w-4 stroke-[3]" />
+                Create Project
               </Button>
             </div>
           </div>
@@ -311,7 +331,7 @@ export default function TechnicalPageLayout() {
                 <span>
                   {t.common.ui.showing}{" "}
                   <span className="font-semibold text-foreground">
-                    {start}-{end}
+                    {Math.min(displayedProjects.length, filtered.length)}
                   </span>{" "}
                   {t.common.ui.of}{" "}
                   <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
@@ -321,13 +341,9 @@ export default function TechnicalPageLayout() {
               </div>
             </div>
 
-            <div className="px-4 py-6 md:px-8">
-              {pageData.length > 0 ? (
-                layout === "grid" ? (
-                  <ProjectGridView projects={pageData} onViewProject={setSelected} />
-                ) : (
-                  <ProjectListView projects={pageData} onViewProject={setSelected} />
-                )
+            <div className="px-4 py-6 md:px-8 flex-1">
+              {displayedProjects.length > 0 ? (
+                <ProjectGridView projects={displayedProjects} onViewProject={setSelected} />
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
                   <p className="text-lg font-semibold text-foreground">{t.technical.noProjects}</p>
@@ -339,7 +355,7 @@ export default function TechnicalPageLayout() {
                     onClick={() => {
                       setQuery("");
                       setFilters({ ...DEFAULT_TECHNICAL_FILTERS });
-                      setPage(1);
+                      setVisibleCount(9);
                     }}
                   >
                     {t.technical.clearSearchFilters}
@@ -347,15 +363,20 @@ export default function TechnicalPageLayout() {
                 </div>
               )}
 
-              {filtered.length > PAGE_SIZE && (
-                <div className="mt-8">
-                  <Pagination
-                    currentPage={page}
-                    totalPages={totalPages}
-                    pageSize={PAGE_SIZE}
-                    totalResults={filtered.length}
-                    onPageChange={setPage}
-                  />
+              {/* View More Button (Loads +9 Cards per Click) */}
+              {filtered.length > visibleCount && (
+                <div className="mt-10 flex flex-col items-center justify-center gap-2 pb-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setVisibleCount((prev) => prev + 9)}
+                    className="min-w-[200px] rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary hover:text-white font-bold text-primary shadow-sm transition-all duration-200 cursor-pointer py-5 text-sm"
+                  >
+                    View More
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Showing {displayedProjects.length} of {filtered.length} projects
+                  </p>
                 </div>
               )}
 

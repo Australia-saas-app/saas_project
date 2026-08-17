@@ -119,7 +119,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
       // 2. If verified, continue payment flow
       await payProject(project.projectId);
       setPaid(true);
-      toast.success("Payment confirmed! Project is Live and Published Publicly.");
+      toast.success("Payment paid successfully, Project is live Publically");
     } catch (e: any) {
       toast.error(e.message || "Payment failed");
     } finally {
@@ -147,7 +147,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
             {paid ? (
               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
             ) : kycFailed ? (
-              <AlertTriangle className="h-5 w-5 text-rose-500" />
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
             ) : isAlreadyPaid ? (
               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
             ) : (
@@ -157,7 +157,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
               {paid
                 ? "Payment Successful"
                 : kycFailed
-                ? "Payment Failed"
+                ? "Verification Required"
                 : isAlreadyPaid
                 ? "Escrow Payment Details"
                 : isMilestone
@@ -190,15 +190,40 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
               </Button>
             </div>
           ) : kycFailed ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500">
-                <AlertTriangle className="h-8 w-8 text-rose-500" />
+            <div className="flex flex-col items-center gap-3.5 py-4 text-center animate-in fade-in zoom-in-95 duration-200">
+              {/* Glowing Shield Badge */}
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/10">
+                <ShieldAlert className="h-8 w-8 text-amber-500" />
               </div>
-              <p className="text-lg font-bold text-foreground">Failed to Pay</p>
-              <p className="text-xs text-muted-foreground max-w-xs">
-                Your account is unverified you have not applied for KYC.
+
+              {/* Tag & Title */}
+              <div className="space-y-1 mt-0.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  &quot;Unverified&quot; Account
+                </span>
+                <h3 className="text-lg font-extrabold text-foreground tracking-tight pt-1">
+                  KYC application is missing
+                </h3>
+              </div>
+
+              {/* Main message */}
+              <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                Please submit your KYC application to verify your account
               </p>
-              <div className="w-full space-y-2 pt-3">
+
+              {/* Info Card */}
+              <div className="w-full rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 p-3.5 text-left text-xs space-y-1">
+                <p className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <ShieldAlert className="h-4 w-4 shrink-0" />
+                  Identity Verification Required
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed pl-5">
+                  To protect your funds and secure escrow transactions, you must verify your identity before publishing technical projects.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="w-full space-y-2 pt-2">
                 <Button
                   type="button"
                   onClick={() => {
@@ -207,7 +232,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                   }}
                   className="w-full rounded-xl font-bold py-2.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-md"
                 >
-                  Apply KYC
+                  Submit KYC Application
                 </Button>
                 <Button
                   type="button"
@@ -218,7 +243,7 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                   }}
                   className="w-full rounded-xl font-semibold py-2.5 border-border text-foreground hover:bg-muted cursor-pointer"
                 >
-                  OK
+                  Cancel
                 </Button>
               </div>
             </div>

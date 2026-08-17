@@ -341,8 +341,8 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   </div>
                 </div>
 
-                {/* Business Information Snapshot Section */}
-                {(accountType.toLowerCase() === "business" || snap.businessName || user.businessName) && (
+                {/* Business Information Snapshot Section (Strictly for Business Accounts Only) */}
+                {(accountType.toLowerCase() === "business" || String(user.role || "").toLowerCase() === "business" || String(user.role || "").toLowerCase() === "seller" || String((user as any).accountType || "").toLowerCase() === "business") && (
                   <div className="mb-6 relative z-10">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">
@@ -358,7 +358,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                           Registered Business Name
                         </span>
                         <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {snap.businessName || user.businessName || user.businessInfo?.businessName || fullName || "N/A"}
+                          {snap.businessName || user.businessName || user.businessInfo?.businessName || "Not specified"}
                         </p>
                       </div>
                       <div>
@@ -366,7 +366,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                           Business Type / Industry
                         </span>
                         <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                          {snap.businessType || user.businessType || user.businessInfo?.businessIndustry || "Technology"}
+                          {snap.businessType || user.businessType || user.businessInfo?.businessIndustry || user.businessInfo?.businessType || "Not specified"}
                         </p>
                       </div>
                       <div>

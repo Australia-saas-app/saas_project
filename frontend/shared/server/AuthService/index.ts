@@ -700,7 +700,7 @@ export const logActivityToServer = async (payload: any) => {
   }
 };
 
-export const getLogsFromServer = async (limit = 100) => {
+export const getLogsFromServer = async (limit = 10000) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   if (!token) return [];

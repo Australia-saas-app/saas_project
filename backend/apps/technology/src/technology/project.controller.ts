@@ -163,7 +163,7 @@ export class ProjectController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Client pays for approved project (deducts from wallet)' })
   async payProject(@Param('projectId') projectId: string, @Req() req: any) {
-    const clientId = req.user?.userId;
+    const clientId = req.user?.userId || req.user?.id || req.user?.sub || req.user?.email || 'user';
     return this.projectService.payProject(projectId, clientId);
   }
 

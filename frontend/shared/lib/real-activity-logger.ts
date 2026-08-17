@@ -18,6 +18,13 @@ export interface RealLogEntry {
 
 export const LOG_ADDED_EVENT = "vero:log_added";
 
+export function formatLogCount(count: number): string {
+  if (!count || count < 1000) return (count || 0).toString();
+  const k = count / 1000;
+  const formatted = parseFloat(k.toFixed(2)).toString();
+  return `${formatted}k`;
+}
+
 function formatBackendLog(log: any): RealLogEntry {
   return {
     id: log._id || log.id,

@@ -1501,6 +1501,15 @@ export class AuthService {
 
     // ── NONE or REJECTED — snapshot current profile into kyc_application table ─
     const isResubmission = user.kycStatus === KycStatus.REJECTED;
+    const isBusiness =
+      user.accountType === AccountType.BUSINESS ||
+      (user as any).role === 'business' ||
+      (user as any).role === 'seller' ||
+      clientApplicationData?.accountType?.toLowerCase?.() === 'business' ||
+      clientApplicationData?.role?.toLowerCase?.() === 'business';
+
+    const userAccountType = user.accountType ? String(user.accountType).toLowerCase() : ((user as any).role || 'user');
+
     const applicationData = {
       fullName: clientApplicationData?.fullName || user.fullName,
       email: clientApplicationData?.email || user.email,
@@ -1514,22 +1523,29 @@ export class AuthService {
       documentFrontUrl: clientApplicationData?.documentFrontUrl || (user as any).documentFrontUrl,
       documentBackUrl: clientApplicationData?.documentBackUrl || (user as any).documentBackUrl,
       avatarUrl: clientApplicationData?.avatarUrl || user.profilePhoto || (user as any).avatarUrl,
-      // Business profile fields snapshot
-      businessName: clientApplicationData?.businessName || user.businessName || user.businessInfo?.businessName || '',
-      businessType: clientApplicationData?.businessType || user.businessType || user.businessInfo?.businessIndustry || 'Technology',
-      commissionRate: clientApplicationData?.commissionRate !== undefined ? Number(clientApplicationData.commissionRate) : (user.percentageRate ? Number(user.percentageRate) : 20),
+      accountType: isBusiness ? 'business' : userAccountType,
+      role: isBusiness ? 'business' : userAccountType,
+      // Business profile fields snapshot (strictly for business accounts)
+      ...(isBusiness ? {
+        businessName: clientApplicationData?.businessName !== undefined ? clientApplicationData.businessName : (user.businessName || user.businessInfo?.businessName || ''),
+        businessType: clientApplicationData?.businessType !== undefined ? clientApplicationData.businessType : (user.businessType || user.businessInfo?.businessIndustry || ''),
+        commissionRate: clientApplicationData?.commissionRate !== undefined ? Number(clientApplicationData.commissionRate) : (user.percentageRate ? Number(user.percentageRate) : 20),
+        percentageRate: clientApplicationData?.percentageRate !== undefined ? Number(clientApplicationData.percentageRate) : (user.percentageRate ? Number(user.percentageRate) : 20),
+      } : {}),
       appliedAt: new Date().toISOString(),
       ...(isResubmission ? { resubmittedAt: new Date().toISOString() } : {}),
     };
 
-    if (clientApplicationData?.businessName) {
-      user.businessName = clientApplicationData.businessName;
-    }
-    if (clientApplicationData?.businessType) {
-      user.businessType = clientApplicationData.businessType;
-    }
-    if (user.accountType === AccountType.BUSINESS && !user.percentageRate) {
-      user.percentageRate = 20;
+    if (isBusiness) {
+      if (clientApplicationData?.businessName) {
+        user.businessName = clientApplicationData.businessName;
+      }
+      if (clientApplicationData?.businessType) {
+        user.businessType = clientApplicationData.businessType;
+      }
+      if (!user.percentageRate) {
+        user.percentageRate = 20;
+      }
     }
 
     // Upsert into kyc_application table (create or update)

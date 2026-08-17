@@ -26,15 +26,15 @@ export function PublicDetailModal({
 }: PublicDetailModalProps) {
   return (
     <AppModal open={open} onClose={onClose} title={title} description={subtitle} size="sm">
-      <dl className="space-y-3">
+      <dl className="space-y-2.5">
         {fields.map((field) => (
-          <div key={field.label} className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{field.label}</dt>
-            <dd className="mt-1 text-sm font-medium text-gray-900">{field.value}</dd>
+          <div key={field.label} className="rounded-lg border border-border bg-muted/40 dark:bg-muted/20 px-4 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{field.label}</dt>
+            <dd className="mt-1 text-sm font-semibold text-foreground break-words">{field.value}</dd>
           </div>
         ))}
       </dl>
-      {footer && <div className="mt-6 border-t border-gray-100 pt-4">{footer}</div>}
+      {footer && <div className="mt-5 border-t border-border pt-4">{footer}</div>}
     </AppModal>
   )
 }

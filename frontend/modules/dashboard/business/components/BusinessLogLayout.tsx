@@ -24,6 +24,7 @@ import {
   deleteSingleLog,
   deleteAllLogs,
   LOG_ADDED_EVENT,
+  formatLogCount,
   type RealLogEntry,
 } from "@/src/shared/lib/real-activity-logger";
 
@@ -287,33 +288,46 @@ export default function BusinessLogLayout() {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground flex items-center">
-            <FileText className="w-6 h-6 mr-2.5 text-primary" />
-            Business Activity Logs
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-foreground flex items-center">
+              <FileText className="w-6 h-6 mr-2.5 text-primary" />
+              Business Activity Logs
+            </h2>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+              {formatLogCount(logs.length)}
+            </span>
+          </div>
           <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
             Full system-wide audit trailing (who did what, when).
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            onClick={() => setShowDeleteAllConfirm(true)}
-            disabled={logs.length === 0}
-            className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-600 dark:text-red-400 text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Delete All Logs</span>
-          </button>
-          <button
-            type="button"
-            onClick={fetchLogs}
-            title="Refresh Logs"
-            className="flex items-center justify-center p-2.5 bg-card hover:bg-accent border border-border text-foreground rounded-lg transition-colors shadow-sm cursor-pointer"
-          >
-            <RefreshCcw className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`} />
-          </button>
+        <div className="flex flex-col sm:items-end gap-2">
+          {logs.length > 100 && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-medium animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+              <span>Delete old Logs to improve effeciency and system space</span>
+            </div>
+          )}
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowDeleteAllConfirm(true)}
+              disabled={logs.length === 0}
+              className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-600 dark:text-red-400 text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete All Logs</span>
+            </button>
+            <button
+              type="button"
+              onClick={fetchLogs}
+              title="Refresh Logs"
+              className="flex items-center justify-center p-2.5 bg-card hover:bg-accent border border-border text-foreground rounded-lg transition-colors shadow-sm cursor-pointer"
+            >
+              <RefreshCcw className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -488,7 +502,7 @@ export default function BusinessLogLayout() {
               <Database className="w-4 h-4 text-primary/70" />
               <span>
                 Showing {currentLogs.length > 0 ? (currentPage - 1) * logsPerPage + 1 : 0} to{" "}
-                {Math.min(currentPage * logsPerPage, filteredLogs.length)} of {filteredLogs.length} results
+                {Math.min(currentPage * logsPerPage, filteredLogs.length)} of {formatLogCount(filteredLogs.length)} results
               </span>
             </div>
 
