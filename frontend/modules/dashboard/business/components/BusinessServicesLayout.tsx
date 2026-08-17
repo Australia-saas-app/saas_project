@@ -603,7 +603,7 @@ export default function BusinessServicesLayout() {
               >
                 <Grid3x3 className="h-4 w-4" />
               </button>
-              <button
+              {/* <button
                 type="button"
                 onClick={() => setViewMode("table")}
                 className={`rounded p-1.5 transition-colors ${
@@ -612,119 +612,96 @@ export default function BusinessServicesLayout() {
                 title="Table View"
               >
                 <List className="h-4 w-4" />
-              </button>
+              </button> */}
             </div>
           </div>
         </div>
 
         {viewMode === "grid" ? (
           <div className="max-h-[600px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {pageData.map((row) => (
-              <div
-                key={row.id}
-                className="relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-md bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-                        {row.id}
-                      </span>
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        {row.subCategory || row.category}
-                      </span>
-                    </div>
-                    {renderServiceStatus(row.status)}
-                  </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {pageData.map((row) => {
+                const isRowApplied = Boolean((row as any).isApplied || row.status === "Pending" || (row.status as any) === "Pending for Client Approval");
 
-                  <div className="mt-3.5 space-y-2">
-                    <h3 className="text-sm font-bold text-foreground leading-snug">
-                      {row.title || `${row.category} Service Proposal`}
-                    </h3>
-                    {row.summary && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{row.summary}</p>
-                    )}
-                  </div>
+                return (
+                  <article
+                    key={row.id}
+                    className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+                  >
+                    <div className="h-1.5 bg-primary" />
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-2.5 text-xs">
-                    <div>
-                      <span className="text-muted-foreground block">Budget</span>
-                      <span className="font-bold text-foreground">{row.budget}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Deadline</span>
-                      <span className="font-bold text-foreground">{row.deadline}</span>
-                    </div>
-                  </div>
+                    <div className="flex flex-1 flex-col p-5">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start">
+                            {row.id}
+                          </span>
+                          {isRowApplied ? (
+                            <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                              Pending for Client Approval
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                              Active for Public
+                            </span>
+                          )}
+                        </div>
 
-                  {row.skills && row.skills.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {row.skills.map((sk: string) => (
-                        <span
-                          key={sk}
-                          className="rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 px-2.5 py-0.5 text-[11px] font-bold text-blue-600 dark:text-blue-400"
-                        >
-                          {sk}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-5 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPublicDetailModalItem(row)}
-                      className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer"
-                    >
-                      View
-                    </button>
-                    {(row as any).isApplied ? (
-                      <div className="inline-flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase text-[11px] px-2.5 py-0.5 rounded tracking-widest transform -rotate-12 shadow-xs select-none">
-                        Applied
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                            {row.subCategory || row.category || "Software Development"}
+                          </span>
+                          <span className="text-sm font-bold text-primary">{row.budget || (row as any).priceRange || "$1,300.00"}</span>
+                        </div>
                       </div>
-                    ) : ((row.status as any) === "Open" || row.status === "Active") ? (
-                      <button
-                        type="button"
-                        disabled={applyingId === row.id}
-                        onClick={() => handleApplyProject(row)}
-                        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {applyingId === row.id ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            Applying...
-                          </>
-                        ) : (
-                          "Apply"
-                        )}
-                      </button>
-                    ) : null}
-                  </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openManage(row)}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                      title="Manage"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTargetId(row.id)}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                      title={`Delete ${row.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              ))}
+                      <h3 className="mb-2 line-clamp-2 text-base font-bold leading-snug text-foreground group-hover:text-primary">
+                        {row.title || `${row.category} Service Project`}
+                      </h3>
+
+                      <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-muted-foreground">
+                        {row.summary || (row as any).description || "Create Full project with responsive design"}
+                      </p>
+
+                      {row.skills && row.skills.length > 0 && (
+                        <div className="mb-4 flex flex-wrap gap-1.5">
+                          {row.skills.map((sk: string) => (
+                            <span
+                              key={sk}
+                              className="rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+                            >
+                              {sk}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {isRowApplied ? (
+                        <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
+                          <button
+                            type="button"
+                            className="flex-1 rounded-lg border border-border bg-background py-2 text-xs font-semibold hover:bg-muted cursor-pointer transition-colors"
+                            onClick={() => setPublicDetailModalItem(row)}
+                          >
+                            View Project
+                          </button>
+                          <div className="inline-flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-xs select-none">
+                            Applied
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="w-full rounded-lg bg-primary py-2.5 text-xs font-semibold text-white hover:bg-primary/90 cursor-pointer shadow-xs transition-colors mt-auto"
+                          onClick={() => setPublicDetailModalItem(row)}
+                        >
+                          View Project
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         ) : (

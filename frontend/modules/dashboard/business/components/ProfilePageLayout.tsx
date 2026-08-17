@@ -72,6 +72,7 @@ export default function ProfilePageLayout() {
     avatarUrl, updateProfile, dateOfBirth, kycApplicationData,
     fullName, email: profileEmail, phone: profilePhone, initials,
     username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
+    businessName: hookBusinessName, businessType: hookBusinessType, percentageRate: hookPercentageRate,
     permanentAddress, governmentIdType, joiningDate,
     hasCustomAvatar
   } = useProfileDisplay()
@@ -128,14 +129,18 @@ export default function ProfilePageLayout() {
   const [isUpdatingVerification, setIsUpdatingVerification] = useState(false)
   const [usernameError, setUsernameError] = useState("")
   const [businessName, setBusinessName] = useState(
-    (user as any)?.businessName && (user as any).businessName !== "NA"
+    hookBusinessName && hookBusinessName !== "NA"
+      ? hookBusinessName
+      : (user as any)?.businessName && (user as any).businessName !== "NA"
       ? (user as any).businessName
-      : ""
+      : (user as any)?.businessInfo?.businessName || ""
   )
   const [businessType, setBusinessType] = useState(
-    (user as any)?.businessType && (user as any).businessType !== "NA"
+    hookBusinessType && hookBusinessType !== "NA"
+      ? hookBusinessType
+      : (user as any)?.businessType && (user as any).businessType !== "NA"
       ? (user as any).businessType
-      : ""
+      : (user as any)?.businessInfo?.businessIndustry || ""
   )
   const [isUpdatingBusiness, setIsUpdatingBusiness] = useState(false)
 
@@ -151,11 +156,13 @@ export default function ProfilePageLayout() {
     if (permanentAddress?.city) setCity(permanentAddress.city);
     if (permanentAddress?.zipCode) setZip(permanentAddress.zipCode);
     if (permanentAddress?.address) setAddress(permanentAddress.address);
-    if ((user as any)?.businessName && (user as any).businessName !== "NA") {
-      setBusinessName((user as any).businessName);
+    const effBName = hookBusinessName || (user as any)?.businessName || (user as any)?.businessInfo?.businessName;
+    if (effBName && effBName !== "NA") {
+      setBusinessName(effBName);
     }
-    if ((user as any)?.businessType && (user as any).businessType !== "NA") {
-      setBusinessType((user as any).businessType);
+    const effBType = hookBusinessType || (user as any)?.businessType || (user as any)?.businessInfo?.businessIndustry;
+    if (effBType && effBType !== "NA") {
+      setBusinessType(effBType);
     }
     if (nationalIdentity) setIdNumber(nationalIdentity);
     if (governmentIdType) setIdType(governmentIdType);
@@ -168,6 +175,8 @@ export default function ProfilePageLayout() {
     hookUsername,
     hookGender,
     hookNationality,
+    hookBusinessName,
+    hookBusinessType,
     dateOfBirth,
     hookBio,
     permanentAddress,
@@ -634,19 +643,23 @@ export default function ProfilePageLayout() {
                     (permanentAddress?.state || (user as any)?.permanentAddress?.state) &&
                     (permanentAddress?.address || (user as any)?.permanentAddress?.address)
                   );
-                  const isBusinessDone = Boolean(
-                    (businessName || (user as any)?.businessName) &&
-                    businessName !== "NA" &&
-                    (user as any)?.businessName !== "NA" &&
-                    String(businessName || (user as any)?.businessName).trim() !== "" &&
-                    (businessType || (user as any)?.businessType) &&
-                    businessType !== "NA" &&
-                    (user as any)?.businessType !== "NA" &&
-                    businessType !== "Select" &&
-                    (user as any)?.businessType !== "Select" &&
-                    businessType !== "" &&
-                    (user as any)?.businessType !== ""
-                  );
+                  const effectiveBName = (businessName && businessName !== "NA" && businessName.trim() !== "")
+                    ? businessName.trim()
+                    : (hookBusinessName && hookBusinessName !== "NA" && hookBusinessName.trim() !== "")
+                    ? hookBusinessName.trim()
+                    : ((user as any)?.businessName && (user as any).businessName !== "NA" && String((user as any).businessName).trim() !== "")
+                    ? String((user as any).businessName).trim()
+                    : (user as any)?.businessInfo?.businessName;
+
+                  const effectiveBType = (businessType && businessType !== "NA" && businessType !== "Select" && businessType.trim() !== "")
+                    ? businessType.trim()
+                    : (hookBusinessType && hookBusinessType !== "NA" && hookBusinessType !== "Select" && hookBusinessType.trim() !== "")
+                    ? hookBusinessType.trim()
+                    : ((user as any)?.businessType && (user as any).businessType !== "NA" && (user as any).businessType !== "Select" && String((user as any).businessType).trim() !== "")
+                    ? String((user as any).businessType).trim()
+                    : (user as any)?.businessInfo?.businessIndustry;
+
+                  const isBusinessDone = Boolean(effectiveBName && effectiveBType);
                   const isIdentityDone = Boolean(
                     (nationalIdentity || (user as any)?.governmentId) &&
                     (documentFrontUrl || (user as any)?.idDocument) &&

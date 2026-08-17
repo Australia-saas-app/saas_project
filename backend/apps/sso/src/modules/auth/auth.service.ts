@@ -1074,6 +1074,10 @@ export class AuthService {
         kycStatus: user.kycStatus,
         twoFactorEnabled: user.twoFactorEnabled,
         twoFactorMethod: user.twoFactorMethod,
+        businessName: user.businessName,
+        businessType: user.businessType,
+        percentageRate: user.percentageRate,
+        businessInfo: user.businessInfo,
       },
     };
   }

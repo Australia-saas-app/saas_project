@@ -123,6 +123,25 @@ export function useProfileDisplay() {
       (patch as any).permanentAddress = dbAddr;
     }
 
+    if (u.businessName && u.businessName !== "NA" && !(getProfileOverrides(rawUserId) as any).businessName) {
+      (patch as any).businessName = String(u.businessName);
+    }
+    if (u.businessType && u.businessType !== "NA" && !(getProfileOverrides(rawUserId) as any).businessType) {
+      (patch as any).businessType = String(u.businessType);
+    }
+    if ((u as any).businessInfo) {
+      const bInfo = (u as any).businessInfo;
+      if (bInfo.businessName && !(patch as any).businessName && !(getProfileOverrides(rawUserId) as any).businessName) {
+        (patch as any).businessName = String(bInfo.businessName);
+      }
+      if ((bInfo.businessType || bInfo.businessIndustry) && !(patch as any).businessType && !(getProfileOverrides(rawUserId) as any).businessType) {
+        (patch as any).businessType = String(bInfo.businessType || bInfo.businessIndustry);
+      }
+    }
+    if (u.percentageRate !== undefined && (getProfileOverrides(rawUserId) as any).percentageRate === undefined) {
+      (patch as any).percentageRate = Number(u.percentageRate);
+    }
+
     if (Object.keys(patch).length > 0) {
       saveProfileOverrides(rawUserId, patch);
       setRevision((n) => n + 1);
@@ -395,6 +414,10 @@ export function useProfileDisplay() {
         if (patch.username !== undefined) payload.username = patch.username;
         if (patch.gender !== undefined) payload.gender = patch.gender;
         if (patch.bio !== undefined) payload.bio = patch.bio;
+        if ((patch as any).businessName !== undefined) payload.businessName = (patch as any).businessName;
+        if ((patch as any).businessType !== undefined) payload.businessType = (patch as any).businessType;
+        if ((patch as any).percentageRate !== undefined) payload.percentageRate = (patch as any).percentageRate;
+        if ((patch as any).commissionRate !== undefined) payload.commissionRate = (patch as any).commissionRate;
 
         const profileResult = await completeUserProfile(payload);
         
@@ -527,6 +550,24 @@ export function useProfileDisplay() {
     documentFrontUrl = documentUrl;
   }
 
+  const businessName =
+    (overrides as any).businessName ??
+    (user && "businessName" in user && (user as any).businessName && (user as any).businessName !== "NA"
+      ? String((user as any).businessName)
+      : (user as any)?.businessInfo?.businessName ?? "");
+
+  const businessType =
+    (overrides as any).businessType ??
+    (user && "businessType" in user && (user as any).businessType && (user as any).businessType !== "NA"
+      ? String((user as any).businessType)
+      : (user as any)?.businessInfo?.businessIndustry ?? "");
+
+  const percentageRate =
+    (overrides as any).percentageRate ??
+    (user && "percentageRate" in user && (user as any).percentageRate !== undefined
+      ? Number((user as any).percentageRate)
+      : 20);
+
   return {
     user,
     rawUserId,
@@ -558,6 +599,9 @@ export function useProfileDisplay() {
     username,
     gender,
     bio,
+    businessName,
+    businessType,
+    percentageRate,
     documentUrl,
     documentFrontUrl,
     documentBackUrl,
