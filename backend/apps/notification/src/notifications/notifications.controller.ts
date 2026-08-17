@@ -71,21 +71,21 @@ export class NotificationsController {
     @Param('id') id: string,
     @Request() req: any,
   ) {
-    return this.notificationsService.markAsRead(id, req.user.userId);
+    return this.notificationsService.markAsRead(id, req.user?.userId, req.user);
   }
 
   @Put('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   @ApiResponse({ status: 200, description: 'All notifications marked as read' })
   async markAllAsRead(@Request() req: any) {
-    return this.notificationsService.markAllAsRead(req.user.userId);
+    return this.notificationsService.markAllAsRead(req.user?.userId, req.user);
   }
 
   @Delete('all')
   @ApiOperation({ summary: 'Delete all notifications' })
   @ApiResponse({ status: 200, description: 'All notifications deleted successfully' })
   async deleteAllNotifications(@Request() req: any) {
-    return this.notificationsService.deleteAllNotifications(req.user.userId);
+    return this.notificationsService.deleteAllNotifications(req.user?.userId, req.user);
   }
 
   @Delete(':id')
@@ -95,7 +95,7 @@ export class NotificationsController {
     @Param('id') id: string,
     @Request() req: any,
   ) {
-    return this.notificationsService.deleteNotification(id, req.user.userId);
+    return this.notificationsService.deleteNotification(id, req.user?.userId, req.user);
   }
 
   @Get('stats/summary')

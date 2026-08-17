@@ -136,13 +136,14 @@ export class ProjectService {
       paymentStatus: PaymentStatus.NONE,
       paymentTerms: (createDto as any).paymentTerms || 'one_time',
       milestones: (createDto as any).milestones || [],
-      price: createDto.price || 0,
-      adminBudget: 0,
+      price: createDto.price || (createDto as any).budgetAmount || (createDto as any).adminBudget || 0,
+      adminBudget: (createDto as any).adminBudget || createDto.price || (createDto as any).budgetAmount || 0,
+      minBudget: (createDto as any).minBudget || createDto.price || 0,
       commissionPercent: Number((createDto as any).commissionPercent ?? 10),
       commissionAmount: 0,
-      totalAmount: Number(createDto.price || 0),
+      totalAmount: Number(createDto.price || (createDto as any).adminBudget || 0),
       paidAmount: 0,
-      dueAmount: Number(createDto.price || 0),
+      dueAmount: Number(createDto.price || (createDto as any).adminBudget || 0),
       currency: createDto.currency || 'USD',
       category: createDto.category,
       subcategory: (createDto as any).subcategory,
@@ -573,7 +574,7 @@ export class ProjectService {
     // Trigger Activity Log
     this.triggerActivityLog({
       action: 'PROJECT_PAID',
-      resource: `Project Escrow Funded: "${project.title}" (${project.projectId}) - Paid $${paymentToDeduct} (Budget $${baseBudget} + 10% Platform Fee $${commAmount})`,
+      resource: `Paid $${paymentToDeduct} USD for "${project.title}" (${project.projectId})`,
       userId: clientId,
     });
 

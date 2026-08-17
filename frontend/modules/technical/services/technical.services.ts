@@ -38,18 +38,40 @@ export async function recordActivityLog(log: {
   email?: string;
   type?: string;
 }) {
-  if (typeof window === "undefined") return;
-  try {
-    const key = "platform_activity_logs";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
-    const item = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: new Date().toISOString(),
-      ...log,
-    };
-    localStorage.setItem(key, JSON.stringify([item, ...existing]));
-    window.dispatchEvent(new Event("activity_logs_updated"));
-  } catch {}
+  let resolvedUserName = log.userName;
+  let resolvedUserId = log.userId;
+  let resolvedEmail = log.email;
+
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (!resolvedUserName) {
+          resolvedUserName = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+        }
+        if (!resolvedUserId) resolvedUserId = u.id || u.userId;
+        if (!resolvedEmail) resolvedEmail = u.email;
+      }
+    } catch {}
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const key = "platform_activity_logs";
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      const item = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        ...log,
+        userName: resolvedUserName || log.userName,
+        userId: resolvedUserId || log.userId,
+        email: resolvedEmail || log.email,
+      };
+      localStorage.setItem(key, JSON.stringify([item, ...existing]));
+      window.dispatchEvent(new Event("activity_logs_updated"));
+    } catch {}
+  }
 
   // Save to backend MongoDB activity collection & trigger real log event
   try {
@@ -57,9 +79,10 @@ export async function recordActivityLog(log: {
       log.type || "PROJECT_SUBMITTED",
       log.description || log.title,
       {
-        userId: log.userId,
-        name: log.userName,
-        email: log.email,
+        userId: resolvedUserId,
+        name: resolvedUserName,
+        fullName: resolvedUserName,
+        email: resolvedEmail,
       }
     ).catch(() => undefined);
   } catch {}
@@ -79,7 +102,7 @@ export async function dispatchAdminNotification(notif: {
       description: notif.message,
       time: "Just now",
       read: false,
-      href: notif.href || "/admin/technical",
+      href: notif.href || "/technical",
       type: notif.type || "system",
     };
 
@@ -98,7 +121,7 @@ export async function dispatchAdminNotification(notif: {
       title: notif.title,
       message: notif.message,
       priority: 'high',
-      data: { href: notif.href || '/admin/technical' },
+      data: { href: notif.href || '/technical' },
     }).catch(() => undefined);
   } catch {}
 }
@@ -465,6 +488,7 @@ export const fetchAllProjects = async (_token?: string) => {
 
 export const submitProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
+  const target = local.find((p) => p.projectId === projectId);
   const updated = local.map((p) =>
     p.projectId === projectId
       ? { ...p, submissionStatus: "submitted" }
@@ -474,10 +498,35 @@ export const submitProject = async (projectId: string, _token?: string) => {
 
   try {
     const res = await axiosInstance.post(`/technology/projects/${projectId}/submit`);
-    return res?.data;
+    if (res?.data) {
+      // Record activity log on submit
+      const projectTitle = target?.title || projectId;
+      recordActivityLog({
+        title: `Project Submitted: "${projectTitle}"`,
+        description: `Submitted technical service project ${projectId} for admin review`,
+        category: "Technical Services",
+        userId: target?.clientId || target?.userId,
+        userName: target?.clientName,
+        email: target?.clientEmail,
+        type: "PROJECT_SUBMITTED",
+      });
+      return res.data;
+    }
   } catch (e: any) {
     console.warn("submitProject fallback:", e?.message || e);
   }
+
+  // Record activity log on submit fallback
+  const projectTitle = target?.title || projectId;
+  recordActivityLog({
+    title: `Project Submitted: "${projectTitle}"`,
+    description: `Submitted technical service project ${projectId} for admin review`,
+    category: "Technical Services",
+    userId: target?.clientId || target?.userId,
+    userName: target?.clientName,
+    email: target?.clientEmail,
+    type: "PROJECT_SUBMITTED",
+  });
 
   return { success: true, status: "submitted" };
 };
@@ -548,8 +597,8 @@ export const payProject = async (projectId: string, _token?: string) => {
     }
 
     recordActivityLog({
-      title: `Project Escrow Funded: "${paidProject.title}" (${paidProject.projectId})`,
-      description: `Funded $${totalVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} (Budget $${budgetVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} + 10% Platform Fee $${commVal.toLocaleString(undefined, { minimumFractionDigits: 2 })})`,
+      title: `Project Escrow Paid: "${paidProject.title}" (${paidProject.projectId})`,
+      description: `Paid $${totalVal.toFixed(2)} USD for "${paidProject.title}" (${paidProject.projectId})`,
       category: "Technical Services",
       type: "PROJECT_PAID",
     });

@@ -9,6 +9,7 @@ import { useUser } from "@/src/context/user.provider";
 import { useRouter } from "next/navigation";
 import axiosInstance from "@/src/lib/axiosInstance";
 import Link from "next/link";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
 interface Milestone {
   id: string;
@@ -118,6 +119,26 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
 
       // 2. If verified, continue payment flow
       await payProject(project.projectId);
+      try {
+        const clientFullName =
+          (user as any)?.fullName ||
+          (user as any)?.name ||
+          (project as any)?.clientName ||
+          "User";
+        const baseBudget = Number(project.adminBudget || project.price || (project as any).budgetAmount || 0);
+        const commRate = Number(project.commissionPercent ?? 10);
+        const totalWithFee = Number((baseBudget + (baseBudget * commRate) / 100).toFixed(2));
+        await recordRealActivity(
+          "PROJECT_PAID",
+          `Paid $${totalWithFee.toFixed(2)} USD for "${project.title}" (${project.projectId})`,
+          {
+            userId: (user as any)?.id || (user as any)?.userId,
+            name: clientFullName,
+            fullName: clientFullName,
+            email: user?.email || (project as any)?.clientEmail,
+          }
+        );
+      } catch {}
       setPaid(true);
       toast.success("Payment paid successfully, Project is live Publically");
     } catch (e: any) {

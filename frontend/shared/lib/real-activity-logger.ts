@@ -29,7 +29,7 @@ function formatBackendLog(log: any): RealLogEntry {
   return {
     id: log._id || log.id,
     userId: log.userId,
-    username: log.details?.name || "User",
+    username: log.details?.fullName || log.details?.name || "User",
     email: log.details?.email || "",
     action: log.action,
     details: log.resource || log.details?.message || "",
@@ -52,7 +52,7 @@ export async function getLogsForUser(_userId?: string): Promise<RealLogEntry[]> 
 export async function recordRealActivity(
   action: string,
   details: string,
-  userOrEmail?: string | { email?: string; userId?: string; id?: string; name?: string; firstName?: string },
+  userOrEmail?: string | { email?: string; userId?: string; id?: string; name?: string; fullName?: string; firstName?: string },
   ipAddress = "127.0.0.1"
 ): Promise<RealLogEntry | null> {
   let userId = "user";
@@ -60,11 +60,33 @@ export async function recordRealActivity(
   let email = "";
 
   if (typeof userOrEmail === "string") {
-    username = userOrEmail;
+    email = userOrEmail;
     userId = userOrEmail;
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          username = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || userOrEmail;
+          userId = u.id || u.userId || userOrEmail;
+        }
+      } catch {}
+    }
+    if (!username || username === "User") username = userOrEmail;
   } else if (userOrEmail && typeof userOrEmail === "object") {
     email = userOrEmail.email || "";
-    username = userOrEmail.name || userOrEmail.firstName || email || "User";
+    username = userOrEmail.fullName || userOrEmail.name || userOrEmail.firstName || "";
+    if ((!username || username.includes("@")) && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          const fullName = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+          if (fullName) username = fullName;
+        }
+      } catch {}
+    }
+    if (!username) username = email || "User";
     userId = userOrEmail.userId || userOrEmail.id || username;
   }
 

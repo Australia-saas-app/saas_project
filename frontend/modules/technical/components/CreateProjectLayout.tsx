@@ -14,6 +14,8 @@ import FileUpload from "@/src/components/form/FileUpload";
 import ReactSelectMulti from "@/src/components/form/ReactSelectMulti";
 import { createProject, submitProject } from "../services/technical.services";
 import { registerContact } from "@/src/shared/lib/contacts-store";
+import { useUser } from "@/src/context/user.provider";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -50,7 +52,7 @@ const projectSchema = z.object({
   description: z
     .string()
     .min(1, "Service summary is required")
-    .max(50, "Summary cannot exceed 50 characters"),
+    .max(150, "Summary cannot exceed 150 characters"),
 });
 
 type ProjectForm = z.infer<typeof projectSchema>;
@@ -291,6 +293,7 @@ export default function CreateProjectLayout() {
       : DEFAULT_SKILLS;
 
   const router = useRouter();
+  const { user } = useUser();
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async (data: ProjectForm) => {
@@ -323,10 +326,21 @@ export default function CreateProjectLayout() {
         }
       }
 
+      const clientFullName =
+        data.fullName ||
+        (user as any)?.fullName ||
+        (user as any)?.name ||
+        ("firstName" in (user || {}) ? `${(user as any).firstName} ${(user as any).lastName || ""}`.trim() : "") ||
+        "User";
+
+      const budgetNum = Number(data.budgetAmount) || 0;
       const payload = {
         title: data.title,
         description: data.description || `${data.title} (${data.projectType})`,
-        price: Number(data.budgetAmount) || 0,
+        price: budgetNum,
+        adminBudget: budgetNum,
+        minBudget: budgetNum,
+        budgetAmount: budgetNum,
         currency: data.currency || "USD",
         category: data.category || "Software Development",
         subcategory: data.subcategory || "General",
@@ -334,18 +348,19 @@ export default function CreateProjectLayout() {
         skills: data.requiredSkills || [],
         preferredLanguages: data.preferredLanguages || [],
         paymentTerms: data.paymentTerms || "One-time",
-        clientName: data.fullName || "User",
-        clientEmail: data.email,
+        clientName: clientFullName,
+        clientEmail: data.email || user?.email,
         clientPhone: data.phone,
         attachmentFile: attachmentData,
         startDate: data.expectedStartDate ? new Date(data.expectedStartDate).toISOString() : undefined,
         endDate: data.expectedEndDate ? new Date(data.expectedEndDate).toISOString() : undefined,
+        userId: (user as any)?.id || (user as any)?.userId || (user as any)?.sub,
       };
 
       // Save contact to local contacts directory and live chat
       if (data.fullName && data.email) {
         registerContact({
-          name: data.fullName,
+          name: clientFullName,
           email: data.email,
           phone: data.phone,
           role: "user",
@@ -358,6 +373,20 @@ export default function CreateProjectLayout() {
       if (projectId) {
         await submitProject(projectId);
       }
+
+      // Explicitly record activity log for project creation & submission
+      try {
+        await recordRealActivity(
+          "SERVICE_CREATED",
+          `User created & submitted project: "${data.title}" (${projectId || "PRJ"}) - Budget: $${Number(data.budgetAmount || 0).toFixed(2)} USD`,
+          {
+            userId: (user as any)?.id || (user as any)?.userId || (user as any)?.sub,
+            name: clientFullName,
+            fullName: clientFullName,
+            email: data.email || user?.email,
+          }
+        );
+      } catch {}
 
       toast.success("Service project submitted successfully! It is now under Admin review.");
       router.push("/dashboard/user/technical");
@@ -545,25 +574,25 @@ export default function CreateProjectLayout() {
                 </div>
               </div>
 
-              {/* Short Service Summary (Max 50 chars) */}
+              {/* Short Service Summary (Max 150 chars) */}
               <div>
                 <div className="flex items-center justify-between">
-                  <Label>Short Project / Service Summary * (Max 50 characters)</Label>
+                  <Label>Short Project / Service Summary * (Max 150 characters)</Label>
                   <span
                     className={`text-xs font-semibold ${
-                      descriptionValue.length > 50
+                      descriptionValue.length > 150
                         ? "text-rose-500 font-bold"
-                        : descriptionValue.length >= 40
+                        : descriptionValue.length >= 130
                         ? "text-amber-500"
                         : "text-muted-foreground"
                     }`}
                   >
-                    {descriptionValue.length} / 50 characters
+                    {descriptionValue.length} / 150 characters
                   </span>
                 </div>
                 <textarea
                   {...register("description")}
-                  maxLength={50}
+                  maxLength={150}
                   rows={3}
                   placeholder="Describe your project requirements, scope, architecture needs..."
                   className="w-full mt-1 p-3 border border-border rounded-xl bg-card text-foreground text-xs font-medium focus:border-primary focus:outline-none transition-colors resize-none"

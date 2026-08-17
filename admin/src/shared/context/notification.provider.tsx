@@ -110,43 +110,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Load and merge notifications from local store & DB
   const loadNotifications = useCallback(async () => {
-    let localNotifs: NotificationItem[] = [];
-    if (typeof window !== "undefined") {
-      try {
-        const map = new Map<string, NotificationItem>();
-        const keys = [
-          "admin_notifications",
-          "app_notifs_admin",
-          userId ? `admin_notifs_${userId}` : null,
-        ].filter(Boolean) as string[];
-
-        for (const k of keys) {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            const list: any[] = JSON.parse(raw);
-            if (Array.isArray(list)) {
-              list.forEach((n) => {
-                if (n && (n.id || n.title)) {
-                  const id = String(n.id || n.title);
-                  map.set(id, {
-                    id,
-                    title: n.title,
-                    message: n.message || n.description,
-                    createdAt: n.createdAt,
-                    time: formatNotificationTime(n.createdAt || n.time),
-                    read: Boolean(n.read),
-                    href: n.href || "/admin/technical",
-                  });
-                }
-              });
-            }
-          }
-        }
-        localNotifs = Array.from(map.values());
-      } catch {}
-    }
-
     let remoteNotifs: NotificationItem[] = [];
+    let fetchSuccess = false;
+
     try {
       const res = await fetch(notifApiBase, {
         credentials: "omit",
@@ -154,6 +120,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }).catch(() => null);
 
       if (res && res.ok) {
+        fetchSuccess = true;
         const data = await res.json();
         const list = Array.isArray(data?.data?.notifications)
           ? data.data.notifications
@@ -175,17 +142,32 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
 
-    const combinedMap = new Map<string, NotificationItem>();
-    [...remoteNotifs, ...localNotifs].forEach((n) => {
-      if (n && n.id) {
-        combinedMap.set(n.id, {
-          ...n,
-          time: formatNotificationTime(n.createdAt || n.time),
-        });
+    if (fetchSuccess) {
+      setItems(remoteNotifs);
+      if (typeof window !== "undefined") {
+        try {
+          if (userId) {
+            localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(remoteNotifs));
+          }
+          localStorage.removeItem("admin_notifications");
+          localStorage.removeItem("app_notifs_admin");
+        } catch {}
       }
-    });
+      return;
+    }
 
-    setItems(Array.from(combinedMap.values()));
+    // Fallback only if offline/network failure
+    if (typeof window !== "undefined") {
+      try {
+        const raw = userId ? localStorage.getItem(`admin_notifs_${userId}`) : null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            setItems(parsed);
+          }
+        }
+      } catch {}
+    }
   }, [userId, token]);
 
   useEffect(() => {
@@ -221,31 +203,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
   }, [userId]);
 
+  // Connect to Notification WebSocket for live instant notifications
   useEffect(() => {
-    if (!userId || typeof window === "undefined") return;
-    
-    const wsUrl = getWsUrl();
-    let hasLoggedError = false;
+    if (!token) return;
 
-    const socket: Socket = io(`${wsUrl}/notifications`, {
+    const wsUrl = getWsUrl();
+    const socket = io(`${wsUrl}/notifications`, {
       transports: ["websocket", "polling"],
-      query: { userId, role },
-      auth: token ? { token } : {},
+      auth: { token },
       reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 5000,
-      reconnectionDelayMax: 15000,
-      timeout: 6000,
+      reconnectionAttempts: 5,
     });
 
     socket.on("connect", () => {
-      hasLoggedError = false;
-    });
-
-    socket.on("connect_error", (_err) => {
-      if (!hasLoggedError) {
-        hasLoggedError = true;
+      if (userId) {
+        socket.emit("join_user", { userId });
       }
+      socket.emit("join_role", { role: "ADMIN" });
+      socket.emit("join_role", { role: "admin" });
     });
 
     socket.on("new_notification", (payload: any) => {
@@ -265,7 +240,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const markRead = useCallback((id: string) => {
     setItems((prev) => {
       const next = prev.map((item) => (item.id === id ? { ...item, read: true } : item));
-      if (userId) {
+      if (userId && typeof window !== "undefined") {
         try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
       }
       return next;
@@ -279,7 +254,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const markAllRead = useCallback(() => {
     setItems((prev) => {
       const next = prev.map((item) => ({ ...item, read: true }));
-      if (userId) {
+      if (userId && typeof window !== "undefined") {
         try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
       }
       return next;
@@ -293,8 +268,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const deleteNotification = useCallback((id: string) => {
     setItems((prev) => {
       const next = prev.filter((item) => item.id !== id);
-      if (userId) {
-        try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
+      if (typeof window !== "undefined") {
+        try {
+          const keys = [
+            "admin_notifications",
+            "app_notifs_admin",
+            userId ? `admin_notifs_${userId}` : null,
+          ].filter(Boolean) as string[];
+
+          keys.forEach((k) => {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list: any[] = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const filtered = list.filter((n) => String(n.id || n.title) !== id);
+                localStorage.setItem(k, JSON.stringify(filtered));
+              }
+            }
+          });
+        } catch {}
       }
       return next;
     });
@@ -302,17 +294,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }).catch(() => {});
+    toast.success("Notification deleted successfully");
   }, [userId, token]);
 
   const deleteAllNotifications = useCallback(() => {
     setItems([]);
-    if (userId) {
-      try { localStorage.removeItem(`admin_notifs_${userId}`); } catch {}
+    if (typeof window !== "undefined") {
+      try {
+        const keys = [
+          "admin_notifications",
+          "app_notifs_admin",
+          userId ? `admin_notifs_${userId}` : null,
+        ].filter(Boolean) as string[];
+
+        keys.forEach((k) => {
+          localStorage.removeItem(k);
+        });
+      } catch {}
     }
     fetch(`${notifApiBase}/all`, {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }).catch(() => {});
+    toast.success("All notifications deleted successfully");
   }, [userId, token]);
 
   const value = useMemo<INotificationContext>(

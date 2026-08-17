@@ -201,9 +201,14 @@ export default function TechnicalProjectLayout() {
 
   const openInspectionModal = (p: ProjectItem) => {
     setSelectedProject(p);
-    const baseVal = Number(p.adminBudget || p.price || 1000);
+    const parsedAdmin = parseFloat(String(p.adminBudget ?? 0)) || 0;
+    const parsedPrice = parseFloat(String(p.price ?? 0)) || 0;
+    const parsedMin = parseFloat(String((p as any).minBudget ?? 0)) || 0;
+    const parsedBudget = parseFloat(String((p as any).budgetAmount ?? 0)) || 0;
+    const baseVal = parsedAdmin > 0 ? parsedAdmin : parsedPrice > 0 ? parsedPrice : parsedBudget > 0 ? parsedBudget : parsedMin > 0 ? parsedMin : 1000;
+
     setAdminBudgetInput(String(baseVal));
-    setCommissionPercentInput(String(p.commissionPercent !== undefined ? p.commissionPercent : 10));
+    setCommissionPercentInput(String(p.commissionPercent !== undefined && p.commissionPercent !== null ? p.commissionPercent : 10));
     setRequirementsInput(p.requirements || "Full compliance with technical specifications and code quality guidelines.");
     setConditionsInput(p.conditions || "Work must be delivered within the agreed timeline with documentation.");
     setAdminNotesInput(p.adminNotes || "");
@@ -213,12 +218,15 @@ export default function TechnicalProjectLayout() {
   const handleApprove = async () => {
     if (!selectedProject) return;
     const b = parseFloat(adminBudgetInput);
-    if (!b || b <= 0) {
+    if (!b || b <= 0 || isNaN(b)) {
       toast.error("Please enter a valid approved budget amount.");
       return;
     }
 
     const comm = parseFloat(commissionPercentInput) || 10;
+    const commAmount = (b * comm) / 100;
+    const totalAmount = b + commAmount;
+    const dueAmount = totalAmount;
     setActionLoading("approve");
 
     try {
@@ -226,6 +234,9 @@ export default function TechnicalProjectLayout() {
         adminBudget: b,
         minBudget: b,
         commissionPercent: comm,
+        commissionAmount: commAmount,
+        totalAmount: totalAmount,
+        dueAmount: dueAmount,
         requirements: requirementsInput,
         conditions: conditionsInput,
         adminNotes: adminNotesInput,
@@ -245,6 +256,9 @@ export default function TechnicalProjectLayout() {
                     adminBudget: b,
                     minBudget: b,
                     commissionPercent: comm,
+                    commissionAmount: commAmount,
+                    totalAmount: totalAmount,
+                    dueAmount: dueAmount,
                     requirements: requirementsInput,
                     conditions: conditionsInput,
                     adminNotes: adminNotesInput,
@@ -258,7 +272,7 @@ export default function TechnicalProjectLayout() {
           const clientNotif = {
             id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             title: "Project Approved — Ready for Payment",
-            message: `Admin approved "${selectedProject.title}" with a budget of ${selectedProject.currency || "USD"} ${b}. Please pay to publish.`,
+            message: `Admin approved "${selectedProject.title}" with a budget of ${selectedProject.currency || "USD"} ${b.toFixed(2)} (Total Due: $${totalAmount.toFixed(2)} USD). Please pay to publish.`,
             time: "Just now",
             read: false,
             href: "/dashboard/user/technical",
@@ -278,7 +292,7 @@ export default function TechnicalProjectLayout() {
         } catch {}
       }
 
-      toast.success(`Project ${selectedProject.projectId} approved! Status updated to Approved.`);
+      toast.success(`Project ${selectedProject.projectId} approved! Total due $${totalAmount.toFixed(2)} USD.`);
       setModalOpen(false);
       await loadProjects();
     } catch (e: any) {
@@ -731,9 +745,13 @@ export default function TechnicalProjectLayout() {
 
       {/* Inspection & Review Action Modal */}
       {modalOpen && selectedProject && (() => {
-        const baseBudget = Number(selectedProject.adminBudget || selectedProject.price || 0);
-        const calcBudget = parseFloat(adminBudgetInput) || baseBudget;
-        const calcComm = parseFloat(commissionPercentInput) || 10;
+        const parsedAdmin = parseFloat(String(selectedProject.adminBudget ?? 0)) || 0;
+        const parsedPrice = parseFloat(String(selectedProject.price ?? 0)) || 0;
+        const fallbackBudget = parsedAdmin > 0 ? parsedAdmin : parsedPrice > 0 ? parsedPrice : 0;
+        const currentInput = parseFloat(adminBudgetInput);
+        const calcBudget = !isNaN(currentInput) && currentInput > 0 ? currentInput : fallbackBudget;
+        const currentComm = parseFloat(commissionPercentInput);
+        const calcComm = !isNaN(currentComm) ? currentComm : 10;
         const totalDue = calcBudget + (calcBudget * calcComm) / 100;
         const currency = selectedProject.currency || "USD";
         const createdAtFormatted = selectedProject.createdAt && !isNaN(new Date(selectedProject.createdAt).getTime())
@@ -750,10 +768,10 @@ export default function TechnicalProjectLayout() {
           !selectedProject.submissionStatus;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-12 sm:pt-16 pb-8 overflow-y-auto">
             <div
               style={{ maxWidth: "580px", width: "100%" }}
-              className="relative w-full rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[82vh] animate-in fade-in duration-200 overflow-hidden"
+              className="relative w-full my-auto rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[80vh] animate-in fade-in duration-200 overflow-hidden"
             >
               {/* Header (Sticky / Fixed at top) */}
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-5 py-3 shrink-0 bg-white dark:bg-slate-900">

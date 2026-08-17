@@ -40,6 +40,7 @@ import { useUser } from "@/src/context/user.provider";
 import {
   fetchMyProjects,
   readLocalProjects,
+  writeLocalProjects,
   reviewAcceptProject,
   requestRevision,
   submitProject,
@@ -191,9 +192,12 @@ export default function UserProjectsPage() {
       const data = await fetchMyProjects();
       const list = data?.projects || [];
       setProjects(list);
-      writeLocalProjects(list);
-    } catch (err) {
-      console.warn("Could not fetch remote projects, using local store:", err);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("platform_user_technical_projects", JSON.stringify(list));
+        } catch {}
+      }
+    } catch {
       setProjects(readLocalProjects());
     } finally {
       setLoading(false);
@@ -562,25 +566,27 @@ export default function UserProjectsPage() {
                 className="group rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between"
               >
                 <div>
-                  {/* Status Badge & Category in one clean row with Project ID on left */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap">
-                        {project.projectId}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
-                      >
-                        {statusCfg.icon}
-                        {statusCfg.label}
-                      </span>
-                    </div>
+                  {/* Header Row 1: Project ID (Left) & Category Badge (Right - Full Name) */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
+                      {project.projectId}
+                    </span>
 
                     {project.category && (
-                      <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground whitespace-nowrap truncate max-w-[140px]">
+                      <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
                         {project.category}
                       </span>
                     )}
+                  </div>
+
+                  {/* Header Row 2: Status Badge */}
+                  <div className="mb-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
+                    >
+                      {statusCfg.icon}
+                      {statusCfg.label}
+                    </span>
                   </div>
 
                   {/* Title & Description */}

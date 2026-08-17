@@ -160,8 +160,12 @@ export default function AdminTechnicalProjectsManager() {
 
   const openReviewModal = (p: Project) => {
     setReviewProject(p);
-    setAdminBudget(String(p.adminBudget || p.price || 1000));
-    setMinBudget(String(p.minBudget || p.price || 800));
+    const parsedAdmin = parseFloat(String(p.adminBudget ?? 0)) || 0;
+    const parsedPrice = parseFloat(String(p.price ?? 0)) || 0;
+    const parsedMin = parseFloat(String((p as any).minBudget ?? 0)) || 0;
+    const baseVal = parsedAdmin > 0 ? parsedAdmin : parsedPrice > 0 ? parsedPrice : parsedMin > 0 ? parsedMin : 1000;
+    setAdminBudget(String(baseVal));
+    setMinBudget(String(parsedMin > 0 ? parsedMin : baseVal));
     setCommissionPercent(String(p.commissionPercent || 10));
     setRequirements(p.requirements || "Full compliance with technical specifications and code quality guidelines.");
     setConditions(p.conditions || "Work must be delivered within the agreed timeline with documentation.");
@@ -590,8 +594,8 @@ export default function AdminTechnicalProjectsManager() {
 
       {/* Review & Quote Modal */}
       {reviewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 pt-12 sm:pt-16 pb-8 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-2xl my-auto rounded-2xl bg-white p-6 shadow-2xl space-y-5 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <span className="font-mono text-xs text-primary">{reviewProject.projectId}</span>

@@ -118,30 +118,31 @@ const nextConfig: NextConfig = {
   },
 
   async redirects() {
-    const adminRedirects = adminAppUrl
-      ? [
-          {
-            source: "/admin",
-            destination: `${adminAppUrl}/admin/dashboard`,
-            permanent: false,
-          },
-          {
-            source: "/admin/:path*",
-            destination: `${adminAppUrl}/admin/:path*`,
-            permanent: false,
-          },
-          {
-            source: "/account/admin/login",
-            destination: `${adminAppUrl}/account/admin/login`,
-            permanent: false,
-          },
-          {
-            source: "/account/admin/login/:path*",
-            destination: `${adminAppUrl}/account/admin/login/:path*`,
-            permanent: false,
-          },
-        ]
-      : [];
+    const adminRedirects =
+      adminAppUrl && !adminAppUrl.includes("localhost")
+        ? [
+            {
+              source: "/admin",
+              destination: `${adminAppUrl}/admin`,
+              permanent: false,
+            },
+            {
+              source: "/admin/:path*",
+              destination: `${adminAppUrl}/admin/:path*`,
+              permanent: false,
+            },
+            {
+              source: "/account/admin/login",
+              destination: `${adminAppUrl}/account/admin/login`,
+              permanent: false,
+            },
+            {
+              source: "/account/admin/login/:path*",
+              destination: `${adminAppUrl}/account/admin/login/:path*`,
+              permanent: false,
+            },
+          ]
+        : [];
 
     return [
       {

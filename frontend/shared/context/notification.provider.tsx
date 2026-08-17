@@ -15,6 +15,7 @@ import { type NotificationItem, formatNotificationTime } from "@/src/constants/n
 import { useUser } from "@/src/context/user.provider";
 import { io, Socket } from "socket.io-client";
 import axiosInstance from "@/src/lib/axiosInstance";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
 interface INotificationContext {
   notifications: NotificationItem[];
@@ -261,6 +262,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         return next;
       });
       axiosInstance.delete(`/notifications/${id}`).catch(() => {});
+      toast.success("Notification deleted successfully");
     },
     [userId]
   );
@@ -273,7 +275,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       } catch {}
     }
     axiosInstance.delete("/notifications/all").catch(() => {});
-  }, [userId]);
+    toast.success("All notifications deleted successfully");
+
+    try {
+      const userRole = role || (user as any)?.role || "User";
+      const clientFullName =
+        (user as any)?.fullName ||
+        (user as any)?.name ||
+        ("firstName" in (user || {}) ? `${(user as any).firstName} ${(user as any).lastName || ""}`.trim() : "") ||
+        userEmail ||
+        "User";
+
+      recordRealActivity(
+        "NOTIFICATIONS_CLEARED",
+        `${userRole.charAt(0).toUpperCase() + userRole.slice(1)} cleared all notifications`,
+        {
+          userId: userId || userEmail,
+          name: clientFullName,
+          fullName: clientFullName,
+          email: userEmail,
+        }
+      );
+    } catch {}
+  }, [userId, user, role, userEmail]);
 
   const value = useMemo<INotificationContext>(
     () => ({

@@ -64,11 +64,13 @@ interface SavedCard {
 function identity(user: NonNullable<ReturnType<typeof useUser>["user"]>) {
   const id = "id" in user && user.id ? String(user.id) : (user.email ?? "guest");
   const name =
-    "firstName" in user && user.firstName
+    "fullName" in user && user.fullName && String(user.fullName).trim()
+      ? String(user.fullName).trim()
+      : "name" in user && user.name && String(user.name).trim()
+      ? String(user.name).trim()
+      : "firstName" in user && user.firstName
       ? `${user.firstName} ${"lastName" in user && user.lastName ? user.lastName : ""}`.trim()
-      : "name" in user && user.name
-        ? String(user.name)
-        : (user.email ?? "Account");
+      : (user.email ?? "Account");
   return { id, name };
 }
 
@@ -273,14 +275,20 @@ export default function WalletFinancePanel() {
       });
 
       const { id, name } = identity(user);
-      const record = submitDeposit({ userId: id, userName: name, amount: value, method });
+      const fullName =
+        (user as any)?.fullName ||
+        (user as any)?.name ||
+        ("firstName" in user && user.firstName ? `${user.firstName} ${(user as any).lastName || ""}`.trim() : "") ||
+        name;
 
-      // Real activity logging
+      const record = submitDeposit({ userId: id, userName: fullName, amount: value, method });
+
+      // Real activity logging with Full Name
       try {
         recordRealActivity(
           "DEPOSIT_RECORDED",
           `Deposited $${value.toFixed(2)} USD via ${method} into wallet account.`,
-          { userId: id, name, email: user.email }
+          { userId: id, name: fullName, fullName, email: user.email }
         );
       } catch {}
 
@@ -290,7 +298,7 @@ export default function WalletFinancePanel() {
       const slip: DepositReceiptData = {
         slipNumber: `SLIP-${Math.floor(100000 + Math.random() * 900000)}`,
         transactionId: record.id || `TX-${Date.now().toString().slice(-6)}`,
-        accountName: name,
+        accountName: fullName,
         accountId: id ? `ACC-${id.slice(0, 8).toUpperCase()}` : "ACC-VERO2",
         amount: value,
         walletBalance: newCalculatedBalance,
@@ -319,7 +327,7 @@ export default function WalletFinancePanel() {
         window.dispatchEvent(new Event("activity_log_updated"));
       }
 
-      toast.success("Deposit successful! Amount credited and card stored in database.");
+      toast.success(`Deposit of $${value.toFixed(2)} USD completed successfully!`);
       setSlipOpen(true);
     } catch (err: any) {
       toast.error(err.message || "Failed to process deposit");
