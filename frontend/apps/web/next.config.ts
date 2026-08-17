@@ -145,34 +145,9 @@ const nextConfig: NextConfig = {
 
     return [
       {
-        source: "/dashboard/affiliate",
-        destination: "/affiliate/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/dashboard/affiliate/:path*",
-        destination: "/affiliate/:path*",
-        permanent: true,
-      },
-      {
-        source: "/dashboard/user",
-        destination: "/user/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/dashboard/user/:path*",
-        destination: "/user/:path*",
-        permanent: true,
-      },
-      {
-        source: "/dashboard/business",
-        destination: "/business/dashboard",
-        permanent: true,
-      },
-      {
-        source: "/dashboard/business/:path*",
-        destination: "/business/:path*",
-        permanent: true,
+        source: "/login",
+        destination: "/account/user/login",
+        permanent: false,
       },
       ...adminRedirects,
     ];

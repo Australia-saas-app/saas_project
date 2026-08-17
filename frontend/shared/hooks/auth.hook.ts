@@ -12,6 +12,7 @@ import { FieldValues } from "react-hook-form"
 import { toast } from "sonner"
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access"
 import { completeProfilePath, isProfileComplete } from "@/src/shared/lib/profile-completion"
+import { setCookie, deleteCookie } from "@/src/utils/cookie-utils"
 
 type DecodedToken = {
     id?: string;
@@ -88,12 +89,10 @@ export const useUserRegistration = () => {
 export const getDashboardRedirect = (role?: string, userId?: string) => {
     const normalized = (role || "").toLowerCase();
     if (normalized === "admin" || normalized === "super_admin") return adminAppPath("/admin/dashboard");
-
-    // All registered users (User, Business, Affiliate) land on homepage landing page after login
-    return ROUTES.home;
+    if (normalized === "affiliate") return "/dashboard/affiliate/dashboard";
+    if (normalized === "business" || normalized === "seller") return "/dashboard/business/dashboard";
+    return "/dashboard/user/dashboard";
 };
-
-import { setCookie, deleteCookie } from "@/src/utils/cookie-utils";
 
 export const useUserLogin = (redirectUrl?: string | null) => {
     const router = useRouter();
