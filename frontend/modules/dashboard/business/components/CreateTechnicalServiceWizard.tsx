@@ -137,7 +137,7 @@ export default function CreateTechnicalServiceWizard() {
         isVisible: false // default pending
       };
 
-      await axiosInstance.post('/api/technology/services', payload);
+      await axiosInstance.post('/technology/services', payload);
       toast.success(`Technical Service "${title}" created and submitted for Admin Verification!`);
       router.push("/business/services");
     } catch (err: any) {

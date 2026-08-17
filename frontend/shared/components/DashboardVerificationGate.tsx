@@ -31,18 +31,18 @@ export default function DashboardVerificationGate({ children }: { children: Reac
         isManualLogout = sessionStorage.getItem("manual_logout") === "true";
       } catch {}
 
+      const currentUrl = new URL(window.location.href);
+      const reason = currentUrl.searchParams.get("reason");
+      
+      let rolePath = "user";
+      if (pathname.includes("/dashboard/business") || pathname.startsWith("/business")) rolePath = "business";
+      if (pathname.includes("/dashboard/affiliate") || pathname.startsWith("/affiliate")) rolePath = "affiliate";
+      if (pathname.includes("/admin")) rolePath = "admin";
+      
       if (isManualLogout) {
-        window.location.replace("/account/user/login");
+        window.location.replace(rolePath === "admin" ? "/account/admin/login" : `/account/${rolePath}/login`);
       } else {
         const returnUrl = encodeURIComponent(pathname || "/dashboard");
-        const currentUrl = new URL(window.location.href);
-        const reason = currentUrl.searchParams.get("reason");
-        
-        let rolePath = "user";
-        if (pathname.includes("/dashboard/business")) rolePath = "business";
-        if (pathname.includes("/dashboard/affiliate")) rolePath = "affiliate";
-        if (pathname.includes("/admin")) rolePath = "admin";
-        
         const loginUrl = rolePath === "admin" 
           ? `/account/admin/login?redirect=${returnUrl}${reason ? `&reason=${reason}` : ""}`
           : `/account/${rolePath}/login?redirect=${returnUrl}${reason ? `&reason=${reason}` : ""}`;

@@ -247,10 +247,10 @@ export const useLogout = () => {
                 window.location.pathname.startsWith("/account/admin")
               ) {
                 targetPath = "/account/admin/login";
-              } else if (window.location.pathname.startsWith("/affiliate")) {
-                targetPath = "/account/affiliate/registration";
-              } else if (window.location.pathname.startsWith("/business")) {
-                targetPath = "/account/business/registration";
+              } else if (window.location.pathname.startsWith("/affiliate") || window.location.pathname.includes("/dashboard/affiliate")) {
+                targetPath = "/account/affiliate/login";
+              } else if (window.location.pathname.startsWith("/business") || window.location.pathname.includes("/dashboard/business")) {
+                targetPath = "/account/business/login";
               }
 
               window.location.href = targetPath;
@@ -282,10 +282,10 @@ export const useLogout = () => {
                   window.location.pathname.startsWith("/account/admin")
                 ) {
                   targetPath = "/account/admin/login";
-                } else if (window.location.pathname.startsWith("/affiliate")) {
-                  targetPath = "/account/affiliate/registration";
-                } else if (window.location.pathname.startsWith("/business")) {
-                  targetPath = "/account/business/registration";
+                } else if (window.location.pathname.startsWith("/affiliate") || window.location.pathname.includes("/dashboard/affiliate")) {
+                  targetPath = "/account/affiliate/login";
+                } else if (window.location.pathname.startsWith("/business") || window.location.pathname.includes("/dashboard/business")) {
+                  targetPath = "/account/business/login";
                 }
 
                 window.location.href = targetPath;

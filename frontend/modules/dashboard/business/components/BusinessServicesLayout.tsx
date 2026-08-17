@@ -15,6 +15,9 @@ import {
   Loader2,
   AlertTriangle,
   Code,
+  Eye,
+  Settings,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -22,6 +25,10 @@ import {
   type BusinessServiceRow,
   type ServiceStatus,
 } from "../data/business-demo-data";
+import { useUser } from "@/src/context/user.provider";
+import { fetchPublicProjects, fetchAssignedProjects, fetchMyApplications, applyForProject, recordActivityLog } from "@/src/modules/technical/services/technical.services";
+import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
+import { PublicApplyModal } from "@/src/modules/shared/components/public/PublicApplyModal";
 import { DashboardTablePagination } from "../../shared/components/DashboardTablePagination";
 import AppModal from "../../shared/components/AppModal";
 import { sortByMoney } from "../../shared/utils/sort-rows";
@@ -43,8 +50,8 @@ const ROUTED_CATEGORIES: Record<string, string> = {
 
 function matchesTab(row: BusinessServiceRow, tab: TabKey) {
   if (tab === "allServices") return true;
-  if (tab === "active") return row.status === "Active";
-  if (tab === "pending") return row.status === "Pending";
+  if (tab === "active") return row.status === "Active" && !(row as any).isApplied;
+  if (tab === "pending") return row.status === "Pending" || (row as any).isApplied;
   return row.status === "Completed";
 }
 
@@ -64,6 +71,7 @@ function deadlineToInputValue(deadline: string): string {
 export default function BusinessServicesLayout() {
   const router = useRouter();
   const { t } = useLocale();
+  const { user } = useUser();
   const [services, setServices] = useState<BusinessServiceRow[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<BusinessServiceRow | null>(null);
@@ -80,6 +88,10 @@ export default function BusinessServicesLayout() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [publicDetailModalItem, setPublicDetailModalItem] = useState<any | null>(null);
+  const [applyModalItem, setApplyModalItem] = useState<any | null>(null);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [kycModalOpen, setKycModalOpen] = useState(false);
   const [newService, setNewService] = useState({
     category: "Technical",
     client: "",
@@ -89,40 +101,197 @@ export default function BusinessServicesLayout() {
 
   const load = async () => {
     try {
-      const res = await axiosInstance.get('/api/technology/services');
-      // The backend wraps lists in res.data.data or res.data depending on pagination
-      const dataList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-      
-      const mapped = dataList.map((item: any) => {
-        let desc: any = {};
-        try { desc = JSON.parse(item.description); } catch(e) {}
-        
+      const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
+      const appliedKey = uId ? `business_applied_projects_${uId}` : null;
+      let storageAppliedIds: string[] = [];
+      if (appliedKey && typeof window !== "undefined") {
+        try {
+          storageAppliedIds = JSON.parse(localStorage.getItem(appliedKey) || "[]");
+        } catch {}
+      }
+
+      const [pubProjRes, assignedProjRes, myAppsRes, techServicesRes] = await Promise.all([
+        fetchPublicProjects().catch(() => ({ projects: [] })),
+        fetchAssignedProjects().catch(() => ({ projects: [] })),
+        fetchMyApplications().catch(() => ({ appliedProjectIds: [] })),
+        axiosInstance.get('/technology/services').catch(() => null),
+      ]);
+
+      const dbAppliedIds: string[] = Array.isArray(myAppsRes?.appliedProjectIds) ? myAppsRes.appliedProjectIds : [];
+      const appliedIds = Array.from(new Set([...storageAppliedIds, ...dbAppliedIds]));
+      if (appliedKey && typeof window !== "undefined" && dbAppliedIds.length > 0) {
+        try {
+          localStorage.setItem(appliedKey, JSON.stringify(appliedIds));
+        } catch {}
+      }
+
+      const publicProjects = Array.isArray(pubProjRes?.projects) ? pubProjRes.projects : [];
+      const assignedProjects = Array.isArray(assignedProjRes?.projects) ? assignedProjRes.projects : [];
+
+      const mappedProjects: BusinessServiceRow[] = [...publicProjects, ...assignedProjects].map((p: any) => {
+        const pId = p.projectId || `PRJ-${p.id}`;
+        const isApplied = appliedIds.includes(pId);
+        const isAssigned = p.assignedBusinessId && uId && p.assignedBusinessId === uId;
+        const isCompleted = p.submissionStatus === "completed";
+        const isActive = isAssigned && (p.submissionStatus === "active" || p.submissionStatus === "in_progress");
+
         return {
-          id: item.serviceId,
-          category: item.categoryName || "Technical",
-          client: desc.client || "Listing",
-          budget: desc.budget || "$0",
-          deadline: desc.deadline || "TBD",
-          status: item.isVisible ? "Active" : "Pending",
-          title: item.title,
-          summary: desc.summary || "",
-          subCategory: desc.subCategory || item.tag || "",
-          skills: desc.skills || [],
-          deliverables: desc.deliverables || [],
-          coverUrl: item.photo || ""
-        } as BusinessServiceRow;
+          id: pId,
+          category: p.category || "Software Development",
+          client: p.clientName || "Client",
+          budget: `$${Number(p.adminBudget || p.price || (p as any).budgetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+          deadline: p.endDate ? new Date(p.endDate).toLocaleDateString() : (p.duration || "14 Days"),
+          status: isCompleted ? "Completed" : isApplied ? "Pending" : isActive ? "Active" : ("Open" as any),
+          title: p.title || "Technical Project",
+          summary: p.description || "",
+          subCategory: p.subcategory || p.projectType || "Technical Project",
+          skills: p.skills || (p.preferredLanguages ? p.preferredLanguages : []),
+          deliverables: p.deliverableUrls || [],
+          coverUrl: p.attachmentFile || "",
+          languages: p.preferredLanguages || p.languages || [],
+          priceRange: `$${Number(p.adminBudget || p.price || (p as any).budgetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} USD`,
+          isApplied,
+          rawProject: p,
+        } as any;
       });
-      setServices(mapped);
+
+      const projectMap = new Map<string, BusinessServiceRow>();
+      mappedProjects.forEach((item) => {
+        if (item.id) projectMap.set(item.id, item);
+      });
+
+      const dataList = Array.isArray(techServicesRes?.data)
+        ? techServicesRes.data
+        : techServicesRes?.data?.data || [];
+
+      dataList.forEach((item: any) => {
+        let desc: any = {};
+        try { desc = JSON.parse(item.description); } catch (e) {}
+        const sId = item.serviceId || `SRV-${item.id}`;
+        if (!projectMap.has(sId)) {
+          projectMap.set(sId, {
+            id: sId,
+            category: item.categoryName || "Technical",
+            client: desc.client || "Listing",
+            budget: desc.budget || "$0",
+            deadline: desc.deadline || "TBD",
+            status: item.isVisible ? "Active" : "Pending",
+            title: item.title,
+            summary: desc.summary || "",
+            subCategory: desc.subCategory || item.tag || "",
+            skills: desc.skills || [],
+            deliverables: desc.deliverables || [],
+            coverUrl: item.photo || "",
+          });
+        }
+      });
+
+      setServices(Array.from(projectMap.values()));
     } catch (err: any) {
-      toast.error("Failed to fetch services");
+      console.warn("Failed to fetch services:", err?.message || err);
     }
   };
 
   useEffect(() => {
     load();
-  }, []);
+    const handleUpdate = () => load();
+    window.addEventListener("applied_projects_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("applied_projects_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [user]);
 
   const refresh = () => load();
+
+  const handleApplyProject = async (row: any) => {
+    setApplyingId(row.id);
+
+    // 1. Check business KYC verification status with spinner active
+    let isVerified = false;
+    try {
+      const res = await axiosInstance.get("/users/me").catch(() => null);
+      const latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
+      const kyc = String(latestUser?.kycStatus || (user as any)?.kycStatus || "").toLowerCase();
+      const st = String(latestUser?.status || (user as any)?.status || "").toLowerCase();
+      isVerified = kyc === "approved" || kyc === "verified" || st === "verified";
+    } catch {
+      const kyc = String((user as any)?.kycStatus || "").toLowerCase();
+      const st = String((user as any)?.status || "").toLowerCase();
+      isVerified = kyc === "approved" || kyc === "verified" || st === "verified";
+    }
+
+    if (typeof window !== "undefined" && !isVerified) {
+      try {
+        const uid = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
+        if (uid) {
+          const raw = localStorage.getItem(`user_profile_overrides_${uid}`) || localStorage.getItem(`business_profile_overrides_${uid}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.kycStatus?.toLowerCase() === "approved" || parsed?.status?.toLowerCase() === "verified") {
+              isVerified = true;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    // If unverified, show KYC Verification Required modal
+    if (!isVerified) {
+      setApplyingId(null);
+      setKycModalOpen(true);
+      return;
+    }
+
+    const businessFullName =
+      (user as any)?.businessName ||
+      (user as any)?.companyName ||
+      (user as any)?.fullName ||
+      (user as any)?.name ||
+      (user as any)?.email ||
+      "Business Provider";
+
+    // Save proposal to PostgreSQL database
+    try {
+      await applyForProject(row.id, {
+        proposal: `Business application for project "${row.title}"`,
+        price: parseFloat(String(row.budget || "").replace(/[^0-9.]/g, "")) || 0,
+        businessName: businessFullName,
+        userName: businessFullName,
+      });
+    } catch (e: any) {
+      console.warn("applyForProject api error:", e);
+    }
+
+    const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub || "business_user";
+    const appliedKey = `business_applied_projects_${uId}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem(appliedKey) || "[]");
+      if (!existing.includes(row.id)) {
+        localStorage.setItem(appliedKey, JSON.stringify([...existing, row.id]));
+      }
+    } catch {}
+
+    try {
+      recordActivityLog({
+        title: `Applied to project: "${row.title}" (${row.id})`,
+        description: `Applied for project (${row.id}). Status: Pending for Client Approval.`,
+        category: "Technical Services",
+        type: "PROJECT_APPLIED",
+      });
+    } catch {}
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("applied_projects_updated"));
+    }
+
+    toast.success(`Successfully applied to project "${row.title}" (${row.id})! Pending client approval.`);
+    setApplyingId(null);
+    load();
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -143,12 +312,15 @@ export default function BusinessServicesLayout() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const stats = serviceStatsFromRows(services);
+
+  const pendingCount = services.filter((s) => s.status === "Pending" || (s as any).isApplied).length;
+  const activeCount = services.filter((s) => s.status === "Active" && !(s as any).isApplied).length;
+  const completedCount = services.filter((s) => s.status === "Completed").length;
 
   const serviceStats = [
-    { label: t.business.services.activeServices, value: String(stats.active) },
-    { label: t.business.services.pendingApproval, value: String(stats.pending) },
-    { label: t.business.services.completedJobs, value: String(stats.completed) },
+    { label: t.business.services.activeServices, value: String(activeCount) },
+    { label: t.business.services.pendingApproval, value: String(pendingCount) },
+    { label: t.business.services.completedJobs, value: String(completedCount) },
     { label: t.business.services.monthlyRevenue, value: "$4,250" },
   ];
 
@@ -159,22 +331,23 @@ export default function BusinessServicesLayout() {
     completed: t.business.services.completed,
   };
 
-  function renderServiceStatus(status: ServiceStatus) {
-    const styles: Record<ServiceStatus, string> = {
-      Active: "bg-[#d6e4ff] text-blue-700",
-      Pending: "bg-amber-100 text-amber-700",
-      Completed: "bg-green-100 text-green-700",
-      "On Hold": "bg-gray-100 text-gray-600",
-    };
-    const labels: Record<ServiceStatus, string> = {
-      Active: t.business.services.active,
-      Pending: t.business.services.pending,
-      Completed: t.business.services.completed,
-      "On Hold": "On Hold",
+  function renderServiceStatus(status: any, isApplied?: boolean) {
+    if (isApplied || status === "Pending") {
+      return (
+        <span className="rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+          Pending for Client Approval
+        </span>
+      );
+    }
+    const styles: Record<string, string> = {
+      Active: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25",
+      Open: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/25",
+      Completed: "bg-green-100 text-green-700 border border-green-300",
+      "On Hold": "bg-gray-100 text-gray-600 border border-gray-300",
     };
     return (
-      <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${styles[status]}`}>
-        {labels[status]}
+      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${styles[status] || styles.Open}`}>
+        {status}
       </span>
     );
   }
@@ -207,7 +380,7 @@ export default function BusinessServicesLayout() {
         client: editClient
       });
 
-      axiosInstance.patch(`/api/technology/services/${selectedService.id}`, {
+      axiosInstance.patch(`/technology/services/${selectedService.id}`, {
         description: descriptionData,
         isVisible: editStatus === "Active"
       }).then(() => {
@@ -499,23 +672,56 @@ export default function BusinessServicesLayout() {
                   )}
                 </div>
 
-                <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => openManage(row)}
-                    className="rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-white transition-colors"
-                  >
-                    Manage
-                  </button>
+                <div className="mt-5 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPublicDetailModalItem(row)}
+                      className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer"
+                    >
+                      View
+                    </button>
+                    {(row as any).isApplied ? (
+                      <div className="inline-flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase text-[11px] px-2.5 py-0.5 rounded tracking-widest transform -rotate-12 shadow-xs select-none">
+                        Applied
+                      </div>
+                    ) : ((row.status as any) === "Open" || row.status === "Active") ? (
+                      <button
+                        type="button"
+                        disabled={applyingId === row.id}
+                        onClick={() => handleApplyProject(row)}
+                        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {applyingId === row.id ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Applying...
+                          </>
+                        ) : (
+                          "Apply"
+                        )}
+                      </button>
+                    ) : null}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTargetId(row.id)}
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors"
-                    title={`Delete ${row.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openManage(row)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                      title="Manage"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTargetId(row.id)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                      title={`Delete ${row.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
               ))}
@@ -542,20 +748,41 @@ export default function BusinessServicesLayout() {
                     <td className="p-3">{row.category}</td>
                     <td className="p-3 text-muted-foreground">{row.client}</td>
                     <td className="p-3 text-muted-foreground">{row.deadline}</td>
-                    <td className="p-3 whitespace-nowrap">{renderServiceStatus(row.status)}</td>
+                    <td className="p-3 whitespace-nowrap">{renderServiceStatus(row.status, (row as any).isApplied)}</td>
                     <td className="p-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setPublicDetailModalItem(row)}
+                          className="rounded bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer"
+                        >
+                          View
+                        </button>
+                        {(row as any).isApplied ? (
+                          <span className="inline-flex items-center justify-center border-2 border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase text-[9px] px-2 py-0.5 rounded tracking-wider transform -rotate-6 select-none">
+                            Applied
+                          </span>
+                        ) : ((row.status as any) === "Open" || row.status === "Active") ? (
+                          <button
+                            type="button"
+                            disabled={applyingId === row.id}
+                            onClick={() => handleApplyProject(row)}
+                            className="rounded bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 text-[10px] font-bold text-white transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            {applyingId === row.id ? "Applying..." : "Apply"}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => openManage(row)}
-                          className="rounded bg-primary px-3 py-1 text-[10px] font-bold text-white hover:bg-primary/90"
+                          className="rounded bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
                         >
                           {t.business.services.manage}
                         </button>
                         <button
                           type="button"
                           onClick={() => setDeleteTargetId(row.id)}
-                          className="rounded p-1 text-muted-foreground hover:text-rose-600 transition-colors"
+                          className="rounded p-1 text-muted-foreground hover:text-rose-600 transition-colors cursor-pointer"
                           title={`Delete ${row.id}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -792,7 +1019,7 @@ export default function BusinessServicesLayout() {
                 onClick={async () => {
                   setIsDeleting(true);
                   try {
-                    await axiosInstance.delete(`/api/technology/services/${deleteTargetId}`);
+                    await axiosInstance.delete(`/technology/services/${deleteTargetId}`);
                     toast.success("Service deleted successfully.");
                     setDeleteTargetId(null);
                     refresh();
@@ -816,6 +1043,144 @@ export default function BusinessServicesLayout() {
           </div>
         </div>
       )}
+
+      {/* Live Public Detail Modal */}
+      {publicDetailModalItem && (
+        <PublicDetailModal
+          open={Boolean(publicDetailModalItem)}
+          onClose={() => setPublicDetailModalItem(null)}
+          title={publicDetailModalItem.title || "Project Details"}
+          subtitle={publicDetailModalItem.category}
+          fields={[
+            { label: "Project ID", value: publicDetailModalItem.id },
+            { label: "Budget", value: publicDetailModalItem.budget || publicDetailModalItem.priceRange },
+            { label: "Duration / Deadline", value: publicDetailModalItem.deadline || "14 Days" },
+            {
+              label: "Languages & Skills",
+              value:
+                (publicDetailModalItem.skills && publicDetailModalItem.skills.length > 0
+                  ? publicDetailModalItem.skills.join(", ")
+                  : (publicDetailModalItem.languages && publicDetailModalItem.languages.length > 0
+                    ? publicDetailModalItem.languages.join(", ")
+                    : "JavaScript, TypeScript, React")),
+            },
+            { label: "Description", value: publicDetailModalItem.summary || "No description provided." },
+          ]}
+          footer={
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
+                onClick={() => setPublicDetailModalItem(null)}
+              >
+                Close
+              </button>
+              {(publicDetailModalItem as any)?.isApplied ? (
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Pending for Client Approval
+                </div>
+              ) : ((publicDetailModalItem as any)?.status === "Open" || (publicDetailModalItem as any)?.status === "Active") ? (
+                <button
+                  type="button"
+                  disabled={applyingId === publicDetailModalItem.id}
+                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary/90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  onClick={() => {
+                    const target = publicDetailModalItem;
+                    setPublicDetailModalItem(null);
+                    handleApplyProject(target);
+                  }}
+                >
+                  {applyingId === publicDetailModalItem.id ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Applying...
+                    </>
+                  ) : (
+                    "Apply to project"
+                  )}
+                </button>
+              ) : null}
+            </div>
+          }
+        />
+      )}
+
+      {/* Live Public Apply Proposal Modal */}
+      {applyModalItem && (
+        <PublicApplyModal
+          open={Boolean(applyModalItem)}
+          onClose={() => setApplyModalItem(null)}
+          type="technical"
+          itemId={String(applyModalItem.id)}
+          itemTitle={applyModalItem.title}
+          title="Apply to technical project"
+          description="Submit your proposal. The client and platform administrators will review your bid."
+        />
+      )}
+
+      {/* Business KYC Verification Required Modal */}
+      <AppModal
+        open={kycModalOpen}
+        onClose={() => setKycModalOpen(false)}
+        title="Verification Required"
+        description="Business Account Verification"
+        size="md"
+      >
+        <div className="flex flex-col items-center text-center space-y-4 py-2">
+          {/* Glowing Shield Badge */}
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/10">
+            <ShieldAlert className="h-8 w-8 text-amber-500" />
+          </div>
+
+          {/* Tag & Title */}
+          <div className="space-y-1 mt-0.5">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              &quot;Unverified&quot; Business Account
+            </span>
+            <h3 className="text-lg font-extrabold text-foreground tracking-tight pt-1">
+              Business KYC Verification Required
+            </h3>
+          </div>
+
+          {/* Main message */}
+          <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+            Please submit your Business KYC application to verify your company account before applying for client projects.
+          </p>
+
+          {/* Info Card */}
+          <div className="w-full rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 p-3.5 text-left text-xs space-y-1">
+            <p className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+              <ShieldAlert className="h-4 w-4 shrink-0" />
+              Identity &amp; Business Verification Required
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed pl-5">
+              To protect project milestones, escrow disbursements, and client quality standards, all business service providers must complete KYC identity verification prior to submitting project bids or applications.
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row w-full justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setKycModalOpen(false)}
+              className="rounded-lg border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer transition-colors w-full sm:w-auto min-w-[100px]"
+            >
+              OK
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setKycModalOpen(false);
+                router.push("/dashboard/business/profile");
+              }}
+              className="rounded-lg bg-primary hover:bg-primary/90 px-4 py-2 text-xs font-bold text-white cursor-pointer shadow-md transition-colors w-full sm:w-auto min-w-[140px]"
+            >
+              Apply for KYC
+            </button>
+          </div>
+        </div>
+      </AppModal>
     </div>
   );
 }

@@ -205,39 +205,6 @@ export default function AdminTechnicalProjectsManager() {
       } catch {}
     }
 
-    // Add User Notification & Activity Log
-    if (typeof window !== "undefined") {
-      try {
-        const notifKey = `app_notifs_${reviewProject.clientId}`;
-        const existingNotifs = JSON.parse(localStorage.getItem(notifKey) || "[]");
-        const newNotif = {
-          id: `notif-${Date.now()}`,
-          title: "Technical Project Approved",
-          description: `Your project "${reviewProject.title}" has been approved with quote $${b}. Ready for payment!`,
-          time: "Just now",
-          read: false,
-          href: "/dashboard/user/technical",
-          type: "project_approved",
-        };
-        localStorage.setItem(notifKey, JSON.stringify([newNotif, ...existingNotifs]));
-
-        const logKey = `activity_logs_${reviewProject.clientId}`;
-        const logs = JSON.parse(localStorage.getItem(logKey) || "[]");
-        const logItem = {
-          id: `log-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          title: `Technical Project Approved: "${reviewProject.title}"`,
-          description: `Admin approved quote of $${b} with ${commissionPercent}% commission.`,
-          category: "Technical Services",
-          type: "project_approved",
-        };
-        localStorage.setItem(logKey, JSON.stringify([logItem, ...logs]));
-
-        window.dispatchEvent(new Event("notifications_updated"));
-        window.dispatchEvent(new Event("activity_logs_updated"));
-      } catch {}
-    }
-
     try {
       await apiClient.post(`/technology/projects/${reviewProject.projectId}/admin-approve`, {
         adminBudget: b,

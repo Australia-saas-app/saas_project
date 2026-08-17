@@ -181,13 +181,6 @@ export class ProjectService {
       href: '/technical',
     });
 
-    // Trigger MongoDB Activity Log
-    this.triggerActivityLog({
-      action: 'PROJECT_SUBMITTED',
-      resource: `User submitted project: "${savedProject.title}" (${savedProject.projectId}) with budget $${savedProject.price || 0}`,
-      userId: createdBy,
-    });
-
     return savedProject;
   }
 
@@ -350,13 +343,6 @@ export class ProjectService {
       href: '/technical',
     });
 
-    // Trigger Activity Log
-    this.triggerActivityLog({
-      action: 'PROJECT_SUBMITTED',
-      resource: `User submitted project: "${project.title}" (${project.projectId}) with budget $${project.price || 0}`,
-      userId: clientId,
-    });
-
     return saved;
   }
 
@@ -405,12 +391,9 @@ export class ProjectService {
 
     // Notify Client that project has been quoted and approved
     const targetUserId = project.clientId || project.createdBy;
-    const targetUserIds = [targetUserId, project.clientEmail, project.clientId, project.createdBy].filter(Boolean) as string[];
-
     if (targetUserId) {
       this.triggerNotification({
         userId: targetUserId,
-        userIds: targetUserIds,
         type: 'TECHNICAL_PROJECT_APPROVED',
         title: 'Project Approved — Ready for Payment',
         message: `Admin approved "${project.title}" with a budget of ${project.currency || 'USD'} ${data.adminBudget}. Please pay to publish.`,
@@ -434,12 +417,9 @@ export class ProjectService {
     const saved = await this.projectRepository.save(project);
 
     const targetUserId = project.clientId || project.createdBy;
-    const targetUserIds = [targetUserId, project.clientEmail, project.clientId, project.createdBy].filter(Boolean) as string[];
-
     if (targetUserId) {
       this.triggerNotification({
         userId: targetUserId,
-        userIds: targetUserIds,
         type: 'TECHNICAL_PROJECT_REJECTED',
         title: 'Project Review Update',
         message: `Your project "${project.title}" was not approved: ${reason || 'Does not meet requirements'}.`,
@@ -788,20 +768,74 @@ export class ProjectService {
     const project = await this.projectRepository.findOne({ where: { projectId } });
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-    const existing = await this.proposalRepository.findOne({ where: { projectId: project.id, userId } });
-    if (existing) throw new ConflictException('Already submitted a proposal');
+    let existing = await this.proposalRepository.findOne({ where: { projectId: project.id, userId } });
+    if (existing) {
+      return existing;
+    }
 
-    return this.proposalRepository.save(
+    const savedProposal = await this.proposalRepository.save(
       this.proposalRepository.create({
         projectId: project.id,
         userId,
-        proposal: applyDto.proposal,
-        price: applyDto.price,
-        currency: applyDto.currency,
-        timeline: applyDto.timeline,
-        paymentType: applyDto.paymentType,
+        proposal: applyDto?.proposal || 'Submitted application for technical project.',
+        price: applyDto?.price || project.adminBudget || project.price || 0,
+        currency: applyDto?.currency || project.currency || 'USD',
+        timeline: applyDto?.timeline || '14 Days',
+        paymentType: applyDto?.paymentType || (project.paymentType as any) || 'fixed',
       }),
     );
+
+    // Notify client who created the project
+    const targetUserId = project.clientId || project.createdBy;
+    const businessDisplayName = (applyDto as any)?.businessName || (applyDto as any)?.userName || userId || 'Business Provider';
+
+    if (targetUserId) {
+      this.triggerNotification({
+        userId: targetUserId,
+        type: 'TECHNICAL_PROJECT_APPLIED',
+        title: 'New Project Application',
+        message: `${businessDisplayName} applied for project "${project.title}" (${project.projectId})`,
+        priority: 'high',
+        href: '/dashboard/user/technical',
+      });
+    }
+
+    // Also notify Admin
+    this.triggerNotification({
+      role: 'ADMIN',
+      type: 'TECHNICAL_PROJECT_APPLIED',
+      title: 'Business Applied for Project',
+      message: `${businessDisplayName} applied for project "${project.title}" (${project.projectId})`,
+      priority: 'medium',
+      href: '/admin/technical',
+    });
+
+    return savedProposal;
+  }
+
+  async findMyApplications(userId: string): Promise<any> {
+    const proposals = await this.proposalRepository.find({
+      where: { userId },
+      relations: ['project'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const projects = proposals.map((p) => {
+      const proj = p.project || {};
+      return {
+        ...proj,
+        isApplied: true,
+        appliedAt: p.createdAt,
+        proposalId: p.proposalId,
+        proposalPrice: p.price,
+      };
+    });
+
+    return {
+      appliedProjectIds: proposals.map((p) => p.project?.projectId).filter(Boolean),
+      proposals,
+      projects,
+    };
   }
 
   async findProposals(projectId: string, query: ProposalQueryDto): Promise<any> {

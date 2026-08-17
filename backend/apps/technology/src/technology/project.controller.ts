@@ -81,6 +81,15 @@ export class ProjectController {
     return this.projectService.findAll(query, undefined, { assignedTo: businessId });
   }
 
+  @Get('my-applications')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Business: list all projects I have applied to' })
+  async getMyApplications(@Req() req: any) {
+    const businessId = req.user?.userId || req.admin?.adminId || 'admin';
+    return this.projectService.findMyApplications(businessId);
+  }
+
   @Get(':projectId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')

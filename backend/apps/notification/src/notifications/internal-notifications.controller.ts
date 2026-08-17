@@ -23,22 +23,28 @@ export class InternalNotificationsController {
       href: data?.href,
     };
 
-    const ids = userIds || (userId ? [userId] : []);
+    const rawIds = Array.isArray(userIds) ? userIds : userId ? [userId] : [];
+    const uniqueIds = Array.from(new Set(rawIds.filter(Boolean)));
 
-    for (const id of ids) {
+    for (const id of uniqueIds) {
       await this.notificationsService.createNotification(
         { type, title, message, priority, data },
         id,
       );
     }
 
-    if (role || ids.length === 0) {
-      const targetRole = role || 'ADMIN';
+    if (role) {
       await this.notificationsService.createNotification(
         { type, title, message, priority, data },
         'admin',
       );
-      this.notificationsGateway.sendToRole(targetRole, payload);
+      this.notificationsGateway.sendToRole(role, payload);
+    } else if (uniqueIds.length === 0) {
+      await this.notificationsService.createNotification(
+        { type, title, message, priority, data },
+        'admin',
+      );
+      this.notificationsGateway.sendToRole('ADMIN', payload);
     }
 
     return { success: true };

@@ -373,14 +373,6 @@ export const createProject = async (payload: any, _token?: string) => {
   const existing = readLocalProjects();
   writeLocalProjects([createdProject, ...existing.filter((p) => p.projectId !== createdProject.projectId)]);
 
-  // Log activity in MongoDB & storage
-  recordActivityLog({
-    title: `User submitted project: "${createdProject.title}" (${createdProject.projectId})`,
-    description: `Submitted with budget $${Number(createdProject.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    category: "Technical Services",
-    type: "PROJECT_SUBMITTED",
-  });
-
   return { success: true, projectId: createdProject.projectId, data: createdProject };
 };
 
@@ -484,6 +476,26 @@ export const fetchAllProjects = async (_token?: string) => {
     console.warn("fetchAllProjects fallback:", e?.message || e);
   }
   return { projects: readLocalProjects() };
+};
+
+export const applyForProject = async (projectId: string, applyDto?: any) => {
+  try {
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/apply`, applyDto || {});
+    return res?.data;
+  } catch (e: any) {
+    console.warn("applyForProject fallback:", e?.message || e);
+  }
+  return { success: true };
+};
+
+export const fetchMyApplications = async () => {
+  try {
+    const res = await axiosInstance.get('/technology/projects/my-applications');
+    return res?.data;
+  } catch (e: any) {
+    console.warn("fetchMyApplications fallback:", e?.message || e);
+  }
+  return { appliedProjectIds: [], projects: [] };
 };
 
 export const submitProject = async (projectId: string, _token?: string) => {
@@ -602,26 +614,6 @@ export const payProject = async (projectId: string, _token?: string) => {
       category: "Technical Services",
       type: "PROJECT_PAID",
     });
-
-    // Record admin notification for real-time notification bell & toast
-    if (typeof window !== "undefined") {
-      try {
-        const notifItem = {
-          id: `notif-pay-${Date.now()}`,
-          title: "Project Payment Approved & Escrow Funded",
-          description: `Client paid $${totalVal.toLocaleString(undefined, { minimumFractionDigits: 2 })} into escrow for "${paidProject.title}" (${paidProject.projectId}). Project is now Active for Public.`,
-          time: "Just now",
-          read: false,
-          href: "/technical",
-          type: "TECHNICAL_PROJECT_PAID",
-        };
-        ["app_notifs_admin", "admin_notifications"].forEach((k) => {
-          const ex = JSON.parse(localStorage.getItem(k) || "[]");
-          localStorage.setItem(k, JSON.stringify([notifItem, ...ex]));
-        });
-        window.dispatchEvent(new Event("notifications_updated"));
-      } catch {}
-    }
   }
 
   try {

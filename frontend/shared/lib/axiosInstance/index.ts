@@ -74,6 +74,15 @@ axiosInstance.interceptors.response.use(
           }
         } catch (refreshError) {
           logger.warn("Token refresh failed", refreshError, "AxiosInstance");
+          if (typeof window !== "undefined") {
+            const pathname = window.location.pathname;
+            if (pathname.includes("/dashboard") || pathname.startsWith("/business") || pathname.startsWith("/affiliate") || pathname.startsWith("/user")) {
+              let rolePath = "user";
+              if (pathname.includes("/business")) rolePath = "business";
+              else if (pathname.includes("/affiliate")) rolePath = "affiliate";
+              window.location.href = `/account/${rolePath}/login?reason=session_expired`;
+            }
+          }
         }
       }
     }

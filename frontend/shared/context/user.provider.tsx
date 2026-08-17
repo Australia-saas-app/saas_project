@@ -130,14 +130,15 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
           window.location.pathname.startsWith("/admin") ||
           window.location.pathname.startsWith("/account/admin");
       
-      const accountType = ((user as any)?.accountType || (user as any)?.role || "user").toLowerCase();
+      const pathname = window.location.pathname;
+      const accountType = ((user as any)?.accountType || (user as any)?.role || "").toLowerCase();
       let targetPath = "/account/user/login?reason=inactivity";
       if (isAdminApp) {
         targetPath = "/account/admin/login?reason=inactivity";
-      } else if (accountType === "affiliate") {
-        targetPath = "/account/affiliate/login?reason=inactivity";
-      } else if (accountType === "business") {
+      } else if (pathname.includes("/dashboard/business") || pathname.startsWith("/business") || accountType === "business" || accountType === "seller") {
         targetPath = "/account/business/login?reason=inactivity";
+      } else if (pathname.includes("/dashboard/affiliate") || pathname.startsWith("/affiliate") || accountType === "affiliate") {
+        targetPath = "/account/affiliate/login?reason=inactivity";
       }
       window.location.href = targetPath;
     }

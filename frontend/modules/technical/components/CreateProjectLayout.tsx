@@ -12,7 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/form/label";
 import FileUpload from "@/src/components/form/FileUpload";
 import ReactSelectMulti from "@/src/components/form/ReactSelectMulti";
-import { createProject, submitProject } from "../services/technical.services";
+import { createProject } from "../services/technical.services";
 import { registerContact } from "@/src/shared/lib/contacts-store";
 import { useUser } from "@/src/context/user.provider";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
@@ -370,15 +370,11 @@ export default function CreateProjectLayout() {
       const created = await createProject(payload);
       const projectId = created?.data?.projectId || created?.projectId;
 
-      if (projectId) {
-        await submitProject(projectId);
-      }
-
       // Explicitly record activity log for project creation & submission
       try {
         await recordRealActivity(
           "SERVICE_CREATED",
-          `User created & submitted project: "${data.title}" (${projectId || "PRJ"}) - Budget: $${Number(data.budgetAmount || 0).toFixed(2)} USD`,
+          `Created & submitted project: "${data.title}" (${projectId || "PRJ"}) - Budget: $${Number(data.budgetAmount || 0).toFixed(2)} USD`,
           {
             userId: (user as any)?.id || (user as any)?.userId || (user as any)?.sub,
             name: clientFullName,

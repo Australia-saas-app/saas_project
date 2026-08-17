@@ -35,10 +35,14 @@ export function SessionSync() {
           window.location.hostname.startsWith("admin.") ||
           window.location.pathname.startsWith("/admin") ||
           window.location.pathname.startsWith("/account/admin"));
-      const roleStr = String((user as any)?.role || "").toLowerCase();
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+      const roleStr = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
       let rolePath = "user";
-      if (roleStr === "business" || roleStr === "seller") rolePath = "business";
-      if (roleStr === "affiliate") rolePath = "affiliate";
+      if (currentPath.includes("/dashboard/business") || currentPath.startsWith("/business") || roleStr === "business" || roleStr === "seller") {
+        rolePath = "business";
+      } else if (currentPath.includes("/dashboard/affiliate") || currentPath.startsWith("/affiliate") || roleStr === "affiliate") {
+        rolePath = "affiliate";
+      }
 
       const targetPath = isAdminApp ? `/account/admin/login?reason=${reason}` : `/account/${rolePath}/login?reason=${reason}`;
       window.location.href = targetPath;

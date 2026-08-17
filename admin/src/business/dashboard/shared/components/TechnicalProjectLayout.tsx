@@ -268,27 +268,6 @@ export default function TechnicalProjectLayout() {
             localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
           }
 
-          // Dispatch notification to user
-          const clientNotif = {
-            id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            title: "Project Approved — Ready for Payment",
-            message: `Admin approved "${selectedProject.title}" with a budget of ${selectedProject.currency || "USD"} ${b.toFixed(2)} (Total Due: $${totalAmount.toFixed(2)} USD). Please pay to publish.`,
-            time: "Just now",
-            read: false,
-            href: "/dashboard/user/technical",
-            type: "TECHNICAL_PROJECT_APPROVED",
-          };
-          const clientKeys = [
-            `app_notifs_${selectedProject.clientId}`,
-            `app_notifs_${selectedProject.clientEmail}`,
-            "app_notifs_user",
-          ].filter(Boolean) as string[];
-
-          clientKeys.forEach((k) => {
-            const ex = JSON.parse(localStorage.getItem(k) || "[]");
-            localStorage.setItem(k, JSON.stringify([clientNotif, ...ex]));
-          });
-          window.dispatchEvent(new Event("notifications_updated"));
         } catch {}
       }
 
@@ -328,28 +307,6 @@ export default function TechnicalProjectLayout() {
             );
             localStorage.setItem("platform_user_technical_projects", JSON.stringify(updated));
           }
-
-          // Dispatch notification to user
-          const clientNotif = {
-            id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            title: "Project Review Update",
-            message: `Your project "${selectedProject.title}" was not approved: ${adminNotesInput || "Does not meet requirements"}.`,
-            time: "Just now",
-            read: false,
-            href: "/dashboard/user/technical",
-            type: "TECHNICAL_PROJECT_REJECTED",
-          };
-          const clientKeys = [
-            `app_notifs_${selectedProject.clientId}`,
-            `app_notifs_${selectedProject.clientEmail}`,
-            "app_notifs_user",
-          ].filter(Boolean) as string[];
-
-          clientKeys.forEach((k) => {
-            const ex = JSON.parse(localStorage.getItem(k) || "[]");
-            localStorage.setItem(k, JSON.stringify([clientNotif, ...ex]));
-          });
-          window.dispatchEvent(new Event("notifications_updated"));
         } catch {}
       }
 
@@ -895,7 +852,20 @@ export default function TechnicalProjectLayout() {
                       <ShieldCheck className="h-4 w-4 text-amber-600" /> Admin Pricing &amp; Terms
                     </span>
                     {!isPending && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                          selectedProject.submissionStatus === "active" ||
+                          selectedProject.submissionStatus === "approved" ||
+                          selectedProject.submissionStatus === "accepted" ||
+                          selectedProject.submissionStatus === "completed"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 font-extrabold"
+                            : selectedProject.submissionStatus === "rejected"
+                            ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25 font-extrabold"
+                            : selectedProject.submissionStatus === "in_progress"
+                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25 font-extrabold"
+                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 font-extrabold"
+                        }`}
+                      >
                         Status: {selectedProject.submissionStatus}
                       </span>
                     )}
