@@ -63,7 +63,7 @@ export class ProjectService {
           body: JSON.stringify({
             userId: payload.userId,
             userIds: payload.userIds,
-            role: payload.userId || payload.userIds?.length ? undefined : 'ADMIN',
+            role: payload.role || (payload.userId || payload.userIds?.length ? undefined : 'ADMIN'),
             type: payload.type,
             title: payload.title,
             message: payload.message,
@@ -810,16 +810,6 @@ export class ProjectService {
       });
     }
 
-    // Also notify Admin
-    this.triggerNotification({
-      role: 'ADMIN',
-      type: 'TECHNICAL_PROJECT_APPLIED',
-      title: 'Business Applied for Project',
-      message: `${businessDisplayName} applied for project "${project.title}" (${project.projectId})`,
-      priority: 'medium',
-      href: '/admin/technical',
-    });
-
     return savedProposal;
   }
 
@@ -853,7 +843,12 @@ export class ProjectService {
         proposals
           .flatMap((p) => {
             const proj = p.project || projectMap.get(String(p.projectId));
-            return [proj?.projectId, proj?.id !== undefined ? String(proj.id) : undefined, String(p.projectId)];
+            return [
+              proj?.projectId,
+              proj?.id !== undefined ? String(proj.id) : undefined,
+              proj?.id !== undefined ? `PRJ-${proj.id}` : undefined,
+              String(p.projectId),
+            ];
           })
           .filter((id): id is string => Boolean(id)),
       ),

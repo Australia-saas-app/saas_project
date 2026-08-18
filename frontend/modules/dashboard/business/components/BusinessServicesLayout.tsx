@@ -114,7 +114,7 @@ export default function BusinessServicesLayout() {
       const [pubProjRes, assignedProjRes, myAppsRes, techServicesRes] = await Promise.all([
         fetchPublicProjects().catch(() => ({ projects: [] })),
         fetchAssignedProjects().catch(() => ({ projects: [] })),
-        fetchMyApplications().catch(() => ({ appliedProjectIds: [] })),
+        fetchMyApplications().catch(() => ({ appliedProjectIds: [] as string[], projects: [] as any[], proposals: [] as any[] })),
         axiosInstance.get('/technology/services').catch(() => null),
       ]);
 
@@ -128,7 +128,7 @@ export default function BusinessServicesLayout() {
 
       const publicProjects = Array.isArray(pubProjRes?.projects) ? pubProjRes.projects : [];
       const assignedProjects = Array.isArray(assignedProjRes?.projects) ? assignedProjRes.projects : [];
-      const appliedProjects = Array.isArray(myAppsRes?.projects) ? myAppsRes.projects : [];
+      const appliedProjects = Array.isArray((myAppsRes as any)?.projects) ? (myAppsRes as any).projects : [];
 
       const seenProjectIds = new Set<string>();
       const combinedProjects = [...appliedProjects, ...assignedProjects, ...publicProjects].filter((p: any) => {
@@ -256,6 +256,7 @@ export default function BusinessServicesLayout() {
     // If unverified, show KYC Verification Required modal
     if (!isVerified) {
       setApplyingId(null);
+      setPublicDetailModalItem(null);
       setKycModalOpen(true);
       return;
     }
@@ -277,16 +278,16 @@ export default function BusinessServicesLayout() {
         userName: businessFullName,
       });
     } catch (e: any) {
-      console.warn("applyForProject api error:", e);
+      console.error("applyForProject api error:", e);
     }
 
     const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub || "business_user";
     const appliedKey = `business_applied_projects_${uId}`;
     try {
       const existing = JSON.parse(localStorage.getItem(appliedKey) || "[]");
-      if (!existing.includes(row.id)) {
-        localStorage.setItem(appliedKey, JSON.stringify([...existing, row.id]));
-      }
+      const allIds = [row.id, row.rawProject?.projectId, String(row.rawProject?.id || ""), `PRJ-${row.rawProject?.id}`].filter(Boolean) as string[];
+      const merged = Array.from(new Set([...existing, ...allIds]));
+      localStorage.setItem(appliedKey, JSON.stringify(merged));
     } catch {}
 
     try {
@@ -1076,11 +1077,11 @@ export default function BusinessServicesLayout() {
                 <button
                   type="button"
                   disabled={applyingId === publicDetailModalItem.id}
-                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary/90 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                  onClick={() => {
+                  className="rounded-lg bg-primary px-5 py-2 text-xs font-bold text-white hover:bg-primary/90 cursor-pointer disabled:opacity-75 flex items-center gap-1.5 min-w-[140px] justify-center transition-all"
+                  onClick={async () => {
                     const target = publicDetailModalItem;
+                    await handleApplyProject(target);
                     setPublicDetailModalItem(null);
-                    handleApplyProject(target);
                   }}
                 >
                   {applyingId === publicDetailModalItem.id ? (

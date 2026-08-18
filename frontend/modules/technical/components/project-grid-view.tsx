@@ -57,14 +57,23 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
     };
   }, [user]);
 
-  const role = String((user as any)?.role || "").toLowerCase();
-  const isBusiness = role === "business" || role === "seller";
+  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
+  const isBusiness = Boolean(
+    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company" || (user as any)?.businessName)
+  );
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => {
         const pId = String(project.projectId || project.id);
-        const isApplied = isBusiness && (appliedIds.includes(pId) || appliedIds.includes(String(project.projectId)) || appliedIds.includes(String(project.id)));
+        const isApplied = Boolean(
+          isBusiness && (
+            appliedIds.includes(pId) ||
+            appliedIds.includes(String(project.projectId)) ||
+            appliedIds.includes(String(project.id)) ||
+            appliedIds.includes(`PRJ-${project.id}`)
+          )
+        );
 
         return (
           <article
@@ -167,16 +176,48 @@ export function useTechnicalProjectModal() {
   const { user } = useUser();
   const router = useRouter();
 
-  const role = String((user as any)?.role || "").toLowerCase();
-  const isBusiness = role === "business" || role === "seller";
+  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
+  const isBusiness = Boolean(
+    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company" || (user as any)?.businessName)
+  );
   const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
   const appliedKey = uId ? `business_applied_projects_${uId}` : null;
+
+  const [appliedModalIds, setAppliedModalIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const update = async () => {
+      if (!uId) {
+        setAppliedModalIds([]);
+        return;
+      }
+      try {
+        const local = appliedKey ? JSON.parse(localStorage.getItem(appliedKey) || "[]") : [];
+        const res = await fetchMyApplications();
+        const dbIds = Array.isArray(res?.appliedProjectIds) ? res.appliedProjectIds : [];
+        const merged = Array.from(new Set([...local, ...dbIds]));
+        setAppliedModalIds(merged);
+        if (appliedKey && dbIds.length > 0) {
+          localStorage.setItem(appliedKey, JSON.stringify(merged));
+        }
+      } catch {}
+    };
+    update();
+    window.addEventListener("applied_projects_updated", update);
+    window.addEventListener("storage", update);
+    return () => {
+      window.removeEventListener("applied_projects_updated", update);
+      window.removeEventListener("storage", update);
+    };
+  }, [uId, appliedKey]);
+
   const isApplied = Boolean(
     isBusiness &&
-      selected &&
-      appliedKey &&
-      typeof window !== "undefined" &&
-      JSON.parse(localStorage.getItem(appliedKey) || "[]").includes(String(selected.projectId || (selected as any).id))
+      selected && (
+        appliedModalIds.includes(String(selected.projectId)) ||
+        appliedModalIds.includes(String((selected as any).id)) ||
+        appliedModalIds.includes(`PRJ-${(selected as any).id}`)
+      )
   );
 
   const handleApply = async () => {
@@ -251,14 +292,16 @@ export function useTechnicalProjectModal() {
           userName: businessFullName,
         });
       } catch (e: any) {
-        console.warn("applyForProject api error:", e);
+        console.error("applyForProject api error:", e);
       }
+
+      const allIds = [pId, selected.projectId, String((selected as any).id), `PRJ-${(selected as any).id}`].filter(Boolean) as string[];
+      setAppliedModalIds((prev) => Array.from(new Set([...prev, ...allIds])));
 
       if (appliedKey && typeof window !== "undefined") {
         try {
           const existing = JSON.parse(localStorage.getItem(appliedKey) || "[]");
-          const idsToAdd = [pId, selected.projectId, String((selected as any).id)].filter(Boolean);
-          const merged = Array.from(new Set([...existing, ...idsToAdd]));
+          const merged = Array.from(new Set([...existing, ...allIds]));
           localStorage.setItem(appliedKey, JSON.stringify(merged));
         } catch {}
       }

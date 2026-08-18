@@ -483,19 +483,26 @@ export const applyForProject = async (projectId: string, applyDto?: any) => {
     const res = await axiosInstance.post(`/technology/projects/${projectId}/apply`, applyDto || {});
     return res?.data;
   } catch (e: any) {
-    console.warn("applyForProject fallback:", e?.message || e);
+    console.error("applyForProject API error:", e?.response?.data || e?.message || e);
+    throw e;
   }
-  return { success: true };
 };
 
 export const fetchMyApplications = async () => {
   try {
     const res = await axiosInstance.get('/technology/projects/my-applications');
-    return res?.data;
+    if (res?.data) {
+      const data = res.data?.data || res.data;
+      return {
+        appliedProjectIds: Array.isArray(data?.appliedProjectIds) ? data.appliedProjectIds : [],
+        projects: Array.isArray(data?.projects) ? data.projects : [],
+        proposals: Array.isArray(data?.proposals) ? data.proposals : [],
+      };
+    }
   } catch (e: any) {
-    console.warn("fetchMyApplications fallback:", e?.message || e);
+    console.warn("fetchMyApplications fallback:", e?.response?.data || e?.message || e);
   }
-  return { appliedProjectIds: [], projects: [] };
+  return { appliedProjectIds: [], projects: [], proposals: [] };
 };
 
 export const submitProject = async (projectId: string, _token?: string) => {

@@ -90,14 +90,15 @@ export class UnifiedAuthGuard implements CanActivate {
 
     // Try verifying as User token
     try {
-      const payload = verify(token, this.publicKey, {
+      const payload: any = verify(token, this.publicKey, {
         algorithms: ['RS256'],
-      }) as AccessTokenPayload;
+      });
 
-      if (payload && payload.userId) {
+      const extractedUserId = payload?.userId || payload?.sub || payload?.id;
+      if (extractedUserId) {
         (request as any).user = {
-          userId: payload.userId,
-          accountType: payload.accountType,
+          userId: String(extractedUserId),
+          accountType: payload.accountType || payload.role || 'business',
           sessionId: payload.sessionId,
         };
         return true;

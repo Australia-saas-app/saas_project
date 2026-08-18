@@ -21,6 +21,7 @@ import UniversalSearch from "@/src/modules/shared/components/search/UniversalSea
 import ServicesMegaMenu from "@/src/modules/shared/components/search/ServicesMegaMenu";
 import { PRIMARY_NAV } from "@/src/shared/constants/mega-menu";
 import { logout } from "@/src/shared/server/AuthService";
+import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
 
 const iconButtonClass =
   "relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary";
@@ -262,14 +263,20 @@ export default function Header() {
                 </>
               )}
 
-              <Link
-                href={noticesHref}
-                className={`hidden sm:inline-flex ${iconButtonClass}`}
-                title="Notifications"
-                aria-label="Notifications"
-              >
-                <Bell className="h-[18px] w-[18px]" />
-              </Link>
+              {user ? (
+                <div className="inline-flex items-center">
+                  <NotificationBell viewAllHref={noticesHref} />
+                </div>
+              ) : (
+                <Link
+                  href={noticesHref}
+                  className={`hidden sm:inline-flex ${iconButtonClass}`}
+                  title="Notifications"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-[18px] w-[18px]" />
+                </Link>
+              )}
 
               {isLoading ? (
                 <Spinner size={18} label={t.common.header.checkingSession} />
