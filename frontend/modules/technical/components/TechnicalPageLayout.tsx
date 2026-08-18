@@ -8,6 +8,7 @@ import { SearchInput } from "@/src/components/form/search-input";
 import { Button } from "@/src/components/ui/button";
 import { Pagination } from "@/src/components/ui/pagination";
 import { useLocale } from "@/src/shared/context/locale.provider";
+import { useUser } from "@/src/context/user.provider";
 import { usePermission } from "@/src/hooks/permission.hook";
 import { useRequireAuth } from "@/src/shared/hooks/use-require-auth";
 import { DEFAULT_TECHNICAL_FILTERS } from "../constants/technical-filter.constants";
@@ -18,15 +19,21 @@ import { ProjectGridView, useTechnicalProjectModal } from "./project-grid-view";
 import { ProjectListView } from "./project-list-view";
 import { fetchPublicProjects } from "../services/technical.services";
 import UserProjectsPage from "./UserProjectsPage";
+import BusinessServicesLayout from "@/src/modules/dashboard/business/components/BusinessServicesLayout";
 
 const PAGE_SIZE = 9;
 
 export default function TechnicalPageLayout() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
+  const { user } = useUser();
   const { t } = useLocale();
   const { isBusiness } = usePermission();
-  const createProjectHref = isBusiness
+  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
+  const isBusinessUser = Boolean(
+    isBusiness || rawRole === "business" || rawRole === "seller" || rawRole === "company" || (user as any)?.businessName
+  );
+  const createProjectHref = isBusinessUser
     ? "/business/technical/create"
     : "/user/technical/create";
   
@@ -230,7 +237,8 @@ export default function TechnicalPageLayout() {
                   variant={activeTab === "my-projects" ? "default" : "outline"}
                   onClick={() => {
                     if (!isAuthenticated) {
-                      router.push(`/account/user/login?redirect=${encodeURIComponent("/technical")}`);
+                      const loginPath = isBusinessUser ? "/account/business/login" : "/account/user/login";
+                      router.push(`${loginPath}?redirect=${encodeURIComponent("/technical")}`);
                       return;
                     }
                     setActiveTab("my-projects");
@@ -316,7 +324,7 @@ export default function TechnicalPageLayout() {
 
         {activeTab === "my-projects" ? (
           <div className="p-4 md:p-8">
-            <UserProjectsPage />
+            {isBusinessUser ? <BusinessServicesLayout /> : <UserProjectsPage />}
           </div>
         ) : (
           <>

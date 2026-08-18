@@ -22,10 +22,10 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
   const { t } = useLocale();
   const { user } = useUser();
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
+  const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
 
   useEffect(() => {
     const updateApplied = async () => {
-      const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
       if (!uId) {
         setAppliedIds([]);
         return;
@@ -40,8 +40,10 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
         const dbIds: string[] = Array.isArray(res?.appliedProjectIds) ? res.appliedProjectIds : [];
         const merged = Array.from(new Set([...storageIds, ...dbIds]));
         setAppliedIds(merged);
-        if (dbIds.length > 0) {
-          localStorage.setItem(`business_applied_projects_${uId}`, JSON.stringify(merged));
+        const currentStr = localStorage.getItem(`business_applied_projects_${uId}`);
+        const newStr = JSON.stringify(merged);
+        if (dbIds.length > 0 && currentStr !== newStr) {
+          localStorage.setItem(`business_applied_projects_${uId}`, newStr);
         }
       } catch {
         setAppliedIds(storageIds);
@@ -50,12 +52,10 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
 
     updateApplied();
     window.addEventListener("applied_projects_updated", updateApplied);
-    window.addEventListener("storage", updateApplied);
     return () => {
       window.removeEventListener("applied_projects_updated", updateApplied);
-      window.removeEventListener("storage", updateApplied);
     };
-  }, [user]);
+  }, [uId]);
 
   const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
   const isBusiness = Boolean(
@@ -198,16 +198,18 @@ export function useTechnicalProjectModal() {
         const merged = Array.from(new Set([...local, ...dbIds]));
         setAppliedModalIds(merged);
         if (appliedKey && dbIds.length > 0) {
-          localStorage.setItem(appliedKey, JSON.stringify(merged));
+          const cur = localStorage.getItem(appliedKey);
+          const next = JSON.stringify(merged);
+          if (cur !== next) {
+            localStorage.setItem(appliedKey, next);
+          }
         }
       } catch {}
     };
     update();
     window.addEventListener("applied_projects_updated", update);
-    window.addEventListener("storage", update);
     return () => {
       window.removeEventListener("applied_projects_updated", update);
-      window.removeEventListener("storage", update);
     };
   }, [uId, appliedKey]);
 

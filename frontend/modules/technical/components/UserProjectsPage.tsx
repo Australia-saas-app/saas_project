@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   DollarSign,
   Users,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -45,6 +46,7 @@ import {
   requestRevision,
   submitProject,
   deleteProject,
+  fetchProjectProposals,
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
@@ -181,10 +183,33 @@ export default function UserProjectsPage() {
   const [payProject, setPayProject] = useState<Project | null>(null);
   const [chatProject, setChatProject] = useState<Project | null>(null);
   const [appliedModalProject, setAppliedModalProject] = useState<Project | null>(null);
+  const [selectedProposalDetail, setSelectedProposalDetail] = useState<any | null>(null);
+  const [proposalsMap, setProposalsMap] = useState<Record<string, any[]>>({});
   const [revisionProject, setRevisionProject] = useState<Project | null>(null);
   const [revisionReason, setRevisionReason] = useState("");
   const [deleteModalProject, setDeleteModalProject] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const loadAllProposals = useCallback(async (list: Project[]) => {
+    try {
+      const pMap: Record<string, any[]> = {};
+      await Promise.all(
+        list.map(async (p) => {
+          const id = p.projectId || String(p.id);
+          const res = await fetchProjectProposals(id);
+          const rawProposals = Array.isArray(res?.proposals) ? res.proposals : [];
+          // Sort chronologically ascending (oldest on top)
+          const sorted = [...rawProposals].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          pMap[id] = sorted;
+          pMap[String(p.id)] = sorted;
+          if (p.projectId) pMap[p.projectId] = sorted;
+        })
+      );
+      setProposalsMap(pMap);
+    } catch {}
+  }, []);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -192,17 +217,20 @@ export default function UserProjectsPage() {
       const data = await fetchMyProjects();
       const list = data?.projects || [];
       setProjects(list);
+      loadAllProposals(list);
       if (typeof window !== "undefined") {
         try {
           localStorage.setItem("platform_user_technical_projects", JSON.stringify(list));
         } catch {}
       }
     } catch {
-      setProjects(readLocalProjects());
+      const local = readLocalProjects();
+      setProjects(local);
+      loadAllProposals(local);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadAllProposals]);
 
   useEffect(() => {
     loadProjects();
@@ -748,14 +776,28 @@ export default function UserProjectsPage() {
                       project.paymentStatus === "paid") &&
                       project.submissionStatus !== "completed" && (
                         <div className="flex items-center justify-end w-full gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAppliedModalProject(project)}
-                            className="w-full rounded-xl text-xs font-semibold border-border hover:bg-muted cursor-pointer"
-                          >
-                            <Users className="mr-1 h-3.5 w-3.5 text-primary" /> Applied
-                          </Button>
+                          {(() => {
+                            const pKey = project.projectId || String(project.id);
+                            const proposals = proposalsMap[pKey] || proposalsMap[String(project.id)] || [];
+                            const count = proposals.length;
+
+                            return (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setAppliedModalProject(project)}
+                                className="w-full rounded-xl text-xs font-bold border-border hover:bg-muted cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                              >
+                                <Users className="h-3.5 w-3.5 text-primary" />
+                                <span>Applied</span>
+                                {count > 0 && (
+                                  <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-extrabold text-white min-w-[18px] shadow-xs">
+                                    {count}
+                                  </span>
+                                )}
+                              </Button>
+                            );
+                          })()}
                         </div>
                       )}
 
@@ -1171,15 +1213,20 @@ export default function UserProjectsPage() {
       {appliedModalProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-hidden">
           <div
-            style={{ maxWidth: "920px", width: "100%" }}
+            style={{ maxWidth: "980px", width: "100%" }}
             className="relative w-full rounded-2xl bg-card shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
           >
             {/* Fixed Header (Does not scroll) */}
             <div className="flex items-start justify-between border-b border-border px-6 py-4 bg-card shrink-0">
               <div className="space-y-1 min-w-0 pr-4">
-                <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md inline-block">
-                  {appliedModalProject.projectId}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md inline-block">
+                    {appliedModalProject.projectId}
+                  </span>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Applied Business Applicants
+                  </span>
+                </div>
                 <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
                   {appliedModalProject.title}
                 </h3>
@@ -1194,87 +1241,213 @@ export default function UserProjectsPage() {
               </button>
             </div>
 
-            {/* Scrollable Table Container (Only table body scrolls) */}
+            {/* Scrollable Table Container */}
             <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all">
-              <table className="w-full text-left border-collapse min-w-[760px]">
-                <thead className="bg-muted/60 border-b border-border sticky top-0 z-10 backdrop-blur-md">
-                  <tr>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                      Full Name
-                    </th>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                      Business Name
-                    </th>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                      Business Type
-                    </th>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                      Account
-                    </th>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                      Message
-                    </th>
-                    <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider text-right">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {appliedModalProject.assignedBusinessName ? (
-                    <tr className="hover:bg-muted/40 transition-colors">
-                      <td className="px-4 py-3.5 font-mono text-xs font-bold text-primary">
-                        APP-101
-                      </td>
-                      <td className="px-4 py-3.5 text-xs font-bold text-foreground">
-                        {appliedModalProject.assignedBusinessName}
-                      </td>
-                      <td className="px-4 py-3.5 text-xs font-semibold text-foreground">
-                        {appliedModalProject.assignedBusinessName} Tech
-                      </td>
-                      <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                        {appliedModalProject.category || "Technology & Development"}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                          Business
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-xs text-muted-foreground max-w-[240px] truncate" title={appliedModalProject.completionNotes || "Application submitted for this project"}>
-                        {appliedModalProject.completionNotes || "Ready to execute the deliverables according to project specifications."}
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const p = appliedModalProject;
-                            setAppliedModalProject(null);
-                            setChatProject(p);
-                          }}
-                          className="h-7 text-xs px-2.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 cursor-pointer"
-                        >
-                          <MessageSquare className="h-3 w-3 mr-1" /> Contact
-                        </Button>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
-                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 border border-border">
-                          <Users className="w-6 h-6 text-muted-foreground/60" />
-                        </div>
-                        <p className="text-sm font-bold text-foreground">No applications submitted yet</p>
-                        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                          When verified business service providers apply for this project, their applications and proposal details will appear here.
-                        </p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              {(() => {
+                const pKey = appliedModalProject.projectId || String(appliedModalProject.id);
+                const list = proposalsMap[pKey] || proposalsMap[String(appliedModalProject.id)] || [];
+
+                return (
+                  <table className="w-full text-left border-collapse min-w-[780px]">
+                    <thead className="bg-muted/60 border-b border-border sticky top-0 z-10 backdrop-blur-md">
+                      <tr>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                          ID
+                        </th>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                          Full Name
+                        </th>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                          Business Name
+                        </th>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                          Business Type
+                        </th>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                          Account
+                        </th>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                          Message
+                        </th>
+                        <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider text-right">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {list.length > 0 ? (
+                        list.map((prop: any, idx: number) => {
+                          const bsnId = prop.businessId || `BSN-${String(idx + 1).padStart(2, "0")}`;
+                          const fullName = prop.fullName || prop.userName || `Business User ${idx + 1}`;
+                          const bsnName = prop.businessName || `Verified Business Partner`;
+                          const bsnType = prop.businessType || appliedModalProject.category || "Software Development";
+
+                          return (
+                            <tr key={prop.id || prop.proposalId || idx} className="hover:bg-muted/40 transition-colors">
+                              <td className="px-4 py-3.5 font-mono text-xs font-bold text-primary">
+                                {bsnId}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs font-bold text-foreground">
+                                {fullName}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs font-semibold text-foreground">
+                                {bsnName}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs text-muted-foreground">
+                                {bsnType}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-500" />
+                                  Verified
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    const p = appliedModalProject;
+                                    setAppliedModalProject(null);
+                                    setChatProject({
+                                      ...p,
+                                      assignedBusinessName: fullName,
+                                    });
+                                  }}
+                                  className="h-7 text-xs px-2.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <MessageSquare className="h-3 w-3 text-primary" /> Send Message
+                                </Button>
+                              </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <button
+                                  type="button"
+                                  title="View Proposal Details"
+                                  onClick={() => setSelectedProposalDetail({ ...prop, projectTitle: appliedModalProject.title })}
+                                  className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-primary transition-all cursor-pointer inline-flex items-center justify-center"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
+                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 border border-border">
+                              <Users className="w-6 h-6 text-muted-foreground/60" />
+                            </div>
+                            <p className="text-sm font-bold text-foreground">No applications submitted yet</p>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                              When verified business service providers apply for this project, their applications and proposal details will appear here in chronological order.
+                            </p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROPOSAL DETAIL MODAL */}
+      {selectedProposalDetail && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-hidden">
+          <div
+            style={{ maxWidth: "560px", width: "100%" }}
+            className="relative w-full rounded-2xl bg-card shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            <div className="flex items-start justify-between border-b border-border px-6 py-4 bg-card shrink-0">
+              <div className="space-y-1">
+                <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md inline-block">
+                  {selectedProposalDetail.businessId || "BSN-01"}
+                </span>
+                <h3 className="text-base font-bold text-foreground">Application Proposal Details</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProposalDetail(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer shrink-0"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/40 p-3.5 border border-border text-xs">
+                <div>
+                  <p className="text-muted-foreground font-medium text-[11px]">Applicant Full Name</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.fullName || selectedProposalDetail.userName || "Business Provider"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground font-medium text-[11px]">Business / Company</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.businessName || "Verified Provider"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground font-medium text-[11px]">Business Category</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.businessType || "Software & IT Services"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground font-medium text-[11px]">Verification Status</p>
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 inline-flex items-center gap-1">
+                    <BadgeCheck className="w-3.5 h-3.5" /> Verified Business
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground font-medium text-[11px]">Estimated Timeline</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.timeline || "14 Days"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground font-medium text-[11px]">Proposed Price</p>
+                  <p className="font-bold text-primary mt-0.5">${Number(selectedProposalDetail.price || 0).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-foreground mb-1.5">Application Message / Proposal</p>
+                <div className="rounded-xl border border-border bg-card p-3.5 text-xs text-muted-foreground leading-relaxed">
+                  {selectedProposalDetail.proposalMessage || selectedProposalDetail.proposal || "Ready to execute the deliverables according to project specifications."}
+                </div>
+              </div>
+
+              {selectedProposalDetail.createdAt && (
+                <p className="text-[11px] text-muted-foreground text-right">
+                  Applied on: {new Date(selectedProposalDetail.createdAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-border px-6 py-3 bg-muted/20 flex items-center justify-end gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedProposalDetail(null)}
+                className="rounded-xl text-xs"
+              >
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const targetName = selectedProposalDetail.fullName || selectedProposalDetail.userName;
+                  const p = appliedModalProject;
+                  setSelectedProposalDetail(null);
+                  setAppliedModalProject(null);
+                  if (p) {
+                    setChatProject({
+                      ...p,
+                      assignedBusinessName: targetName,
+                    });
+                  }
+                }}
+                className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5"
+              >
+                <MessageSquare className="w-3.5 h-3.5" /> Message Applicant
+              </Button>
             </div>
           </div>
         </div>

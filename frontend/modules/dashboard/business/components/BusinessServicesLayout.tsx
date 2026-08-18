@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -94,6 +94,7 @@ export default function BusinessServicesLayout() {
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const isInitialLoadRef = useRef(true);
   const [newService, setNewService] = useState({
     category: "Technical",
     client: "",
@@ -101,8 +102,10 @@ export default function BusinessServicesLayout() {
     deadline: "",
   });
 
-  const load = async () => {
-    setIsLoading(true);
+  const load = async (showSpinner = false) => {
+    if (showSpinner || isInitialLoadRef.current) {
+      setIsLoading(true);
+    }
     try {
       const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
       const appliedKey = uId ? `business_applied_projects_${uId}` : null;
@@ -124,7 +127,11 @@ export default function BusinessServicesLayout() {
       const appliedIds = Array.from(new Set([...storageAppliedIds, ...dbAppliedIds]));
       if (appliedKey && typeof window !== "undefined" && dbAppliedIds.length > 0) {
         try {
-          localStorage.setItem(appliedKey, JSON.stringify(appliedIds));
+          const currentStorage = localStorage.getItem(appliedKey);
+          const newStorage = JSON.stringify(appliedIds);
+          if (currentStorage !== newStorage) {
+            localStorage.setItem(appliedKey, newStorage);
+          }
         } catch {}
       }
 
@@ -206,22 +213,23 @@ export default function BusinessServicesLayout() {
     } catch (err: any) {
       console.warn("Failed to fetch services:", err?.message || err);
     } finally {
+      isInitialLoadRef.current = false;
       setIsLoading(false);
     }
   };
 
+  const currentUserId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
+
   useEffect(() => {
-    load();
-    const handleUpdate = () => load();
+    load(true);
+    const handleUpdate = () => load(false);
     window.addEventListener("applied_projects_updated", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
     return () => {
       window.removeEventListener("applied_projects_updated", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
     };
-  }, [user]);
+  }, [currentUserId]);
 
-  const refresh = () => load();
+  const refresh = () => load(true);
 
   const handleApplyProject = async (row: any) => {
     setApplyingId(row.id);

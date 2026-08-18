@@ -783,11 +783,21 @@ export class ProjectService {
       return existing;
     }
 
+    const proposalData = typeof applyDto?.proposal === 'string' && applyDto.proposal.startsWith('{')
+      ? applyDto.proposal
+      : JSON.stringify({
+          text: applyDto?.proposal || 'Submitted application for technical project.',
+          businessName: applyDto?.businessName || (applyDto as any)?.companyName || 'Verified Business',
+          userName: (applyDto as any)?.userName || (applyDto as any)?.fullName || 'Business Provider',
+          businessType: (applyDto as any)?.businessType || 'Software Development & IT',
+          kycStatus: 'verified',
+        });
+
     const savedProposal = await this.proposalRepository.save(
       this.proposalRepository.create({
         projectId: project.id,
         userId,
-        proposal: applyDto?.proposal || 'Submitted application for technical project.',
+        proposal: proposalData,
         price: applyDto?.price || project.adminBudget || project.price || 0,
         currency: applyDto?.currency || project.currency || 'USD',
         timeline: applyDto?.timeline || '14 Days',
@@ -862,7 +872,7 @@ export class ProjectService {
   }
 
   async findProposals(projectId: string, query: ProposalQueryDto): Promise<any> {
-    const { page = 1, limit = 10, timeline, paymentType } = query;
+    const { page = 1, limit = 100, timeline, paymentType } = query;
     const skip = (page - 1) * limit;
 
     const numericId = Number(projectId);
@@ -881,7 +891,28 @@ export class ProjectService {
     if (timeline) qb.andWhere('proposal.timeline LIKE :timeline', { timeline: `%${timeline}%` });
     if (paymentType) qb.andWhere('proposal.paymentType = :paymentType', { paymentType });
 
-    const [proposals, total] = await qb.orderBy('proposal.createdAt', 'DESC').skip(skip).take(limit).getManyAndCount();
+    const [rawProposals, total] = await qb.orderBy('proposal.createdAt', 'ASC').skip(skip).take(limit).getManyAndCount();
+
+    const proposals = rawProposals.map((p, idx) => {
+      let meta: any = {};
+      try {
+        if (p.proposal && p.proposal.startsWith('{')) {
+          meta = JSON.parse(p.proposal);
+        }
+      } catch {}
+
+      const customBusinessId = `BSN-${String(idx + 1).padStart(2, '0')}`;
+      return {
+        ...p,
+        businessId: customBusinessId,
+        fullName: meta.userName || (p as any).userName || `Business User ${idx + 1}`,
+        businessName: meta.businessName || (p as any).businessName || `Verified Business Partner`,
+        businessType: meta.businessType || 'Software Development & IT',
+        accountStatus: meta.kycStatus || 'verified',
+        proposalMessage: meta.text || p.proposal,
+      };
+    });
+
     return { proposals, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
   }
 

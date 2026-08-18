@@ -505,6 +505,20 @@ export const fetchMyApplications = async () => {
   return { appliedProjectIds: [], projects: [], proposals: [] };
 };
 
+export const fetchProjectProposals = async (projectId: string) => {
+  try {
+    const res = await axiosInstance.get(`/technology/projects/${projectId}/proposals`);
+    if (res?.data) {
+      const data = res.data?.data || res.data;
+      const proposals = Array.isArray(data?.proposals) ? data.proposals : Array.isArray(data) ? data : [];
+      return { proposals, total: data?.pagination?.total ?? proposals.length };
+    }
+  } catch (e: any) {
+    console.warn(`fetchProjectProposals for ${projectId} fallback:`, e?.response?.data || e?.message || e);
+  }
+  return { proposals: [], total: 0 };
+};
+
 export const submitProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   const target = local.find((p) => p.projectId === projectId);
