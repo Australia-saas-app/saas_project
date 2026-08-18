@@ -238,7 +238,7 @@ export function useTechnicalProjectModal() {
     // 1. Check business KYC verification status with spinner active
     let isVerified = false;
     try {
-      const res = await axiosInstance.get("/users/me").catch(() => null);
+      const res = await axiosInstance.get("/sso/auth/me").catch(() => null);
       const latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
       const kyc = String(latestUser?.kycStatus || (user as any)?.kycStatus || "").toLowerCase();
       const st = String(latestUser?.status || (user as any)?.status || "").toLowerCase();
@@ -288,6 +288,9 @@ export function useTechnicalProjectModal() {
         await applyForProject(pId, {
           proposal: `Business application for project "${selected.title}"`,
           price: parseFloat(String(selected.priceRange || "").replace(/[^0-9.]/g, "")) || 0,
+          currency: "USD",
+          timeline: "14 Days",
+          paymentType: "one-time",
           businessName: businessFullName,
           userName: businessFullName,
         });

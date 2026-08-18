@@ -95,6 +95,7 @@ export default function WalletFinancePanel() {
   const { userId, isDemo, isReady } = useIsDemoAccount();
   const [tab, setTab] = useState<TabId>("overview");
   const [rows, setRows] = useState<WalletLedgerRecord[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(true);
   const [depositOpen, setDepositOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [slipOpen, setSlipOpen] = useState(false);
@@ -143,7 +144,11 @@ export default function WalletFinancePanel() {
   }, [depositOpen, user]);
 
   const refresh = async () => {
-    if (!userId) return;
+    if (!userId) {
+      setLoadingRecords(false);
+      return;
+    }
+    setLoadingRecords(true);
     try {
       const res = await fetchWalletTransactions();
       const rawList = Array.isArray(res)
@@ -175,6 +180,8 @@ export default function WalletFinancePanel() {
       }
     } catch {
       // fallback to stored/demo
+    } finally {
+      setLoadingRecords(false);
     }
 
     const stored = getLedgerForUser(userId);
@@ -187,6 +194,7 @@ export default function WalletFinancePanel() {
       : [];
     const ids = new Set(stored.map((r) => r.id));
     setRows([...stored, ...demo.filter((r) => !ids.has(r.id))]);
+    setLoadingRecords(false);
   };
 
   useEffect(() => {
@@ -441,7 +449,18 @@ export default function WalletFinancePanel() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loadingRecords ? (
+              <tr>
+                <td colSpan={6} className="p-10 text-center">
+                  <div className="flex items-center justify-center">
+                    <div className="relative flex items-center justify-center">
+                      <div className="h-9 w-9 rounded-full border-[2.5px] border-primary/20" />
+                      <div className="absolute h-9 w-9 rounded-full border-[2.5px] border-transparent border-t-primary border-r-primary animate-spin" />
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-4">
                   <EmptyState

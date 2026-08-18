@@ -93,6 +93,7 @@ export default function BusinessServicesLayout() {
   const [applyModalItem, setApplyModalItem] = useState<any | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [kycModalOpen, setKycModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [newService, setNewService] = useState({
     category: "Technical",
     client: "",
@@ -101,6 +102,7 @@ export default function BusinessServicesLayout() {
   });
 
   const load = async () => {
+    setIsLoading(true);
     try {
       const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
       const appliedKey = uId ? `business_applied_projects_${uId}` : null;
@@ -203,6 +205,8 @@ export default function BusinessServicesLayout() {
       setServices(Array.from(projectMap.values()));
     } catch (err: any) {
       console.warn("Failed to fetch services:", err?.message || err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -225,7 +229,7 @@ export default function BusinessServicesLayout() {
     // 1. Check business KYC verification status with spinner active
     let isVerified = false;
     try {
-      const res = await axiosInstance.get("/users/me").catch(() => null);
+      const res = await axiosInstance.get("/sso/auth/me").catch(() => null);
       const latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
       const kyc = String(latestUser?.kycStatus || (user as any)?.kycStatus || "").toLowerCase();
       const st = String(latestUser?.status || (user as any)?.status || "").toLowerCase();
@@ -274,6 +278,9 @@ export default function BusinessServicesLayout() {
       await applyForProject(row.id, {
         proposal: `Business application for project "${row.title}"`,
         price: parseFloat(String(row.budget || "").replace(/[^0-9.]/g, "")) || 0,
+        currency: "USD",
+        timeline: "14 Days",
+        paymentType: "one-time",
         businessName: businessFullName,
         userName: businessFullName,
       });
@@ -632,7 +639,14 @@ export default function BusinessServicesLayout() {
           </div>
         </div>
 
-        {viewMode === "grid" ? (
+        {isLoading ? (
+          <div className="flex min-h-[380px] w-full items-center justify-center py-16">
+            <div className="relative flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full border-[3px] border-primary/20" />
+              <div className="absolute h-12 w-12 rounded-full border-[3px] border-transparent border-t-primary border-r-primary animate-spin" />
+            </div>
+          </div>
+        ) : viewMode === "grid" ? (
           <div className="max-h-[600px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {pageData.map((row) => {

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import {
   WITHDRAW_ROWS,
   EARNING_ROWS,
@@ -57,6 +57,7 @@ export default function UserWalletLayout() {
 
   const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
 
+  const [loadingBalance, setLoadingBalance] = useState(true);
   const [realBalance, setRealBalance] = useState<number | null>(null);
 
   const loadRealBalance = async () => {
@@ -65,7 +66,10 @@ export default function UserWalletLayout() {
       if (res?.balance !== undefined && res.balance !== null) {
         setRealBalance(res.balance);
       }
-    } catch {}
+    } catch {
+    } finally {
+      setLoadingBalance(false);
+    }
   };
 
   useEffect(() => {
@@ -113,6 +117,17 @@ export default function UserWalletLayout() {
     withdrawPage * PAGE_SIZE
   );
   const earningData = filteredEarning.slice((earningPage - 1) * PAGE_SIZE, earningPage * PAGE_SIZE);
+
+  if (loadingBalance || !isReady) {
+    return (
+      <div className="flex min-h-[450px] w-full items-center justify-center">
+        <div className="relative flex items-center justify-center">
+          <div className="h-12 w-12 rounded-full border-[3px] border-primary/20" />
+          <div className="absolute h-12 w-12 rounded-full border-[3px] border-transparent border-t-primary border-r-primary animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

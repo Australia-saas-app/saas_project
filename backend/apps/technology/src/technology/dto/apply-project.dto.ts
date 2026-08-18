@@ -1,24 +1,30 @@
-import { IsString, IsNumber, IsEnum, IsNotEmpty } from 'class-validator';
-import { PaymentType } from '../enums/payment-type.enum';
+import { IsString, IsNumber, IsOptional } from 'class-validator';
 
 export class ApplyProjectDto {
   @IsString()
-  @IsNotEmpty()
-  proposal: string;
+  @IsOptional()
+  proposal?: string;
 
   @IsNumber()
-  @IsNotEmpty()
-  price: number;
+  @IsOptional()
+  price?: number;
 
   @IsString()
-  @IsNotEmpty()
-  currency: string;
+  @IsOptional()
+  currency?: string;
 
   @IsString()
-  @IsNotEmpty()
-  timeline: string;
+  @IsOptional()
+  timeline?: string;
 
-  @IsEnum(PaymentType)
-  @IsNotEmpty()
-  paymentType: PaymentType;
+  @IsOptional()
+  paymentType?: any;
+
+  @IsString()
+  @IsOptional()
+  businessName?: string;
+
+  @IsString()
+  @IsOptional()
+  userName?: string;
 }
