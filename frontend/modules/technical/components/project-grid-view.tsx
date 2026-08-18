@@ -57,9 +57,9 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
     };
   }, [uId]);
 
-  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
+  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase().trim();
   const isBusiness = Boolean(
-    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company" || (user as any)?.businessName)
+    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company")
   );
 
   return (
@@ -176,9 +176,9 @@ export function useTechnicalProjectModal() {
   const { user } = useUser();
   const router = useRouter();
 
-  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
+  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase().trim();
   const isBusiness = Boolean(
-    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company" || (user as any)?.businessName)
+    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company")
   );
   const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
   const appliedKey = uId ? `business_applied_projects_${uId}` : null;
@@ -277,13 +277,13 @@ export function useTechnicalProjectModal() {
 
     if (selected) {
       const pId = String(selected.projectId || (selected as any).id || "PRJ");
-      const businessFullName =
-        (user as any)?.businessName ||
-        (user as any)?.companyName ||
-        (user as any)?.fullName ||
-        (user as any)?.name ||
-        (user as any)?.email ||
-        "Business Provider";
+      const userFirstName = (user as any)?.firstName || (user as any)?.first_name || "";
+      const userLastName = (user as any)?.lastName || (user as any)?.last_name || "";
+      const fullNameCombined = [userFirstName, userLastName].filter(Boolean).join(" ");
+      const realFullName = (user as any)?.fullName || fullNameCombined || (user as any)?.name || (user as any)?.userName || (user as any)?.email?.split("@")[0] || "Business Provider";
+      const realBusinessName = (user as any)?.businessName || (user as any)?.businessInfo?.businessName || (user as any)?.companyName || `${realFullName} Technologies`;
+      const realBusinessType = (user as any)?.businessType || (user as any)?.businessInfo?.businessType || (user as any)?.industry || selected.category || "Software Development & IT";
+      const realCustomId = (user as any)?.customId || (user as any)?.businessId || `BSN-${String((user as any)?.id || (user as any)?.userId || "01").slice(-4).padStart(2, "0")}`;
 
       // Save proposal to PostgreSQL database
       try {
@@ -293,8 +293,12 @@ export function useTechnicalProjectModal() {
           currency: "USD",
           timeline: "14 Days",
           paymentType: "one-time",
-          businessName: businessFullName,
-          userName: businessFullName,
+          businessName: realBusinessName,
+          userName: realFullName,
+          fullName: realFullName,
+          businessType: realBusinessType,
+          businessId: realCustomId,
+          kycStatus: "verified",
         });
       } catch (e: any) {
         console.error("applyForProject api error:", e);

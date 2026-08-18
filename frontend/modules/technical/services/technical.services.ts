@@ -519,6 +519,16 @@ export const fetchProjectProposals = async (projectId: string) => {
   return { proposals: [], total: 0 };
 };
 
+export const deleteProjectProposal = async (projectId: string, proposalId: string) => {
+  try {
+    const res = await axiosInstance.delete(`/technology/projects/${projectId}/proposals/${proposalId}`);
+    return res?.data;
+  } catch (e: any) {
+    console.error(`deleteProjectProposal error:`, e?.response?.data || e?.message || e);
+    throw e;
+  }
+};
+
 export const submitProject = async (projectId: string, _token?: string) => {
   const local = readLocalProjects();
   const target = local.find((p) => p.projectId === projectId);

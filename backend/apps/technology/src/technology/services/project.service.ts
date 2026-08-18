@@ -896,17 +896,17 @@ export class ProjectService {
     const proposals = rawProposals.map((p, idx) => {
       let meta: any = {};
       try {
-        if (p.proposal && p.proposal.startsWith('{')) {
+        if (p.proposal && (p.proposal.startsWith('{') || p.proposal.startsWith('['))) {
           meta = JSON.parse(p.proposal);
         }
       } catch {}
 
-      const customBusinessId = `BSN-${String(idx + 1).padStart(2, '0')}`;
+      const customBusinessId = meta.businessId || (p.userId && String(p.userId).startsWith('BSN') ? p.userId : `BSN-${String(idx + 1).padStart(2, '0')}`);
       return {
         ...p,
         businessId: customBusinessId,
-        fullName: meta.userName || (p as any).userName || `Business User ${idx + 1}`,
-        businessName: meta.businessName || (p as any).businessName || `Verified Business Partner`,
+        fullName: meta.fullName || meta.userName || (p as any).userName || p.userId || `Business User ${idx + 1}`,
+        businessName: meta.businessName || (p as any).businessName || `${meta.fullName || meta.userName || 'Business'} Technologies`,
         businessType: meta.businessType || 'Software Development & IT',
         accountStatus: meta.kycStatus || 'verified',
         proposalMessage: meta.text || p.proposal,
@@ -944,5 +944,40 @@ export class ProjectService {
       );
     }
     return saved;
+  }
+
+  async deleteProposal(projectId: string, proposalId: string): Promise<any> {
+    const numericProjectId = Number(projectId);
+    const projectWhere: any[] = [{ projectId }];
+    if (!isNaN(numericProjectId) && numericProjectId > 0) {
+      projectWhere.push({ id: numericProjectId });
+    }
+
+    const project = await this.projectRepository.findOne({ where: projectWhere });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+
+    const proposalWhere: any[] = [
+      { proposalId, projectId: project.id },
+      { userId: proposalId, projectId: project.id },
+    ];
+    const numericProposalId = Number(proposalId);
+    if (!isNaN(numericProposalId) && numericProposalId > 0) {
+      proposalWhere.push({ id: numericProposalId, projectId: project.id });
+    }
+
+    const proposal = await this.proposalRepository.findOne({ where: proposalWhere });
+    if (!proposal) {
+      return { success: true, message: 'Proposal not found or already deleted' };
+    }
+
+    const applicantUserId = proposal.userId;
+    await this.proposalRepository.remove(proposal);
+
+    return {
+      success: true,
+      message: 'Proposal deleted successfully',
+      deletedProposalId: proposal.proposalId,
+      applicantUserId,
+    };
   }
 }

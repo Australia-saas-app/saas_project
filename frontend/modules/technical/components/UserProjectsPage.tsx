@@ -47,6 +47,7 @@ import {
   submitProject,
   deleteProject,
   fetchProjectProposals,
+  deleteProjectProposal,
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
@@ -303,6 +304,60 @@ export default function UserProjectsPage() {
       await loadProjects();
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const [deletingProposalId, setDeletingProposalId] = useState<string | null>(null);
+
+  const handleDeleteApplicantProposal = async (project: Project, proposal: any) => {
+    const propKey = String(proposal.proposalId || proposal.id || proposal.userId);
+    setDeletingProposalId(propKey);
+
+    const projectTargetId = project.projectId || String(project.id);
+    const applicantUserId = proposal.userId || proposal.applicantUserId;
+
+    try {
+      await deleteProjectProposal(projectTargetId, propKey);
+
+      // Remove from client storage for applicant if present
+      if (typeof window !== "undefined" && applicantUserId) {
+        try {
+          const key = `business_applied_projects_${applicantUserId}`;
+          const existing: string[] = JSON.parse(localStorage.getItem(key) || "[]");
+          const filtered = existing.filter(
+            (id) =>
+              id !== project.projectId &&
+              id !== String(project.id) &&
+              id !== `PRJ-${project.id}`
+          );
+          localStorage.setItem(key, JSON.stringify(filtered));
+        } catch {}
+      }
+
+      // Update local proposalsMap
+      setProposalsMap((prev) => {
+        const next = { ...prev };
+        const keys = [project.projectId, String(project.id), projectTargetId].filter(Boolean) as string[];
+        keys.forEach((k) => {
+          if (next[k]) {
+            next[k] = next[k].filter(
+              (p: any) => String(p.proposalId || p.id || p.userId) !== propKey
+            );
+          }
+        });
+        return next;
+      });
+
+      // Dispatch global update event so any other tab/service view updates to fresh
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("applied_projects_updated"));
+      }
+
+      toast.success("Applicant proposal deleted successfully from database.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete applicant proposal");
+    } finally {
+      setDeletingProposalId(null);
     }
   };
 
@@ -1320,14 +1375,30 @@ export default function UserProjectsPage() {
                                 </Button>
                               </td>
                               <td className="px-4 py-3.5 text-right">
-                                <button
-                                  type="button"
-                                  title="View Proposal Details"
-                                  onClick={() => setSelectedProposalDetail({ ...prop, projectTitle: appliedModalProject.title })}
-                                  className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-primary transition-all cursor-pointer inline-flex items-center justify-center"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
+                                <div className="inline-flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    title="View Proposal Details"
+                                    onClick={() => setSelectedProposalDetail({ ...prop, projectTitle: appliedModalProject.title })}
+                                    className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-primary transition-all cursor-pointer inline-flex items-center justify-center"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    title="Delete Applicant Application"
+                                    disabled={deletingProposalId === String(prop.proposalId || prop.id || prop.userId)}
+                                    onClick={() => handleDeleteApplicantProposal(appliedModalProject, prop)}
+                                    className="p-1.5 rounded-lg border border-border hover:bg-rose-500/10 hover:border-rose-500/30 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 transition-all cursor-pointer inline-flex items-center justify-center disabled:opacity-50"
+                                  >
+                                    {deletingProposalId === String(prop.proposalId || prop.id || prop.userId) ? (
+                                      <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4 text-rose-500" />
+                                    )}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );

@@ -28,10 +28,9 @@ export default function TechnicalPageLayout() {
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth();
   const { user } = useUser();
   const { t } = useLocale();
-  const { isBusiness } = usePermission();
-  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase();
+  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase().trim();
   const isBusinessUser = Boolean(
-    isBusiness || rawRole === "business" || rawRole === "seller" || rawRole === "company" || (user as any)?.businessName
+    rawRole === "business" || rawRole === "seller" || rawRole === "company"
   );
   const createProjectHref = isBusinessUser
     ? "/business/technical/create"

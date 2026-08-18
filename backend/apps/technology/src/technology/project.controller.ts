@@ -248,17 +248,15 @@ export class ProjectController {
     return this.projectService.findProposals(projectId, query);
   }
 
-  @Patch(':projectId/proposals/:proposalId/select')
+  @Delete(':projectId/proposals/:proposalId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Select a proposal' })
-  async selectProposal(
+  @ApiOperation({ summary: 'Delete a proposal' })
+  async deleteProposal(
     @Param('projectId') projectId: string,
     @Param('proposalId') proposalId: string,
-    @Req() req: any,
   ) {
-    const userId = req.user?.userId || req.admin?.adminId || 'admin';
-    return this.projectService.selectProposal(projectId, proposalId, userId);
+    return this.projectService.deleteProposal(projectId, proposalId);
   }
 
   // ─── PARTICIPANTS ────────────────────────────────────────────────────────────
