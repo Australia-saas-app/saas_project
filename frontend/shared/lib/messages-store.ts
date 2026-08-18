@@ -24,6 +24,8 @@ export interface MessageThread {
   senderEmail?: string;
   recipientName?: string;
   recipientEmail?: string;
+  recipientBusiness?: string;
+  senderBusiness?: string;
   subject: string;
   project: string;
   projectId?: string;
@@ -110,6 +112,13 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
     });
   }
 
+  // Also include project application threads (TH-*) for both user and business roles
+  global.forEach((t) => {
+    if (t.id.startsWith("TH-")) {
+      combinedMap.set(t.id, { ...t, role });
+    }
+  });
+
   return Array.from(combinedMap.values()).sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
@@ -117,6 +126,56 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
 
 export function getThreadById(id: string): MessageThread | undefined {
   return readAll().find((t) => t.id === id) || readGlobalEmails().find((t) => t.id === id);
+}
+
+export function getOrCreateApplicationThread(input: {
+  threadId: string;
+  role: DashboardRole;
+  projectId: string;
+  projectName: string;
+  applicantName: string;
+  applicantBusiness?: string;
+  applicantEmail?: string;
+  applicantUserId?: string;
+  clientName?: string;
+  clientEmail?: string;
+  initialDraft?: string;
+}): MessageThread {
+  const local = readAll();
+  const global = readGlobalEmails();
+  const existing = local.find((t) => t.id === input.threadId) || global.find((t) => t.id === input.threadId);
+
+  if (existing) {
+    if (input.initialDraft && (!existing.messages || existing.messages.length === 0) && !existing.draftBody) {
+      existing.draftBody = input.initialDraft;
+      writeAll(local.map((t) => (t.id === existing.id ? existing : t)));
+      writeGlobalEmails(global.map((t) => (t.id === existing.id ? existing : t)));
+    }
+    return existing;
+  }
+
+  const thread: MessageThread = {
+    id: input.threadId,
+    role: input.role,
+    participant: input.applicantName || "Business Partner",
+    recipientName: input.applicantName || "Business Partner",
+    recipientBusiness: input.applicantBusiness || "",
+    recipientEmail: input.applicantEmail || "",
+    senderName: input.clientName || "Client",
+    senderEmail: input.clientEmail || "",
+    subject: `Project Application: ${input.projectName}`,
+    project: input.projectName,
+    projectId: input.projectId,
+    unread: false,
+    updatedAt: new Date().toISOString(),
+    folder: "inbox",
+    draftBody: input.initialDraft || "",
+    messages: [],
+  };
+
+  writeAll([thread, ...local]);
+  writeGlobalEmails([thread, ...global]);
+  return thread;
 }
 
 export function getOrCreateProjectThread(input: {
@@ -327,8 +386,8 @@ export function sendThreadMessage(
   senderName: string,
   senderEmail?: string
 ): MessageThread | undefined {
-  const threads = readAll();
-  const index = threads.findIndex((t) => t.id === threadId);
+  const local = readAll();
+  const global = readGlobalEmails();
   const sentAt = new Date().toISOString();
   const newMsg: ThreadMessage = {
     id: `MSG-${Date.now().toString(36)}`,
@@ -339,63 +398,81 @@ export function sendThreadMessage(
     sentAt,
   };
 
-  if (index >= 0) {
-    const thread = threads[index];
-    const updated: MessageThread = {
-      ...thread,
-      updatedAt: sentAt,
-      messages: [...thread.messages, newMsg],
-    };
-    const next = [...threads];
-    next[index] = updated;
-    writeAll(next);
+  const syncThreadInList = (list: MessageThread[]): MessageThread[] => {
+    return list.map((t) => {
+      if (t.id === threadId) {
+        return {
+          ...t,
+          updatedAt: sentAt,
+          draftBody: "",
+          messages: [...t.messages, newMsg],
+        };
+      }
+      return t;
+    });
+  };
 
-    // Cross-deliver reply to recipient
-    if (thread.recipientEmail || thread.participant) {
-      const recipientEmail = (thread.recipientEmail || thread.participant).trim().toLowerCase();
-      const globalEmails = readGlobalEmails();
-      const replyInboxThread: MessageThread = {
-        id: `IN-${Date.now().toString().slice(-6)}`,
-        role: "user",
-        participant: senderName || senderEmail || "Sender",
-        senderEmail,
-        recipientEmail,
-        subject: thread.subject.startsWith("Re: ") ? thread.subject : `Re: ${thread.subject}`,
-        project: thread.project,
-        unread: true,
-        updatedAt: sentAt,
-        folder: "inbox",
-        messages: [
-          {
-            id: `MSG-${Date.now().toString(36)}-R`,
-            from: "them",
-            fromName: senderName,
-            fromEmail: senderEmail,
+  let targetThread = local.find((t) => t.id === threadId) || global.find((t) => t.id === threadId);
+
+  if (targetThread) {
+    targetThread = {
+      ...targetThread,
+      updatedAt: sentAt,
+      draftBody: "",
+      messages: [...targetThread.messages, newMsg],
+    };
+
+    const updatedLocal = local.some((t) => t.id === threadId)
+      ? syncThreadInList(local)
+      : [targetThread, ...local];
+    writeAll(updatedLocal);
+
+    // Sync global thread for recipient
+    const recipientMsg: ThreadMessage = {
+      id: `MSG-${Date.now().toString(36)}-R`,
+      from: "them",
+      fromName: senderName,
+      fromEmail: senderEmail,
+      body,
+      sentAt,
+    };
+
+    const globalRecipientThread: MessageThread = {
+      ...targetThread,
+      unread: true,
+      updatedAt: sentAt,
+      draftBody: "",
+      messages: targetThread.messages.map((m) =>
+        m.id === newMsg.id ? recipientMsg : m
+      ),
+    };
+
+    const updatedGlobal = global.some((t) => t.id === threadId)
+      ? global.map((t) => (t.id === threadId ? globalRecipientThread : t))
+      : [globalRecipientThread, ...global];
+    writeGlobalEmails(updatedGlobal);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("platform_new_email", {
+          detail: {
+            threadId: targetThread.id,
+            recipientEmail: targetThread.recipientEmail,
+            recipientName: targetThread.recipientName || targetThread.participant,
+            senderName,
+            senderEmail,
+            subject: targetThread.subject,
+            project: targetThread.project,
             body,
             sentAt,
           },
-        ],
-      };
-      writeGlobalEmails([replyInboxThread, ...globalEmails]);
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("platform_new_email", {
-            detail: {
-              threadId: replyInboxThread.id,
-              recipientEmail,
-              senderName,
-              senderEmail,
-              subject: replyInboxThread.subject,
-              sentAt,
-            },
-          })
-        );
-      }
+        })
+      );
     }
 
-    return updated;
+    return targetThread;
   }
+
   return undefined;
 }
 

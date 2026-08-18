@@ -23,6 +23,8 @@ import {
   User,
   ArrowLeft,
   CheckCircle2,
+  CheckCheck,
+  Check,
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +32,7 @@ import { useUser } from "@/src/context/user.provider";
 import { useNotifications } from "@/src/shared/context/notification.provider";
 import {
   archiveThread,
+  getOrCreateApplicationThread,
   getOrCreateProjectThread,
   getThreadsForRole,
   markThreadRead,
@@ -47,6 +50,8 @@ import {
   searchRegisteredContacts,
   type RegisteredContact,
 } from "@/src/shared/lib/contacts-store";
+import { io, Socket } from "socket.io-client";
+import { fetchProjectMessages, sendProjectMessage } from "@/src/modules/technical/services/technical.services";
 import { Button } from "@/src/components/ui/button";
 import { LiveChatTab } from "./LiveChatTab";
 
@@ -152,6 +157,15 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
+function getChatWsUrl() {
+  if (typeof window === "undefined") return "http://localhost:3000";
+  return (
+    process.env.NEXT_PUBLIC_SOCKET_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    `${window.location.protocol}//${window.location.hostname}:3000`
+  );
+}
+
 export default function DashboardMessagesLayout({
   role,
   title,
@@ -163,8 +177,15 @@ export default function DashboardMessagesLayout({
   const { notify } = useNotifications();
   const searchParams = useSearchParams();
   const threadParam = searchParams.get("thread");
+  const toNameParam = searchParams.get("toName");
+  const toBsnParam = searchParams.get("toBsn");
+  const toEmailParam = searchParams.get("toEmail");
+  const toUserIdParam = searchParams.get("toUserId");
+  const projectIdParam = searchParams.get("projectId");
+  const projectTitleParam = searchParams.get("projectTitle");
 
   const currentUserEmail = user?.email || "";
+  const socketRef = useRef<Socket | null>(null);
 
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [folder, setFolder] = useState<MessageFolder>("inbox");
@@ -196,6 +217,44 @@ export default function DashboardMessagesLayout({
     refresh();
   }, [role, currentUserEmail]);
 
+  // Real-time WebSocket connection to /chat
+  useEffect(() => {
+    const wsUrl = getChatWsUrl();
+    const currentUserId = String((user as any)?.id || (user as any)?.userId || (user as any)?.sub || currentUserEmail);
+    const socket = io(`${wsUrl}/chat`, {
+      transports: ["websocket", "polling"],
+      query: {
+        userId: currentUserId,
+        role,
+      },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      if (selectedId) {
+        socket.emit("join:conversation", { conversationId: selectedId });
+      }
+    });
+
+    socket.on("message:new", (newMsg: any) => {
+      if (newMsg) {
+        refresh();
+        const incomingConvId = newMsg.conversationId || newMsg.projectId;
+        if (incomingConvId && incomingConvId === selectedId) {
+          markThreadRead(incomingConvId);
+        }
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [role, currentUserEmail, selectedId, user]);
+
   // Restore persisted message on login / mount for this user
   useEffect(() => {
     if (typeof window === "undefined" || !currentUserEmail) {
@@ -203,36 +262,109 @@ export default function DashboardMessagesLayout({
       return;
     }
     const savedId = sessionStorage.getItem(`active_msg_${currentUserEmail.toLowerCase()}`);
-    if (savedId) {
+    if (savedId && !threadParam) {
       setSelectedId(savedId);
     }
-  }, [currentUserEmail]);
+  }, [currentUserEmail, threadParam]);
 
-  // Handle URL param thread selection
+  // Handle URL param thread selection and auto-formatted template
   useEffect(() => {
     if (!threadParam) return;
     let thread = getThreadsForRole(role, currentUserEmail).find((t) => t.id === threadParam);
+
+    const clientDisplayName = getDisplayName(user);
+    const targetName = toNameParam || "Business Partner";
+    const prjTitle = projectTitleParam || projectIdParam || "Project";
+    const templateMessage = `Hello ${targetName},\n\nYou applied for the project "${prjTitle}". Please share your previous experience, portfolio, and estimated timeline to get started.\n\nBest regards,\n${clientDisplayName}`;
+
     if (!thread && threadParam.startsWith("TH-")) {
-      const projectId = threadParam.replace(/^TH-/, "");
-      thread = getOrCreateProjectThread({
+      thread = getOrCreateApplicationThread({
+        threadId: threadParam,
         role,
-        projectId,
-        projectName: projectId,
-        participant: "Project team",
+        projectId: projectIdParam || threadParam.replace(/^TH-/, ""),
+        projectName: prjTitle,
+        applicantName: targetName,
+        applicantBusiness: toBsnParam || undefined,
+        applicantEmail: toEmailParam || undefined,
+        applicantUserId: toUserIdParam || undefined,
+        clientName: clientDisplayName,
+        clientEmail: currentUserEmail,
+        initialDraft: templateMessage,
       });
     }
+
     if (thread) {
       setFolder((thread.folder as MessageFolder) ?? "inbox");
       setSelectedId(thread.id);
+
+      // Auto-prefill the message draft if no messages in thread yet
+      if (!thread.messages || thread.messages.length === 0) {
+        setDraft(thread.draftBody || templateMessage);
+      }
+
       if (typeof window !== "undefined" && currentUserEmail) {
         sessionStorage.setItem(`active_msg_${currentUserEmail.toLowerCase()}`, thread.id);
       }
       markThreadRead(thread.id);
       refresh();
-    }
-  }, [threadParam, role, currentUserEmail]);
 
-  // Listen for real-time incoming emails on the platform
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("join:conversation", { conversationId: thread.id });
+      }
+    }
+  }, [threadParam, toNameParam, toBsnParam, toEmailParam, toUserIdParam, projectIdParam, projectTitleParam, role, currentUserEmail, user]);
+
+  // Fetch messages directly from MongoDB backend and merge with live thread
+  useEffect(() => {
+    const activeThread = threads.find((t) => t.id === selectedId);
+    const pId = activeThread?.projectId || activeThread?.project;
+    if (!pId || pId === "Compose") return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const dbMsgs = await fetchProjectMessages(pId);
+        if (isMounted && Array.isArray(dbMsgs) && dbMsgs.length > 0) {
+          const currentUserId = String((user as any)?.id || (user as any)?.userId || "").toLowerCase();
+          const currentEmail = (currentUserEmail || "").toLowerCase();
+
+          const formattedDbMsgs = dbMsgs.map((m: any) => {
+            const senderId = String(m.senderId || m.userId || "").toLowerCase();
+            const senderEmail = (m.senderEmail || m.email || "").toLowerCase();
+            const isMe =
+              (currentUserId && senderId === currentUserId) ||
+              (currentEmail && senderEmail === currentEmail);
+
+            return {
+              id: String(m.id || m._id || Date.now()),
+              from: isMe ? ("me" as const) : ("them" as const),
+              fromName:
+                m.senderName ||
+                m.userName ||
+                (isMe ? getDisplayName(user) : activeThread?.participant || "Business Partner"),
+              fromEmail: m.senderEmail || m.email,
+              body: m.content || m.message || m.body || "",
+              sentAt: m.createdAt || m.sentAt || new Date().toISOString(),
+            };
+          });
+
+          if (formattedDbMsgs.length > 0 && selectedId) {
+            setThreads((prev) =>
+              prev.map((t) => (t.id === selectedId ? { ...t, messages: formattedDbMsgs } : t))
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("MongoDB messages sync info:", err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedId, user, currentUserEmail]);
+
+  // Listen for real-time incoming emails & messages on the platform
   useEffect(() => {
     function handleIncomingEmail(event: Event) {
       const customEvent = event as CustomEvent;
@@ -241,11 +373,16 @@ export default function DashboardMessagesLayout({
 
       const normalizedRec = (detail.recipientEmail || "").trim().toLowerCase();
       const normalizedCurrent = (currentUserEmail || "").trim().toLowerCase();
+      const isRecipient =
+        (normalizedCurrent && normalizedRec === normalizedCurrent) ||
+        (detail.threadId && detail.threadId.startsWith("TH-"));
 
-      if (normalizedCurrent && normalizedRec === normalizedCurrent) {
+      if (isRecipient) {
         refresh();
+        const sender = detail.senderName || detail.senderEmail || "A user";
+        const proj = detail.project ? ` regarding "${detail.project}"` : "";
         toast("You received a new message", {
-          description: `From: ${detail.senderName || detail.senderEmail} — "${detail.subject}"`,
+          description: `From: ${sender}${proj} — "${(detail.body || detail.subject || "").slice(0, 70)}..."`,
           action: {
             label: "View message",
             onClick: () => {
@@ -365,18 +502,62 @@ export default function DashboardMessagesLayout({
 
   const handleSendReply = async () => {
     if (!selected || !draft.trim()) {
-      toast.error("Enter a reply before sending.");
+      toast.error("Enter a message before sending.");
       return;
     }
+    const messageBody = draft.trim();
+    const senderDisplayName = getDisplayName(user);
+
+    // 1. Persist directly to MongoDB backend collection ('project_messages')
+    const pId = selected.projectId || selected.project;
+    if (pId && pId !== "Compose") {
+      try {
+        await sendProjectMessage(pId, messageBody);
+      } catch (e) {
+        console.warn("MongoDB message save error:", e);
+      }
+    }
+
+    // 2. Real-time WebSocket emission to /chat room
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("message:send", {
+        conversationId: selected.id,
+        content: messageBody,
+      });
+    }
+
+    // 3. Persist and cross-sync thread locally & globally
     sendThreadMessage(
       selected.id,
-      draft.trim(),
-      getDisplayName(user),
+      messageBody,
+      senderDisplayName,
       currentUserEmail
     );
+
+    // 4. Queue real-time notification for the recipient
+    try {
+      const recipientEmail = (selected.recipientEmail || selected.participant || "").toLowerCase();
+      const recNotifKey = `app_notifs_${recipientEmail}`;
+      const existingRaw = typeof window !== "undefined" ? localStorage.getItem(recNotifKey) : null;
+      const existingNotifs = existingRaw ? JSON.parse(existingRaw) : [];
+      const newReceiverNotif = {
+        id: `msg-notif-${Date.now()}`,
+        title: `New Message from ${senderDisplayName}`,
+        message: messageBody.slice(0, 100),
+        time: "Just now",
+        read: false,
+        href: role === "user" ? `/dashboard/business/messages?thread=${selected.id}` : `/dashboard/user/messages?thread=${selected.id}`,
+      };
+      if (typeof window !== "undefined" && recipientEmail) {
+        localStorage.setItem(recNotifKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
+      }
+    } catch {}
+
     setDraft("");
     refresh();
-    toast.success("Reply sent successfully.");
+    toast.success("Message sent successfully.", {
+      description: `Delivered to ${selected.recipientName || selected.participant}`,
+    });
   };
 
   const handleArchive = () => {
@@ -618,8 +799,27 @@ export default function DashboardMessagesLayout({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 min-h-[560px]">
           {/* Left Column: Email Thread List */}
           <div className="lg:col-span-5 rounded-2xl border border-border bg-card shadow-xs flex flex-col overflow-hidden">
-            {/* Search & Filter Bar */}
-            <div className="p-3 border-b border-border space-y-2 bg-muted/20">
+            {/* Search & Filter Bar with Total Chats Summary */}
+            <div className="p-3 border-b border-border space-y-2.5 bg-muted/20">
+              {/* Total Chats & Unread Summary Header */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-background px-2.5 py-1 text-xs font-semibold border border-border shadow-xs">
+                    <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                    <span className="font-bold text-foreground">
+                      {threads.filter((t) => t.folder !== "deleted").length}
+                    </span>{" "}
+                    Total Chats
+                  </span>
+                  {threads.filter((t) => t.unread && t.folder !== "deleted").length > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2.5 py-1 text-xs font-bold border border-blue-500/20 shadow-xs">
+                      <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                      {threads.filter((t) => t.unread && t.folder !== "deleted").length} Unread
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <input
@@ -660,103 +860,125 @@ export default function DashboardMessagesLayout({
                   const isSelected = t.id === selected?.id;
                   const isSentFolder = folder === "sent";
                   const isDraftFolder = folder === "drafts";
+                  const isUnread = t.unread && !isSelected;
+                  const unreadCount = t.unread
+                    ? Math.max(1, t.messages.filter((m) => m.from === "them").length)
+                    : 0;
 
-                  // Resolve Primary Full Name & Secondary Email according to Folder
+                  // Resolve Primary Full Name & Business/Client Tag according to Folder & Role
                   let primaryFullName = "";
-                  let secondaryEmail = "";
+                  let secondaryTag = "";
 
                   if (isSentFolder) {
-                    // Sent folder: Receiver's Full Name and Receiver's Email
                     primaryFullName =
                       t.recipientName ||
                       resolveContactFullName(t.recipientEmail, t.participant) ||
                       t.participant ||
                       "Recipient";
-                    secondaryEmail = t.recipientEmail || "";
+                    secondaryTag = t.recipientBusiness || (role === "user" ? "Business Partner" : "Client");
                   } else if (isDraftFolder) {
-                    // Drafts folder: Receiver's Full Name and Email
                     primaryFullName =
                       t.recipientName ||
                       resolveContactFullName(t.recipientEmail, t.participant) ||
                       t.participant ||
                       "Draft";
-                    secondaryEmail = t.recipientEmail || "";
+                    secondaryTag = t.recipientBusiness || "";
                   } else {
-                    // Inbox / Deleted / Other: Sender's Full Name and Sender's Email
                     primaryFullName =
                       t.senderName ||
                       t.messages[0]?.fromName ||
                       resolveContactFullName(t.senderEmail, t.participant) ||
                       t.participant ||
-                      "Sender";
-                    secondaryEmail = t.senderEmail || t.messages[0]?.fromEmail || "";
+                      (role === "business" ? "Client" : "Business Partner");
+                    secondaryTag =
+                      t.senderBusiness ||
+                      t.recipientBusiness ||
+                      (role === "business" ? "Client" : "Business Partner");
                   }
 
                   const formattedTime = formatMessageTimestamp(t.updatedAt);
+                  const latestMsg =
+                    t.messages && t.messages.length > 0
+                      ? t.messages[t.messages.length - 1]?.body
+                      : t.draftBody || t.subject || "No message content";
+                  const previewSnippet = latestMsg.replace(/\s+/g, " ").trim();
 
                   return (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => openThread(t.id)}
-                      className={`w-full text-left p-3.5 transition-all flex flex-col gap-1 cursor-pointer relative ${
+                      className={`w-full text-left p-3.5 transition-all flex items-start gap-3 cursor-pointer relative ${
                         isSelected
-                          ? "bg-primary/10 border-l-4 border-primary"
-                          : t.unread
-                          ? "bg-primary/5 dark:bg-primary/10 border-l-4 border-blue-500 font-bold hover:bg-primary/10"
-                          : "hover:bg-muted/30 opacity-90 hover:opacity-100"
+                          ? "bg-primary/10 border-l-[3px] border-l-primary shadow-xs"
+                          : isUnread
+                          ? "bg-[#f0f9ff] dark:bg-white/[0.05] border-l-[3px] border-l-[#2563eb] dark:border-l-[#3b82f6] shadow-xs hover:bg-[#e0f2fe] dark:hover:bg-white/[0.08]"
+                          : "border-l-[3px] border-l-transparent hover:bg-muted/30 opacity-90 hover:opacity-100"
                       }`}
                     >
-                      {/* Row Header: Full Name and Right-Side Time/Date */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {t.unread && (
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500 ring-2 ring-blue-500/30 animate-pulse"
-                              title="Unread"
-                            />
-                          )}
-                          <span
-                            className={`text-xs truncate ${
-                              t.unread ? "font-bold text-foreground" : "font-semibold text-foreground/90"
-                            }`}
-                          >
-                            {primaryFullName}
-                          </span>
-                        </div>
-
-                        {/* Right side timestamp: Same day -> 11:06 AM / Next day -> Aug 14, 2026 */}
-                        <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap shrink-0">
-                          {formattedTime}
-                        </span>
+                      {/* Contact Type Profile Icon / Avatar */}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs border border-primary/20 mt-0.5">
+                        {getInitials(primaryFullName)}
                       </div>
 
-                      {/* Row Line 2: Email of sender (Inbox) or receiver (Sent) */}
-                      {secondaryEmail && (
-                        <p className="text-[11px] text-muted-foreground truncate font-normal leading-tight">
-                          {secondaryEmail}
+                      <div className="flex-1 min-w-0">
+                        {/* Line 1: Full Name | Business Name (or Client Name | Client) + Timestamp & Unread Badges */}
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {isUnread && (
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600 dark:bg-blue-400 ring-4 ring-blue-500/20 animate-pulse"
+                                title="Unread"
+                              />
+                            )}
+                            <div className="text-xs truncate font-medium">
+                              <span
+                                className={
+                                  isUnread
+                                    ? "font-bold text-foreground"
+                                    : "font-semibold text-foreground/90"
+                                }
+                              >
+                                {primaryFullName}
+                              </span>
+                              {secondaryTag && secondaryTag !== primaryFullName && (
+                                <span className="text-muted-foreground font-normal">
+                                  {" "}| {secondaryTag}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isUnread && unreadCount > 0 && (
+                              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 px-1 text-[10px] font-bold text-white shadow-xs">
+                                {unreadCount > 9 ? "9+" : unreadCount}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                              {formattedTime}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Line 2: Message preview - Single row, fills space, overflows with ... */}
+                        <p className={`text-xs truncate whitespace-nowrap overflow-hidden text-ellipsis mt-1 max-w-full ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
+                          {previewSnippet}
                         </p>
-                      )}
 
-                      {/* Row Line 3: Subject of message */}
-                      <p
-                        className={`text-xs truncate mt-0.5 ${
-                          t.unread ? "font-semibold text-foreground" : "font-normal text-foreground/80"
-                        }`}
-                      >
-                        {t.subject || "(No subject)"}
-                      </p>
-
-                      {/* Badges */}
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <span className="inline-block rounded-md bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                          {t.project}
-                        </span>
-                        {isDraftFolder && (
-                          <span className="rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-bold">
-                            Draft
-                          </span>
-                        )}
+                        {/* Badges */}
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {t.project && (
+                            <span className="inline-block rounded-md bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground truncate max-w-[170px]">
+                              {t.project}
+                            </span>
+                          )}
+                          {isDraftFolder && (
+                            <span className="rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-bold">
+                              Draft
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   );
@@ -848,9 +1070,14 @@ export default function DashboardMessagesLayout({
                               </span>
                             )}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {formatMessageTimestamp(m.sentAt)}
-                          </span>
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <span>{formatMessageTimestamp(m.sentAt)}</span>
+                            {isMe && (
+                              <span title="Sent & Delivered" className="inline-flex items-center">
+                                <CheckCheck className="h-3.5 w-3.5 text-primary shrink-0" />
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="whitespace-pre-wrap leading-relaxed text-foreground font-normal">{m.body}</p>
                       </div>
@@ -866,16 +1093,25 @@ export default function DashboardMessagesLayout({
                       placeholder={labels.writeMessage}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none font-normal"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendReply();
+                        }
+                      }}
+                      className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none font-normal resize-none"
                     />
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-muted-foreground">
+                        Press <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-[10px]">Enter</kbd> to send, <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border text-[10px]">Shift+Enter</kbd> for new line
+                      </span>
                       <Button
                         size="sm"
                         onClick={handleSendReply}
                         disabled={!draft.trim()}
-                        className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl cursor-pointer"
+                        className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl cursor-pointer shadow-xs"
                       >
-                        <Send className="mr-1.5 h-3.5 w-3.5" /> Send Reply
+                        <Send className="mr-1.5 h-3.5 w-3.5" /> Send Message
                       </Button>
                     </div>
                   </div>

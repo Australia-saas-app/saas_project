@@ -192,7 +192,7 @@ export default function TechnicalPageLayout() {
   };
 
   return (
-    <div className="relative flex h-screen max-h-screen overflow-hidden bg-background">
+    <div className="relative flex min-h-screen bg-background">
       {activeTab === "explore" && isMobile && sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 lg:hidden"
@@ -210,7 +210,7 @@ export default function TechnicalPageLayout() {
         />
       )}
 
-      <div className="min-w-0 flex-1 h-full overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 flex flex-col">
+      <div className="min-w-0 flex-1 flex flex-col">
         <div className="border-b border-border bg-card px-4 py-5 shadow-sm md:px-8">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>

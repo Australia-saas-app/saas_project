@@ -237,9 +237,10 @@ export default function BusinessServicesLayout() {
 
     // 1. Check business KYC verification status with spinner active
     let isVerified = false;
+    let latestUser: any = null;
     try {
       const res = await axiosInstance.get("/sso/auth/me").catch(() => null);
-      const latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
+      latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
       const kyc = String(latestUser?.kycStatus || (user as any)?.kycStatus || "").toLowerCase();
       const st = String(latestUser?.status || (user as any)?.status || "").toLowerCase();
       isVerified = kyc === "approved" || kyc === "verified" || st === "verified";
@@ -274,13 +275,61 @@ export default function BusinessServicesLayout() {
       return;
     }
 
-    const userFirstName = (user as any)?.firstName || (user as any)?.first_name || "";
-    const userLastName = (user as any)?.lastName || (user as any)?.last_name || "";
+    const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub || "business_user";
+    const appliedKey = `business_applied_projects_${uId}`;
+
+    let profileOverrides: any = {};
+    if (typeof window !== "undefined") {
+      try {
+        const storedOverrides =
+          localStorage.getItem(`profile_overrides_${uId}`) ||
+          localStorage.getItem(`business_profile_overrides_${uId}`);
+        if (storedOverrides) profileOverrides = JSON.parse(storedOverrides);
+      } catch {}
+    }
+
+    const userFirstName = latestUser?.firstName || (user as any)?.firstName || (user as any)?.first_name || "";
+    const userLastName = latestUser?.lastName || (user as any)?.lastName || (user as any)?.last_name || "";
     const fullNameCombined = [userFirstName, userLastName].filter(Boolean).join(" ");
-    const realFullName = (user as any)?.fullName || fullNameCombined || (user as any)?.name || (user as any)?.userName || (user as any)?.email?.split("@")[0] || "Business Provider";
-    const realBusinessName = (user as any)?.businessName || (user as any)?.businessInfo?.businessName || (user as any)?.companyName || `${realFullName} Technologies`;
-    const realBusinessType = (user as any)?.businessType || (user as any)?.businessInfo?.businessType || (user as any)?.industry || row.category || "Software Development & IT";
-    const realCustomId = (user as any)?.customId || (user as any)?.businessId || `BSN-${String((user as any)?.id || (user as any)?.userId || "01").slice(-4).padStart(2, "0")}`;
+    const realFullName =
+      latestUser?.fullName ||
+      fullNameCombined ||
+      profileOverrides.fullName ||
+      (user as any)?.fullName ||
+      (user as any)?.name ||
+      (user as any)?.userName ||
+      latestUser?.email?.split("@")[0] ||
+      (user as any)?.email?.split("@")[0] ||
+      "";
+
+    const realBusinessName =
+      latestUser?.businessName ||
+      latestUser?.businessInfo?.businessName ||
+      profileOverrides.businessName ||
+      (user as any)?.businessName ||
+      (user as any)?.businessInfo?.businessName ||
+      (user as any)?.companyName ||
+      "";
+
+    const realBusinessType =
+      latestUser?.businessType ||
+      latestUser?.businessInfo?.businessIndustry ||
+      latestUser?.businessInfo?.businessType ||
+      profileOverrides.businessType ||
+      profileOverrides.businessIndustry ||
+      (user as any)?.businessType ||
+      (user as any)?.businessInfo?.businessIndustry ||
+      (user as any)?.businessInfo?.businessType ||
+      (user as any)?.businessIndustry ||
+      (user as any)?.industry ||
+      "";
+
+    const realCustomId =
+      latestUser?.customId ||
+      latestUser?.businessId ||
+      (user as any)?.customId ||
+      (user as any)?.businessId ||
+      `BSN-${String((user as any)?.id || (user as any)?.userId || "01").slice(-4).padStart(2, "0")}`;
 
     // Save proposal to PostgreSQL database
     try {
@@ -300,9 +349,6 @@ export default function BusinessServicesLayout() {
     } catch (e: any) {
       console.error("applyForProject api error:", e);
     }
-
-    const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub || "business_user";
-    const appliedKey = `business_applied_projects_${uId}`;
     try {
       const existing = JSON.parse(localStorage.getItem(appliedKey) || "[]");
       const allIds = [row.id, row.rawProject?.projectId, String(row.rawProject?.id || ""), `PRJ-${row.rawProject?.id}`].filter(Boolean) as string[];

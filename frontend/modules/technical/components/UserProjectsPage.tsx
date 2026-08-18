@@ -1333,9 +1333,10 @@ export default function UserProjectsPage() {
                       {list.length > 0 ? (
                         list.map((prop: any, idx: number) => {
                           const bsnId = prop.businessId || `BSN-${String(idx + 1).padStart(2, "0")}`;
-                          const fullName = prop.fullName || prop.userName || `Business User ${idx + 1}`;
-                          const bsnName = prop.businessName || `Verified Business Partner`;
-                          const bsnType = prop.businessType || prop.category || "Software Development & IT";
+                          const fullName = prop.fullName || prop.userName || "";
+                          const bsnName = prop.businessName || "";
+                          const rawType = prop.businessType || prop.businessIndustry || prop.businessCategory || prop.category || "";
+                          const bsnType = rawType === "Software Development & IT" ? (prop.businessIndustry || prop.businessCategory || prop.category || "") : rawType;
 
                           return (
                             <tr key={prop.id || prop.proposalId || idx} className="hover:bg-muted/40 transition-colors">
@@ -1364,10 +1365,17 @@ export default function UserProjectsPage() {
                                   onClick={() => {
                                     const p = appliedModalProject;
                                     setAppliedModalProject(null);
-                                    setChatProject({
-                                      ...p,
-                                      assignedBusinessName: fullName,
-                                    });
+                                    const applicantId = prop.userId || prop.applicantUserId || prop.id || "applicant";
+                                    const threadId = `TH-${p?.projectId || p?.id || "PRJ"}-${applicantId}`;
+                                    const targetName = fullName || "Business Partner";
+                                    const targetBsn = bsnName || "";
+                                    const targetEmail = prop.email || prop.userEmail || "";
+                                    const prjTitle = p?.title || "";
+                                    const prjId = String(p?.projectId || p?.id || "");
+
+                                    router.push(
+                                      `/dashboard/user/messages?thread=${encodeURIComponent(threadId)}&toName=${encodeURIComponent(targetName)}&toBsn=${encodeURIComponent(targetBsn)}&toEmail=${encodeURIComponent(targetEmail)}&toUserId=${encodeURIComponent(applicantId)}&projectId=${encodeURIComponent(prjId)}&projectTitle=${encodeURIComponent(prjTitle)}`
+                                    );
                                   }}
                                   className="h-7 text-xs px-2.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 cursor-pointer flex items-center gap-1.5"
                                 >
@@ -1452,15 +1460,22 @@ export default function UserProjectsPage() {
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/40 p-3.5 border border-border text-xs">
                 <div>
                   <p className="text-muted-foreground font-medium text-[11px]">Applicant Full Name</p>
-                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.fullName || selectedProposalDetail.userName || "Business Provider"}</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.fullName || selectedProposalDetail.userName || "—"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground font-medium text-[11px]">Business / Company</p>
-                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.businessName || "Verified Provider"}</p>
+                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.businessName || "—"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground font-medium text-[11px]">Business Category</p>
-                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.businessType || "Software & IT Services"}</p>
+                  <p className="font-bold text-foreground mt-0.5">
+                    {(() => {
+                      const t = selectedProposalDetail.businessType;
+                      return t && t !== "Software & IT Services" && t !== "Software Development & IT"
+                        ? t
+                        : selectedProposalDetail.businessCategory || selectedProposalDetail.businessIndustry || "—";
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground font-medium text-[11px]">Verification Status</p>
@@ -1504,18 +1519,23 @@ export default function UserProjectsPage() {
               <Button
                 size="sm"
                 onClick={() => {
-                  const targetName = selectedProposalDetail.fullName || selectedProposalDetail.userName;
+                  const targetName = selectedProposalDetail.fullName || selectedProposalDetail.userName || "Business Partner";
+                  const targetBsn = selectedProposalDetail.businessName || "";
+                  const targetEmail = selectedProposalDetail.email || "";
+                  const applicantId = selectedProposalDetail.userId || selectedProposalDetail.applicantUserId || selectedProposalDetail.id || "applicant";
                   const p = appliedModalProject;
+                  const prjTitle = p?.title || "";
+                  const prjId = String(p?.projectId || p?.id || "");
+                  const threadId = `TH-${prjId || "PRJ"}-${applicantId}`;
+
                   setSelectedProposalDetail(null);
                   setAppliedModalProject(null);
-                  if (p) {
-                    setChatProject({
-                      ...p,
-                      assignedBusinessName: targetName,
-                    });
-                  }
+
+                  router.push(
+                    `/dashboard/user/messages?thread=${encodeURIComponent(threadId)}&toName=${encodeURIComponent(targetName)}&toBsn=${encodeURIComponent(targetBsn)}&toEmail=${encodeURIComponent(targetEmail)}&toUserId=${encodeURIComponent(applicantId)}&projectId=${encodeURIComponent(prjId)}&projectTitle=${encodeURIComponent(prjTitle)}`
+                  );
                 }}
-                className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5"
+                className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <MessageSquare className="w-3.5 h-3.5" /> Message Applicant
               </Button>

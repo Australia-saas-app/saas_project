@@ -787,10 +787,12 @@ export class ProjectService {
       ? applyDto.proposal
       : JSON.stringify({
           text: applyDto?.proposal || 'Submitted application for technical project.',
-          businessName: applyDto?.businessName || (applyDto as any)?.companyName || 'Verified Business',
-          userName: (applyDto as any)?.userName || (applyDto as any)?.fullName || 'Business Provider',
-          businessType: (applyDto as any)?.businessType || 'Software Development & IT',
-          kycStatus: 'verified',
+          businessName: applyDto?.businessName || (applyDto as any)?.companyName || '',
+          userName: (applyDto as any)?.userName || (applyDto as any)?.fullName || '',
+          fullName: (applyDto as any)?.fullName || (applyDto as any)?.userName || '',
+          businessType: (applyDto as any)?.businessType || (applyDto as any)?.businessIndustry || (applyDto as any)?.businessCategory || (applyDto as any)?.industry || '',
+          businessId: (applyDto as any)?.businessId || null,
+          kycStatus: (applyDto as any)?.kycStatus || 'verified',
         });
 
     const savedProposal = await this.proposalRepository.save(
@@ -902,12 +904,15 @@ export class ProjectService {
       } catch {}
 
       const customBusinessId = meta.businessId || (p.userId && String(p.userId).startsWith('BSN') ? p.userId : `BSN-${String(idx + 1).padStart(2, '0')}`);
+      const rawType = meta.businessType || meta.businessIndustry || meta.businessCategory || meta.industry || (p as any).businessType || '';
+      const resolvedBusinessType = rawType === 'Software Development & IT' ? (meta.businessCategory || meta.businessIndustry || meta.industry || (p as any).businessType || '') : rawType;
+
       return {
         ...p,
         businessId: customBusinessId,
-        fullName: meta.fullName || meta.userName || (p as any).userName || p.userId || `Business User ${idx + 1}`,
-        businessName: meta.businessName || (p as any).businessName || `${meta.fullName || meta.userName || 'Business'} Technologies`,
-        businessType: meta.businessType || 'Software Development & IT',
+        fullName: meta.fullName || meta.userName || (p as any).userName || p.userId || '',
+        businessName: meta.businessName || (p as any).businessName || '',
+        businessType: resolvedBusinessType,
         accountStatus: meta.kycStatus || 'verified',
         proposalMessage: meta.text || p.proposal,
       };
