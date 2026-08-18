@@ -343,7 +343,14 @@ export default function TechnicalPageLayout() {
             </div>
 
             <div className="px-4 py-6 md:px-8 flex-1">
-              {displayedProjects.length > 0 ? (
+              {!dataLoaded ? (
+                <div className="flex min-h-[400px] w-full items-center justify-center py-20">
+                  <div className="relative flex items-center justify-center">
+                    <div className="h-12 w-12 rounded-full border-[3px] border-primary/20" />
+                    <div className="absolute h-12 w-12 rounded-full border-[3px] border-transparent border-t-primary border-r-primary animate-spin" />
+                  </div>
+                </div>
+              ) : displayedProjects.length > 0 ? (
                 <ProjectGridView projects={displayedProjects} onViewProject={setSelected} />
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">

@@ -51,9 +51,9 @@ export class ActivityService {
     pages: number;
   }> {
     const page = query.page && query.page > 0 ? query.page : 1;
-    const limit =
-      query.limit && query.limit > 0 ? Math.min(query.limit, 100) : 20;
-    const skip = (page - 1) * limit;
+    const hasLimit = typeof query.limit === 'number' && query.limit > 0;
+    const limit = hasLimit ? query.limit : 0;
+    const skip = hasLimit ? (page - 1) * limit : 0;
 
     const filter: any = { userId };
 
@@ -75,13 +75,13 @@ export class ActivityService {
       }
     }
 
+    const queryBuilder = this.activityModel.find(filter).sort({ timestamp: -1 });
+    if (hasLimit) {
+      queryBuilder.skip(skip).limit(limit);
+    }
+
     const [activities, total] = await Promise.all([
-      this.activityModel
-        .find(filter)
-        .sort({ timestamp: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      queryBuilder.lean(),
       this.activityModel.countDocuments(filter),
     ]);
 
@@ -89,8 +89,8 @@ export class ActivityService {
       activities: activities as UserActivity[],
       total,
       page,
-      limit,
-      pages: Math.ceil(total / limit),
+      limit: hasLimit ? limit : total,
+      pages: hasLimit && limit > 0 ? Math.ceil(total / limit) : 1,
     };
   }
 

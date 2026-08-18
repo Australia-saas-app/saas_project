@@ -28,6 +28,7 @@ import {
 } from "../data/business-demo-data";
 import { useUser } from "@/src/context/user.provider";
 import { fetchPublicProjects, fetchAssignedProjects, fetchMyApplications, applyForProject, recordActivityLog } from "@/src/modules/technical/services/technical.services";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
 import { PublicApplyModal } from "@/src/modules/shared/components/public/PublicApplyModal";
 import { DashboardTablePagination } from "../../shared/components/DashboardTablePagination";
@@ -315,7 +316,20 @@ export default function BusinessServicesLayout() {
         description: `Applied for project (${row.id}). Status: Pending for Client Approval.`,
         category: "Technical Services",
         type: "PROJECT_APPLIED",
+        userId: uId,
+        userName: realFullName,
+        email: (user as any)?.email,
       });
+      await recordRealActivity(
+        "PROJECT_APPLIED",
+        `Applied for project "${row.title}" (${row.id}). Status: Pending for Client Approval.`,
+        {
+          userId: uId,
+          email: (user as any)?.email,
+          fullName: realFullName,
+          name: realFullName,
+        }
+      );
     } catch {}
 
     if (typeof window !== "undefined") {

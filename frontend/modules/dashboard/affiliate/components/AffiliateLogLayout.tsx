@@ -303,10 +303,10 @@ export default function AffiliateLogLayout() {
         </div>
 
         <div className="flex flex-col sm:items-end gap-2">
-          {logs.length > 100 && (
+          {logs.length >= 100 && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs font-medium animate-in fade-in slide-in-from-bottom-1 duration-200">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-              <span>Delete old Logs to improve effeciency and system space</span>
+              <span>Delete old logs for better performance and system storage</span>
             </div>
           )}
           <div className="flex items-center space-x-3">

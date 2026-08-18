@@ -1335,7 +1335,7 @@ export default function UserProjectsPage() {
                           const bsnId = prop.businessId || `BSN-${String(idx + 1).padStart(2, "0")}`;
                           const fullName = prop.fullName || prop.userName || `Business User ${idx + 1}`;
                           const bsnName = prop.businessName || `Verified Business Partner`;
-                          const bsnType = prop.businessType || appliedModalProject.category || "Software Development";
+                          const bsnType = prop.businessType || prop.category || "Software Development & IT";
 
                           return (
                             <tr key={prop.id || prop.proposalId || idx} className="hover:bg-muted/40 transition-colors">

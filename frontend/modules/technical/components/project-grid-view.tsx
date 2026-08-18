@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useUser } from "@/src/context/user.provider";
 import { recordActivityLog, fetchMyApplications, applyForProject } from "../services/technical.services";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
 interface ProjectGridViewProps {
   projects: TechnicalProject[];
@@ -321,7 +322,20 @@ export function useTechnicalProjectModal() {
           description: `Applied for project with budget ${selected.priceRange || ""}. Status: Pending for Client Approval.`,
           category: "Technical Services",
           type: "PROJECT_APPLIED",
+          userId: uId,
+          userName: realFullName,
+          email: (user as any)?.email,
         });
+        await recordRealActivity(
+          "PROJECT_APPLIED",
+          `Applied for project "${selected.title}" (${pId}). Status: Pending for Client Approval.`,
+          {
+            userId: uId,
+            email: (user as any)?.email,
+            fullName: realFullName,
+            name: realFullName,
+          }
+        );
       } catch {}
 
       if (typeof window !== "undefined") {

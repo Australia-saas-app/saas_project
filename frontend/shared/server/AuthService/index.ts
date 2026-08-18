@@ -712,23 +712,26 @@ export const logActivityToServer = async (payload: any) => {
   }
 };
 
-export const getLogsFromServer = async (limit = 10000) => {
+export const getLogsFromServer = async (limit?: number) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   if (!token) return [];
   try {
     const userProfileBase = process.env.USER_PROFILE_BACKEND_URL;
+    const queryParams = limit ? `?limit=${limit}&page=1` : "";
     if (userProfileBase) {
       // Direct call in Docker/production
-      const res = await fetch(`${userProfileBase}/activity?limit=${limit}&page=1`, {
+      const res = await fetch(`${userProfileBase}/activity${queryParams}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = res.ok ? await res.json().catch(() => ({})) : {};
       return json?.activities || json?.data?.activities || [];
     } else {
+      const params: Record<string, any> = {};
+      if (limit) params.limit = limit;
       const { data } = await axiosInstance.get("/user-profile-service/activity", {
         headers: { Authorization: `Bearer ${token}` },
-        params: { limit, page: 1 },
+        params,
         timeout: 15000,
       });
       return data?.activities || data?.data?.activities || [];

@@ -423,7 +423,7 @@ export const fetchMyProjects = async (_token?: string) => {
 
 export const fetchPublicProjects = async (params?: Record<string, string>) => {
   try {
-    const res = await axiosInstance.get('/technology/projects/public', { params });
+    const res = await axiosInstance.get('/technology/projects/public', { params, timeout: 8000 });
     const data = res?.data;
     const rawList =
       data?.data?.projects ||
