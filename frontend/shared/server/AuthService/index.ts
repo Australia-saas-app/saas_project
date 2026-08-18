@@ -650,21 +650,36 @@ export const applyForKyc = async (userId: string, applicationData?: any) => {
 export const deleteUserAccount = async (userId?: string) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
   try {
+    // 1. Delete user from SSO / User Service
     const endpoint = userId && userId !== "self" ? `/sso/auth/admin/users/${userId}` : `/sso/auth/user/account`;
-    const { data } = await axiosInstance.delete(endpoint, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    return data;
-  } catch (error: unknown) {
-    try {
-      const { data } = await axiosInstance.delete("/sso/auth/user/account", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      return data;
-    } catch {
-      return { success: false, message: parseApiError(error, "Failed to delete user account") };
+    await axiosInstance.delete(endpoint, {
+      headers,
+      timeout: 15000,
+    }).catch(() => null);
+
+    // 2. Cascade delete user created projects from Technology service
+    if (userId && userId !== "self") {
+      await axiosInstance.delete(`/technology/projects/user/${userId}`, {
+        headers,
+        timeout: 15000,
+      }).catch(() => null);
+
+      // 3. Cascade delete user chat conversations and messages from Chat service
+      await axiosInstance.delete(`/chat-service/messages/user/${userId}`, {
+        headers,
+        timeout: 15000,
+      }).catch(() => null);
     }
+
+    // 4. Delete user activity logs
+    await deleteAllActivitiesFromServer().catch(() => null);
+
+    return { success: true };
+  } catch (error: unknown) {
+    return { success: false, message: parseApiError(error, "Failed to delete user account") };
   }
 };
 

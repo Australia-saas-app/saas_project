@@ -1269,7 +1269,7 @@ export default function UserProjectsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-hidden">
           <div
             style={{ maxWidth: "980px", width: "100%" }}
-            className="relative w-full rounded-2xl bg-card shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+            className="relative w-full rounded-2xl bg-card shadow-2xl border border-border flex flex-col h-[520px] max-h-[85vh] animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
           >
             {/* Fixed Header (Does not scroll) */}
             <div className="flex items-start justify-between border-b border-border px-6 py-4 bg-card shrink-0">
@@ -1304,7 +1304,7 @@ export default function UserProjectsPage() {
 
                 return (
                   <table className="w-full text-left border-collapse min-w-[780px]">
-                    <thead className="bg-muted/60 border-b border-border sticky top-0 z-10 backdrop-blur-md">
+                    <thead className="bg-muted/80 border-b border-border sticky top-0 z-10 backdrop-blur-md">
                       <tr>
                         <th className="px-4 py-3 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
                           ID
@@ -1332,11 +1332,43 @@ export default function UserProjectsPage() {
                     <tbody className="divide-y divide-border">
                       {list.length > 0 ? (
                         list.map((prop: any, idx: number) => {
+                          const uId = String(prop.userId || prop.applicantUserId || prop.id || prop.businessId || "");
                           const bsnId = prop.businessId || `BSN-${String(idx + 1).padStart(2, "0")}`;
                           const fullName = prop.fullName || prop.userName || "";
                           const bsnName = prop.businessName || "";
-                          const rawType = prop.businessType || prop.businessIndustry || prop.businessCategory || prop.category || "";
-                          const bsnType = rawType === "Software Development & IT" ? (prop.businessIndustry || prop.businessCategory || prop.category || "") : rawType;
+
+                          // Resolve business type from direct props, nested business info, and profile overrides
+                          let bsnType =
+                            prop.businessType ||
+                            prop.businessIndustry ||
+                            prop.businessCategory ||
+                            prop.businessInfo?.businessType ||
+                            prop.businessInfo?.businessIndustry ||
+                            prop.category ||
+                            "";
+
+                          if (!bsnType && typeof window !== "undefined" && uId) {
+                            try {
+                              const rawOverride = localStorage.getItem(`profile_override_${uId}`);
+                              if (rawOverride) {
+                                const pData = JSON.parse(rawOverride);
+                                bsnType = pData.businessType || pData.businessIndustry || pData.businessCategory || "";
+                              }
+                              if (!bsnType) {
+                                const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
+                                if (allOverrides[uId]?.businessType) {
+                                  bsnType = allOverrides[uId].businessType;
+                                }
+                              }
+                              if (!bsnType) {
+                                const allContacts = JSON.parse(localStorage.getItem("platform_registered_contacts") || "[]");
+                                const match = allContacts.find((c: any) => c.id === uId || (c.name && c.name === fullName));
+                                if (match?.businessType) {
+                                  bsnType = match.businessType;
+                                }
+                              }
+                            } catch {}
+                          }
 
                           return (
                             <tr key={prop.id || prop.proposalId || idx} className="hover:bg-muted/40 transition-colors">
@@ -1349,8 +1381,8 @@ export default function UserProjectsPage() {
                               <td className="px-4 py-3.5 text-xs font-semibold text-foreground">
                                 {bsnName}
                               </td>
-                              <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                                {bsnType}
+                              <td className="px-4 py-3.5 text-xs font-medium text-foreground">
+                                {bsnType || "—"}
                               </td>
                               <td className="px-4 py-3.5">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -1367,9 +1399,9 @@ export default function UserProjectsPage() {
                                     setAppliedModalProject(null);
                                     const applicantId = prop.userId || prop.applicantUserId || prop.id || "applicant";
                                     const threadId = `TH-${p?.projectId || p?.id || "PRJ"}-${applicantId}`;
-                                    const targetName = fullName || "Business Partner";
+                                    const targetName = fullName || bsnName || "Business Partner";
                                     const targetBsn = bsnName || "";
-                                    const targetEmail = prop.email || prop.userEmail || "";
+                                    const targetEmail = prop.email || prop.userEmail || (fullName ? `${fullName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "applicant@business.com");
                                     const prjTitle = p?.title || "";
                                     const prjId = String(p?.projectId || p?.id || "");
 
@@ -1467,13 +1499,22 @@ export default function UserProjectsPage() {
                   <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.businessName || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground font-medium text-[11px]">Business Category</p>
+                  <p className="text-muted-foreground font-medium text-[11px]">Business Type / Category</p>
                   <p className="font-bold text-foreground mt-0.5">
                     {(() => {
-                      const t = selectedProposalDetail.businessType;
-                      return t && t !== "Software & IT Services" && t !== "Software Development & IT"
-                        ? t
-                        : selectedProposalDetail.businessCategory || selectedProposalDetail.businessIndustry || "—";
+                      const uId = String(selectedProposalDetail.userId || selectedProposalDetail.applicantUserId || selectedProposalDetail.id || "");
+                      let t = selectedProposalDetail.businessType || selectedProposalDetail.businessIndustry || selectedProposalDetail.businessCategory || selectedProposalDetail.category || "";
+                      if (!t && typeof window !== "undefined" && uId) {
+                        try {
+                          const raw = localStorage.getItem(`profile_override_${uId}`);
+                          if (raw) t = JSON.parse(raw)?.businessType || JSON.parse(raw)?.businessIndustry || "";
+                          if (!t) {
+                            const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
+                            if (allOverrides[uId]?.businessType) t = allOverrides[uId].businessType;
+                          }
+                        } catch {}
+                      }
+                      return t || "—";
                     })()}
                   </p>
                 </div>
@@ -1519,9 +1560,9 @@ export default function UserProjectsPage() {
               <Button
                 size="sm"
                 onClick={() => {
-                  const targetName = selectedProposalDetail.fullName || selectedProposalDetail.userName || "Business Partner";
+                  const targetName = selectedProposalDetail.fullName || selectedProposalDetail.userName || selectedProposalDetail.businessName || "Business Partner";
                   const targetBsn = selectedProposalDetail.businessName || "";
-                  const targetEmail = selectedProposalDetail.email || "";
+                  const targetEmail = selectedProposalDetail.email || (targetName ? `${targetName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "applicant@business.com");
                   const applicantId = selectedProposalDetail.userId || selectedProposalDetail.applicantUserId || selectedProposalDetail.id || "applicant";
                   const p = appliedModalProject;
                   const prjTitle = p?.title || "";

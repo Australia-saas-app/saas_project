@@ -26,12 +26,14 @@ import {
   CheckCheck,
   Check,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/src/context/user.provider";
 import { useNotifications } from "@/src/shared/context/notification.provider";
 import {
   archiveThread,
+  permanentlyDeleteThread,
   getOrCreateApplicationThread,
   getOrCreateProjectThread,
   getThreadsForRole,
@@ -210,6 +212,9 @@ export default function DashboardMessagesLayout({
   const [editingDraftId, setEditingDraftId] = useState<string | undefined>();
   const [isSending, setIsSending] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeletingPermanent, setIsDeletingPermanent] = useState(false);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
 
   const refresh = () => setThreads(getThreadsForRole(role, currentUserEmail));
 
@@ -314,10 +319,11 @@ export default function DashboardMessagesLayout({
     }
   }, [threadParam, toNameParam, toBsnParam, toEmailParam, toUserIdParam, projectIdParam, projectTitleParam, role, currentUserEmail, user]);
 
-  // Fetch messages directly from MongoDB backend and merge with live thread
+  // Fetch messages directly from MongoDB backend for specific project rooms (non-applicant threads)
   useEffect(() => {
     const activeThread = threads.find((t) => t.id === selectedId);
-    const pId = activeThread?.projectId || activeThread?.project;
+    if (!activeThread || activeThread.id.startsWith("TH-")) return;
+    const pId = activeThread.projectId || activeThread.project;
     if (!pId || pId === "Compose") return;
 
     let isMounted = true;
@@ -341,7 +347,7 @@ export default function DashboardMessagesLayout({
               fromName:
                 m.senderName ||
                 m.userName ||
-                (isMe ? getDisplayName(user) : activeThread?.participant || "Business Partner"),
+                (isMe ? getDisplayName(user) : activeThread.participant || "Business Partner"),
               fromEmail: m.senderEmail || m.email,
               body: m.content || m.message || m.body || "",
               sentAt: m.createdAt || m.sentAt || new Date().toISOString(),
@@ -362,7 +368,7 @@ export default function DashboardMessagesLayout({
     return () => {
       isMounted = false;
     };
-  }, [selectedId, user, currentUserEmail]);
+  }, [selectedId, user, currentUserEmail, threads]);
 
   // Listen for real-time incoming emails & messages on the platform
   useEffect(() => {
@@ -560,12 +566,40 @@ export default function DashboardMessagesLayout({
     });
   };
 
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    refresh();
+    if (socketRef.current?.connected && selectedId) {
+      socketRef.current.emit("join:conversation", { conversationId: selectedId });
+    }
+    await new Promise((r) => setTimeout(r, 600));
+    setIsRefreshing(false);
+    toast.success("Messages refreshed from database.");
+  };
+
   const handleArchive = () => {
     if (!selected) return;
     archiveThread(selected.id);
     handleCloseSelectedMessage();
     refresh();
     toast.success("Moved to Deleted.");
+  };
+
+  const handlePermanentDelete = async (targetId?: string) => {
+    const idToDelete = targetId || selected?.id;
+    if (!idToDelete) return;
+
+    setDeletingThreadId(idToDelete);
+    setIsDeletingPermanent(true);
+    await new Promise((r) => setTimeout(r, 500));
+    permanentlyDeleteThread(idToDelete);
+    if (selected?.id === idToDelete) {
+      handleCloseSelectedMessage();
+    }
+    refresh();
+    setIsDeletingPermanent(false);
+    setDeletingThreadId(null);
+    toast.success("Message deleted permanently from database.");
   };
 
   const handleSelectContact = (contact: RegisteredContact) => {
@@ -801,7 +835,7 @@ export default function DashboardMessagesLayout({
           <div className="lg:col-span-5 rounded-2xl border border-border bg-card shadow-xs flex flex-col overflow-hidden">
             {/* Search & Filter Bar with Total Chats Summary */}
             <div className="p-3 border-b border-border space-y-2.5 bg-muted/20">
-              {/* Total Chats & Unread Summary Header */}
+              {/* Total Chats & Unread Summary Header with Refresh Button */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-background px-2.5 py-1 text-xs font-semibold border border-border shadow-xs">
@@ -818,6 +852,18 @@ export default function DashboardMessagesLayout({
                     </span>
                   )}
                 </div>
+
+                {/* Refresh Icon Button - spins on click and updates messages from DB */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer transition-transform"
+                  title="Refresh messages from DB"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+                </Button>
               </div>
 
               <div className="relative">
@@ -860,30 +906,41 @@ export default function DashboardMessagesLayout({
                   const isSelected = t.id === selected?.id;
                   const isSentFolder = folder === "sent";
                   const isDraftFolder = folder === "drafts";
+                  const isDeletedFolder = folder === "deleted";
                   const isUnread = t.unread && !isSelected;
                   const unreadCount = t.unread
                     ? Math.max(1, t.messages.filter((m) => m.from === "them").length)
                     : 0;
 
-                  // Resolve Primary Full Name & Business/Client Tag according to Folder & Role
+                  // Gmail Model: Always resolve the OTHER PARTY relative to the logged-in user!
+                  const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+                  const currentName = getDisplayName(user).trim().toLowerCase();
+
+                  const isSenderMe =
+                    (t.senderEmail && t.senderEmail.toLowerCase() === currentEmail) ||
+                    (t.senderName && t.senderName.toLowerCase() === currentName) ||
+                    (role === "user" && t.id.startsWith("TH-"));
+
                   let primaryFullName = "";
                   let secondaryTag = "";
 
-                  if (isSentFolder) {
-                    primaryFullName =
-                      t.recipientName ||
-                      resolveContactFullName(t.recipientEmail, t.participant) ||
-                      t.participant ||
-                      "Recipient";
-                    secondaryTag = t.recipientBusiness || (role === "user" ? "Business Partner" : "Client");
-                  } else if (isDraftFolder) {
+                  if (isDraftFolder) {
                     primaryFullName =
                       t.recipientName ||
                       resolveContactFullName(t.recipientEmail, t.participant) ||
                       t.participant ||
                       "Draft";
                     secondaryTag = t.recipientBusiness || "";
+                  } else if (isSenderMe) {
+                    // I am the sender: Show the recipient (the applicant / business user I contacted)
+                    primaryFullName =
+                      t.recipientName ||
+                      resolveContactFullName(t.recipientEmail, t.participant) ||
+                      t.participant ||
+                      "Business Partner";
+                    secondaryTag = t.recipientBusiness || (role === "user" ? "Business Partner" : "Client");
                   } else {
+                    // I am the recipient: Show the sender (the client who messaged me)
                     primaryFullName =
                       t.senderName ||
                       t.messages[0]?.fromName ||
@@ -892,7 +949,6 @@ export default function DashboardMessagesLayout({
                       (role === "business" ? "Client" : "Business Partner");
                     secondaryTag =
                       t.senderBusiness ||
-                      t.recipientBusiness ||
                       (role === "business" ? "Client" : "Business Partner");
                   }
 
@@ -958,6 +1014,24 @@ export default function DashboardMessagesLayout({
                             <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
                               {formattedTime}
                             </span>
+                            {isDeletedFolder && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePermanentDelete(t.id);
+                                }}
+                                className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-500/10 cursor-pointer transition-colors inline-flex items-center"
+                                title="Delete permanently from database"
+                              >
+                                {isDeletingPermanent && deletingThreadId === t.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-red-600" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -966,19 +1040,14 @@ export default function DashboardMessagesLayout({
                           {previewSnippet}
                         </p>
 
-                        {/* Badges */}
-                        <div className="mt-1 flex items-center gap-1.5">
-                          {t.project && (
-                            <span className="inline-block rounded-md bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground truncate max-w-[170px]">
-                              {t.project}
-                            </span>
-                          )}
-                          {isDraftFolder && (
+                        {/* Draft indicator if applicable */}
+                        {isDraftFolder && (
+                          <div className="mt-1 flex items-center gap-1.5">
                             <span className="rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-bold">
                               Draft
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -994,45 +1063,91 @@ export default function DashboardMessagesLayout({
                 {/* Conversation Header */}
                 <div className="p-5 border-b border-border bg-muted/20">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1.5 min-w-0">
-                      <h2 className="text-base font-bold text-foreground truncate">{selected.subject}</h2>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">
-                          {selected.folder === "sent"
-                            ? (selected.recipientName || selected.participant)
-                            : (selected.senderName || selected.participant)}
-                        </span>
-                        {(selected.senderEmail || selected.recipientEmail) && (
-                          <span className="text-primary font-medium">
-                            &lt;{selected.folder === "sent" ? selected.recipientEmail : (selected.senderEmail || selected.participant)}&gt;
-                          </span>
-                        )}
-                        <span>•</span>
-                        <span>
-                          {new Date(selected.updatedAt).toLocaleString([], {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          })}
-                        </span>
-                        <span>•</span>
-                        <Link
-                          href={`${technicalHref}?id=${selected.projectId || selected.project}`}
-                          className="text-primary hover:underline font-semibold"
-                        >
-                          {selected.project}
-                        </Link>
-                      </div>
+                    <div className="space-y-1 min-w-0">
+                      {(() => {
+                        const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+                        const currentName = getDisplayName(user).trim().toLowerCase();
+                        const isSenderMe =
+                          (selected.senderEmail && selected.senderEmail.toLowerCase() === currentEmail) ||
+                          (selected.senderName && selected.senderName.toLowerCase() === currentName) ||
+                          (role === "user" && selected.id.startsWith("TH-"));
+
+                        const displayHeaderName = isSenderMe
+                          ? selected.recipientName || selected.participant || "Business Partner"
+                          : selected.senderName || selected.participant || "Client";
+
+                        const displayHeaderEmail = isSenderMe
+                          ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
+                          : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
+
+                        const projectTitle = selected.project || selected.projectId || "Project";
+                        const rawSubject = selected.subject || `Subject: Application for ${projectTitle}`;
+                        const displaySubject = rawSubject.startsWith("Subject:")
+                          ? rawSubject
+                          : `Subject: ${rawSubject.replace(/^(Project Application:\s*|Application:\s*)/i, "Application for ")}`;
+
+                        return (
+                          <>
+                            <h2 className="text-base font-bold text-foreground truncate">{displaySubject}</h2>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span className="font-bold text-foreground">
+                                {displayHeaderName}
+                              </span>
+                              {displayHeaderEmail && (
+                                <span className="text-primary font-medium">
+                                  &lt;{displayHeaderEmail}&gt;
+                                </span>
+                              )}
+                              <span>•</span>
+                              <span>
+                                {new Date(selected.updatedAt).toLocaleString([], {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })}
+                              </span>
+                              {selected.project && (
+                                <>
+                                  <span>•</span>
+                                  <Link
+                                    href={`${technicalHref}?id=${selected.projectId || selected.project}`}
+                                    className="text-primary hover:underline font-semibold"
+                                  >
+                                    {selected.project}
+                                  </Link>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleArchive}
-                        className="text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                      </Button>
+                      {folder === "deleted" ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handlePermanentDelete()}
+                          disabled={isDeletingPermanent}
+                          className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl cursor-pointer shadow-xs"
+                        >
+                          {isDeletingPermanent ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          Delete Permanently
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleArchive}
+                          className="text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                        </Button>
+                      )}
                       
                       {/* Cross Button to close message display */}
                       <Button

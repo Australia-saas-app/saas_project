@@ -146,8 +146,38 @@ export function getOrCreateApplicationThread(input: {
   const existing = local.find((t) => t.id === input.threadId) || global.find((t) => t.id === input.threadId);
 
   if (existing) {
+    let changed = false;
+    if (input.applicantName && existing.recipientName !== input.applicantName) {
+      existing.recipientName = input.applicantName;
+      existing.participant = input.applicantName;
+      changed = true;
+    }
+    if (input.applicantBusiness && existing.recipientBusiness !== input.applicantBusiness) {
+      existing.recipientBusiness = input.applicantBusiness;
+      changed = true;
+    }
+    if (input.applicantEmail && existing.recipientEmail !== input.applicantEmail) {
+      existing.recipientEmail = input.applicantEmail;
+      changed = true;
+    }
+    if (input.clientName && existing.senderName !== input.clientName) {
+      existing.senderName = input.clientName;
+      changed = true;
+    }
+    if (input.clientEmail && existing.senderEmail !== input.clientEmail) {
+      existing.senderEmail = input.clientEmail;
+      changed = true;
+    }
+    if (input.projectName && !existing.subject.includes(input.projectName)) {
+      existing.subject = `Subject: Application for ${input.projectName}`;
+      existing.project = input.projectName;
+      changed = true;
+    }
     if (input.initialDraft && (!existing.messages || existing.messages.length === 0) && !existing.draftBody) {
       existing.draftBody = input.initialDraft;
+      changed = true;
+    }
+    if (changed) {
       writeAll(local.map((t) => (t.id === existing.id ? existing : t)));
       writeGlobalEmails(global.map((t) => (t.id === existing.id ? existing : t)));
     }
@@ -159,11 +189,12 @@ export function getOrCreateApplicationThread(input: {
     role: input.role,
     participant: input.applicantName || "Business Partner",
     recipientName: input.applicantName || "Business Partner",
-    recipientBusiness: input.applicantBusiness || "",
+    recipientBusiness: input.applicantBusiness || "Business",
     recipientEmail: input.applicantEmail || "",
     senderName: input.clientName || "Client",
     senderEmail: input.clientEmail || "",
-    subject: `Project Application: ${input.projectName}`,
+    senderBusiness: "Client",
+    subject: `Subject: Application for ${input.projectName}`,
     project: input.projectName,
     projectId: input.projectId,
     unread: false,
@@ -234,6 +265,11 @@ export function archiveThread(threadId: string) {
 
 export function softDeleteThread(threadId: string) {
   archiveThread(threadId);
+}
+
+export function permanentlyDeleteThread(threadId: string) {
+  writeAll(readAll().filter((t) => t.id !== threadId));
+  writeGlobalEmails(readGlobalEmails().filter((t) => t.id !== threadId));
 }
 
 export function saveDraftThread(input: {
