@@ -22,6 +22,7 @@ import {
   Building2,
   Wallet,
   Bell,
+  MessageSquare,
 } from "lucide-react"
 
 export type AffiliaProNavItem = {
@@ -48,6 +49,11 @@ export const AFFILIAPRO_NAV_GROUPS: AffiliaProNavGroup[] = [
         href: "/business/dashboard",
         icon: LayoutDashboard,
         exact: true,
+      },
+      {
+        label: "Messages",
+        href: "/business/messages",
+        icon: MessageSquare,
       },
     ],
   },

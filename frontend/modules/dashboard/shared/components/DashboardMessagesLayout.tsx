@@ -551,17 +551,25 @@ export default function DashboardMessagesLayout({
         title: `New Message from ${senderDisplayName}`,
         message: messageBody.slice(0, 100),
         time: "Just now",
+        createdAt: new Date().toISOString(),
         read: false,
+        recipientEmail,
         href: role === "user" ? `/dashboard/business/messages?thread=${selected.id}` : `/dashboard/user/messages?thread=${selected.id}`,
       };
       if (typeof window !== "undefined" && recipientEmail) {
         localStorage.setItem(recNotifKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
+        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: newReceiverNotif, targetEmail: recipientEmail, timestamp: Date.now() }));
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:new_notification", targetEmail: recipientEmail, payload: newReceiverNotif });
+          bc.close();
+        }
       }
     } catch {}
 
     setDraft("");
     refresh();
-    toast.success("Message sent successfully.", {
+    toast.success("Message Delivered Successfully", {
       description: `Delivered to ${selected.recipientName || selected.participant}`,
     });
   };
@@ -671,7 +679,8 @@ export default function DashboardMessagesLayout({
 
     // Receiver local notification queuing
     try {
-      const recKey = `app_notifs_${recipientEmail.toLowerCase()}`;
+      const recEmail = recipientEmail.toLowerCase();
+      const recKey = `app_notifs_${recEmail}`;
       const existingRaw = typeof window !== "undefined" ? localStorage.getItem(recKey) : null;
       const existingNotifs = existingRaw ? JSON.parse(existingRaw) : [];
       const newReceiverNotif = {
@@ -679,24 +688,21 @@ export default function DashboardMessagesLayout({
         title: `New Email from ${getDisplayName(user)}`,
         message: composeSubject.trim() || "You received a new message.",
         time: "Just now",
+        createdAt: new Date().toISOString(),
         read: false,
-        href: `/dashboard/user/messages`,
+        recipientEmail: recEmail,
+        href: `/dashboard/business/messages`,
       };
       if (typeof window !== "undefined") {
         localStorage.setItem(recKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
+        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: newReceiverNotif, targetEmail: recEmail, timestamp: Date.now() }));
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:new_notification", targetEmail: recEmail, payload: newReceiverNotif });
+          bc.close();
+        }
       }
-    } catch {
-      // ignore
-    }
-
-    // Trigger local notification for sender
-    if (notify) {
-      notify({
-        title: "Email Sent Successfully",
-        message: `Delivered to ${recipientName} (${recipientEmail}): "${composeSubject.trim()}"`,
-        href: `/dashboard/user/messages`,
-      });
-    }
+    } catch {}
 
     setIsSending(false);
     setComposeOpen(false);
@@ -707,8 +713,8 @@ export default function DashboardMessagesLayout({
     setEditingDraftId(undefined);
     setFolder("sent");
     refresh();
-    toast.success(`Email message sent to ${recipientName} (${recipientEmail})!`, {
-      description: `Subject: "${composeSubject.trim()}"`,
+    toast.success("Message Delivered Successfully", {
+      description: `Delivered to ${recipientName} (${recipientEmail})`,
     });
   };
 

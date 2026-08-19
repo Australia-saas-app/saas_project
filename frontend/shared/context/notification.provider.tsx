@@ -212,6 +212,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         bc.onmessage = (event) => {
           if (event.data?.type === "vero:new_notification" && event.data.payload) {
             const p = event.data.payload;
+            const targetE = (event.data.targetEmail || p.recipientEmail || "").trim().toLowerCase();
+            if (targetE && userEmail && targetE !== userEmail) return;
             if (!knownIdsRef.has(String(p.id))) {
               notify(p, false);
             }
@@ -224,6 +226,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (e.key === "vero_notif_sync" && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
+          const targetE = (parsed.targetEmail || parsed.item?.recipientEmail || "").trim().toLowerCase();
+          if (targetE && userEmail && targetE !== userEmail) return;
           if (parsed.item && !knownIdsRef.has(String(parsed.item.id))) {
             notify(parsed.item, false);
           }
@@ -234,6 +238,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const handleCustomEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) {
+        const targetE = (detail.targetEmail || detail.recipientEmail || "").trim().toLowerCase();
+        if (targetE && userEmail && targetE !== userEmail) return;
         notify(detail, false);
       }
     };
@@ -248,7 +254,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("vero:new_notification", handleCustomEvent);
       if (bc) bc.close();
     };
-  }, [notify, knownIdsRef]);
+  }, [notify, knownIdsRef, userEmail]);
 
   // Realtime Platform Email Notifications
   useEffect(() => {
