@@ -220,48 +220,37 @@ export default function DashboardMessagesLayout({
     refresh();
   }, [role, currentUserEmail]);
 
-  // Real-time WebSocket connection to /chat
+  // Real-time synchronization across tabs and sessions
   useEffect(() => {
-    const wsUrl = getChatWsUrl();
-    const currentUserId = String((user as any)?.id || (user as any)?.userId || (user as any)?.sub || currentUserEmail);
-    const socket = io(`${wsUrl}/chat`, {
-      transports: ["polling", "websocket"],
-      query: {
-        userId: currentUserId,
-        role,
-      },
-      reconnection: true,
-      reconnectionAttempts: 2,
-      reconnectionDelay: 2000,
-      timeout: 4000,
-    });
-
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      if (selectedId) {
-        socket.emit("join:conversation", { conversationId: selectedId });
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (
+            event.data?.type === "vero:new_message" ||
+            event.data?.type === "vero:new_notification" ||
+            event.data?.type === "platform_new_email"
+          ) {
+            refresh();
+          }
+        };
       }
-    });
+    } catch {}
 
-    socket.on("connect_error", () => {
-      // Suppress unhandled socket loop alerts in console
-    });
+    const handleSync = () => {
+      refresh();
+    };
 
-    socket.on("message:new", (newMsg: any) => {
-      if (newMsg) {
-        refresh();
-        const incomingConvId = newMsg.conversationId || newMsg.projectId;
-        if (incomingConvId && incomingConvId === selectedId) {
-          markThreadRead(incomingConvId);
-        }
-      }
-    });
+    window.addEventListener("storage", handleSync);
+    window.addEventListener("messages_updated", handleSync);
 
     return () => {
-      socket.disconnect();
+      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("messages_updated", handleSync);
+      if (bc) bc.close();
     };
-  }, [role, currentUserEmail, selectedId, user]);
+  }, [role, currentUserEmail, selectedId]);
 
   // Restore persisted message on login / mount for this user
   useEffect(() => {
@@ -590,17 +579,14 @@ export default function DashboardMessagesLayout({
     const recipientDisplayName = selected.recipientName || selected.participant || "recipient";
     toast.success("Message Delivered Successfully", {
       description: `Delivered to ${recipientDisplayName}`,
-      className: "font-bold !text-foreground dark:!text-white",
-      descriptionClassName: "!text-foreground/90 dark:!text-gray-100 !font-medium",
+      className: "!text-[#111] dark:!text-white font-bold",
+      descriptionClassName: "!text-[#111] dark:!text-white !font-medium",
     });
   };
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     refresh();
-    if (socketRef.current?.connected && selectedId) {
-      socketRef.current.emit("join:conversation", { conversationId: selectedId });
-    }
     await new Promise((r) => setTimeout(r, 600));
     setIsRefreshing(false);
     toast.success("Messages refreshed from database.");
@@ -736,8 +722,8 @@ export default function DashboardMessagesLayout({
     refresh();
     toast.success("Message Delivered Successfully", {
       description: `Delivered to ${recipientName} (${recipientEmail})`,
-      className: "font-bold !text-foreground dark:!text-white",
-      descriptionClassName: "!text-foreground/90 dark:!text-gray-100 !font-medium",
+      className: "!text-[#111] dark:!text-white font-bold",
+      descriptionClassName: "!text-[#111] dark:!text-white !font-medium",
     });
   };
 

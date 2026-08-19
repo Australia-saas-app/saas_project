@@ -288,42 +288,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
-
-    const wsUrl = getWsUrl();
-    let hasLoggedError = false;
-
-    const socket: Socket = io(`${wsUrl}/notifications`, {
-      transports: ["websocket", "polling"],
-      query: { userId, role: role || "user" },
-      reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 5000,
-      reconnectionDelayMax: 15000,
-      timeout: 6000,
-    });
-
-    socket.on("connect", () => {
-      hasLoggedError = false;
-    });
-
-    socket.on("connect_error", (_err) => {
-      if (!hasLoggedError) {
-        hasLoggedError = true;
-      }
-    });
-
-    socket.on("new_notification", (payload: any) => {
-      notify({
-        id: payload.id,
-        title: payload.title,
-        message: payload.message,
-        href: payload.href,
-      });
-    });
-
-    return () => {
-      socket.disconnect();
-    };
   }, [userId, role, notify]);
 
   const markRead = useCallback(
