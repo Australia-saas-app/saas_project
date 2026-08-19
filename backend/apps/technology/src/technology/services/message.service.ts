@@ -87,6 +87,7 @@ export class MessageService {
           projectNumericId: project?.id,
           projectTitle,
           senderName: senderName || senderId,
+          threadId: projectId,
         },
       });
     } catch (e: any) {
@@ -163,7 +164,12 @@ export class MessageService {
     try {
       const mongoMessages = await this.projectMessageMongoModel
         .find({
-          $or: [{ projectId: resolvedProjectId }, { projectId }],
+          $or: [
+            { projectId: resolvedProjectId },
+            { projectId },
+            { 'metadata.threadId': projectId },
+            { 'metadata.threadId': resolvedProjectId },
+          ],
           isVisible: true,
         })
         .sort({ createdAt: 1 })

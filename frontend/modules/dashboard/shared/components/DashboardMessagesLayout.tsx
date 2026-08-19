@@ -311,11 +311,12 @@ export default function DashboardMessagesLayout({
     }
   }, [threadParam, toNameParam, toBsnParam, toEmailParam, toUserIdParam, projectIdParam, projectTitleParam, role, currentUserEmail, user]);
 
-  // Fetch messages directly from MongoDB backend for specific project rooms (non-applicant threads)
+  // Fetch messages directly from MongoDB backend for the active thread
   useEffect(() => {
+    if (!selectedId) return;
     const activeThread = threads.find((t) => t.id === selectedId);
-    if (!activeThread || activeThread.id.startsWith("TH-")) return;
-    const pId = activeThread.projectId || activeThread.project;
+    if (!activeThread) return;
+    const pId = activeThread.projectId || activeThread.id || activeThread.project;
     if (!pId || pId === "Compose") return;
 
     let isMounted = true;
@@ -346,7 +347,7 @@ export default function DashboardMessagesLayout({
             };
           });
 
-          if (formattedDbMsgs.length > 0 && selectedId) {
+          if (formattedDbMsgs.length > 0) {
             setThreads((prev) =>
               prev.map((t) => (t.id === selectedId ? { ...t, messages: formattedDbMsgs } : t))
             );
@@ -360,7 +361,7 @@ export default function DashboardMessagesLayout({
     return () => {
       isMounted = false;
     };
-  }, [selectedId, user, currentUserEmail, threads]);
+  }, [selectedId, user, currentUserEmail]);
 
   // Listen for real-time incoming emails & messages on the platform
   useEffect(() => {
@@ -522,7 +523,7 @@ export default function DashboardMessagesLayout({
     const senderDisplayName = getDisplayName(user);
 
     // 1. Persist directly to MongoDB backend collection ('project_messages')
-    const pId = selected.projectId || selected.project;
+    const pId = selected.projectId || selected.id || selected.project;
     if (pId && pId !== "Compose") {
       try {
         await sendProjectMessage(pId, messageBody);
@@ -531,15 +532,7 @@ export default function DashboardMessagesLayout({
       }
     }
 
-    // 2. Real-time WebSocket emission to /chat room
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("message:send", {
-        conversationId: selected.id,
-        content: messageBody,
-      });
-    }
-
-    // 3. Persist and cross-sync thread locally & globally
+    // 2. Persist and cross-sync thread locally & globally
     sendThreadMessage(
       selected.id,
       messageBody,
