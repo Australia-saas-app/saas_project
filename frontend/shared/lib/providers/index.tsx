@@ -144,7 +144,7 @@ export function Providers({ children }: ProvidersProps) {
                   classNames: {
                     toast: "group flex items-center w-full border shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-[12px] font-medium px-4 py-3.5 gap-3 bg-white border-gray-200 text-[#111] dark:bg-[#1c1c1e] dark:border-white/10 dark:!text-white dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)]",
                     title: "text-[14px]",
-                    description: "text-[13px] text-gray-500 dark:text-gray-400",
+                    description: "text-[13px] text-gray-600 dark:text-gray-200 font-medium",
                   }
                 }}
                 icons={{

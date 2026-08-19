@@ -32,9 +32,8 @@ const NotificationContext = createContext<INotificationContext | undefined>(unde
 const getWsUrl = (): string => {
   if (typeof window === "undefined") return "http://localhost:8000";
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const host = window.location.host;
-  const kongHost = host.replace(/:8080$/, ":8000").replace(/:3000$/, ":8000");
-  return `${proto}://${kongHost}`;
+  const hostname = window.location.hostname;
+  return `${proto}://${hostname}:8000`;
 };
 
 export function NotificationProvider({ children }: { children: ReactNode }) {

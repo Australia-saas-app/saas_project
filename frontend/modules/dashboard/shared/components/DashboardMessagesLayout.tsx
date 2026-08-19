@@ -160,12 +160,10 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 }
 
 function getChatWsUrl() {
-  if (typeof window === "undefined") return "http://localhost:3000";
-  return (
-    process.env.NEXT_PUBLIC_SOCKET_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    `${window.location.protocol}//${window.location.hostname}:3000`
-  );
+  if (typeof window === "undefined") return "http://localhost:8000";
+  const proto = window.location.protocol === "https:" ? "https:" : "http:";
+  const hostname = window.location.hostname;
+  return `${proto}//${hostname}:8000`;
 }
 
 export default function DashboardMessagesLayout({
@@ -227,14 +225,15 @@ export default function DashboardMessagesLayout({
     const wsUrl = getChatWsUrl();
     const currentUserId = String((user as any)?.id || (user as any)?.userId || (user as any)?.sub || currentUserEmail);
     const socket = io(`${wsUrl}/chat`, {
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
       query: {
         userId: currentUserId,
         role,
       },
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 2000,
+      timeout: 4000,
     });
 
     socketRef.current = socket;
@@ -243,6 +242,10 @@ export default function DashboardMessagesLayout({
       if (selectedId) {
         socket.emit("join:conversation", { conversationId: selectedId });
       }
+    });
+
+    socket.on("connect_error", () => {
+      // Suppress unhandled socket loop alerts in console
     });
 
     socket.on("message:new", (newMsg: any) => {
@@ -378,10 +381,25 @@ export default function DashboardMessagesLayout({
       if (!detail) return;
 
       const normalizedRec = (detail.recipientEmail || "").trim().toLowerCase();
+      const normalizedSender = (detail.senderEmail || "").trim().toLowerCase();
+      const normalizedSenderName = (detail.senderName || "").trim().toLowerCase();
       const normalizedCurrent = (currentUserEmail || "").trim().toLowerCase();
+      const currentDisplayName = getDisplayName(user).trim().toLowerCase();
+
+      // STRICT CHECK: If I am the sender, NEVER show the incoming message toast to myself!
+      const isSenderMe =
+        (normalizedCurrent && normalizedSender === normalizedCurrent) ||
+        (normalizedSenderName && normalizedSenderName === currentDisplayName);
+
+      if (isSenderMe) {
+        // Just refresh the store for the sender, do NOT trigger any incoming toast!
+        refresh();
+        return;
+      }
+
       const isRecipient =
         (normalizedCurrent && normalizedRec === normalizedCurrent) ||
-        (detail.threadId && detail.threadId.startsWith("TH-"));
+        (!isSenderMe && normalizedRec && normalizedRec === normalizedCurrent);
 
       if (isRecipient) {
         refresh();
@@ -403,7 +421,7 @@ export default function DashboardMessagesLayout({
 
     window.addEventListener("platform_new_email", handleIncomingEmail);
     return () => window.removeEventListener("platform_new_email", handleIncomingEmail);
-  }, [currentUserEmail]);
+  }, [currentUserEmail, user]);
 
   // Click outside to close recipient dropdown
   useEffect(() => {
@@ -569,8 +587,11 @@ export default function DashboardMessagesLayout({
 
     setDraft("");
     refresh();
+    const recipientDisplayName = selected.recipientName || selected.participant || "recipient";
     toast.success("Message Delivered Successfully", {
-      description: `Delivered to ${selected.recipientName || selected.participant}`,
+      description: `Delivered to ${recipientDisplayName}`,
+      className: "font-bold !text-foreground dark:!text-white",
+      descriptionClassName: "!text-foreground/90 dark:!text-gray-100 !font-medium",
     });
   };
 
@@ -715,6 +736,8 @@ export default function DashboardMessagesLayout({
     refresh();
     toast.success("Message Delivered Successfully", {
       description: `Delivered to ${recipientName} (${recipientEmail})`,
+      className: "font-bold !text-foreground dark:!text-white",
+      descriptionClassName: "!text-foreground/90 dark:!text-gray-100 !font-medium",
     });
   };
 
@@ -1172,7 +1195,12 @@ export default function DashboardMessagesLayout({
                 {/* Messages Stream */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
                   {selected.messages.map((m) => {
-                    const isMe = m.from === "me";
+                    const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+                    const currentName = getDisplayName(user).trim().toLowerCase();
+                    const isMe =
+                      (m.fromEmail && m.fromEmail.toLowerCase() === currentEmail) ||
+                      (m.fromName && m.fromName.toLowerCase() === currentName) ||
+                      (m.from === "me" && (!selected.senderEmail || selected.senderEmail.toLowerCase() === currentEmail));
                     return (
                       <div
                         key={m.id}

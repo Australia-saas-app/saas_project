@@ -39,14 +39,10 @@ export interface MessageThread {
 const STORAGE_KEY = "platform_message_threads";
 const GLOBAL_EMAIL_STORAGE_KEY = "platform_global_email_messages";
 
-function storageKey() {
-  return scopedStorageKey(STORAGE_KEY);
-}
-
 function readAll(): MessageThread[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(storageKey());
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as MessageThread[];
     return Array.isArray(parsed) ? parsed : [];
@@ -57,7 +53,7 @@ function readAll(): MessageThread[] {
 
 function writeAll(threads: MessageThread[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(storageKey(), JSON.stringify(threads));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
 }
 
 function readGlobalEmails(): MessageThread[] {
@@ -78,9 +74,9 @@ function writeGlobalEmails(emails: MessageThread[]) {
 }
 
 export function seedThreadsIfEmpty(seed: MessageThread[]) {
-  if (!isDemoAccountUserId(getStorageUserScope())) return;
-  if (readAll().length > 0) return;
+  if (readAll().length > 0 || readGlobalEmails().length > 0) return;
   writeAll(seed);
+  writeGlobalEmails(seed);
 }
 
 export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string): MessageThread[] {
@@ -88,33 +84,25 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
   const global = readGlobalEmails();
   const email = currentUserEmail?.trim().toLowerCase();
 
-  // Combine local and global messages relevant to this user email
   const combinedMap = new Map<string, MessageThread>();
 
-  local
-    .filter((t) => t.role === role)
-    .forEach((t) => combinedMap.set(t.id, t));
+  // Consolidate all threads from global and local stores
+  [...local, ...global].forEach((t) => {
+    if (!t || !t.id) return;
 
-  if (email) {
-    global.forEach((t) => {
-      const rec = (t.recipientEmail || t.participant || "").toLowerCase();
-      const send = (t.senderEmail || "").toLowerCase();
+    const rec = (t.recipientEmail || t.participant || "").trim().toLowerCase();
+    const send = (t.senderEmail || "").trim().toLowerCase();
 
-      if (rec === email) {
-        if (t.folder === "inbox" || t.folder === "deleted") {
-          combinedMap.set(t.id, { ...t, role });
-        }
-      } else if (send === email) {
-        if (t.folder === "sent" || t.folder === "deleted") {
-          combinedMap.set(t.id, { ...t, role });
-        }
+    // 1. Thread explicitly matches current user email
+    if (email) {
+      if (rec === email || send === email) {
+        combinedMap.set(t.id, { ...t, role });
+        return;
       }
-    });
-  }
+    }
 
-  // Also include project application threads (TH-*) for both user and business roles
-  global.forEach((t) => {
-    if (t.id.startsWith("TH-")) {
+    // 2. Project application threads (TH-*) or role matching
+    if (t.id.startsWith("TH-") || t.role === role) {
       combinedMap.set(t.id, { ...t, role });
     }
   });
