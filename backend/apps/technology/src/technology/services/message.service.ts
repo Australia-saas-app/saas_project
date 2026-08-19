@@ -70,7 +70,7 @@ export class MessageService {
       .catch(() => null);
 
     const resolvedProjectId = project?.projectId || projectId;
-    const projectTitle = project?.title || 'Project Application';
+    const projectTitle = createDto.projectTitle || project?.title || 'Project Application';
 
     // 1. Save directly into MongoDB (Mongoose Collection: 'project_messages')
     let mongoSavedDoc: any = null;
@@ -78,7 +78,7 @@ export class MessageService {
       mongoSavedDoc = await this.projectMessageMongoModel.create({
         projectId: resolvedProjectId,
         senderId,
-        senderName: senderName || senderId,
+        senderName: createDto.senderName || senderName || senderId,
         messageType: createDto.messageType || 'general',
         content: createDto.content,
         isVisible: true,
@@ -86,8 +86,13 @@ export class MessageService {
         metadata: {
           projectNumericId: project?.id,
           projectTitle,
-          senderName: senderName || senderId,
-          threadId: projectId,
+          senderName: createDto.senderName || senderName || senderId,
+          senderEmail: createDto.senderEmail || '',
+          recipientName: createDto.recipientName || '',
+          recipientEmail: createDto.recipientEmail || '',
+          recipientUserId: createDto.recipientUserId || '',
+          threadId: createDto.threadId || projectId,
+          subject: createDto.subject || `Subject: Application for ${projectTitle}`,
         },
       });
     } catch (e: any) {
@@ -216,6 +221,106 @@ export class MessageService {
     }
 
     return [];
+  }
+
+  async findUserThreads(userId: string, email: string): Promise<any[]> {
+    try {
+      const query: any = { isVisible: true };
+      const normalizedEmail = (email || '').trim().toLowerCase();
+      const normalizedUserId = (userId || '').trim().toLowerCase();
+
+      const conditions: any[] = [];
+      if (normalizedEmail) {
+        conditions.push(
+          { 'metadata.senderEmail': { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } },
+          { 'metadata.recipientEmail': { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } },
+          { senderId: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } },
+        );
+      }
+      if (normalizedUserId && normalizedUserId !== 'admin') {
+        conditions.push(
+          { senderId: normalizedUserId },
+          { 'metadata.recipientUserId': normalizedUserId },
+        );
+      }
+
+      if (conditions.length > 0) {
+        query.$or = conditions;
+      }
+
+      const rawMessages = await this.projectMessageMongoModel
+        .find(query)
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec();
+
+      if (!rawMessages || rawMessages.length === 0) {
+        const allRecent = await this.projectMessageMongoModel
+          .find({ isVisible: true })
+          .sort({ createdAt: 1 })
+          .limit(200)
+          .lean()
+          .exec();
+        return this.groupMessagesIntoThreads(allRecent, normalizedUserId, normalizedEmail);
+      }
+
+      return this.groupMessagesIntoThreads(rawMessages, normalizedUserId, normalizedEmail);
+    } catch (e: any) {
+      this.logger.error('Failed to find user threads from MongoDB', e.message);
+      return [];
+    }
+  }
+
+  private groupMessagesIntoThreads(messages: any[], userId: string, email: string): any[] {
+    const threadMap = new Map<string, any>();
+
+    for (const m of messages) {
+      const threadId = m.metadata?.threadId || m.projectId;
+      if (!threadId) continue;
+
+      const senderEmail = (m.metadata?.senderEmail || '').toLowerCase();
+      const isMe =
+        (email && senderEmail === email) ||
+        (userId && String(m.senderId).toLowerCase() === userId);
+
+      const formattedMsg = {
+        id: m._id?.toString() || m.id,
+        from: isMe ? ('me' as const) : ('them' as const),
+        fromName: m.senderName || m.metadata?.senderName || 'Team Member',
+        fromEmail: m.metadata?.senderEmail || '',
+        body: m.content || '',
+        sentAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+      };
+
+      if (!threadMap.has(threadId)) {
+        threadMap.set(threadId, {
+          id: threadId,
+          projectId: m.projectId,
+          project: m.metadata?.projectTitle || 'Project Application',
+          subject: m.metadata?.subject || `Subject: Application for ${m.metadata?.projectTitle || 'Project'}`,
+          senderName: m.metadata?.senderName || m.senderName || 'Client',
+          senderEmail: m.metadata?.senderEmail || '',
+          recipientName: m.metadata?.recipientName || 'Business Partner',
+          recipientEmail: m.metadata?.recipientEmail || '',
+          recipientBusiness: m.metadata?.recipientBusiness || '',
+          unread: !isMe,
+          updatedAt: formattedMsg.sentAt,
+          folder: 'inbox',
+          messages: [formattedMsg],
+        });
+      } else {
+        const existing = threadMap.get(threadId);
+        existing.messages.push(formattedMsg);
+        existing.updatedAt = formattedMsg.sentAt;
+        if (!isMe) {
+          existing.unread = true;
+        }
+      }
+    }
+
+    return Array.from(threadMap.values()).sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
   }
 
   async findOne(messageId: number | string, userId?: string): Promise<any> {

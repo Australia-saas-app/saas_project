@@ -25,7 +25,9 @@ export interface MessageThread {
   recipientName?: string;
   recipientEmail?: string;
   recipientBusiness?: string;
+  recipientUserId?: string;
   senderBusiness?: string;
+  senderUserId?: string;
   subject: string;
   project: string;
   projectId?: string;
@@ -179,6 +181,7 @@ export function getOrCreateApplicationThread(input: {
     recipientName: input.applicantName || "Business Partner",
     recipientBusiness: input.applicantBusiness || "Business",
     recipientEmail: input.applicantEmail || "",
+    recipientUserId: input.applicantUserId || "",
     senderName: input.clientName || "Client",
     senderEmail: input.clientEmail || "",
     senderBusiness: "Client",

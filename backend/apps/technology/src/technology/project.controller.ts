@@ -333,6 +333,15 @@ export class ProjectController {
 
   // ─── MESSAGES ───────────────────────────────────────────────────────────────
 
+  @Get('conversations/user-threads')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  async getUserThreads(@Req() req: any) {
+    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
+    const email = req.user?.email || '';
+    return this.messageService.findUserThreads(userId, email);
+  }
+
   @Post(':projectId/messages')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')

@@ -53,7 +53,7 @@ import {
   type RegisteredContact,
 } from "@/src/shared/lib/contacts-store";
 import { io, Socket } from "socket.io-client";
-import { fetchProjectMessages, sendProjectMessage } from "@/src/modules/technical/services/technical.services";
+import { fetchProjectMessages, fetchUserThreads, sendProjectMessage } from "@/src/modules/technical/services/technical.services";
 import { Button } from "@/src/components/ui/button";
 import { LiveChatTab } from "./LiveChatTab";
 
@@ -276,65 +276,44 @@ export default function DashboardMessagesLayout({
     }
   }, [currentUserEmail, threadParam, threads]);
 
-  // Background fetch all project & application messages from MongoDB for both user and business
+  // Background fetch all conversation threads directly from MongoDB backend for this account
   useEffect(() => {
     let isMounted = true;
-    const syncAllDbMessages = async () => {
+    const loadAllThreadsFromDB = async () => {
       try {
-        const currentThreads = getThreadsForRole(role, currentUserEmail);
-        const projectIds = Array.from(
-          new Set(
-            currentThreads
-              .map((t) => t.projectId || t.id || t.project)
-              .filter((id) => id && id !== "Compose")
-          )
-        );
-
-        for (const pId of projectIds) {
-          if (!isMounted) break;
-          const dbMsgs = await fetchProjectMessages(pId);
-          if (Array.isArray(dbMsgs) && dbMsgs.length > 0) {
-            const currentUserId = String((user as any)?.id || (user as any)?.userId || "").toLowerCase();
-            const currentEmail = (currentUserEmail || "").toLowerCase();
-
-            const formatted = dbMsgs.map((m: any) => {
-              const senderId = String(m.senderId || m.userId || "").toLowerCase();
-              const senderEmail = (m.senderEmail || m.email || "").toLowerCase();
-              const isMe =
-                (currentUserId && senderId === currentUserId) ||
-                (currentEmail && senderEmail === currentEmail);
-
-              return {
-                id: String(m.id || m._id || Date.now()),
-                from: isMe ? ("me" as const) : ("them" as const),
-                fromName: m.senderName || m.userName || (isMe ? getDisplayName(user) : "Participant"),
-                fromEmail: m.senderEmail || m.email,
-                body: m.content || m.message || m.body || "",
-                sentAt: m.createdAt || m.sentAt || new Date().toISOString(),
-              };
+        const dbThreads = await fetchUserThreads();
+        if (isMounted && Array.isArray(dbThreads) && dbThreads.length > 0) {
+          setThreads((prev) => {
+            const map = new Map<string, MessageThread>();
+            prev.forEach((t) => map.set(t.id, t));
+            dbThreads.forEach((dt) => {
+              const existing = map.get(dt.id);
+              if (existing) {
+                map.set(dt.id, {
+                  ...existing,
+                  ...dt,
+                  messages: dt.messages && dt.messages.length > 0 ? dt.messages : existing.messages,
+                });
+              } else {
+                map.set(dt.id, { ...dt, role });
+              }
             });
-
-            if (formatted.length > 0) {
-              setThreads((prev) =>
-                prev.map((t) => {
-                  const match = t.projectId === pId || t.id === pId || t.project === pId;
-                  return match ? { ...t, messages: formatted, updatedAt: formatted[formatted.length - 1].sentAt } : t;
-                })
-              );
-            }
-          }
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+          });
         }
       } catch (e) {
-        console.warn("DB messages sync info:", e);
+        console.warn("Error loading user threads from DB:", e);
       }
     };
 
-    syncAllDbMessages();
+    loadAllThreadsFromDB();
 
     return () => {
       isMounted = false;
     };
-  }, [role, currentUserEmail, user]);
+  }, [role, currentUserEmail]);
 
   // Handle URL param thread selection and auto-formatted template (runs ONCE per threadParam)
   useEffect(() => {
@@ -605,7 +584,32 @@ export default function DashboardMessagesLayout({
     const pId = selected.projectId || selected.id || selected.project;
     if (pId && pId !== "Compose") {
       try {
-        await sendProjectMessage(pId, messageBody);
+        const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+        const currentName = getDisplayName(user).trim().toLowerCase();
+
+        const isSenderMe =
+          (selected.senderEmail && selected.senderEmail.toLowerCase() === currentEmail) ||
+          (selected.senderName && selected.senderName.toLowerCase() === currentName) ||
+          (role === "user" && selected.id.startsWith("TH-"));
+
+        const recName = isSenderMe
+          ? selected.recipientName || selected.participant || "Business Partner"
+          : selected.senderName || selected.participant || "Client";
+
+        const recEmail = isSenderMe
+          ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
+          : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
+
+        await sendProjectMessage(pId, messageBody, "general", {
+          senderName: senderDisplayName,
+          senderEmail: currentUserEmail,
+          recipientName: recName,
+          recipientEmail: recEmail,
+          recipientUserId: selected.recipientUserId || selected.participant || "",
+          threadId: selected.id,
+          projectTitle: selected.project || selected.projectId || "Project",
+          subject: selected.subject || `Subject: Application for ${selected.project || "Project"}`,
+        });
       } catch (e) {
         console.warn("MongoDB message save error:", e);
       }

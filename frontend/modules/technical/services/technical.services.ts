@@ -250,16 +250,38 @@ export const fetchProjectMessages = async (projectId: string, _token?: string) =
   return [];
 };
 
+export const fetchUserThreads = async (_token?: string) => {
+  try {
+    const res = await axiosInstance.get(`/technology/projects/conversations/user-threads`);
+    const data = res?.data;
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn("User threads fallback:", e);
+  }
+  return [];
+};
+
 export const sendProjectMessage = async (
   projectId: string,
   content: string,
   messageType?: string,
+  metadata?: {
+    senderName?: string;
+    senderEmail?: string;
+    recipientName?: string;
+    recipientEmail?: string;
+    recipientUserId?: string;
+    threadId?: string;
+    projectTitle?: string;
+    subject?: string;
+  },
   _token?: string
 ) => {
   try {
     const res = await axiosInstance.post(`/technology/projects/${projectId}/messages`, {
       content,
       messageType: messageType || 'general',
+      ...metadata,
     });
     return res?.data;
   } catch (e) {
