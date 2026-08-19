@@ -252,21 +252,99 @@ export default function DashboardMessagesLayout({
     };
   }, [role, currentUserEmail, selectedId]);
 
-  // Restore persisted message on login / mount for this user
+  const initializedParamRef = useRef<string | null>(null);
+  const lastFetchedIdRef = useRef<string | null>(null);
+
+  // Restore persisted message ONLY if opened during the current session (never auto-open on fresh login)
   useEffect(() => {
     if (typeof window === "undefined" || !currentUserEmail) {
-      setSelectedId(null);
       return;
     }
-    const savedId = sessionStorage.getItem(`active_msg_${currentUserEmail.toLowerCase()}`);
-    if (savedId && !threadParam) {
-      setSelectedId(savedId);
-    }
-  }, [currentUserEmail, threadParam]);
+    if (threadParam) return;
 
-  // Handle URL param thread selection and auto-formatted template
+    const savedId = sessionStorage.getItem(`active_msg_${currentUserEmail.toLowerCase()}`);
+    if (savedId) {
+      const thread = threads.find((t) => t.id === savedId);
+      if (thread) {
+        setSelectedId(savedId);
+      } else {
+        sessionStorage.removeItem(`active_msg_${currentUserEmail.toLowerCase()}`);
+        setSelectedId(null);
+      }
+    } else {
+      setSelectedId(null);
+    }
+  }, [currentUserEmail, threadParam, threads]);
+
+  // Background fetch all project & application messages from MongoDB for both user and business
   useEffect(() => {
-    if (!threadParam) return;
+    let isMounted = true;
+    const syncAllDbMessages = async () => {
+      try {
+        const currentThreads = getThreadsForRole(role, currentUserEmail);
+        const projectIds = Array.from(
+          new Set(
+            currentThreads
+              .map((t) => t.projectId || t.id || t.project)
+              .filter((id) => id && id !== "Compose")
+          )
+        );
+
+        for (const pId of projectIds) {
+          if (!isMounted) break;
+          const dbMsgs = await fetchProjectMessages(pId);
+          if (Array.isArray(dbMsgs) && dbMsgs.length > 0) {
+            const currentUserId = String((user as any)?.id || (user as any)?.userId || "").toLowerCase();
+            const currentEmail = (currentUserEmail || "").toLowerCase();
+
+            const formatted = dbMsgs.map((m: any) => {
+              const senderId = String(m.senderId || m.userId || "").toLowerCase();
+              const senderEmail = (m.senderEmail || m.email || "").toLowerCase();
+              const isMe =
+                (currentUserId && senderId === currentUserId) ||
+                (currentEmail && senderEmail === currentEmail);
+
+              return {
+                id: String(m.id || m._id || Date.now()),
+                from: isMe ? ("me" as const) : ("them" as const),
+                fromName: m.senderName || m.userName || (isMe ? getDisplayName(user) : "Participant"),
+                fromEmail: m.senderEmail || m.email,
+                body: m.content || m.message || m.body || "",
+                sentAt: m.createdAt || m.sentAt || new Date().toISOString(),
+              };
+            });
+
+            if (formatted.length > 0) {
+              setThreads((prev) =>
+                prev.map((t) => {
+                  const match = t.projectId === pId || t.id === pId || t.project === pId;
+                  return match ? { ...t, messages: formatted, updatedAt: formatted[formatted.length - 1].sentAt } : t;
+                })
+              );
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("DB messages sync info:", e);
+      }
+    };
+
+    syncAllDbMessages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [role, currentUserEmail, user]);
+
+  // Handle URL param thread selection and auto-formatted template (runs ONCE per threadParam)
+  useEffect(() => {
+    if (!threadParam) {
+      initializedParamRef.current = null;
+      return;
+    }
+    if (initializedParamRef.current === threadParam) return;
+    initializedParamRef.current = threadParam;
+
     let thread = getThreadsForRole(role, currentUserEmail).find((t) => t.id === threadParam);
 
     const clientDisplayName = getDisplayName(user);
@@ -304,19 +382,20 @@ export default function DashboardMessagesLayout({
       }
       markThreadRead(thread.id);
       refresh();
-
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("join:conversation", { conversationId: thread.id });
-      }
     }
   }, [threadParam, toNameParam, toBsnParam, toEmailParam, toUserIdParam, projectIdParam, projectTitleParam, role, currentUserEmail, user]);
 
-  // Fetch messages directly from MongoDB backend for the active thread
+  // Fetch messages directly from MongoDB backend for the active thread (runs once per selected thread)
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      lastFetchedIdRef.current = null;
+      return;
+    }
+    if (lastFetchedIdRef.current === selectedId) return;
+    lastFetchedIdRef.current = selectedId;
+
     const activeThread = threads.find((t) => t.id === selectedId);
-    if (!activeThread) return;
-    const pId = activeThread.projectId || activeThread.id || activeThread.project;
+    const pId = activeThread?.projectId || selectedId || activeThread?.project;
     if (!pId || pId === "Compose") return;
 
     let isMounted = true;
@@ -340,7 +419,7 @@ export default function DashboardMessagesLayout({
               fromName:
                 m.senderName ||
                 m.userName ||
-                (isMe ? getDisplayName(user) : activeThread.participant || "Business Partner"),
+                (isMe ? getDisplayName(user) : activeThread?.participant || "Business Partner"),
               fromEmail: m.senderEmail || m.email,
               body: m.content || m.message || m.body || "",
               sentAt: m.createdAt || m.sentAt || new Date().toISOString(),
@@ -361,7 +440,7 @@ export default function DashboardMessagesLayout({
     return () => {
       isMounted = false;
     };
-  }, [selectedId, user, currentUserEmail]);
+  }, [selectedId, currentUserEmail, user]);
 
   // Listen for real-time incoming emails & messages on the platform
   useEffect(() => {
@@ -838,9 +917,9 @@ export default function DashboardMessagesLayout({
       {folder === "live" ? (
         <LiveChatTab />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 min-h-[560px]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 h-[680px] max-h-[calc(100vh-210px)] min-h-[560px] overflow-hidden">
           {/* Left Column: Email Thread List */}
-          <div className="lg:col-span-5 rounded-2xl border border-border bg-card shadow-xs flex flex-col overflow-hidden">
+          <div className="lg:col-span-5 rounded-2xl border border-border bg-card shadow-xs flex flex-col h-full overflow-hidden">
             {/* Search & Filter Bar with Total Chats Summary */}
             <div className="p-3 border-b border-border space-y-2.5 bg-muted/20">
               {/* Total Chats & Unread Summary Header with Refresh Button */}
@@ -1065,7 +1144,7 @@ export default function DashboardMessagesLayout({
           </div>
 
           {/* Right Column: Selected Email Conversation View */}
-          <div className="lg:col-span-7 rounded-2xl border border-border bg-card shadow-xs flex flex-col overflow-hidden min-h-[500px]">
+          <div className="lg:col-span-7 rounded-2xl border border-border bg-card shadow-xs flex flex-col h-full overflow-hidden">
             {selected ? (
               <div className="flex flex-col h-full">
                 {/* Conversation Header */}
