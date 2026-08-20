@@ -313,9 +313,7 @@ export class MessageService {
         const existing = threadMap.get(threadId);
         existing.messages.push(formattedMsg);
         existing.updatedAt = formattedMsg.sentAt;
-        if (!isMe) {
-          existing.unread = true;
-        }
+        existing.unread = !isMe;
         if (m.metadata?.recipientName && (!existing.recipientName || existing.recipientName === 'Business Partner')) {
           existing.recipientName = m.metadata.recipientName;
         }

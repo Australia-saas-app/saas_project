@@ -10,6 +10,7 @@ import LogoutConfirmModal from "@/src/shared/components/LogoutConfirmModal";
 import { useUser } from "@/src/context/user.provider";
 import { useLogout } from "@/src/hooks/auth.hook";
 import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
+import { MessagesBell } from "@/src/modules/shared/components/MessagesBell";
 import { ThemeToggle } from "@/src/shared/components/ThemeToggle";
 import { AFFILIAPRO_AFFILIATE_NAV } from "../constants/affiliapro-nav";
 import { useProfileDisplay } from "@/src/modules/dashboard/shared/hooks/use-profile-display";
@@ -197,7 +198,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle compact />
-
+            <MessagesBell viewAllHref="/dashboard/affiliate/messages" />
             <NotificationBell viewAllHref="/affiliate/notices" />
 
             <div className="relative ml-1">

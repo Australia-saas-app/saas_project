@@ -255,37 +255,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [notify, knownIdsRef, userEmail]);
 
-  // Realtime Platform Email Notifications
-  useEffect(() => {
-    if (!userEmail || typeof window === "undefined") return;
-
-    function handleNewEmail(event: Event) {
-      const customEvent = event as CustomEvent;
-      const detail = customEvent.detail;
-      if (!detail) return;
-
-      const rec = (detail.recipientEmail || "").trim().toLowerCase();
-      if (rec === userEmail) {
-        const messagePath =
-          role === "AFFILIATE"
-            ? "/dashboard/affiliate/messages"
-            : role === "SELLER" || role === "BUSINESS"
-            ? "/dashboard/business/messages"
-            : "/dashboard/user/messages";
-
-        notify({
-          id: `email-${detail.threadId}-${Date.now()}`,
-          title: `New Email from ${detail.senderName || detail.senderEmail}`,
-          message: detail.subject ? `"${detail.subject}"` : "You received a new email message.",
-          href: `${messagePath}?thread=${detail.threadId}`,
-        });
-      }
-    }
-
-    window.addEventListener("platform_new_email", handleNewEmail);
-    return () => window.removeEventListener("platform_new_email", handleNewEmail);
-  }, [userEmail, role, notify]);
-
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
   }, [userId, role, notify]);

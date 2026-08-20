@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ExternalLink, Menu } from "lucide-react";
 import { usePermission } from "@/src/hooks/permission.hook";
 import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
+import { MessagesBell } from "@/src/modules/shared/components/MessagesBell";
 import { ThemeToggle } from "@/src/shared/components/ThemeToggle";
 
 type DashboardTopBarProps = {
@@ -48,6 +49,7 @@ export function DashboardTopBar({
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <ThemeToggle compact />
+        <MessagesBell />
         <NotificationBell viewAllHref={noticesHref} />
         <Link
           href="/"

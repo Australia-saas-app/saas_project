@@ -108,8 +108,11 @@ function getInitials(name?: string | null): string {
 
 /**
  * Format message timestamps:
- * Same day: "11:06 AM" / "11:06 PM"
- * Older / Another day: "Aug 14, 2026"
+ * Under 1 min: "Just now"
+ * Under 1 hour: "1m ago", "59m ago"
+ * Same day: "1:09 PM" / "1:09 AM"
+ * Yesterday: "Yesterday, 1:09 PM"
+ * Older / 2+ days: "Aug 20, 2026, 1:09 PM"
  */
 function formatMessageTimestamp(dateStr?: string): string {
   if (!dateStr) return "";
@@ -117,24 +120,54 @@ function formatMessageTimestamp(dateStr?: string): string {
   if (isNaN(d.getTime())) return dateStr;
 
   const now = new Date();
+  const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+
+  // Less than 60 seconds
+  if (diffSec >= 0 && diffSec < 60) {
+    return "Just now";
+  }
+
+  // Less than 60 minutes
+  if (diffSec >= 60 && diffSec < 3600) {
+    const mins = Math.floor(diffSec / 60);
+    return `${mins}m ago`;
+  }
+
+  const timeStr = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
   const isSameDay =
     d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
 
   if (isSameDay) {
-    return d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    return timeStr;
   }
 
-  return d.toLocaleDateString("en-US", {
+  // Check if yesterday
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+
+  if (isYesterday) {
+    return `Yesterday, ${timeStr}`;
+  }
+
+  // 2+ days ago
+  const dateFormatted = d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+
+  return `${dateFormatted}, ${timeStr}`;
 }
 
 /** Component to highlight matching text anywhere (start, middle, or end) */
@@ -215,6 +248,8 @@ export default function DashboardMessagesLayout({
   const [isDeletingPermanent, setIsDeletingPermanent] = useState(false);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const refresh = () => setThreads(getThreadsForRole(role, currentUserEmail));
 
   const handleManualRefresh = async () => {
@@ -222,12 +257,15 @@ export default function DashboardMessagesLayout({
     try {
       const dbThreads = await fetchUserThreads();
       if (Array.isArray(dbThreads) && dbThreads.length > 0) {
-        syncMongoDBThreads(dbThreads);
+        syncMongoDBThreads(dbThreads, currentUserEmail);
       }
-      setThreads(getThreadsForRole(role, currentUserEmail));
+      const updated = getThreadsForRole(role, currentUserEmail);
+      setThreads((prev) => (updated.length > 0 ? updated : prev));
       toast.success("Messages refreshed");
-    } catch {
-      setThreads(getThreadsForRole(role, currentUserEmail));
+    } catch (e) {
+      console.warn("Manual refresh fallback:", e);
+      const updated = getThreadsForRole(role, currentUserEmail);
+      setThreads((prev) => (updated.length > 0 ? updated : prev));
     } finally {
       setIsRefreshing(false);
     }
@@ -250,6 +288,33 @@ export default function DashboardMessagesLayout({
             event.data?.type === "platform_new_email"
           ) {
             refresh();
+
+            if (event.data?.type === "platform_new_email" && event.data.detail) {
+              const detail = event.data.detail;
+              const normalizedRec = (detail.recipientEmail || "").trim().toLowerCase();
+              const normalizedSender = (detail.senderEmail || "").trim().toLowerCase();
+              const normalizedCurrent = (currentUserEmail || "").trim().toLowerCase();
+
+              const isSenderMe = normalizedCurrent && normalizedSender === normalizedCurrent;
+              const isRecipient =
+                (normalizedCurrent && normalizedRec === normalizedCurrent) ||
+                (!isSenderMe && normalizedRec && normalizedRec === normalizedCurrent);
+
+              if (isRecipient && !isSenderMe) {
+                const sender = detail.senderName || detail.senderEmail || "A user";
+                toast("You have received a new message", {
+                  description: `From: ${sender} — "${(detail.body || detail.subject || "").slice(0, 70)}..."`,
+                  action: {
+                    label: "View message",
+                    onClick: () => {
+                      setFolder("inbox");
+                      openThread(detail.threadId);
+                    },
+                  },
+                  duration: 8000,
+                });
+              }
+            }
           }
         };
       }
@@ -300,7 +365,7 @@ export default function DashboardMessagesLayout({
       try {
         const dbThreads = await fetchUserThreads();
         if (isMounted && Array.isArray(dbThreads) && dbThreads.length > 0) {
-          syncMongoDBThreads(dbThreads);
+          syncMongoDBThreads(dbThreads, currentUserEmail);
           setThreads(getThreadsForRole(role, currentUserEmail));
         }
       } catch (e) {
@@ -527,6 +592,12 @@ export default function DashboardMessagesLayout({
   // Selected message (Strictly null if closed or unselected)
   const selected = selectedId ? threads.find((t) => t.id === selectedId) ?? null : null;
 
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [selectedId, selected?.messages?.length]);
+
   const openThread = (id: string) => {
     setSelectedId(id);
     if (typeof window !== "undefined" && currentUserEmail) {
@@ -581,23 +652,24 @@ export default function DashboardMessagesLayout({
     const senderDisplayName = getDisplayName(user);
 
     // 1. Persist directly to MongoDB backend collection ('project_messages')
+    const isClientRole = role === "user";
+
+    const recName = isClientRole
+      ? selected.recipientName || selected.participant || "Business Partner"
+      : selected.senderName || selected.participant || "Client";
+
+    const recEmail = isClientRole
+      ? (selected.recipientEmail || toEmailParam || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")).trim().toLowerCase()
+      : (selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "")).trim().toLowerCase();
+
+    const recBusiness = isClientRole
+      ? selected.recipientBusiness || "Tech"
+      : "Client";
+
+    // 1. Persist directly to MongoDB backend collection ('project_messages')
     const pId = selected.projectId || selected.id || selected.project;
     if (pId && pId !== "Compose") {
       try {
-        const isClientRole = role === "user";
-
-        const recName = isClientRole
-          ? selected.recipientName || selected.participant || "Business Partner"
-          : selected.senderName || selected.participant || "Client";
-
-        const recEmail = isClientRole
-          ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
-          : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
-
-        const recBusiness = isClientRole
-          ? selected.recipientBusiness || "Tech"
-          : "Client";
-
         await sendProjectMessage(pId, messageBody, "general", {
           senderName: senderDisplayName,
           senderEmail: currentUserEmail,
@@ -622,29 +694,47 @@ export default function DashboardMessagesLayout({
       currentUserEmail
     );
 
-    // 4. Queue real-time notification for the recipient
+    // 3. Broadcast real-time events across tabs/windows for the recipient
     try {
-      const recipientEmail = (selected.recipientEmail || selected.participant || "").toLowerCase();
-      const recNotifKey = `app_notifs_${recipientEmail}`;
-      const existingRaw = typeof window !== "undefined" ? localStorage.getItem(recNotifKey) : null;
-      const existingNotifs = existingRaw ? JSON.parse(existingRaw) : [];
-      const newReceiverNotif = {
-        id: `msg-notif-${Date.now()}`,
-        title: `New Message from ${senderDisplayName}`,
-        message: messageBody.slice(0, 100),
-        time: "Just now",
-        createdAt: new Date().toISOString(),
-        read: false,
-        recipientEmail,
-        href: role === "user" ? `/dashboard/business/messages?thread=${selected.id}` : `/dashboard/user/messages?thread=${selected.id}`,
-      };
-      if (typeof window !== "undefined" && recipientEmail) {
-        localStorage.setItem(recNotifKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
-        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: newReceiverNotif, targetEmail: recipientEmail, timestamp: Date.now() }));
+      if (typeof window !== "undefined") {
+        const emailDetail = {
+          threadId: selected.id,
+          recipientEmail: recEmail,
+          recipientName: recName,
+          senderName: senderDisplayName,
+          senderEmail: currentUserEmail,
+          subject: selected.subject,
+          project: selected.project,
+          body: messageBody,
+          sentAt: new Date().toISOString(),
+        };
+
+        window.dispatchEvent(new CustomEvent("platform_new_email", { detail: emailDetail }));
+
+        const newReceiverNotif = {
+          id: `msg-notif-${Date.now()}`,
+          title: `New Message from ${senderDisplayName}`,
+          message: messageBody.slice(0, 100),
+          time: "Just now",
+          createdAt: new Date().toISOString(),
+          read: false,
+          recipientEmail: recEmail,
+          href: isClientRole ? `/dashboard/business/messages?thread=${selected.id}` : `/dashboard/user/messages?thread=${selected.id}`,
+        };
+
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("vero_channel");
-          bc.postMessage({ type: "vero:new_notification", targetEmail: recipientEmail, payload: newReceiverNotif });
+          bc.postMessage({ type: "platform_new_email", detail: emailDetail });
+          bc.postMessage({ type: "vero:new_notification", targetEmail: recEmail, payload: newReceiverNotif });
           bc.close();
+        }
+
+        if (recEmail) {
+          const recNotifKey = `app_notifs_${recEmail}`;
+          const existingRaw = localStorage.getItem(recNotifKey);
+          const existingNotifs = existingRaw ? JSON.parse(existingRaw) : [];
+          localStorage.setItem(recNotifKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
+          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: newReceiverNotif, targetEmail: recEmail, timestamp: Date.now() }));
         }
       }
     } catch {}
@@ -661,7 +751,7 @@ export default function DashboardMessagesLayout({
 
   const handleArchive = () => {
     if (!selected) return;
-    archiveThread(selected.id);
+    archiveThread(selected.id, currentUserEmail);
     handleCloseSelectedMessage();
     refresh();
     toast.success("Moved to Deleted.");
@@ -674,14 +764,14 @@ export default function DashboardMessagesLayout({
     setDeletingThreadId(idToDelete);
     setIsDeletingPermanent(true);
     await new Promise((r) => setTimeout(r, 500));
-    permanentlyDeleteThread(idToDelete);
+    permanentlyDeleteThread(idToDelete, currentUserEmail);
     if (selected?.id === idToDelete) {
       handleCloseSelectedMessage();
     }
     refresh();
     setIsDeletingPermanent(false);
     setDeletingThreadId(null);
-    toast.success("Message deleted permanently from database.");
+    toast.success("Message deleted from database.");
   };
 
   const handleSelectContact = (contact: RegisteredContact) => {
@@ -1280,6 +1370,7 @@ export default function DashboardMessagesLayout({
                       </div>
                     );
                   })}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Reply Form */}

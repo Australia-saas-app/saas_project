@@ -81,10 +81,11 @@ export function seedThreadsIfEmpty(seed: MessageThread[]) {
   writeGlobalEmails(seed);
 }
 
-export function syncMongoDBThreads(dbThreads: MessageThread[]) {
+export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?: string) {
   if (!Array.isArray(dbThreads) || dbThreads.length === 0) return;
   const local = readAll();
   const global = readGlobalEmails();
+  const email = (currentUserEmail || '').trim().toLowerCase();
 
   const map = new Map<string, MessageThread>();
   [...local, ...global].forEach((t) => {
@@ -94,15 +95,28 @@ export function syncMongoDBThreads(dbThreads: MessageThread[]) {
   dbThreads.forEach((dt) => {
     if (!dt || !dt.id) return;
     const existing = map.get(dt.id);
+
+    let isUnread = dt.unread;
+    if (dt.messages && dt.messages.length > 0 && email) {
+      const lastMsg = dt.messages[dt.messages.length - 1];
+      const lastMsgFromEmail = (lastMsg.fromEmail || '').toLowerCase();
+      const lastMsgIsMe = lastMsgFromEmail === email || lastMsg.from === 'me';
+      isUnread = !lastMsgIsMe;
+    }
+
     if (existing) {
       map.set(dt.id, {
         ...existing,
         ...dt,
+        unread: isUnread,
         messages: dt.messages && dt.messages.length > 0 ? dt.messages : existing.messages,
         updatedAt: dt.updatedAt || existing.updatedAt,
       });
     } else {
-      map.set(dt.id, dt);
+      map.set(dt.id, {
+        ...dt,
+        unread: isUnread,
+      });
     }
   });
 
@@ -116,26 +130,35 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
   const global = readGlobalEmails();
   const email = currentUserEmail?.trim().toLowerCase();
 
+  const archKey = email ? `user_archived_threads_${email}` : "";
+  const permKey = email ? `user_perm_deleted_threads_${email}` : "";
+  const userArchived = archKey && typeof window !== "undefined" ? (JSON.parse(localStorage.getItem(archKey) || "[]") as string[]) : [];
+  const userPermDeleted = permKey && typeof window !== "undefined" ? (JSON.parse(localStorage.getItem(permKey) || "[]") as string[]) : [];
+
   const combinedMap = new Map<string, MessageThread>();
 
   // Consolidate all threads from global and local stores
   [...local, ...global].forEach((t) => {
     if (!t || !t.id) return;
+    if (userPermDeleted.includes(t.id)) return;
 
     const rec = (t.recipientEmail || t.participant || "").trim().toLowerCase();
     const send = (t.senderEmail || "").trim().toLowerCase();
 
+    const isArchivedByMe = userArchived.includes(t.id);
+    const folderForMe = isArchivedByMe ? ("deleted" as const) : ((t.folder ?? "inbox") as MessageFolder);
+
     // 1. Thread explicitly matches current user email
     if (email) {
       if (rec === email || send === email) {
-        combinedMap.set(t.id, { ...t, role });
+        combinedMap.set(t.id, { ...t, role, folder: folderForMe });
         return;
       }
     }
 
     // 2. Project application threads (TH-*) or role matching
     if (t.id.startsWith("TH-") || t.role === role) {
-      combinedMap.set(t.id, { ...t, role });
+      combinedMap.set(t.id, { ...t, role, folder: folderForMe });
     }
   });
 
@@ -273,24 +296,37 @@ export function markThreadRead(threadId: string) {
   );
 }
 
-export function archiveThread(threadId: string) {
-  writeAll(
-    readAll().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
-  );
-  writeGlobalEmails(
-    readGlobalEmails().map((t) =>
-      t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t
-    )
-  );
+export function archiveThread(threadId: string, currentUserEmail?: string) {
+  if (typeof window !== "undefined" && currentUserEmail) {
+    const email = currentUserEmail.trim().toLowerCase();
+    const key = `user_archived_threads_${email}`;
+    const existing = JSON.parse(localStorage.getItem(key) || "[]") as string[];
+    if (!existing.includes(threadId)) {
+      localStorage.setItem(key, JSON.stringify([...existing, threadId]));
+    }
+  } else {
+    writeAll(
+      readAll().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
+    );
+  }
 }
 
-export function softDeleteThread(threadId: string) {
-  archiveThread(threadId);
+export function softDeleteThread(threadId: string, currentUserEmail?: string) {
+  archiveThread(threadId, currentUserEmail);
 }
 
-export function permanentlyDeleteThread(threadId: string) {
-  writeAll(readAll().filter((t) => t.id !== threadId));
-  writeGlobalEmails(readGlobalEmails().filter((t) => t.id !== threadId));
+export function permanentlyDeleteThread(threadId: string, currentUserEmail?: string) {
+  if (typeof window !== "undefined" && currentUserEmail) {
+    const email = currentUserEmail.trim().toLowerCase();
+    const key = `user_perm_deleted_threads_${email}`;
+    const existing = JSON.parse(localStorage.getItem(key) || "[]") as string[];
+    if (!existing.includes(threadId)) {
+      localStorage.setItem(key, JSON.stringify([...existing, threadId]));
+    }
+  } else {
+    writeAll(readAll().filter((t) => t.id !== threadId));
+    writeGlobalEmails(readGlobalEmails().filter((t) => t.id !== threadId));
+  }
 }
 
 export function saveDraftThread(input: {
@@ -460,6 +496,7 @@ export function sendThreadMessage(
       if (t.id === threadId) {
         return {
           ...t,
+          unread: false,
           updatedAt: sentAt,
           draftBody: "",
           messages: [...t.messages, newMsg],
@@ -474,6 +511,7 @@ export function sendThreadMessage(
   if (targetThread) {
     targetThread = {
       ...targetThread,
+      unread: false,
       updatedAt: sentAt,
       draftBody: "",
       messages: [...targetThread.messages, newMsg],

@@ -10,6 +10,7 @@ import LogoutConfirmModal from "@/src/shared/components/LogoutConfirmModal";
 import { useUser } from "@/src/context/user.provider";
 import { useLogout } from "@/src/hooks/auth.hook";
 import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
+import { MessagesBell } from "@/src/modules/shared/components/MessagesBell";
 import { ThemeToggle } from "@/src/shared/components/ThemeToggle";
 import { AFFILIAPRO_NAV_GROUPS } from "../constants/affiliapro-nav";
 import { useProfileDisplay } from "@/src/modules/dashboard/shared/hooks/use-profile-display";
@@ -189,9 +190,10 @@ export default function AffiliaProBusinessShell({ children }: { children: React.
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle compact />
+            <MessagesBell viewAllHref="/dashboard/business/messages" />
             <NotificationBell viewAllHref="/business/notices" />
             <Link
-              href="/business/messages"
+              href="/dashboard/business/messages"
               className="hidden h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-800 sm:flex"
               aria-label="Help"
               title="Help & messages"

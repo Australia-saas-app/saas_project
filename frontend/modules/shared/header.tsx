@@ -22,6 +22,7 @@ import ServicesMegaMenu from "@/src/modules/shared/components/search/ServicesMeg
 import { PRIMARY_NAV } from "@/src/shared/constants/mega-menu";
 import { logout } from "@/src/shared/server/AuthService";
 import { NotificationBell } from "@/src/modules/shared/components/NotificationBell";
+import { MessagesBell } from "@/src/modules/shared/components/MessagesBell";
 
 const iconButtonClass =
   "relative inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary";
@@ -264,7 +265,8 @@ export default function Header() {
               )}
 
               {user ? (
-                <div className="inline-flex items-center">
+                <div className="inline-flex items-center gap-1">
+                  <MessagesBell />
                   <NotificationBell viewAllHref={noticesHref} />
                 </div>
               ) : (
