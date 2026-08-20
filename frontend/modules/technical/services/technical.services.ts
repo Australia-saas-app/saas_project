@@ -270,6 +270,7 @@ export const sendProjectMessage = async (
     senderEmail?: string;
     recipientName?: string;
     recipientEmail?: string;
+    recipientBusiness?: string;
     recipientUserId?: string;
     threadId?: string;
     projectTitle?: string;

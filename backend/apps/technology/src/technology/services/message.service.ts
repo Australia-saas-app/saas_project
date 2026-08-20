@@ -90,6 +90,7 @@ export class MessageService {
           senderEmail: createDto.senderEmail || '',
           recipientName: createDto.recipientName || '',
           recipientEmail: createDto.recipientEmail || '',
+          recipientBusiness: createDto.recipientBusiness || '',
           recipientUserId: createDto.recipientUserId || '',
           threadId: createDto.threadId || projectId,
           subject: createDto.subject || `Subject: Application for ${projectTitle}`,
@@ -298,9 +299,9 @@ export class MessageService {
           projectId: m.projectId,
           project: m.metadata?.projectTitle || 'Project Application',
           subject: m.metadata?.subject || `Subject: Application for ${m.metadata?.projectTitle || 'Project'}`,
-          senderName: m.metadata?.senderName || m.senderName || 'Client',
+          senderName: m.metadata?.senderName || m.senderName || '',
           senderEmail: m.metadata?.senderEmail || '',
-          recipientName: m.metadata?.recipientName || 'Business Partner',
+          recipientName: m.metadata?.recipientName || '',
           recipientEmail: m.metadata?.recipientEmail || '',
           recipientBusiness: m.metadata?.recipientBusiness || '',
           unread: !isMe,
@@ -314,6 +315,21 @@ export class MessageService {
         existing.updatedAt = formattedMsg.sentAt;
         if (!isMe) {
           existing.unread = true;
+        }
+        if (m.metadata?.recipientName && (!existing.recipientName || existing.recipientName === 'Business Partner')) {
+          existing.recipientName = m.metadata.recipientName;
+        }
+        if (m.metadata?.recipientBusiness && !existing.recipientBusiness) {
+          existing.recipientBusiness = m.metadata.recipientBusiness;
+        }
+        if (m.metadata?.senderName && (!existing.senderName || existing.senderName === 'Client')) {
+          existing.senderName = m.metadata.senderName;
+        }
+        if (m.metadata?.senderEmail && !existing.senderEmail) {
+          existing.senderEmail = m.metadata.senderEmail;
+        }
+        if (m.metadata?.recipientEmail && !existing.recipientEmail) {
+          existing.recipientEmail = m.metadata.recipientEmail;
         }
       }
     }

@@ -81,6 +81,36 @@ export function seedThreadsIfEmpty(seed: MessageThread[]) {
   writeGlobalEmails(seed);
 }
 
+export function syncMongoDBThreads(dbThreads: MessageThread[]) {
+  if (!Array.isArray(dbThreads) || dbThreads.length === 0) return;
+  const local = readAll();
+  const global = readGlobalEmails();
+
+  const map = new Map<string, MessageThread>();
+  [...local, ...global].forEach((t) => {
+    if (t && t.id) map.set(t.id, t);
+  });
+
+  dbThreads.forEach((dt) => {
+    if (!dt || !dt.id) return;
+    const existing = map.get(dt.id);
+    if (existing) {
+      map.set(dt.id, {
+        ...existing,
+        ...dt,
+        messages: dt.messages && dt.messages.length > 0 ? dt.messages : existing.messages,
+        updatedAt: dt.updatedAt || existing.updatedAt,
+      });
+    } else {
+      map.set(dt.id, dt);
+    }
+  });
+
+  const merged = Array.from(map.values());
+  writeAll(merged);
+  writeGlobalEmails(merged);
+}
+
 export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string): MessageThread[] {
   const local = readAll();
   const global = readGlobalEmails();

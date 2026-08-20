@@ -27,6 +27,10 @@ export class CreateMessageDto {
 
   @IsOptional()
   @IsString()
+  recipientBusiness?: string;
+
+  @IsOptional()
+  @IsString()
   recipientUserId?: string;
 
   @IsOptional()

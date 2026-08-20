@@ -41,6 +41,7 @@ import {
   saveDraftThread,
   sendComposedMessage,
   sendThreadMessage,
+  syncMongoDBThreads,
   type DashboardRole,
   type MessageFolder,
   type MessageThread,
@@ -216,6 +217,22 @@ export default function DashboardMessagesLayout({
 
   const refresh = () => setThreads(getThreadsForRole(role, currentUserEmail));
 
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const dbThreads = await fetchUserThreads();
+      if (Array.isArray(dbThreads) && dbThreads.length > 0) {
+        syncMongoDBThreads(dbThreads);
+      }
+      setThreads(getThreadsForRole(role, currentUserEmail));
+      toast.success("Messages refreshed");
+    } catch {
+      setThreads(getThreadsForRole(role, currentUserEmail));
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     refresh();
   }, [role, currentUserEmail]);
@@ -283,25 +300,8 @@ export default function DashboardMessagesLayout({
       try {
         const dbThreads = await fetchUserThreads();
         if (isMounted && Array.isArray(dbThreads) && dbThreads.length > 0) {
-          setThreads((prev) => {
-            const map = new Map<string, MessageThread>();
-            prev.forEach((t) => map.set(t.id, t));
-            dbThreads.forEach((dt) => {
-              const existing = map.get(dt.id);
-              if (existing) {
-                map.set(dt.id, {
-                  ...existing,
-                  ...dt,
-                  messages: dt.messages && dt.messages.length > 0 ? dt.messages : existing.messages,
-                });
-              } else {
-                map.set(dt.id, { ...dt, role });
-              }
-            });
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-            );
-          });
+          syncMongoDBThreads(dbThreads);
+          setThreads(getThreadsForRole(role, currentUserEmail));
         }
       } catch (e) {
         console.warn("Error loading user threads from DB:", e);
@@ -525,15 +525,15 @@ export default function DashboardMessagesLayout({
   const unreadCount = folderThreads.filter((t) => t.unread).length;
 
   // Selected message (Strictly null if closed or unselected)
-  const selected = selectedId ? filtered.find((t) => t.id === selectedId) ?? null : null;
+  const selected = selectedId ? threads.find((t) => t.id === selectedId) ?? null : null;
 
   const openThread = (id: string) => {
-    const thread = threads.find((t) => t.id === id);
     setSelectedId(id);
     if (typeof window !== "undefined" && currentUserEmail) {
       sessionStorage.setItem(`active_msg_${currentUserEmail.toLowerCase()}`, id);
     }
 
+    const thread = threads.find((t) => t.id === id);
     if (thread?.folder === "drafts") {
       setEditingDraftId(thread.id);
       const email = thread.recipientEmail || thread.participant || "";
@@ -562,7 +562,7 @@ export default function DashboardMessagesLayout({
     }
 
     markThreadRead(id);
-    refresh();
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, unread: false } : t)));
   };
 
   const handleCloseSelectedMessage = () => {
@@ -584,27 +584,26 @@ export default function DashboardMessagesLayout({
     const pId = selected.projectId || selected.id || selected.project;
     if (pId && pId !== "Compose") {
       try {
-        const currentEmail = (currentUserEmail || "").trim().toLowerCase();
-        const currentName = getDisplayName(user).trim().toLowerCase();
+        const isClientRole = role === "user";
 
-        const isSenderMe =
-          (selected.senderEmail && selected.senderEmail.toLowerCase() === currentEmail) ||
-          (selected.senderName && selected.senderName.toLowerCase() === currentName) ||
-          (role === "user" && selected.id.startsWith("TH-"));
-
-        const recName = isSenderMe
+        const recName = isClientRole
           ? selected.recipientName || selected.participant || "Business Partner"
           : selected.senderName || selected.participant || "Client";
 
-        const recEmail = isSenderMe
+        const recEmail = isClientRole
           ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
           : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
+
+        const recBusiness = isClientRole
+          ? selected.recipientBusiness || "Tech"
+          : "Client";
 
         await sendProjectMessage(pId, messageBody, "general", {
           senderName: senderDisplayName,
           senderEmail: currentUserEmail,
           recipientName: recName,
           recipientEmail: recEmail,
+          recipientBusiness: recBusiness,
           recipientUserId: selected.recipientUserId || selected.participant || "",
           threadId: selected.id,
           projectTitle: selected.project || selected.projectId || "Project",
@@ -658,14 +657,6 @@ export default function DashboardMessagesLayout({
       className: "!text-[#111] dark:!text-white font-bold",
       descriptionClassName: "!text-[#111] dark:!text-white !font-medium",
     });
-  };
-
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true);
-    refresh();
-    await new Promise((r) => setTimeout(r, 600));
-    setIsRefreshing(false);
-    toast.success("Messages refreshed from database.");
   };
 
   const handleArchive = () => {
@@ -1022,25 +1013,23 @@ export default function DashboardMessagesLayout({
                       t.participant ||
                       "Draft";
                     secondaryTag = t.recipientBusiness || "";
-                  } else if (isSenderMe) {
-                    // I am the sender: Show the recipient (the applicant / business user I contacted)
+                  } else if (role === "user") {
+                    // SENDER (Client / User) side: Shows the Receiver's Full Name from DB | Receiver Business from DB
                     primaryFullName =
                       t.recipientName ||
                       resolveContactFullName(t.recipientEmail, t.participant) ||
                       t.participant ||
                       "Business Partner";
-                    secondaryTag = t.recipientBusiness || (role === "user" ? "Business Partner" : "Client");
+                    secondaryTag = t.recipientBusiness || "";
                   } else {
-                    // I am the recipient: Show the sender (the client who messaged me)
+                    // RECEIVER (Business) side: Shows the Sender's Full Name from DB | "Client"
                     primaryFullName =
                       t.senderName ||
                       t.messages[0]?.fromName ||
                       resolveContactFullName(t.senderEmail, t.participant) ||
                       t.participant ||
-                      (role === "business" ? "Client" : "Business Partner");
-                    secondaryTag =
-                      t.senderBusiness ||
-                      (role === "business" ? "Client" : "Business Partner");
+                      "Client";
+                    secondaryTag = t.senderBusiness || "Client";
                   }
 
                   const formattedTime = formatMessageTimestamp(t.updatedAt);
@@ -1158,16 +1147,13 @@ export default function DashboardMessagesLayout({
                       {(() => {
                         const currentEmail = (currentUserEmail || "").trim().toLowerCase();
                         const currentName = getDisplayName(user).trim().toLowerCase();
-                        const isSenderMe =
-                          (selected.senderEmail && selected.senderEmail.toLowerCase() === currentEmail) ||
-                          (selected.senderName && selected.senderName.toLowerCase() === currentName) ||
-                          (role === "user" && selected.id.startsWith("TH-"));
+                        const isClientRole = role === "user";
 
-                        const displayHeaderName = isSenderMe
+                        const displayHeaderName = isClientRole
                           ? selected.recipientName || selected.participant || "Business Partner"
                           : selected.senderName || selected.participant || "Client";
 
-                        const displayHeaderEmail = isSenderMe
+                        const displayHeaderEmail = isClientRole
                           ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
                           : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
 
