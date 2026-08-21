@@ -135,7 +135,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const fetchNotifications = async (triggerToast = false) => {
       try {
-        const res = await axiosInstance.get("/notifications", { timeout: 8000 }).catch(() => null);
+        const res = await axiosInstance.get("/notifications", { timeout: 8000, silent: true } as any).catch(() => null);
         if (!isMounted || !res?.data) return;
         const resData = res.data;
         if (resData.success && Array.isArray(resData.data?.notifications)) {

@@ -89,7 +89,7 @@ axiosInstance.interceptors.response.use(
     // Normalize every failure into an ApiError (status + message + fieldErrors)
     // so call sites never need to inspect raw axios internals.
     const apiError = toApiError(error);
-    if (apiError.status >= 500) {
+    if (apiError.status >= 500 && !(config as any)?.silent && !(config as any)?.skipErrorLog) {
       logger.error(
         "API request failed",
         { url: config?.url, status: apiError.status },

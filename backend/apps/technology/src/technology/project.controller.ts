@@ -90,6 +90,28 @@ export class ProjectController {
     return this.projectService.findMyApplications(businessId);
   }
 
+  // ─── CONVERSATIONS / MESSAGES (MUST be above :projectId) ────────────────────
+
+  @Get('conversations/user-threads')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all user message threads' })
+  async getUserThreads(@Req() req: any) {
+    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
+    const email = req.user?.email || '';
+    return this.messageService.findUserThreads(userId, email);
+  }
+
+  @Delete('conversations/threads/:threadId')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete conversation thread for user' })
+  async deleteUserThread(@Param('threadId') threadId: string, @Req() req: any) {
+    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
+    const email = req.user?.email || '';
+    return this.messageService.deleteThreadForUser(threadId, userId, email);
+  }
+
   @Get(':projectId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')
@@ -352,24 +374,6 @@ export class ProjectController {
   }
 
   // ─── MESSAGES ───────────────────────────────────────────────────────────────
-
-  @Get('conversations/user-threads')
-  @UseGuards(UnifiedAuthGuard)
-  @ApiBearerAuth('JWT-auth')
-  async getUserThreads(@Req() req: any) {
-    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
-    const email = req.user?.email || '';
-    return this.messageService.findUserThreads(userId, email);
-  }
-
-  @Delete('conversations/threads/:threadId')
-  @UseGuards(UnifiedAuthGuard)
-  @ApiBearerAuth('JWT-auth')
-  async deleteUserThread(@Param('threadId') threadId: string, @Req() req: any) {
-    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
-    const email = req.user?.email || '';
-    return this.messageService.deleteThreadForUser(threadId, userId, email);
-  }
 
   @Post(':projectId/messages')
   @UseGuards(UnifiedAuthGuard)
