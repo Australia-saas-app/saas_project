@@ -563,7 +563,9 @@ export default function DashboardMessagesLayout({
   const folderThreads = useMemo(() => {
     return threads.filter((t) => {
       const f = (t.folder ?? "inbox") as MessageFolder;
-      if (folder === "inbox") return f === "inbox";
+      if (folder === "inbox") {
+        return f !== "deleted" && f !== "drafts";
+      }
       if (folder === "live") return f === "live";
       if (folder === "sent") {
         const currentEmail = (currentUserEmail || "").trim().toLowerCase();
@@ -572,6 +574,8 @@ export default function DashboardMessagesLayout({
           t.messages.some((m) => m.from === "me" || (m.fromEmail && m.fromEmail.toLowerCase() === currentEmail));
         return isSenderMe && f !== "deleted";
       }
+      if (folder === "drafts") return f === "drafts";
+      if (folder === "deleted") return f === "deleted";
       return f === folder;
     });
   }, [threads, folder, currentUserEmail]);

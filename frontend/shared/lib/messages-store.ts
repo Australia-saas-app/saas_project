@@ -119,6 +119,7 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
       map.set(dt.id, {
         ...existing,
         ...dt,
+        folder: existing.folder === 'deleted' ? 'deleted' : 'inbox',
         unread: isUnread,
         messages: mappedMessages.length > 0 ? mappedMessages : existing.messages,
         updatedAt: dt.updatedAt || existing.updatedAt,
@@ -126,6 +127,7 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
     } else {
       map.set(dt.id, {
         ...dt,
+        folder: 'inbox',
         unread: isUnread,
         messages: mappedMessages,
       });
@@ -204,8 +206,8 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
 
     const recEmail = (t.recipientEmail || "").trim().toLowerCase();
     const sendEmail = (t.senderEmail || "").trim().toLowerCase();
-    const recName = (t.recipientName || t.participant || "").trim().toLowerCase();
-    const sendName = (t.senderName || "").trim().toLowerCase();
+    const recUserId = (t.recipientUserId || "").trim().toLowerCase();
+    const sendUserId = (t.senderUserId || "").trim().toLowerCase();
 
     const isArchivedByMe = userArchived.includes(t.id);
     const folderForMe = isArchivedByMe ? ("deleted" as const) : ((t.folder ?? "inbox") as MessageFolder);
@@ -214,7 +216,13 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
       !email ||
       recEmail === email ||
       sendEmail === email ||
-      (t.messages && t.messages.some((m) => (m.fromEmail && m.fromEmail.toLowerCase() === email) || (m.toEmail && m.toEmail.toLowerCase() === email)));
+      (recUserId && recUserId === email) ||
+      (sendUserId && sendUserId === email) ||
+      (t.messages && t.messages.some((m) =>
+        (m.fromEmail && m.fromEmail.toLowerCase() === email) ||
+        (m.toEmail && m.toEmail.toLowerCase() === email) ||
+        ((m as any).senderId && (m as any).senderId.toLowerCase() === email)
+      ));
 
     if (isDirectMatch) {
       // Filter out messages that THIS user deleted; other user still sees their messages

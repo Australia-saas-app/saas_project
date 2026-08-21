@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Briefcase, ShieldAlert, MapPin, BadgeCheck, Eye } from "lucide-react";
+import { Loader2, Briefcase, ShieldAlert, MapPin, BadgeCheck, Eye, Upload } from "lucide-react";
 import { toast } from "sonner";
 import type { TechnicalProject } from "../types/project.type";
 import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
@@ -13,6 +13,7 @@ import { useLocale } from "@/src/shared/context/locale.provider";
 import { useUser } from "@/src/context/user.provider";
 import { recordActivityLog, fetchMyApplications, applyForProject } from "../services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+import { DeliverableUploadModal } from "./DeliverableUploadModal";
 
 interface ProjectGridViewProps {
   projects: TechnicalProject[];
@@ -23,6 +24,7 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
   const { t } = useLocale();
   const { user } = useUser();
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
+  const [deliverableProject, setDeliverableProject] = useState<TechnicalProject | null>(null);
   const isBusiness = user?.role === "business" || user?.role === "user";
   const uId = String((user as any)?.id || (user as any)?.userId || "");
 
@@ -175,10 +177,20 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                   </button>
 
                   {isAssignedToMe ? (
-                    <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none">
-                      <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
-                      Assigned
-                    </div>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setDeliverableProject(project)}
+                        className="flex-1 rounded-full border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-primary" />
+                        <span>Submit Project</span>
+                      </button>
+                      <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
+                        <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                        Assigned
+                      </div>
+                    </>
                   ) : isNotChosen ? (
                     <span className="text-[11px] font-bold text-muted-foreground italic">
                       Position Closed
@@ -213,6 +225,24 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
           </article>
         );
       })}
+
+      {deliverableProject && (
+        <DeliverableUploadModal
+          project={{
+            projectId: String(deliverableProject.projectId || deliverableProject.id || ""),
+            title: deliverableProject.title,
+            deliverableUrls: (deliverableProject as any).deliverableUrls,
+            deliverableFiles: (deliverableProject as any).deliverableFiles,
+            completionNotes: (deliverableProject as any).completionNotes,
+          }}
+          onClose={() => setDeliverableProject(null)}
+          onSuccess={() => {
+            setDeliverableProject(null);
+            updateApplied();
+            toast.success("Deliverables submitted for client review!");
+          }}
+        />
+      )}
     </div>
   );
 }

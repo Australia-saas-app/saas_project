@@ -1430,6 +1430,10 @@ export default function UserProjectsPage() {
                             } catch {}
                           }
 
+                          if (!bsnType) {
+                            bsnType = appliedModalProject?.category || "Software Development & IT";
+                          }
+
                           return (
                             <tr key={prop.id || prop.proposalId || idx} className="hover:bg-muted/40 transition-colors">
                               <td className="px-4 py-3.5 font-mono text-xs font-bold text-primary">
@@ -1574,7 +1578,7 @@ export default function UserProjectsPage() {
                           }
                         } catch {}
                       }
-                      return t || "—";
+                      return t || appliedModalProject?.category || "Software Development & IT";
                     })()}
                   </p>
                 </div>
@@ -1643,7 +1647,7 @@ export default function UserProjectsPage() {
                   appliedModalProject?.assignedBusinessUserId === (selectedProposalDetail.userId || selectedProposalDetail.businessId)
                 }
                 onClick={() => handleAssignApplicant(appliedModalProject, selectedProposalDetail)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {assigningApplicantId === String(selectedProposalDetail.userId || selectedProposalDetail.applicantUserId || selectedProposalDetail.businessId || selectedProposalDetail.id) ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

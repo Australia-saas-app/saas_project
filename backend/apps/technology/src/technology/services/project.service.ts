@@ -967,9 +967,21 @@ export class ProjectService {
         }
       } catch {}
 
-      const customBusinessId = meta.businessId || (p.userId && String(p.userId).startsWith('BSN') ? p.userId : `BSN-${String(idx + 1).padStart(2, '0')}`);
-      const rawType = meta.businessType || meta.businessIndustry || meta.businessCategory || meta.industry || (p as any).businessType || '';
-      const resolvedBusinessType = rawType === 'Software Development & IT' ? (meta.businessCategory || meta.businessIndustry || meta.industry || (p as any).businessType || '') : rawType;
+      const customBusinessId =
+        meta.businessId ||
+        (p.userId && String(p.userId).startsWith('BSN')
+          ? p.userId
+          : `BSN-${String(idx + 1).padStart(2, '0')}`);
+
+      const resolvedBusinessType =
+        meta.businessType ||
+        meta.businessIndustry ||
+        meta.businessCategory ||
+        meta.industry ||
+        (p as any).businessType ||
+        (p as any).businessIndustry ||
+        project.category ||
+        'Software Development & IT';
 
       return {
         ...p,
