@@ -178,57 +178,45 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
     if (!t || !t.id) return;
     if (userPermDeleted.includes(t.id)) return;
 
-    const rec = (t.recipientEmail || t.participant || "").trim().toLowerCase();
-    const send = (t.senderEmail || "").trim().toLowerCase();
+    const recEmail = (t.recipientEmail || "").trim().toLowerCase();
+    const sendEmail = (t.senderEmail || "").trim().toLowerCase();
+    const recName = (t.recipientName || t.participant || "").trim().toLowerCase();
+    const sendName = (t.senderName || "").trim().toLowerCase();
 
     const isArchivedByMe = userArchived.includes(t.id);
     const folderForMe = isArchivedByMe ? ("deleted" as const) : ((t.folder ?? "inbox") as MessageFolder);
 
-    // 1. Thread explicitly matches current user email
-    if (email) {
-      if (rec === email || send === email) {
-        let unreadForMe = false;
-        if (t.messages && t.messages.length > 0) {
-          const lastMsg = t.messages[t.messages.length - 1];
-          const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
-          const isLastMsgMine = (lastMsgEmail && lastMsgEmail === email) || lastMsg.from === "me";
-          if (isLastMsgMine) {
-            unreadForMe = false;
-          } else {
-            unreadForMe = t.messages.some(
-              (m) =>
-                ((m.fromEmail && m.fromEmail.toLowerCase() !== email) || m.from === "them") &&
-                !readMsgIds.has(m.id)
-            );
-          }
-        }
+    const isDirectMatch =
+      !email ||
+      recEmail === email ||
+      sendEmail === email ||
+      (t.messages && t.messages.some((m) => (m.fromEmail && m.fromEmail.toLowerCase() === email) || (m.toEmail && m.toEmail.toLowerCase() === email)));
 
-        combinedMap.set(t.id, {
-          ...t,
-          role,
-          folder: folderForMe,
-          unread: unreadForMe,
-        });
-        return;
-      }
-    }
+    const isRoleMatch =
+      t.id.startsWith("TH-") ||
+      t.role === role ||
+      (role === "business" && (t.recipientBusiness || recName || recEmail)) ||
+      (role === "user" && (t.senderBusiness || sendName || sendEmail));
 
-    // 2. Project application threads (TH-*) or role matching
-    if (t.id.startsWith("TH-") || t.role === role) {
+    if (isDirectMatch || isRoleMatch) {
       let unreadForMe = false;
-      if (t.messages && t.messages.length > 0 && email) {
+      if (t.messages && t.messages.length > 0) {
         const lastMsg = t.messages[t.messages.length - 1];
         const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
-        const isLastMsgMine = (lastMsgEmail && lastMsgEmail === email) || lastMsg.from === "me";
+        const isLastMsgMine = (email && lastMsgEmail === email) || (email && !lastMsgEmail && lastMsg.from === "me");
+
         if (isLastMsgMine) {
           unreadForMe = false;
         } else {
+          // If message is from the other party, check if it was read
           unreadForMe = t.messages.some(
             (m) =>
               ((m.fromEmail && m.fromEmail.toLowerCase() !== email) || m.from === "them") &&
               !readMsgIds.has(m.id)
           );
         }
+      } else {
+        unreadForMe = t.unread;
       }
 
       combinedMap.set(t.id, {
@@ -351,15 +339,7 @@ export function getOrCreateProjectThread(input: {
     projectId: input.projectId,
     unread: false,
     updatedAt: new Date().toISOString(),
-    messages: [
-      {
-        id: `MSG-${Date.now()}`,
-        from: "them",
-        fromName: input.participant ?? "Project team",
-        body: `Thread opened for ${input.projectName}. Send a message to coordinate milestones, deliverables, or payment.`,
-        sentAt: new Date().toISOString(),
-      },
-    ],
+    messages: [],
   };
   writeAll([thread, ...readAll()]);
   return thread;

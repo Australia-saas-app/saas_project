@@ -106,14 +106,29 @@ export function MessagesBell({
   const { user } = useUser();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const currentUserEmail = user?.email ? String(user.email).trim().toLowerCase() : "";
+  const currentUserEmail = (
+    user?.email ||
+    (user as any)?.userEmail ||
+    (user as any)?.contactEmail ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
   const userRole: DashboardRole =
-    user && "role" in user && String(user.role).toLowerCase().includes("business")
+    user && "role" in user && /business|seller|partner/i.test(String(user.role))
       ? "business"
+      : user && "role" in user && /affiliate/i.test(String(user.role))
+      ? "affiliate"
       : "user";
 
   const defaultHref =
-    viewAllHref || (userRole === "business" ? "/dashboard/business/messages" : "/dashboard/user/messages");
+    viewAllHref ||
+    (userRole === "business"
+      ? "/dashboard/business/messages"
+      : userRole === "affiliate"
+      ? "/dashboard/affiliate/messages"
+      : "/dashboard/user/messages");
 
   const [threads, setThreads] = useState<MessageThread[]>([]);
 
@@ -227,16 +242,16 @@ export function MessagesBell({
     return getReadMessageIds(currentUserEmail);
   }, [currentUserEmail, threads]);
 
-  const activeThreads = useMemo(() => {
-    return threads.filter((t) => t.folder !== "deleted");
+  const unreadThreads = useMemo(() => {
+    return threads.filter((t) => t.folder !== "deleted" && t.unread);
   }, [threads]);
 
   const unreadCount = useMemo(() => {
-    return activeThreads.filter((t) => t.unread).length;
-  }, [activeThreads]);
+    return unreadThreads.length;
+  }, [unreadThreads]);
 
   const handleMarkAllRead = () => {
-    activeThreads.forEach((t) => {
+    unreadThreads.forEach((t) => {
       markThreadRead(t.id, currentUserEmail);
       if (currentUserEmail) {
         markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
@@ -246,12 +261,16 @@ export function MessagesBell({
   };
 
   const handleDeleteAll = () => {
-    activeThreads.forEach((t) => archiveThread(t.id, currentUserEmail));
+    unreadThreads.forEach((t) => archiveThread(t.id, currentUserEmail));
     loadThreads();
   };
 
   const handleDeleteSingle = (id: string) => {
-    archiveThread(id, currentUserEmail);
+    markThreadRead(id, currentUserEmail);
+    if (currentUserEmail) {
+      const target = threads.find((t) => t.id === id);
+      if (target) markMessagesAsRead(target.messages.map((m) => m.id), currentUserEmail);
+    }
     loadThreads();
   };
 
@@ -307,10 +326,10 @@ export function MessagesBell({
                 style={{ color: isDark ? "#94a3b8" : "#64748b" }}
                 className="text-xs"
               >
-                {unreadCount > 0 ? `${unreadCount} unread conversation${unreadCount === 1 ? "" : "s"}` : emptyLabel}
+                {unreadCount > 0 ? `${unreadCount} unread message${unreadCount === 1 ? "" : "s"}` : emptyLabel}
               </p>
             </div>
-            {activeThreads.length > 0 && (
+            {unreadThreads.length > 0 && (
               <button
                 type="button"
                 onClick={handleDeleteAll}
@@ -327,7 +346,7 @@ export function MessagesBell({
             style={{ backgroundColor: isDark ? "#0f172a" : "#ffffff" }}
             className="max-h-80 overflow-y-auto divide-y divide-border"
           >
-            {activeThreads.length === 0 ? (
+            {unreadThreads.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
                 <div
                   style={{
@@ -336,7 +355,7 @@ export function MessagesBell({
                   }}
                   className="mb-3 flex h-12 w-12 items-center justify-center rounded-full"
                 >
-                  <Mail className="h-6 w-6 opacity-50" />
+                  <MessageSquare className="h-6 w-6 opacity-50" />
                 </div>
                 <p
                   style={{ color: isDark ? "#ffffff" : "#0f172a" }}
@@ -352,7 +371,7 @@ export function MessagesBell({
                 </p>
               </li>
             ) : (
-              activeThreads.map((t) => {
+              unreadThreads.map((t) => {
                 const isSenderMe = userRole === "user";
                 const displayName = isSenderMe
                   ? t.recipientName || t.participant || "Business Partner"
@@ -361,10 +380,10 @@ export function MessagesBell({
                   ? t.recipientBusiness || ""
                   : "Client";
 
-                const latestMsg =
+                const latestThemMsg =
                   t.messages && t.messages.length > 0
-                    ? t.messages[t.messages.length - 1]?.body
-                    : t.draftBody || t.subject || "No content";
+                    ? [...t.messages].reverse().find((m) => m.from === "them" || (m.fromEmail && m.fromEmail.toLowerCase() !== currentUserEmail))?.body || t.messages[t.messages.length - 1]?.body
+                    : t.draftBody || t.subject || "New message";
 
                 const targetLink = `${defaultHref}?thread=${t.id}`;
 
@@ -380,16 +399,8 @@ export function MessagesBell({
                         setOpen(false);
                       }}
                       style={{
-                        backgroundColor: t.unread
-                          ? isDark
-                            ? "rgba(255, 255, 255, 0.05)"
-                            : "#f0f9ff"
-                          : "transparent",
-                        borderLeft: t.unread
-                          ? isDark
-                            ? "3px solid #3b82f6"
-                            : "3px solid #2563eb"
-                          : "3px solid transparent",
+                        backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0f9ff",
+                        borderLeft: isDark ? "3px solid #3b82f6" : "3px solid #2563eb",
                       }}
                       className="block px-4 py-3 pr-10 transition-colors hover:opacity-90 cursor-pointer"
                     >
@@ -402,14 +413,8 @@ export function MessagesBell({
                           <div className="flex items-center justify-between gap-1">
                             <p
                               style={{
-                                color: t.unread
-                                  ? isDark
-                                    ? "#ffffff"
-                                    : "#0f172a"
-                                  : isDark
-                                  ? "#cbd5e1"
-                                  : "#475569",
-                                fontWeight: t.unread ? 700 : 600,
+                                color: isDark ? "#ffffff" : "#0f172a",
+                                fontWeight: 700,
                               }}
                               className="truncate text-xs"
                             >
@@ -426,17 +431,11 @@ export function MessagesBell({
                           </div>
                           <p
                             style={{
-                              color: t.unread
-                                ? isDark
-                                  ? "#e2e8f0"
-                                  : "#334155"
-                                : isDark
-                                ? "#94a3b8"
-                                : "#64748b",
+                              color: isDark ? "#e2e8f0" : "#334155",
                             }}
                             className="mt-0.5 line-clamp-1 text-xs leading-relaxed"
                           >
-                            {latestMsg}
+                            {latestThemMsg}
                           </p>
                         </div>
                       </div>
@@ -451,7 +450,7 @@ export function MessagesBell({
                       }}
                       style={{ color: isDark ? "#94a3b8" : "#64748b" }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer"
-                      title="Delete message"
+                      title="Dismiss notification"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
