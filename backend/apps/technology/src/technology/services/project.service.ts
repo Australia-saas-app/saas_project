@@ -561,6 +561,70 @@ export class ProjectService {
     return saved;
   }
 
+  async assignApplicant(
+    projectId: string,
+    clientId: string,
+    applicant: {
+      businessId: string;
+      businessName: string;
+      businessUserId?: string;
+      businessEmail?: string;
+      proposalId?: string;
+    },
+  ): Promise<Project> {
+    let project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project && !isNaN(Number(projectId))) {
+      project = await this.projectRepository.findOne({ where: { id: Number(projectId) } });
+    }
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+
+    const effectiveBusinessId = applicant.businessUserId || applicant.businessId;
+    project.assignedBusinessId = effectiveBusinessId;
+    project.assignedBusinessName = applicant.businessName || effectiveBusinessId;
+    project.submissionStatus = SubmissionStatus.IN_PROGRESS;
+    project.status = ProjectStatus.IN_PROGRESS;
+    project.acceptedAt = new Date();
+    project.updatedBy = clientId;
+
+    if (applicant.proposalId) {
+      const proposal = await this.proposalRepository.findOne({
+        where: { proposalId: applicant.proposalId, projectId: project.id },
+      });
+      if (proposal) {
+        project.acceptedProposalId = proposal.id;
+      }
+    }
+
+    const existing = await this.participantRepository.findOne({
+      where: { projectId: project.id, userId: effectiveBusinessId },
+    });
+    if (!existing) {
+      await this.participantRepository.save(
+        this.participantRepository.create({
+          projectId: project.id,
+          userId: effectiveBusinessId,
+          userName: applicant.businessName,
+          role: ParticipantRole.MEMBER,
+          accountType: 'business',
+        }),
+      );
+    }
+
+    const saved = await this.projectRepository.save(project);
+
+    // Notify the assigned business user
+    this.triggerNotification({
+      userId: effectiveBusinessId,
+      type: 'TECHNICAL_PROJECT_ASSIGNED',
+      title: 'Congratulations! Project Assigned',
+      message: `You have been selected and assigned to project "${project.title}" (${project.projectId}).`,
+      priority: 'high',
+      href: '/business/technical',
+    });
+
+    return saved;
+  }
+
   async acceptProject(projectId: string, businessId: string, businessName: string): Promise<Project> {
     const project = await this.projectRepository.findOne({ where: { projectId } });
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);

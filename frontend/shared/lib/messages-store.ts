@@ -160,11 +160,35 @@ export function markMessagesAsRead(messageIds: string[], userEmail?: string) {
   } catch {}
 }
 
+export function getDeletedMessageIds(userEmail?: string): Set<string> {
+  if (typeof window === "undefined" || !userEmail) return new Set();
+  try {
+    const key = `user_deleted_msg_ids_${userEmail.trim().toLowerCase()}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function markMessagesAsDeletedForUser(messageIds: string[], userEmail?: string) {
+  if (typeof window === "undefined" || !userEmail || messageIds.length === 0) return;
+  try {
+    const key = `user_deleted_msg_ids_${userEmail.trim().toLowerCase()}`;
+    const existing = getDeletedMessageIds(userEmail);
+    messageIds.forEach((id) => existing.add(id));
+    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
+  } catch {}
+}
+
 export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string): MessageThread[] {
   const local = readAll();
   const global = readGlobalEmails();
   const email = currentUserEmail?.trim().toLowerCase();
   const readMsgIds = getReadMessageIds(email);
+  const deletedMsgIds = getDeletedMessageIds(email);
 
   const archKey = email ? `user_archived_threads_${email}` : "";
   const permKey = email ? `user_perm_deleted_threads_${email}` : "";
@@ -193,9 +217,12 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
       (t.messages && t.messages.some((m) => (m.fromEmail && m.fromEmail.toLowerCase() === email) || (m.toEmail && m.toEmail.toLowerCase() === email)));
 
     if (isDirectMatch) {
+      // Filter out messages that THIS user deleted; other user still sees their messages
+      const userVisibleMessages = (t.messages || []).filter((m) => !deletedMsgIds.has(m.id));
+
       let unreadForMe = false;
-      if (t.messages && t.messages.length > 0) {
-        const lastMsg = t.messages[t.messages.length - 1];
+      if (userVisibleMessages.length > 0) {
+        const lastMsg = userVisibleMessages[userVisibleMessages.length - 1];
         const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
         const isLastMsgMine = (email && lastMsgEmail === email) || (email && !lastMsgEmail && lastMsg.from === "me");
 
@@ -203,18 +230,19 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
           unreadForMe = false;
         } else {
           // If message is from the other party, check if it was read
-          unreadForMe = t.messages.some(
+          unreadForMe = userVisibleMessages.some(
             (m) =>
               ((m.fromEmail && m.fromEmail.toLowerCase() !== email) || m.from === "them") &&
               !readMsgIds.has(m.id)
           );
         }
       } else {
-        unreadForMe = t.unread;
+        unreadForMe = false;
       }
 
       combinedMap.set(t.id, {
         ...t,
+        messages: userVisibleMessages,
         role,
         folder: folderForMe,
         unread: unreadForMe,
@@ -363,13 +391,12 @@ export function archiveThread(threadId: string, currentUserEmail?: string) {
     if (!existing.includes(threadId)) {
       localStorage.setItem(key, JSON.stringify([...existing, threadId]));
     }
+    const all = [...readAll(), ...readGlobalEmails()];
+    const target = all.find((t) => t.id === threadId);
+    if (target && target.messages) {
+      markMessagesAsDeletedForUser(target.messages.map((m) => m.id), currentUserEmail);
+    }
   }
-  writeAll(
-    readAll().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
-  );
-  writeGlobalEmails(
-    readGlobalEmails().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
-  );
 }
 
 export function softDeleteThread(threadId: string, currentUserEmail?: string) {
@@ -384,9 +411,12 @@ export function permanentlyDeleteThread(threadId: string, currentUserEmail?: str
     if (!existing.includes(threadId)) {
       localStorage.setItem(key, JSON.stringify([...existing, threadId]));
     }
+    const all = [...readAll(), ...readGlobalEmails()];
+    const target = all.find((t) => t.id === threadId);
+    if (target && target.messages) {
+      markMessagesAsDeletedForUser(target.messages.map((m) => m.id), currentUserEmail);
+    }
   }
-  writeAll(readAll().filter((t) => t.id !== threadId));
-  writeGlobalEmails(readGlobalEmails().filter((t) => t.id !== threadId));
 }
 
 export function saveDraftThread(input: {
@@ -436,6 +466,26 @@ export function saveDraftThread(input: {
   return draft;
 }
 
+export function reviveThreadForUsers(threadId: string, emails: (string | undefined)[]) {
+  if (typeof window === "undefined") return;
+  emails.forEach((em) => {
+    if (!em) return;
+    const clean = em.trim().toLowerCase();
+    const archKey = `user_archived_threads_${clean}`;
+    const permKey = `user_perm_deleted_threads_${clean}`;
+    try {
+      const existingArch = JSON.parse(localStorage.getItem(archKey) || "[]") as string[];
+      if (existingArch.includes(threadId)) {
+        localStorage.setItem(archKey, JSON.stringify(existingArch.filter((id) => id !== threadId)));
+      }
+      const existingPerm = JSON.parse(localStorage.getItem(permKey) || "[]") as string[];
+      if (existingPerm.includes(threadId)) {
+        localStorage.setItem(permKey, JSON.stringify(existingPerm.filter((id) => id !== threadId)));
+      }
+    } catch {}
+  });
+}
+
 export function sendComposedMessage(input: {
   role: DashboardRole;
   to: string;
@@ -453,6 +503,11 @@ export function sendComposedMessage(input: {
   const recipientEmail = input.to.trim().toLowerCase();
   const resolvedRecipientName = resolveContactFullName(recipientEmail, input.recipientName);
   const resolvedSenderName = resolveContactFullName(input.senderEmail, input.senderName);
+
+  reviveThreadForUsers(threadId, [input.senderEmail, recipientEmail]);
+  if (input.draftId) {
+    reviveThreadForUsers(input.draftId, [input.senderEmail, recipientEmail]);
+  }
 
   // 1. Thread for Sender's "Sent" folder
   const senderThread: MessageThread = {
@@ -569,6 +624,8 @@ export function sendThreadMessage(
   let targetThread = local.find((t) => t.id === threadId) || global.find((t) => t.id === threadId);
 
   if (targetThread) {
+    reviveThreadForUsers(threadId, [senderEmail, targetThread.recipientEmail, targetThread.senderEmail]);
+
     targetThread = {
       ...targetThread,
       unread: false,

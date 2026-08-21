@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Briefcase, ShieldAlert, MapPin, BadgeCheck } from "lucide-react";
+import { Loader2, Briefcase, ShieldAlert, MapPin, BadgeCheck, Eye } from "lucide-react";
 import { toast } from "sonner";
 import type { TechnicalProject } from "../types/project.type";
 import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
@@ -23,45 +23,46 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
   const { t } = useLocale();
   const { user } = useUser();
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
-  const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
+  const isBusiness = user?.role === "business" || user?.role === "user";
+  const uId = String((user as any)?.id || (user as any)?.userId || "");
 
-  useEffect(() => {
-    const updateApplied = async () => {
-      if (!uId) {
-        setAppliedIds([]);
-        return;
-      }
-      let storageIds: string[] = [];
+  const updateApplied = async () => {
+    if (!uId) {
+      setAppliedIds([]);
+      return;
+    }
+
+    let storageIds: string[] = [];
+    if (typeof window !== "undefined") {
       try {
         storageIds = JSON.parse(localStorage.getItem(`business_applied_projects_${uId}`) || "[]");
       } catch {}
+    }
 
-      try {
-        const res = await fetchMyApplications();
-        const dbIds: string[] = Array.isArray(res?.appliedProjectIds) ? res.appliedProjectIds : [];
-        const merged = Array.from(new Set([...storageIds, ...dbIds]));
-        setAppliedIds(merged);
-        const currentStr = localStorage.getItem(`business_applied_projects_${uId}`);
-        const newStr = JSON.stringify(merged);
-        if (dbIds.length > 0 && currentStr !== newStr) {
-          localStorage.setItem(`business_applied_projects_${uId}`, newStr);
-        }
-      } catch {
-        setAppliedIds(storageIds);
+    try {
+      const res = await fetchMyApplications();
+      const dbIds: string[] = Array.isArray(res?.appliedProjectIds) ? res.appliedProjectIds : [];
+      const merged = Array.from(new Set([...storageIds, ...dbIds]));
+      setAppliedIds(merged);
+      const currentStr = localStorage.getItem(`business_applied_projects_${uId}`);
+      const newStr = JSON.stringify(merged);
+      if (currentStr !== newStr && typeof window !== "undefined") {
+        localStorage.setItem(`business_applied_projects_${uId}`, newStr);
       }
-    };
+    } catch {
+      setAppliedIds(storageIds);
+    }
+  };
 
+  useEffect(() => {
     updateApplied();
     window.addEventListener("applied_projects_updated", updateApplied);
+    window.addEventListener("storage", updateApplied);
     return () => {
       window.removeEventListener("applied_projects_updated", updateApplied);
+      window.removeEventListener("storage", updateApplied);
     };
   }, [uId]);
-
-  const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase().trim();
-  const isBusiness = Boolean(
-    user && (rawRole === "business" || rawRole === "seller" || rawRole === "company")
-  );
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -74,6 +75,26 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
             appliedIds.includes(String(project.id)) ||
             appliedIds.includes(`PRJ-${project.id}`)
           )
+        );
+
+        const userEmail = (user as any)?.email?.toLowerCase();
+        const isAssignedToMe = Boolean(
+          isBusiness && (
+            (project.assignedBusinessId && (project.assignedBusinessId === uId || project.assignedBusinessId === (user as any)?.userId)) ||
+            (project.assignedBusinessUserId && (project.assignedBusinessUserId === uId || project.assignedBusinessUserId === (user as any)?.userId)) ||
+            (project.assignedBusinessEmail && userEmail && (project.assignedBusinessEmail.toLowerCase() === userEmail))
+          )
+        );
+
+        const hasAnyAssignedBusiness = Boolean(
+          project.assignedBusinessId ||
+          project.assignedBusinessUserId ||
+          project.assignedBusinessName ||
+          project.submissionStatus === "in_progress"
+        );
+
+        const isNotChosen = Boolean(
+          isBusiness && isApplied && hasAnyAssignedBusiness && !isAssignedToMe
         );
 
         return (
@@ -89,7 +110,15 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                   <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start">
                     {project.projectId || `PRJ-${project.id}`}
                   </span>
-                  {isApplied ? (
+                  {isAssignedToMe ? (
+                    <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                      Active
+                    </span>
+                  ) : isNotChosen ? (
+                    <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      Thank you for applying, Better Luck Next time
+                    </span>
+                  ) : isApplied ? (
                     <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                       Pending for Client Approval
                     </span>
@@ -133,29 +162,52 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                 ))}
               </div>
 
-              {isApplied ? (
+              {isApplied || isAssignedToMe ? (
                 <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
+                  <button
+                    type="button"
+                    title="View Project Details"
+                    disabled={isNotChosen}
+                    onClick={() => onViewProject?.(project)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+
+                  {isAssignedToMe ? (
+                    <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none">
+                      <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                      Assigned
+                    </div>
+                  ) : isNotChosen ? (
+                    <span className="text-[11px] font-bold text-muted-foreground italic">
+                      Position Closed
+                    </span>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none">
+                      <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                      Applied
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
+                  <button
+                    type="button"
+                    title="View Project Details"
+                    onClick={() => onViewProject?.(project)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
                   <Button
                     type="button"
-                    variant="outline"
-                    className="flex-1 font-semibold hover:bg-muted cursor-pointer"
+                    className="flex-1 bg-primary font-semibold hover:bg-primary/90 cursor-pointer"
                     onClick={() => onViewProject?.(project)}
                   >
                     {t.technical.viewProject}
                   </Button>
-                  <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none">
-                    <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
-                    Applied
-                  </div>
                 </div>
-              ) : (
-                <Button
-                  type="button"
-                  className="w-full bg-primary font-semibold hover:bg-primary/90 cursor-pointer mt-auto"
-                  onClick={() => onViewProject?.(project)}
-                >
-                  {t.technical.viewProject}
-                </Button>
               )}
             </div>
           </article>

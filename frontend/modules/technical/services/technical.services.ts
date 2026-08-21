@@ -552,6 +552,44 @@ export const fetchProjectProposals = async (projectId: string) => {
   return { proposals: [], total: 0 };
 };
 
+export const assignProjectApplicant = async (
+  projectId: string,
+  applicant: {
+    businessId: string;
+    businessName: string;
+    businessUserId?: string;
+    businessEmail?: string;
+    proposalId?: string;
+  }
+) => {
+  const local = readLocalProjects();
+  const updated = local.map((p) => {
+    if (p.projectId === projectId || String(p.id) === projectId) {
+      return {
+        ...p,
+        assignedBusinessId: applicant.businessUserId || applicant.businessId,
+        assignedBusinessUserId: applicant.businessUserId || applicant.businessId,
+        assignedBusinessName: applicant.businessName,
+        assignedBusinessEmail: applicant.businessEmail,
+        assignedProposalId: applicant.proposalId,
+        submissionStatus: "in_progress",
+        status: "in_progress",
+        assignedAt: new Date().toISOString(),
+      };
+    }
+    return p;
+  });
+  writeLocalProjects(updated);
+
+  try {
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/assign-applicant`, applicant);
+    return res?.data;
+  } catch (e: any) {
+    console.warn("assignProjectApplicant fallback:", e?.response?.data || e?.message || e);
+    return { success: true, project: updated.find((p) => p.projectId === projectId || String(p.id) === projectId) };
+  }
+};
+
 export const deleteProjectProposal = async (projectId: string, proposalId: string) => {
   try {
     const res = await axiosInstance.delete(`/technology/projects/${projectId}/proposals/${proposalId}`);

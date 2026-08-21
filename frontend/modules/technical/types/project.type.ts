@@ -20,4 +20,11 @@ export interface TechnicalProject {
   description: string
   modified?: string
   location?: string
+  assignedBusinessId?: string
+  assignedBusinessUserId?: string
+  assignedBusinessName?: string
+  assignedBusinessEmail?: string
+  assignedProposalId?: string
+  submissionStatus?: string
+  status?: string
 }

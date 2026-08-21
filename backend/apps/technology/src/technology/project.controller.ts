@@ -176,6 +176,26 @@ export class ProjectController {
     return this.projectService.payProject(projectId, clientId);
   }
 
+  @Post(':projectId/assign-applicant')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Client assigns project to a specific applicant' })
+  async assignApplicant(
+    @Param('projectId') projectId: string,
+    @Body()
+    body: {
+      businessId: string;
+      businessName: string;
+      businessUserId?: string;
+      businessEmail?: string;
+      proposalId?: string;
+    },
+    @Req() req: any,
+  ) {
+    const clientId = req.user?.userId || req.admin?.adminId || 'client';
+    return this.projectService.assignApplicant(projectId, clientId, body);
+  }
+
   @Post(':projectId/accept')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')

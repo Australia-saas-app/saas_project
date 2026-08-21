@@ -243,7 +243,7 @@ export function MessagesBell({
   }, [currentUserEmail, threads]);
 
   const unreadThreads = useMemo(() => {
-    return threads.filter((t) => t.folder !== "deleted" && t.unread);
+    return threads.filter((t) => t.folder !== "deleted" && t.unread && t.messages && t.messages.length > 0);
   }, [threads]);
 
   const unreadCount = useMemo(() => {

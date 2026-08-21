@@ -34,6 +34,7 @@ import {
   DollarSign,
   Users,
   BadgeCheck,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -48,6 +49,7 @@ import {
   deleteProject,
   fetchProjectProposals,
   deleteProjectProposal,
+  assignProjectApplicant,
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
@@ -160,7 +162,12 @@ interface Project {
   endDate?: string;
   attachmentFile?: { name: string; size?: number; type?: string; url: string };
   coverUrl?: string;
+  assignedBusinessId?: string;
+  assignedBusinessUserId?: string;
   assignedBusinessName?: string;
+  assignedBusinessEmail?: string;
+  assignedProposalId?: string;
+  assignedAt?: string;
   completionNotes?: string;
   deliverableUrls?: string[];
   deliverableFiles?: { name: string; url: string; size?: number; type?: string; uploadedAt?: string }[];
@@ -358,6 +365,59 @@ export default function UserProjectsPage() {
       toast.error(e?.message || "Failed to delete applicant proposal");
     } finally {
       setDeletingProposalId(null);
+    }
+  };
+
+  const [assigningApplicantId, setAssigningApplicantId] = useState<string | null>(null);
+
+  const handleAssignApplicant = async (project: Project | null, applicant: any) => {
+    if (!project || !applicant) return;
+    const applicantUserId = String(applicant.userId || applicant.applicantUserId || applicant.id || "");
+    const applicantName = applicant.fullName || applicant.userName || applicant.businessName || "Business Partner";
+    const applicantEmail = applicant.email || applicant.userEmail || "";
+    const bsnName = applicant.businessName || applicantName;
+
+    setAssigningApplicantId(applicantUserId);
+    try {
+      await assignProjectApplicant(project.projectId || String(project.id), {
+        businessId: applicant.businessId || applicantUserId,
+        businessName: bsnName,
+        businessUserId: applicantUserId,
+        businessEmail: applicantEmail,
+        proposalId: applicant.proposalId || applicant.id,
+      });
+
+      // Update state locally
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.projectId === project.projectId || String(p.id) === String(project.id)
+            ? {
+                ...p,
+                assignedBusinessId: applicantUserId,
+                assignedBusinessUserId: applicantUserId,
+                assignedBusinessName: bsnName,
+                assignedBusinessEmail: applicantEmail,
+                assignedProposalId: applicant.proposalId || applicant.id,
+                submissionStatus: "in_progress",
+                status: "in_progress",
+                assignedAt: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("applied_projects_updated"));
+        window.dispatchEvent(new Event("storage"));
+      }
+
+      toast.success(`Project successfully assigned to ${applicantName}!`);
+      setSelectedProposalDetail(null);
+      setAppliedModalProject(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to assign project to applicant");
+    } finally {
+      setAssigningApplicantId(null);
     }
   };
 
@@ -1524,14 +1584,6 @@ export default function UserProjectsPage() {
                     <BadgeCheck className="w-3.5 h-3.5" /> Verified Business
                   </p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground font-medium text-[11px]">Estimated Timeline</p>
-                  <p className="font-bold text-foreground mt-0.5">{selectedProposalDetail.timeline || "14 Days"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground font-medium text-[11px]">Proposed Price</p>
-                  <p className="font-bold text-primary mt-0.5">${Number(selectedProposalDetail.price || 0).toLocaleString()}</p>
-                </div>
               </div>
 
               <div>
@@ -1548,16 +1600,17 @@ export default function UserProjectsPage() {
               )}
             </div>
 
-            <div className="border-t border-border px-6 py-3 bg-muted/20 flex items-center justify-end gap-2 shrink-0">
+            <div className="border-t border-border px-6 py-3 bg-muted/20 flex flex-wrap items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setSelectedProposalDetail(null)}
-                className="rounded-xl text-xs"
+                className="rounded-xl text-xs cursor-pointer"
               >
                 Close
               </Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   const targetName = selectedProposalDetail.fullName || selectedProposalDetail.userName || selectedProposalDetail.businessName || "Business Partner";
@@ -1576,9 +1629,31 @@ export default function UserProjectsPage() {
                     `/dashboard/user/messages?thread=${encodeURIComponent(threadId)}&toName=${encodeURIComponent(targetName)}&toBsn=${encodeURIComponent(targetBsn)}&toEmail=${encodeURIComponent(targetEmail)}&toUserId=${encodeURIComponent(applicantId)}&projectId=${encodeURIComponent(prjId)}&projectTitle=${encodeURIComponent(prjTitle)}`
                   );
                 }}
-                className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
+                className="border-primary/30 text-primary hover:bg-primary/10 font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <MessageSquare className="w-3.5 h-3.5" /> Message Applicant
+                <MessageSquare className="w-3.5 h-3.5" /> Send Message
+              </Button>
+
+              {/* ASSIGN PROJECT BUTTON */}
+              <Button
+                size="sm"
+                disabled={
+                  Boolean(assigningApplicantId) ||
+                  appliedModalProject?.assignedBusinessId === (selectedProposalDetail.userId || selectedProposalDetail.businessId) ||
+                  appliedModalProject?.assignedBusinessUserId === (selectedProposalDetail.userId || selectedProposalDetail.businessId)
+                }
+                onClick={() => handleAssignApplicant(appliedModalProject, selectedProposalDetail)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {assigningApplicantId === String(selectedProposalDetail.userId || selectedProposalDetail.applicantUserId || selectedProposalDetail.businessId || selectedProposalDetail.id) ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <UserCheck className="w-3.5 h-3.5" />
+                )}
+                {appliedModalProject?.assignedBusinessId === (selectedProposalDetail.userId || selectedProposalDetail.businessId) ||
+                appliedModalProject?.assignedBusinessUserId === (selectedProposalDetail.userId || selectedProposalDetail.businessId)
+                  ? "Assigned"
+                  : "Assign Project"}
               </Button>
             </div>
           </div>

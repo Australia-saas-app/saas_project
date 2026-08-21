@@ -1194,12 +1194,22 @@ export default function DashboardMessagesLayout({
                     secondaryTag = t.senderBusiness || "Client";
                   }
 
-                  const formattedTime = formatMessageTimestamp(t.updatedAt);
-                  const latestMsg =
-                    t.messages && t.messages.length > 0
-                      ? t.messages[t.messages.length - 1]?.body
-                      : t.draftBody || t.subject || "No message content";
-                  const previewSnippet = latestMsg.replace(/\s+/g, " ").trim();
+                  const hasMessages = t.messages && t.messages.length > 0;
+                  const latestMsgObj = hasMessages ? t.messages[t.messages.length - 1] : null;
+
+                  // Time: Only show time if messages exist or if in drafts folder
+                  const formattedTime = hasMessages
+                    ? formatMessageTimestamp(latestMsgObj?.sentAt || t.updatedAt)
+                    : isDraftFolder
+                    ? formatMessageTimestamp(t.updatedAt)
+                    : "";
+
+                  // Snippet: Only show sent message body or draft content in drafts folder; initially blank for new chat
+                  const previewSnippet = hasMessages
+                    ? (latestMsgObj?.body || "").replace(/\s+/g, " ").trim()
+                    : isDraftFolder
+                    ? (t.draftBody || t.subject || "Draft").replace(/\s+/g, " ").trim()
+                    : "";
 
                   return (
                     <button
