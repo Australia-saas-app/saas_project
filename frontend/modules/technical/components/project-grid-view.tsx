@@ -438,6 +438,8 @@ export function useTechnicalProjectModal() {
           fullName: realFullName,
           businessType: realBusinessType,
           businessId: realCustomId,
+          email: latestUser?.email || (user as any)?.email || "",
+          userEmail: latestUser?.email || (user as any)?.email || "",
           kycStatus: "verified",
         });
       } catch (e: any) {

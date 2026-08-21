@@ -228,36 +228,83 @@ export class MessageService {
     try {
       const normalizedEmail = (email || '').trim().toLowerCase();
       const normalizedUserId = (userId || '').trim().toLowerCase();
-
       const userIdentifiers = [normalizedEmail, normalizedUserId].filter(Boolean);
-      const query: any = {
-        isVisible: true,
-      };
 
-      if (userIdentifiers.length > 0) {
-        query['metadata.deletedBy'] = { $nin: userIdentifiers };
-      }
-
-      const conditions: any[] = [];
-      if (normalizedEmail) {
-        conditions.push(
-          { 'metadata.senderEmail': { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } },
-          { 'metadata.recipientEmail': { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } },
-          { senderId: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } },
-        );
-      }
-      if (normalizedUserId && normalizedUserId !== 'admin') {
-        conditions.push(
-          { senderId: normalizedUserId },
-          { 'metadata.recipientUserId': normalizedUserId },
-        );
-      }
-
-      if (conditions.length === 0) {
+      if (userIdentifiers.length === 0) {
         return [];
       }
 
-      query.$or = conditions;
+      // Match ANY message where current user is sender OR recipient (by email or userId)
+      const userMatchConditions: any[] = [];
+      userIdentifiers.forEach((id) => {
+        userMatchConditions.push(
+          { senderId: id },
+          { senderId: { $regex: new RegExp(`^${id}$`, 'i') } },
+          { 'metadata.senderEmail': { $regex: new RegExp(`^${id}$`, 'i') } },
+          { 'metadata.recipientEmail': { $regex: new RegExp(`^${id}$`, 'i') } },
+          { 'metadata.recipientUserId': id },
+          { 'metadata.recipientUserId': { $regex: new RegExp(`^${id}$`, 'i') } },
+          { 'metadata.recipientId': id },
+          { 'metadata.senderId': id },
+        );
+      });
+
+      // Also include any projects/participants the user is linked with
+      try {
+        const orConditions: any[] = [];
+        if (normalizedUserId) {
+          orConditions.push(
+            { createdBy: normalizedUserId },
+            { clientId: normalizedUserId },
+            { assignedBusinessId: normalizedUserId },
+          );
+        }
+        if (normalizedEmail) {
+          orConditions.push(
+            { clientEmail: normalizedEmail },
+          );
+        }
+
+        if (orConditions.length > 0) {
+          const userProjects = await this.projectRepository.find({ where: orConditions });
+          userProjects.forEach((p) => {
+            if (p.projectId) {
+              userMatchConditions.push(
+                { projectId: p.projectId },
+                { 'metadata.threadId': { $regex: new RegExp(p.projectId, 'i') } },
+              );
+            }
+            if (p.id) {
+              userMatchConditions.push(
+                { projectId: String(p.id) },
+                { 'metadata.projectNumericId': p.id },
+              );
+            }
+          });
+        }
+
+        if (normalizedUserId) {
+          const userParticipants = await this.participantRepository.find({ where: { userId: normalizedUserId } });
+          userParticipants.forEach((part) => {
+            if (part.projectId) {
+              userMatchConditions.push(
+                { projectId: String(part.projectId) },
+                { 'metadata.projectNumericId': part.projectId },
+              );
+            }
+          });
+        }
+      } catch (e) {}
+
+      const query: any = {
+        isVisible: true,
+        $or: userMatchConditions,
+      };
+
+      // Filter out messages that this user specifically deleted
+      if (userIdentifiers.length > 0) {
+        query['metadata.deletedBy'] = { $nin: userIdentifiers };
+      }
 
       const rawMessages = await this.projectMessageMongoModel
         .find(query)
@@ -324,17 +371,23 @@ export class MessageService {
         sentAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
       };
 
+      const otherPartyName = isMe
+        ? (m.metadata?.recipientName || 'Business Partner')
+        : (m.metadata?.senderName || m.senderName || 'Client');
+
       if (!threadMap.has(threadId)) {
         threadMap.set(threadId, {
           id: threadId,
           projectId: m.projectId,
           project: m.metadata?.projectTitle || 'Project Application',
           subject: m.metadata?.subject || `Subject: Application for ${m.metadata?.projectTitle || 'Project'}`,
+          participant: otherPartyName,
           senderName: m.metadata?.senderName || m.senderName || '',
           senderEmail: m.metadata?.senderEmail || '',
           recipientName: m.metadata?.recipientName || '',
           recipientEmail: m.metadata?.recipientEmail || '',
           recipientBusiness: m.metadata?.recipientBusiness || '',
+          recipientUserId: m.metadata?.recipientUserId || '',
           unread: !isMe,
           updatedAt: formattedMsg.sentAt,
           folder: 'inbox',

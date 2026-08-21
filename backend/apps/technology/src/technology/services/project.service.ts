@@ -980,8 +980,7 @@ export class ProjectService {
         meta.industry ||
         (p as any).businessType ||
         (p as any).businessIndustry ||
-        project.category ||
-        'Software Development & IT';
+        'Technology';
 
       return {
         ...p,

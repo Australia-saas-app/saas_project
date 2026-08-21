@@ -11,6 +11,7 @@ import {
   markMessagesAsRead,
   markThreadRead,
   archiveThread,
+  syncMongoDBThreads,
   type DashboardRole,
   type MessageThread,
 } from "@/src/shared/lib/messages-store";
@@ -138,7 +139,26 @@ export function MessagesBell({
   };
 
   useEffect(() => {
+    let isMounted = true;
+    const syncFromDB = async () => {
+      try {
+        const dbThreads = await fetchUserThreads();
+        if (isMounted && Array.isArray(dbThreads) && dbThreads.length > 0) {
+          syncMongoDBThreads(dbThreads, currentUserEmail);
+          const data = getThreadsForRole(userRole, currentUserEmail);
+          setThreads(data.filter((t) => t.folder !== "deleted"));
+        }
+      } catch {}
+    };
+
     loadThreads();
+    syncFromDB();
+
+    const interval = setInterval(syncFromDB, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [userRole, currentUserEmail]);
 
   // Sync on realtime broadcast events & show incoming toast anywhere on dashboard or landing page

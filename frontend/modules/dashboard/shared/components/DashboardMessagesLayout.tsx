@@ -378,8 +378,14 @@ export default function DashboardMessagesLayout({
 
     loadAllThreadsFromDB();
 
+    const interval = setInterval(loadAllThreadsFromDB, 4000);
+    const handleFocus = () => loadAllThreadsFromDB();
+    window.addEventListener("focus", handleFocus);
+
     return () => {
       isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [role, currentUserEmail]);
 

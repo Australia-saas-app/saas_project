@@ -1404,34 +1404,36 @@ export default function UserProjectsPage() {
                             prop.businessCategory ||
                             prop.businessInfo?.businessType ||
                             prop.businessInfo?.businessIndustry ||
-                            prop.category ||
                             "";
 
-                          if (!bsnType && typeof window !== "undefined" && uId) {
-                            try {
-                              const rawOverride = localStorage.getItem(`profile_override_${uId}`);
-                              if (rawOverride) {
-                                const pData = JSON.parse(rawOverride);
-                                bsnType = pData.businessType || pData.businessIndustry || pData.businessCategory || "";
-                              }
-                              if (!bsnType) {
-                                const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
-                                if (allOverrides[uId]?.businessType) {
-                                  bsnType = allOverrides[uId].businessType;
+                          if (!bsnType || bsnType === "Software Development & IT") {
+                            if (typeof window !== "undefined" && uId) {
+                              try {
+                                const rawOverride = localStorage.getItem(`profile_override_${uId}`);
+                                if (rawOverride) {
+                                  const pData = JSON.parse(rawOverride);
+                                  const candidate = pData.businessType || pData.businessIndustry || pData.businessCategory;
+                                  if (candidate) bsnType = candidate;
                                 }
-                              }
-                              if (!bsnType) {
-                                const allContacts = JSON.parse(localStorage.getItem("platform_registered_contacts") || "[]");
-                                const match = allContacts.find((c: any) => c.id === uId || (c.name && c.name === fullName));
-                                if (match?.businessType) {
-                                  bsnType = match.businessType;
+                                if (!bsnType || bsnType === "Software Development & IT") {
+                                  const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
+                                  if (allOverrides[uId]?.businessType) {
+                                    bsnType = allOverrides[uId].businessType;
+                                  }
                                 }
-                              }
-                            } catch {}
+                                if (!bsnType || bsnType === "Software Development & IT") {
+                                  const allContacts = JSON.parse(localStorage.getItem("platform_registered_contacts") || "[]");
+                                  const match = allContacts.find((c: any) => c.id === uId || (c.name && c.name === fullName));
+                                  if (match?.businessType) {
+                                    bsnType = match.businessType;
+                                  }
+                                }
+                              } catch {}
+                            }
                           }
 
-                          if (!bsnType) {
-                            bsnType = appliedModalProject?.category || "Software Development & IT";
+                          if (!bsnType || bsnType === "Software Development & IT") {
+                            bsnType = "Technology";
                           }
 
                           return (
