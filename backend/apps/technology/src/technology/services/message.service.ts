@@ -226,9 +226,17 @@ export class MessageService {
 
   async findUserThreads(userId: string, email: string): Promise<any[]> {
     try {
-      const query: any = { isVisible: true };
       const normalizedEmail = (email || '').trim().toLowerCase();
       const normalizedUserId = (userId || '').trim().toLowerCase();
+
+      const userIdentifiers = [normalizedEmail, normalizedUserId].filter(Boolean);
+      const query: any = {
+        isVisible: true,
+      };
+
+      if (userIdentifiers.length > 0) {
+        query['metadata.deletedBy'] = { $nin: userIdentifiers };
+      }
 
       const conditions: any[] = [];
       if (normalizedEmail) {
@@ -245,9 +253,11 @@ export class MessageService {
         );
       }
 
-      if (conditions.length > 0) {
-        query.$or = conditions;
+      if (conditions.length === 0) {
+        return [];
       }
+
+      query.$or = conditions;
 
       const rawMessages = await this.projectMessageMongoModel
         .find(query)
@@ -256,19 +266,40 @@ export class MessageService {
         .exec();
 
       if (!rawMessages || rawMessages.length === 0) {
-        const allRecent = await this.projectMessageMongoModel
-          .find({ isVisible: true })
-          .sort({ createdAt: 1 })
-          .limit(200)
-          .lean()
-          .exec();
-        return this.groupMessagesIntoThreads(allRecent, normalizedUserId, normalizedEmail);
+        return [];
       }
 
       return this.groupMessagesIntoThreads(rawMessages, normalizedUserId, normalizedEmail);
     } catch (e: any) {
       this.logger.error('Failed to find user threads from MongoDB', e.message);
       return [];
+    }
+  }
+
+  async deleteThreadForUser(threadId: string, userId: string, email: string): Promise<any> {
+    try {
+      const normalizedEmail = (email || '').trim().toLowerCase();
+      const normalizedUserId = (userId || '').trim().toLowerCase();
+      const identifiers = [normalizedEmail, normalizedUserId].filter(Boolean);
+
+      if (identifiers.length === 0) return { success: false, message: 'Invalid user' };
+
+      await this.projectMessageMongoModel.updateMany(
+        {
+          $or: [
+            { 'metadata.threadId': threadId },
+            { projectId: threadId },
+          ],
+        },
+        {
+          $addToSet: { 'metadata.deletedBy': { $each: identifiers } },
+        }
+      ).exec();
+
+      return { success: true, message: 'Thread deleted' };
+    } catch (e: any) {
+      this.logger.error('Failed to delete thread in MongoDB', e.message);
+      return { success: false, message: e.message };
     }
   }
 

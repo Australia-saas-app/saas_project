@@ -342,6 +342,15 @@ export class ProjectController {
     return this.messageService.findUserThreads(userId, email);
   }
 
+  @Delete('conversations/threads/:threadId')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  async deleteUserThread(@Param('threadId') threadId: string, @Req() req: any) {
+    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
+    const email = req.user?.email || '';
+    return this.messageService.deleteThreadForUser(threadId, userId, email);
+  }
+
   @Post(':projectId/messages')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')

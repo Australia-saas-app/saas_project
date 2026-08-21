@@ -14,7 +14,7 @@ import {
   type DashboardRole,
   type MessageThread,
 } from "@/src/shared/lib/messages-store";
-import { fetchUserThreads } from "@/src/modules/technical/services/technical.services";
+import { fetchUserThreads, deleteUserThread } from "@/src/modules/technical/services/technical.services";
 
 function useIsDarkMode() {
   const [isDark, setIsDark] = useState(false);
@@ -261,12 +261,16 @@ export function MessagesBell({
   };
 
   const handleDeleteAll = () => {
-    unreadThreads.forEach((t) => archiveThread(t.id, currentUserEmail));
+    unreadThreads.forEach((t) => {
+      archiveThread(t.id, currentUserEmail);
+      deleteUserThread(t.id);
+    });
     loadThreads();
   };
 
   const handleDeleteSingle = (id: string) => {
-    markThreadRead(id, currentUserEmail);
+    archiveThread(id, currentUserEmail);
+    deleteUserThread(id);
     if (currentUserEmail) {
       const target = threads.find((t) => t.id === id);
       if (target) markMessagesAsRead(target.messages.map((m) => m.id), currentUserEmail);

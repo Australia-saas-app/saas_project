@@ -261,6 +261,16 @@ export const fetchUserThreads = async (_token?: string) => {
   return [];
 };
 
+export const deleteUserThread = async (threadId: string, _token?: string) => {
+  try {
+    const res = await axiosInstance.delete(`/technology/projects/conversations/threads/${encodeURIComponent(threadId)}`);
+    return res?.data;
+  } catch (e) {
+    console.warn("Delete user thread fallback:", e);
+    return { success: false };
+  }
+};
+
 export const sendProjectMessage = async (
   projectId: string,
   content: string,

@@ -57,7 +57,7 @@ import {
   type RegisteredContact,
 } from "@/src/shared/lib/contacts-store";
 import { io, Socket } from "socket.io-client";
-import { fetchProjectMessages, fetchUserThreads, sendProjectMessage } from "@/src/modules/technical/services/technical.services";
+import { fetchProjectMessages, fetchUserThreads, sendProjectMessage, deleteUserThread } from "@/src/modules/technical/services/technical.services";
 import { Button } from "@/src/components/ui/button";
 import { LiveChatTab } from "./LiveChatTab";
 
@@ -794,12 +794,36 @@ export default function DashboardMessagesLayout({
     });
   };
 
-  const handleArchive = () => {
+  const handleArchive = async () => {
     if (!selected) return;
-    archiveThread(selected.id, currentUserEmail);
+    const threadId = selected.id;
+    archiveThread(threadId, currentUserEmail);
     handleCloseSelectedMessage();
     refresh();
     toast.success("Moved to Deleted.");
+  };
+
+  const handleArchiveThreadId = async (targetId: string) => {
+    archiveThread(targetId, currentUserEmail);
+    if (selected?.id === targetId) {
+      handleCloseSelectedMessage();
+    }
+    refresh();
+    toast.success("Moved to Deleted.");
+  };
+
+  const handleRestoreThread = (targetId?: string) => {
+    const idToRestore = targetId || selected?.id;
+    if (!idToRestore) return;
+
+    if (typeof window !== "undefined" && currentUserEmail) {
+      const email = currentUserEmail.trim().toLowerCase();
+      const key = `user_archived_threads_${email}`;
+      const existing = JSON.parse(localStorage.getItem(key) || "[]") as string[];
+      localStorage.setItem(key, JSON.stringify(existing.filter((id) => id !== idToRestore)));
+    }
+    refresh();
+    toast.success("Restored to Inbox.");
   };
 
   const handlePermanentDelete = async (targetId?: string) => {
@@ -808,7 +832,7 @@ export default function DashboardMessagesLayout({
 
     setDeletingThreadId(idToDelete);
     setIsDeletingPermanent(true);
-    await new Promise((r) => setTimeout(r, 500));
+    deleteUserThread(idToDelete);
     permanentlyDeleteThread(idToDelete, currentUserEmail);
     if (selected?.id === idToDelete) {
       handleCloseSelectedMessage();
@@ -816,7 +840,7 @@ export default function DashboardMessagesLayout({
     refresh();
     setIsDeletingPermanent(false);
     setDeletingThreadId(null);
-    toast.success("Message deleted from database.");
+    toast.success("Message permanently deleted from database.");
   };
 
   const handleSelectContact = (contact: RegisteredContact) => {
@@ -1232,22 +1256,49 @@ export default function DashboardMessagesLayout({
                             <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
                               {formattedTime}
                             </span>
-                            {isDeletedFolder && (
+                            {isDeletedFolder ? (
+                              <div className="flex items-center gap-1">
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRestoreThread(t.id);
+                                  }}
+                                  className="p-1 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10 cursor-pointer transition-colors inline-flex items-center"
+                                  title="Restore to Inbox"
+                                >
+                                  <Reply className="h-3.5 w-3.5 scale-x-[-1]" />
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePermanentDelete(t.id);
+                                  }}
+                                  className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-500/10 cursor-pointer transition-colors inline-flex items-center"
+                                  title="Delete permanently from database"
+                                >
+                                  {isDeletingPermanent && deletingThreadId === t.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-red-600" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                  )}
+                                </span>
+                              </div>
+                            ) : (
                               <span
                                 role="button"
                                 tabIndex={0}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handlePermanentDelete(t.id);
+                                  handleArchiveThreadId(t.id);
                                 }}
-                                className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-500/10 cursor-pointer transition-colors inline-flex items-center"
-                                title="Delete permanently from database"
+                                className="p-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer transition-colors inline-flex items-center"
+                                title="Move to Deleted"
                               >
-                                {isDeletingPermanent && deletingThreadId === t.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-red-600" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
+                                <Trash2 className="h-3.5 w-3.5" />
                               </span>
                             )}
                           </div>
@@ -1339,20 +1390,30 @@ export default function DashboardMessagesLayout({
 
                     <div className="flex items-center gap-2 shrink-0">
                       {folder === "deleted" ? (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handlePermanentDelete()}
-                          disabled={isDeletingPermanent}
-                          className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl cursor-pointer shadow-xs"
-                        >
-                          {isDeletingPermanent ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5 mr-1" />
-                          )}
-                          Delete Permanently
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRestoreThread()}
+                            className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer"
+                          >
+                            <Reply className="h-3.5 w-3.5 mr-1 scale-x-[-1]" /> Restore
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handlePermanentDelete()}
+                            disabled={isDeletingPermanent}
+                            className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl cursor-pointer shadow-xs"
+                          >
+                            {isDeletingPermanent ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Delete Permanently
+                          </Button>
+                        </>
                       ) : (
                         <Button
                           variant="outline"

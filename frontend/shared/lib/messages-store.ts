@@ -192,13 +192,7 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
       sendEmail === email ||
       (t.messages && t.messages.some((m) => (m.fromEmail && m.fromEmail.toLowerCase() === email) || (m.toEmail && m.toEmail.toLowerCase() === email)));
 
-    const isRoleMatch =
-      t.id.startsWith("TH-") ||
-      t.role === role ||
-      (role === "business" && (t.recipientBusiness || recName || recEmail)) ||
-      (role === "user" && (t.senderBusiness || sendName || sendEmail));
-
-    if (isDirectMatch || isRoleMatch) {
+    if (isDirectMatch) {
       let unreadForMe = false;
       if (t.messages && t.messages.length > 0) {
         const lastMsg = t.messages[t.messages.length - 1];
@@ -369,11 +363,13 @@ export function archiveThread(threadId: string, currentUserEmail?: string) {
     if (!existing.includes(threadId)) {
       localStorage.setItem(key, JSON.stringify([...existing, threadId]));
     }
-  } else {
-    writeAll(
-      readAll().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
-    );
   }
+  writeAll(
+    readAll().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
+  );
+  writeGlobalEmails(
+    readGlobalEmails().map((t) => (t.id === threadId ? { ...t, folder: "deleted" as const, unread: false } : t))
+  );
 }
 
 export function softDeleteThread(threadId: string, currentUserEmail?: string) {
@@ -388,10 +384,9 @@ export function permanentlyDeleteThread(threadId: string, currentUserEmail?: str
     if (!existing.includes(threadId)) {
       localStorage.setItem(key, JSON.stringify([...existing, threadId]));
     }
-  } else {
-    writeAll(readAll().filter((t) => t.id !== threadId));
-    writeGlobalEmails(readGlobalEmails().filter((t) => t.id !== threadId));
   }
+  writeAll(readAll().filter((t) => t.id !== threadId));
+  writeGlobalEmails(readGlobalEmails().filter((t) => t.id !== threadId));
 }
 
 export function saveDraftThread(input: {
