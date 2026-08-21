@@ -32,6 +32,7 @@ export interface MessageThread {
   project: string;
   projectId?: string;
   unread: boolean;
+  unreadCount?: number;
   updatedAt: string;
   messages: ThreadMessage[];
   folder?: MessageFolder;
@@ -56,7 +57,9 @@ function readAll(): MessageThread[] {
 
 function writeAll(threads: MessageThread[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+  } catch {}
 }
 
 function readGlobalEmails(): MessageThread[] {
@@ -71,9 +74,11 @@ function readGlobalEmails(): MessageThread[] {
   }
 }
 
-function writeGlobalEmails(emails: MessageThread[]) {
+function writeGlobalEmails(threads: MessageThread[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(GLOBAL_EMAIL_STORAGE_KEY, JSON.stringify(emails));
+  try {
+    localStorage.setItem(GLOBAL_EMAIL_STORAGE_KEY, JSON.stringify(threads));
+  } catch {}
 }
 
 export function seedThreadsIfEmpty(seed: MessageThread[]) {
@@ -108,11 +113,15 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
     });
 
     let isUnread = dt.unread;
+    let unreadCount = (dt as any).unreadCount || (isUnread ? 1 : 0);
     if (mappedMessages.length > 0) {
       const lastMsg = mappedMessages[mappedMessages.length - 1];
       const lastMsgFromEmail = (lastMsg.fromEmail || '').trim().toLowerCase();
       const lastMsgIsMe = email ? lastMsgFromEmail === email : lastMsg.from === 'me';
-      isUnread = !lastMsgIsMe;
+      if (lastMsgIsMe) {
+        isUnread = false;
+        unreadCount = 0;
+      }
     }
 
     if (existing) {
@@ -121,6 +130,7 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
         ...dt,
         folder: existing.folder === 'deleted' ? 'deleted' : 'inbox',
         unread: isUnread,
+        unreadCount: unreadCount,
         messages: mappedMessages.length > 0 ? mappedMessages : existing.messages,
         updatedAt: dt.updatedAt || existing.updatedAt,
       });
@@ -129,6 +139,7 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
         ...dt,
         folder: 'inbox',
         unread: isUnread,
+        unreadCount: unreadCount,
         messages: mappedMessages,
       });
     }
@@ -229,7 +240,7 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
       // Filter out messages that THIS user deleted; other user still sees their messages
       const userVisibleMessages = (t.messages || []).filter((m) => !deletedMsgIds.has(m.id));
 
-      let unreadForMe = false;
+      let unreadForMe = Boolean(t.unread && !readMsgIds.has(t.id));
       if (userVisibleMessages.length > 0) {
         const lastMsg = userVisibleMessages[userVisibleMessages.length - 1];
         const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
@@ -238,12 +249,15 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
         if (isLastMsgMine) {
           unreadForMe = false;
         } else {
-          // If message is from the other party, check if it was read
-          unreadForMe = !readMsgIds.has(lastMsg.id);
+          const isReadInDB = t.unread === false;
+          const isReadInLocal = readMsgIds.has(lastMsg.id) || readMsgIds.has(t.id);
+          unreadForMe = !isReadInDB && !isReadInLocal;
         }
-      } else {
-        unreadForMe = Boolean(t.unread && !readMsgIds.has(t.id));
       }
+
+      const calculatedUnreadCount = unreadForMe
+        ? (typeof t.unreadCount === "number" && t.unreadCount > 0 ? t.unreadCount : 1)
+        : 0;
 
       combinedMap.set(t.id, {
         ...t,
@@ -251,6 +265,7 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
         role,
         folder: folderForMe,
         unread: unreadForMe,
+        unreadCount: calculatedUnreadCount,
       });
     }
   });

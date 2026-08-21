@@ -654,6 +654,10 @@ export default function DashboardMessagesLayout({
       ? selected.recipientBusiness || "Tech"
       : "Client";
 
+    const recUserId = isClientRole
+      ? selected.recipientUserId || selected.recipientEmail || ""
+      : selected.senderUserId || selected.senderEmail || "";
+
     const pId = selected.projectId || selected.id || selected.project;
     if (pId && pId !== "Compose") {
       try {
@@ -663,7 +667,7 @@ export default function DashboardMessagesLayout({
           recipientName: recName,
           recipientEmail: recEmail,
           recipientBusiness: recBusiness,
-          recipientUserId: selected.recipientUserId || selected.participant || "",
+          recipientUserId: recUserId,
           threadId: selected.id,
           projectTitle: selected.project || selected.projectId || "Project",
           subject: selected.subject || `Subject: Application for ${selected.project || "Project"}`,
@@ -1107,17 +1111,11 @@ export default function DashboardMessagesLayout({
                   const isUnread = t.unread && !isSelected;
                   const currentEmail = (currentUserEmail || "").trim().toLowerCase();
                   
-                  // Calculate unread count for this chat (only messages from other party sent after lastReadAt or unread)
-                  const unreadThemMessages = t.messages.filter((m) => {
-                    const isFromOther = (m.fromEmail && m.fromEmail.toLowerCase() !== currentEmail) || m.from === "them";
-                    if (!isFromOther) return false;
-                    if (readMsgIds.has(m.id)) return false;
-                    if (t.lastReadAt && m.sentAt) {
-                      return new Date(m.sentAt).getTime() > new Date(t.lastReadAt).getTime();
-                    }
-                    return true;
-                  });
-                  const threadUnreadBadge = isUnread ? Math.max(unreadThemMessages.length, 1) : 0;
+                  const threadUnreadBadge = isUnread
+                    ? typeof t.unreadCount === "number" && t.unreadCount > 0
+                      ? t.unreadCount
+                      : 1
+                    : 0;
 
                   // Gmail Model: Always resolve the OTHER PARTY relative to the logged-in user!
                   const currentName = getDisplayName(user).trim().toLowerCase();

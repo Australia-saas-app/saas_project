@@ -35,24 +35,32 @@ export class MessageService {
     message: string;
     href?: string;
   }) {
-    try {
-      const notificationUrl =
-        process.env.NOTIFICATION_SERVICE_URL ||
-        'http://saas-backend-notification:3014/notification-service/internal/notifications';
-      await fetch(notificationUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: payload.userId,
-          type: payload.type,
-          title: payload.title,
-          message: payload.message,
-          priority: 'medium',
-          data: { href: payload.href },
-        }),
-      }).catch(() => undefined);
-    } catch {
-      // ignore
+    const urls = [
+      process.env.NOTIFICATION_SERVICE_URL,
+      'http://saas-backend-notification:3014/notification-service/internal/notifications',
+      'http://saas-backend-notification:3014/internal/notifications',
+      'http://notification-service:3014/notification-service/internal/notifications',
+      'http://notification-service:3014/internal/notifications',
+      'http://localhost:3014/notification-service/internal/notifications',
+      'http://localhost:3014/internal/notifications',
+    ].filter(Boolean) as string[];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: payload.userId,
+            type: payload.type,
+            title: payload.title,
+            message: payload.message,
+            priority: 'medium',
+            data: { href: payload.href },
+          }),
+        });
+        if (res.ok) break;
+      } catch {}
     }
   }
 
@@ -245,13 +253,14 @@ export class MessageService {
       // Match ANY message where current user is sender OR recipient (by email or userId)
       const userMatchConditions: any[] = [];
       userIdentifiers.forEach((id) => {
+        const escapedId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         userMatchConditions.push(
           { senderId: id },
-          { senderId: { $regex: new RegExp(`^${id}$`, 'i') } },
-          { 'metadata.senderEmail': { $regex: new RegExp(`^${id}$`, 'i') } },
-          { 'metadata.recipientEmail': { $regex: new RegExp(`^${id}$`, 'i') } },
+          { senderId: { $regex: new RegExp(`^${escapedId}$`, 'i') } },
+          { 'metadata.senderEmail': { $regex: new RegExp(`^${escapedId}$`, 'i') } },
+          { 'metadata.recipientEmail': { $regex: new RegExp(`^${escapedId}$`, 'i') } },
           { 'metadata.recipientUserId': id },
-          { 'metadata.recipientUserId': { $regex: new RegExp(`^${id}$`, 'i') } },
+          { 'metadata.recipientUserId': { $regex: new RegExp(`^${escapedId}$`, 'i') } },
           { 'metadata.recipientId': id },
           { 'metadata.senderId': id },
         );
@@ -411,6 +420,7 @@ export class MessageService {
         fromEmail: m.metadata?.senderEmail || '',
         body: m.content || '',
         sentAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+        isUnread: msgIsUnread,
       };
 
       const otherPartyName = isMe
@@ -431,6 +441,7 @@ export class MessageService {
           recipientBusiness: m.metadata?.recipientBusiness || '',
           recipientUserId: m.metadata?.recipientUserId || '',
           unread: msgIsUnread,
+          unreadCount: msgIsUnread ? 1 : 0,
           updatedAt: formattedMsg.sentAt,
           folder: 'inbox',
           messages: [formattedMsg],
@@ -440,6 +451,9 @@ export class MessageService {
         existing.messages.push(formattedMsg);
         existing.updatedAt = formattedMsg.sentAt;
         existing.unread = msgIsUnread;
+        if (msgIsUnread) {
+          existing.unreadCount = (existing.unreadCount || 0) + 1;
+        }
         if (m.metadata?.recipientName && (!existing.recipientName || existing.recipientName === 'Business Partner')) {
           existing.recipientName = m.metadata.recipientName;
         }

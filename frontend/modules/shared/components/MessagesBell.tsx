@@ -143,8 +143,10 @@ export function MessagesBell({
     const syncFromDB = async () => {
       try {
         const dbThreads = await fetchUserThreads();
-        if (isMounted && Array.isArray(dbThreads) && dbThreads.length > 0) {
-          syncMongoDBThreads(dbThreads, currentUserEmail);
+        if (isMounted && Array.isArray(dbThreads)) {
+          if (dbThreads.length > 0) {
+            syncMongoDBThreads(dbThreads, currentUserEmail);
+          }
           const data = getThreadsForRole(userRole, currentUserEmail);
           setThreads(data.filter((t) => t.folder !== "deleted"));
         }
