@@ -438,62 +438,7 @@ export default function DashboardMessagesLayout({
     }
   }, [threadParam, toNameParam, toBsnParam, toEmailParam, toUserIdParam, projectIdParam, projectTitleParam, role, currentUserEmail, user]);
 
-  // Fetch messages directly from MongoDB backend for the active thread (runs once per selected thread)
-  useEffect(() => {
-    if (!selectedId) {
-      lastFetchedIdRef.current = null;
-      return;
-    }
-    if (lastFetchedIdRef.current === selectedId) return;
-    lastFetchedIdRef.current = selectedId;
 
-    const activeThread = threads.find((t) => t.id === selectedId);
-    const pId = activeThread?.projectId || selectedId || activeThread?.project;
-    if (!pId || pId === "Compose") return;
-
-    let isMounted = true;
-    (async () => {
-      try {
-        const dbMsgs = await fetchProjectMessages(pId);
-        if (isMounted && Array.isArray(dbMsgs) && dbMsgs.length > 0) {
-          const currentUserId = String((user as any)?.id || (user as any)?.userId || "").toLowerCase();
-          const currentEmail = (currentUserEmail || "").toLowerCase();
-
-          const formattedDbMsgs = dbMsgs.map((m: any) => {
-            const senderId = String(m.senderId || m.userId || "").toLowerCase();
-            const senderEmail = (m.senderEmail || m.email || "").toLowerCase();
-            const isMe =
-              (currentUserId && senderId === currentUserId) ||
-              (currentEmail && senderEmail === currentEmail);
-
-            return {
-              id: String(m.id || m._id || Date.now()),
-              from: isMe ? ("me" as const) : ("them" as const),
-              fromName:
-                m.senderName ||
-                m.userName ||
-                (isMe ? getDisplayName(user) : activeThread?.participant || "Business Partner"),
-              fromEmail: m.senderEmail || m.email,
-              body: m.content || m.message || m.body || "",
-              sentAt: m.createdAt || m.sentAt || new Date().toISOString(),
-            };
-          });
-
-          if (formattedDbMsgs.length > 0) {
-            setThreads((prev) =>
-              prev.map((t) => (t.id === selectedId ? { ...t, messages: formattedDbMsgs } : t))
-            );
-          }
-        }
-      } catch (err) {
-        console.warn("MongoDB messages sync info:", err);
-      }
-    })();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedId, currentUserEmail, user]);
 
   // Listen for real-time incoming emails & messages on the platform
   useEffect(() => {
@@ -1161,12 +1106,18 @@ export default function DashboardMessagesLayout({
                   const isDeletedFolder = folder === "deleted";
                   const isUnread = t.unread && !isSelected;
                   const currentEmail = (currentUserEmail || "").trim().toLowerCase();
-                  const unreadThemMessages = t.messages.filter(
-                    (m) =>
-                      ((m.fromEmail && m.fromEmail.toLowerCase() !== currentEmail) || m.from === "them") &&
-                      !readMsgIds.has(m.id)
-                  );
-                  const unreadCount = isUnread ? unreadThemMessages.length : 0;
+                  
+                  // Calculate unread count for this chat (only messages from other party sent after lastReadAt or unread)
+                  const unreadThemMessages = t.messages.filter((m) => {
+                    const isFromOther = (m.fromEmail && m.fromEmail.toLowerCase() !== currentEmail) || m.from === "them";
+                    if (!isFromOther) return false;
+                    if (readMsgIds.has(m.id)) return false;
+                    if (t.lastReadAt && m.sentAt) {
+                      return new Date(m.sentAt).getTime() > new Date(t.lastReadAt).getTime();
+                    }
+                    return true;
+                  });
+                  const threadUnreadBadge = isUnread ? Math.max(unreadThemMessages.length, 1) : 0;
 
                   // Gmail Model: Always resolve the OTHER PARTY relative to the logged-in user!
                   const currentName = getDisplayName(user).trim().toLowerCase();
@@ -1269,9 +1220,9 @@ export default function DashboardMessagesLayout({
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {isUnread && unreadCount > 0 && (
+                            {isUnread && threadUnreadBadge > 0 && (
                               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 px-1 text-[10px] font-bold text-white shadow-xs">
-                                {unreadCount > 9 ? "9+" : unreadCount}
+                                {threadUnreadBadge > 9 ? "9+" : threadUnreadBadge}
                               </span>
                             )}
                             <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
@@ -1488,11 +1439,6 @@ export default function DashboardMessagesLayout({
                           </span>
                           <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                             <span>{formatMessageTimestamp(m.sentAt)}</span>
-                            {isMe && (
-                              <span title="Sent & Delivered" className="inline-flex items-center">
-                                <CheckCheck className="h-3.5 w-3.5 text-primary shrink-0" />
-                              </span>
-                            )}
                           </div>
                         </div>
                         <p className="whitespace-pre-wrap leading-relaxed text-foreground font-normal">{m.body}</p>

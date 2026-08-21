@@ -282,26 +282,8 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
   };
 
   // Render WhatsApp tick icon
-  const renderMessageTicks = (status?: "sent" | "delivered" | "seen") => {
-    if (status === "seen") {
-      return (
-        <span title="Seen">
-          <CheckCheck className="h-3.5 w-3.5 text-[#38bdf8] inline font-bold" />
-        </span>
-      );
-    }
-    if (status === "delivered") {
-      return (
-        <span title="Delivered">
-          <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70 inline" />
-        </span>
-      );
-    }
-    return (
-      <span title="Sent">
-        <Check className="h-3.5 w-3.5 text-primary-foreground/60 inline" />
-      </span>
-    );
+  const renderMessageTicks = (_status?: "sent" | "delivered" | "seen") => {
+    return null;
   };
 
   return (

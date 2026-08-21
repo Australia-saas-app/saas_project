@@ -837,26 +837,7 @@ export function LiveChatTab() {
                       <span>{msg.sentAt}</span>
 
                       {/* WhatsApp Ticks Status (Single -> Double Grey -> Double Blue) */}
-                      {isMe && (
-                        <span
-                          className="inline-flex items-center"
-                          title={
-                            msg.status === "sent"
-                              ? "Sent"
-                              : msg.status === "delivered"
-                              ? "Delivered"
-                              : "Seen"
-                          }
-                        >
-                          {msg.status === "sent" ? (
-                            <Check className="h-3 w-3 text-white/70" />
-                          ) : msg.status === "delivered" ? (
-                            <CheckCheck className="h-3.5 w-3.5 text-white/70" />
-                          ) : (
-                            <CheckCheck className="h-3.5 w-3.5 text-sky-300 font-extrabold" />
-                          )}
-                        </span>
-                      )}
+
                     </div>
                   </div>
                 </div>

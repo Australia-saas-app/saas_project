@@ -222,7 +222,8 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
         (m.fromEmail && m.fromEmail.toLowerCase() === email) ||
         (m.toEmail && m.toEmail.toLowerCase() === email) ||
         ((m as any).senderId && (m as any).senderId.toLowerCase() === email)
-      ));
+      )) ||
+      (t.role && t.role === role);
 
     if (isDirectMatch) {
       // Filter out messages that THIS user deleted; other user still sees their messages
@@ -232,20 +233,16 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
       if (userVisibleMessages.length > 0) {
         const lastMsg = userVisibleMessages[userVisibleMessages.length - 1];
         const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
-        const isLastMsgMine = (email && lastMsgEmail === email) || (email && !lastMsgEmail && lastMsg.from === "me");
+        const isLastMsgMine = email ? lastMsgEmail === email : lastMsg.from === "me";
 
         if (isLastMsgMine) {
           unreadForMe = false;
         } else {
           // If message is from the other party, check if it was read
-          unreadForMe = userVisibleMessages.some(
-            (m) =>
-              ((m.fromEmail && m.fromEmail.toLowerCase() !== email) || m.from === "them") &&
-              !readMsgIds.has(m.id)
-          );
+          unreadForMe = !readMsgIds.has(lastMsg.id);
         }
       } else {
-        unreadForMe = false;
+        unreadForMe = Boolean(t.unread && !readMsgIds.has(t.id));
       }
 
       combinedMap.set(t.id, {

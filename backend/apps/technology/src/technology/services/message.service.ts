@@ -119,8 +119,12 @@ export class MessageService {
 
     // 3. Identify recipient to notify
     let recipientId: string | null = null;
-    if (project?.clientId && project.clientId !== senderId) {
+    if (createDto.recipientUserId && createDto.recipientUserId !== senderId) {
+      recipientId = createDto.recipientUserId;
+    } else if (project?.clientId && project.clientId !== senderId) {
       recipientId = project.clientId;
+    } else if (project?.createdBy && project.createdBy !== senderId) {
+      recipientId = project.createdBy;
     } else if (project?.assignedBusinessId && project.assignedBusinessId !== senderId) {
       recipientId = project.assignedBusinessId;
     }
@@ -131,7 +135,7 @@ export class MessageService {
         type: 'PROJECT_CHAT_MESSAGE',
         title: `New Message on "${projectTitle}"`,
         message: `${senderName || 'Team member'}: ${createDto.content.slice(0, 80)}`,
-        href: `/technical`,
+        href: `/dashboard/user/messages?thread=${createDto.threadId || projectId}`,
       });
     }
 
@@ -187,11 +191,15 @@ export class MessageService {
           id: m._id?.toString() || m.id,
           projectId: m.projectId,
           senderId: m.senderId,
-          senderName: m.senderName,
+          senderName: m.metadata?.senderName || m.senderName,
+          senderEmail: m.metadata?.senderEmail || m.senderId,
+          recipientName: m.metadata?.recipientName || '',
+          recipientEmail: m.metadata?.recipientEmail || '',
+          recipientUserId: m.metadata?.recipientUserId || '',
           messageType: m.messageType || 'general',
           content: m.content,
           createdAt: m.createdAt,
-          status: 'seen',
+          status: m.status || 'delivered',
         }));
       }
     } catch (err: any) {
