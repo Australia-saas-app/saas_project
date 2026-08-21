@@ -36,6 +36,7 @@ export interface MessageThread {
   messages: ThreadMessage[];
   folder?: MessageFolder;
   draftBody?: string;
+  lastReadAt?: string;
 }
 
 const STORAGE_KEY = "platform_message_threads";
@@ -96,10 +97,20 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
     if (!dt || !dt.id) return;
     const existing = map.get(dt.id);
 
+    // Map each message from/them relative to current user
+    const mappedMessages: ThreadMessage[] = (dt.messages || []).map((m) => {
+      const mEmail = (m.fromEmail || '').trim().toLowerCase();
+      const isMe = (email && mEmail === email) || m.from === 'me';
+      return {
+        ...m,
+        from: isMe ? ('me' as const) : ('them' as const),
+      };
+    });
+
     let isUnread = dt.unread;
-    if (dt.messages && dt.messages.length > 0 && email) {
-      const lastMsg = dt.messages[dt.messages.length - 1];
-      const lastMsgFromEmail = (lastMsg.fromEmail || '').toLowerCase();
+    if (mappedMessages.length > 0 && email) {
+      const lastMsg = mappedMessages[mappedMessages.length - 1];
+      const lastMsgFromEmail = (lastMsg.fromEmail || '').trim().toLowerCase();
       const lastMsgIsMe = lastMsgFromEmail === email || lastMsg.from === 'me';
       isUnread = !lastMsgIsMe;
     }
@@ -109,13 +120,14 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
         ...existing,
         ...dt,
         unread: isUnread,
-        messages: dt.messages && dt.messages.length > 0 ? dt.messages : existing.messages,
+        messages: mappedMessages.length > 0 ? mappedMessages : existing.messages,
         updatedAt: dt.updatedAt || existing.updatedAt,
       });
     } else {
       map.set(dt.id, {
         ...dt,
         unread: isUnread,
+        messages: mappedMessages,
       });
     }
   });
@@ -151,14 +163,50 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
     // 1. Thread explicitly matches current user email
     if (email) {
       if (rec === email || send === email) {
-        combinedMap.set(t.id, { ...t, role, folder: folderForMe });
+        let unreadForMe = t.unread;
+        if (t.messages && t.messages.length > 0) {
+          const lastMsg = t.messages[t.messages.length - 1];
+          const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
+          const isLastMsgMine = (lastMsgEmail && lastMsgEmail === email) || lastMsg.from === "me";
+          if (isLastMsgMine) {
+            unreadForMe = false;
+          } else {
+            const isAfterLastRead = !t.lastReadAt || new Date(lastMsg.sentAt).getTime() > new Date(t.lastReadAt).getTime();
+            unreadForMe = isAfterLastRead;
+          }
+        }
+
+        combinedMap.set(t.id, {
+          ...t,
+          role,
+          folder: folderForMe,
+          unread: unreadForMe,
+        });
         return;
       }
     }
 
     // 2. Project application threads (TH-*) or role matching
     if (t.id.startsWith("TH-") || t.role === role) {
-      combinedMap.set(t.id, { ...t, role, folder: folderForMe });
+      let unreadForMe = t.unread;
+      if (t.messages && t.messages.length > 0 && email) {
+        const lastMsg = t.messages[t.messages.length - 1];
+        const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
+        const isLastMsgMine = (lastMsgEmail && lastMsgEmail === email) || lastMsg.from === "me";
+        if (isLastMsgMine) {
+          unreadForMe = false;
+        } else {
+          const isAfterLastRead = !t.lastReadAt || new Date(lastMsg.sentAt).getTime() > new Date(t.lastReadAt).getTime();
+          unreadForMe = isAfterLastRead;
+        }
+      }
+
+      combinedMap.set(t.id, {
+        ...t,
+        role,
+        folder: folderForMe,
+        unread: unreadForMe,
+      });
     }
   });
 
@@ -288,11 +336,12 @@ export function getOrCreateProjectThread(input: {
 }
 
 export function markThreadRead(threadId: string) {
+  const now = new Date().toISOString();
   writeAll(
-    readAll().map((t) => (t.id === threadId ? { ...t, unread: false } : t))
+    readAll().map((t) => (t.id === threadId ? { ...t, unread: false, lastReadAt: now } : t))
   );
   writeGlobalEmails(
-    readGlobalEmails().map((t) => (t.id === threadId ? { ...t, unread: false } : t))
+    readGlobalEmails().map((t) => (t.id === threadId ? { ...t, unread: false, lastReadAt: now } : t))
   );
 }
 

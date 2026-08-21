@@ -45,6 +45,7 @@ import {
   type DashboardRole,
   type MessageFolder,
   type MessageThread,
+  type ThreadMessage,
 } from "@/src/shared/lib/messages-store";
 import {
   getAllRegisteredContacts,
@@ -562,9 +563,16 @@ export default function DashboardMessagesLayout({
       const f = (t.folder ?? "inbox") as MessageFolder;
       if (folder === "inbox") return f === "inbox";
       if (folder === "live") return f === "live";
+      if (folder === "sent") {
+        const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+        const isSenderMe =
+          (t.senderEmail && t.senderEmail.toLowerCase() === currentEmail) ||
+          t.messages.some((m) => m.from === "me" || (m.fromEmail && m.fromEmail.toLowerCase() === currentEmail));
+        return isSenderMe && f !== "deleted";
+      }
       return f === folder;
     });
-  }, [threads, folder]);
+  }, [threads, folder, currentUserEmail]);
 
   const filtered = useMemo(() => {
     let rows = folderThreads;
@@ -633,7 +641,11 @@ export default function DashboardMessagesLayout({
     }
 
     markThreadRead(id);
-    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, unread: false } : t)));
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, unread: false, lastReadAt: new Date().toISOString() } : t
+      )
+    );
   };
 
   const handleCloseSelectedMessage = () => {
@@ -650,6 +662,16 @@ export default function DashboardMessagesLayout({
     }
     const messageBody = draft.trim();
     const senderDisplayName = getDisplayName(user);
+    const sentIsoTime = new Date().toISOString();
+
+    const newLocalMsg: ThreadMessage = {
+      id: `MSG-${Date.now().toString(36)}`,
+      from: "me",
+      fromName: senderDisplayName,
+      fromEmail: currentUserEmail,
+      body: messageBody,
+      sentAt: sentIsoTime,
+    };
 
     // 1. Persist directly to MongoDB backend collection ('project_messages')
     const isClientRole = role === "user";
@@ -666,7 +688,6 @@ export default function DashboardMessagesLayout({
       ? selected.recipientBusiness || "Tech"
       : "Client";
 
-    // 1. Persist directly to MongoDB backend collection ('project_messages')
     const pId = selected.projectId || selected.id || selected.project;
     if (pId && pId !== "Compose") {
       try {
@@ -694,7 +715,22 @@ export default function DashboardMessagesLayout({
       currentUserEmail
     );
 
-    // 3. Broadcast real-time events across tabs/windows for the recipient
+    // 3. Update React state immediately so sender sees message instantly
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === selected.id
+          ? {
+              ...t,
+              unread: false,
+              lastReadAt: sentIsoTime,
+              updatedAt: sentIsoTime,
+              messages: [...t.messages, newLocalMsg],
+            }
+          : t
+      )
+    );
+
+    // 4. Broadcast real-time events across tabs/windows for the recipient
     try {
       if (typeof window !== "undefined") {
         const emailDetail = {
@@ -706,7 +742,7 @@ export default function DashboardMessagesLayout({
           subject: selected.subject,
           project: selected.project,
           body: messageBody,
-          sentAt: new Date().toISOString(),
+          sentAt: sentIsoTime,
         };
 
         window.dispatchEvent(new CustomEvent("platform_new_email", { detail: emailDetail }));
@@ -716,7 +752,7 @@ export default function DashboardMessagesLayout({
           title: `New Message from ${senderDisplayName}`,
           message: messageBody.slice(0, 100),
           time: "Just now",
-          createdAt: new Date().toISOString(),
+          createdAt: sentIsoTime,
           read: false,
           recipientEmail: recEmail,
           href: isClientRole ? `/dashboard/business/messages?thread=${selected.id}` : `/dashboard/user/messages?thread=${selected.id}`,
@@ -740,7 +776,6 @@ export default function DashboardMessagesLayout({
     } catch {}
 
     setDraft("");
-    refresh();
     const recipientDisplayName = selected.recipientName || selected.participant || "recipient";
     toast.success("Message Delivered Successfully", {
       description: `Delivered to ${recipientDisplayName}`,
@@ -1080,8 +1115,16 @@ export default function DashboardMessagesLayout({
                   const isDraftFolder = folder === "drafts";
                   const isDeletedFolder = folder === "deleted";
                   const isUnread = t.unread && !isSelected;
-                  const unreadCount = t.unread
-                    ? Math.max(1, t.messages.filter((m) => m.from === "them").length)
+                  const unreadCount = isUnread
+                    ? Math.max(
+                        1,
+                        t.messages.filter(
+                          (m) =>
+                            m.from === "them" &&
+                            (!t.lastReadAt ||
+                              new Date(m.sentAt).getTime() > new Date(t.lastReadAt).getTime())
+                        ).length
+                      )
                     : 0;
 
                   // Gmail Model: Always resolve the OTHER PARTY relative to the logged-in user!
@@ -1338,7 +1381,7 @@ export default function DashboardMessagesLayout({
                     const isMe =
                       (m.fromEmail && m.fromEmail.toLowerCase() === currentEmail) ||
                       (m.fromName && m.fromName.toLowerCase() === currentName) ||
-                      (m.from === "me" && (!selected.senderEmail || selected.senderEmail.toLowerCase() === currentEmail));
+                      m.from === "me";
                     return (
                       <div
                         key={m.id}
@@ -1350,8 +1393,8 @@ export default function DashboardMessagesLayout({
                       >
                         <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-2">
                           <span className="font-bold text-foreground flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-primary" /> {m.fromName}
-                            {m.fromEmail && (
+                            <User className="h-3.5 w-3.5 text-primary" /> {isMe ? "You" : m.fromName}
+                            {m.fromEmail && !isMe && (
                               <span className="font-normal text-muted-foreground text-[10px]">
                                 &lt;{m.fromEmail}&gt;
                               </span>
