@@ -112,6 +112,16 @@ export class ProjectController {
     return this.messageService.deleteThreadForUser(threadId, userId, email);
   }
 
+  @Post('conversations/threads/:threadId/read')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Mark conversation thread as read for user in database' })
+  async markThreadRead(@Param('threadId') threadId: string, @Req() req: any) {
+    const userId = req.user?.userId || req.admin?.adminId || req.user?.id || 'admin';
+    const email = req.user?.email || '';
+    return this.messageService.markThreadReadForUser(threadId, userId, email);
+  }
+
   @Get(':projectId')
   @UseGuards(UnifiedAuthGuard)
   @ApiBearerAuth('JWT-auth')

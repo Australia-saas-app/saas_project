@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
-import { MessageSquare, Mail, Trash2, CheckCheck, User } from "lucide-react";
+import { MessageSquare, Mail, Trash2, CheckCheck, User, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/src/context/user.provider";
 import {
@@ -15,7 +15,7 @@ import {
   type DashboardRole,
   type MessageThread,
 } from "@/src/shared/lib/messages-store";
-import { fetchUserThreads, deleteUserThread } from "@/src/modules/technical/services/technical.services";
+import { fetchUserThreads, deleteUserThread, markUserThreadRead } from "@/src/modules/technical/services/technical.services";
 
 function useIsDarkMode() {
   const [isDark, setIsDark] = useState(false);
@@ -262,6 +262,9 @@ export function MessagesBell({
     return getReadMessageIds(currentUserEmail);
   }, [currentUserEmail, threads]);
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
   const unreadThreads = useMemo(() => {
     return threads.filter((t) => t.folder !== "deleted" && t.unread && t.messages && t.messages.length > 0);
   }, [threads]);
@@ -270,9 +273,10 @@ export function MessagesBell({
     return unreadThreads.length;
   }, [unreadThreads]);
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     unreadThreads.forEach((t) => {
       markThreadRead(t.id, currentUserEmail);
+      markUserThreadRead(t.id);
       if (currentUserEmail) {
         markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
       }
@@ -280,22 +284,39 @@ export function MessagesBell({
     loadThreads();
   };
 
-  const handleDeleteAll = () => {
-    unreadThreads.forEach((t) => {
-      archiveThread(t.id, currentUserEmail);
-      deleteUserThread(t.id);
-    });
-    loadThreads();
+  const handleDeleteAll = async () => {
+    try {
+      setIsDeletingAll(true);
+      const targets = [...unreadThreads];
+      targets.forEach((t) => {
+        archiveThread(t.id, currentUserEmail);
+      });
+      await Promise.all(targets.map((t) => deleteUserThread(t.id)));
+      loadThreads();
+      toast.success("All message notifications deleted");
+    } catch {
+      toast.error("Failed to delete message notifications");
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
-  const handleDeleteSingle = (id: string) => {
-    archiveThread(id, currentUserEmail);
-    deleteUserThread(id);
-    if (currentUserEmail) {
-      const target = threads.find((t) => t.id === id);
-      if (target) markMessagesAsRead(target.messages.map((m) => m.id), currentUserEmail);
+  const handleDeleteSingle = async (id: string) => {
+    try {
+      setDeletingId(id);
+      archiveThread(id, currentUserEmail);
+      if (currentUserEmail) {
+        const target = threads.find((t) => t.id === id);
+        if (target) markMessagesAsRead(target.messages.map((m) => m.id), currentUserEmail);
+      }
+      await deleteUserThread(id);
+      loadThreads();
+      toast.success("Message notification deleted");
+    } catch {
+      toast.error("Failed to delete message notification");
+    } finally {
+      setDeletingId(null);
     }
-    loadThreads();
   };
 
   return (
@@ -356,11 +377,20 @@ export function MessagesBell({
             {unreadThreads.length > 0 && (
               <button
                 type="button"
+                disabled={isDeletingAll}
                 onClick={handleDeleteAll}
                 style={{ color: "#ef4444" }}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-rose-500/10 cursor-pointer transition-colors"
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-rose-500/10 cursor-pointer transition-colors disabled:opacity-50"
               >
-                Delete all
+                {isDeletingAll ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" /> Delete all
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -417,6 +447,7 @@ export function MessagesBell({
                       href={targetLink}
                       onClick={() => {
                         markThreadRead(t.id, currentUserEmail);
+                        markUserThreadRead(t.id);
                         if (currentUserEmail) {
                           markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
                         }
@@ -467,16 +498,21 @@ export function MessagesBell({
 
                     <button
                       type="button"
+                      disabled={deletingId === t.id}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         handleDeleteSingle(t.id);
                       }}
                       style={{ color: isDark ? "#94a3b8" : "#64748b" }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer"
-                      title="Dismiss notification"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer disabled:cursor-not-allowed"
+                      title="Delete message notification"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {deletingId === t.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </button>
                   </li>
                 );

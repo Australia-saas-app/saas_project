@@ -57,7 +57,7 @@ import {
   type RegisteredContact,
 } from "@/src/shared/lib/contacts-store";
 import { io, Socket } from "socket.io-client";
-import { fetchProjectMessages, fetchUserThreads, sendProjectMessage, deleteUserThread } from "@/src/modules/technical/services/technical.services";
+import { fetchProjectMessages, fetchUserThreads, sendProjectMessage, deleteUserThread, markUserThreadRead } from "@/src/modules/technical/services/technical.services";
 import { Button } from "@/src/components/ui/button";
 import { LiveChatTab } from "./LiveChatTab";
 
@@ -658,6 +658,7 @@ export default function DashboardMessagesLayout({
     }
 
     markThreadRead(id, currentUserEmail);
+    markUserThreadRead(id);
     if (thread && currentUserEmail) {
       markMessagesAsRead(thread.messages.map((m) => m.id), currentUserEmail);
     }
@@ -1463,11 +1464,10 @@ export default function DashboardMessagesLayout({
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
                   {selected.messages.map((m) => {
                     const currentEmail = (currentUserEmail || "").trim().toLowerCase();
-                    const currentName = getDisplayName(user).trim().toLowerCase();
-                    const isMe =
-                      (m.fromEmail && m.fromEmail.toLowerCase() === currentEmail) ||
-                      (m.fromName && m.fromName.toLowerCase() === currentName) ||
-                      m.from === "me";
+                    const mEmail = (m.fromEmail || "").trim().toLowerCase();
+                    const isMe = currentEmail
+                      ? (mEmail ? mEmail === currentEmail : m.from === "me")
+                      : m.from === "me";
                     return (
                       <div
                         key={m.id}

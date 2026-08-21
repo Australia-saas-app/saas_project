@@ -350,6 +350,34 @@ export class MessageService {
     }
   }
 
+  async markThreadReadForUser(threadId: string, userId: string, email: string): Promise<any> {
+    try {
+      const normalizedEmail = (email || '').trim().toLowerCase();
+      const normalizedUserId = (userId || '').trim().toLowerCase();
+      const identifiers = [normalizedEmail, normalizedUserId].filter(Boolean);
+
+      if (identifiers.length === 0) return { success: false, message: 'Invalid user' };
+
+      await this.projectMessageMongoModel.updateMany(
+        {
+          $or: [
+            { 'metadata.threadId': threadId },
+            { projectId: threadId },
+          ],
+        },
+        {
+          $addToSet: { 'metadata.readBy': { $each: identifiers } },
+          status: 'seen',
+        }
+      ).exec();
+
+      return { success: true, message: 'Thread marked as read' };
+    } catch (e: any) {
+      this.logger.error('Failed to mark thread read in MongoDB', e.message);
+      return { success: false, message: e.message };
+    }
+  }
+
   private groupMessagesIntoThreads(messages: any[], userId: string, email: string): any[] {
     const threadMap = new Map<string, any>();
 
@@ -361,6 +389,12 @@ export class MessageService {
       const isMe =
         (email && senderEmail === email) ||
         (userId && String(m.senderId).toLowerCase() === userId);
+
+      const readByList: string[] = (m.metadata?.readBy || []).map((x: string) => String(x).toLowerCase());
+      const hasRead = (email && readByList.includes(email.toLowerCase())) ||
+                      (userId && readByList.includes(userId.toLowerCase()));
+
+      const msgIsUnread = !isMe && !hasRead;
 
       const formattedMsg = {
         id: m._id?.toString() || m.id,
@@ -388,7 +422,7 @@ export class MessageService {
           recipientEmail: m.metadata?.recipientEmail || '',
           recipientBusiness: m.metadata?.recipientBusiness || '',
           recipientUserId: m.metadata?.recipientUserId || '',
-          unread: !isMe,
+          unread: msgIsUnread,
           updatedAt: formattedMsg.sentAt,
           folder: 'inbox',
           messages: [formattedMsg],
@@ -397,7 +431,7 @@ export class MessageService {
         const existing = threadMap.get(threadId);
         existing.messages.push(formattedMsg);
         existing.updatedAt = formattedMsg.sentAt;
-        existing.unread = !isMe;
+        existing.unread = msgIsUnread;
         if (m.metadata?.recipientName && (!existing.recipientName || existing.recipientName === 'Business Partner')) {
           existing.recipientName = m.metadata.recipientName;
         }

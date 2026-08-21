@@ -97,10 +97,10 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
     if (!dt || !dt.id) return;
     const existing = map.get(dt.id);
 
-    // Map each message from/them relative to current user
+    // Map each message from/them relative to current user's email
     const mappedMessages: ThreadMessage[] = (dt.messages || []).map((m) => {
       const mEmail = (m.fromEmail || '').trim().toLowerCase();
-      const isMe = (email && mEmail === email) || m.from === 'me';
+      const isMe = email ? mEmail === email : m.from === 'me';
       return {
         ...m,
         from: isMe ? ('me' as const) : ('them' as const),
@@ -108,10 +108,10 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
     });
 
     let isUnread = dt.unread;
-    if (mappedMessages.length > 0 && email) {
+    if (mappedMessages.length > 0) {
       const lastMsg = mappedMessages[mappedMessages.length - 1];
       const lastMsgFromEmail = (lastMsg.fromEmail || '').trim().toLowerCase();
-      const lastMsgIsMe = lastMsgFromEmail === email || lastMsg.from === 'me';
+      const lastMsgIsMe = email ? lastMsgFromEmail === email : lastMsg.from === 'me';
       isUnread = !lastMsgIsMe;
     }
 
@@ -673,12 +673,20 @@ export function sendThreadMessage(
     writeGlobalEmails(updatedGlobal);
 
     if (typeof window !== "undefined") {
+      const isSenderClient = senderEmail && targetThread.senderEmail && senderEmail.toLowerCase() === targetThread.senderEmail.toLowerCase();
+      const trueRecipientEmail = isSenderClient
+        ? (targetThread.recipientEmail || "")
+        : (targetThread.senderEmail || targetThread.recipientEmail || "");
+      const trueRecipientName = isSenderClient
+        ? (targetThread.recipientName || targetThread.participant || "Business Partner")
+        : (targetThread.senderName || targetThread.participant || "Client");
+
       window.dispatchEvent(
         new CustomEvent("platform_new_email", {
           detail: {
             threadId: targetThread.id,
-            recipientEmail: targetThread.recipientEmail,
-            recipientName: targetThread.recipientName || targetThread.participant,
+            recipientEmail: trueRecipientEmail,
+            recipientName: trueRecipientName,
             senderName,
             senderEmail,
             subject: targetThread.subject,

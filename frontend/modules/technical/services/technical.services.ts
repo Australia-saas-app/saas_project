@@ -271,6 +271,16 @@ export const deleteUserThread = async (threadId: string, _token?: string) => {
   }
 };
 
+export const markUserThreadRead = async (threadId: string, _token?: string) => {
+  try {
+    const res = await axiosInstance.post(`/technology/projects/conversations/threads/${encodeURIComponent(threadId)}/read`);
+    return res?.data;
+  } catch (e) {
+    console.warn("Mark user thread read fallback:", e);
+    return { success: false };
+  }
+};
+
 export const sendProjectMessage = async (
   projectId: string,
   content: string,
