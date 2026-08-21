@@ -245,14 +245,11 @@ export default function Header() {
 
               {user && (
                 <>
-                  <Link
-                    href={messagesHref}
+                  <MessagesBell
+                    viewAllHref={messagesHref}
                     className={`hidden md:inline-flex ${iconButtonClass}`}
-                    title="Messages"
-                    aria-label="Messages"
-                  >
-                    <MessageSquare className="h-[18px] w-[18px]" />
-                  </Link>
+                    iconClassName="h-[18px] w-[18px]"
+                  />
                   <Link
                     href={walletHref}
                     className={`hidden md:inline-flex ${iconButtonClass}`}
@@ -265,8 +262,7 @@ export default function Header() {
               )}
 
               {user ? (
-                <div className="inline-flex items-center gap-1">
-                  <MessagesBell />
+                <div className="inline-flex items-center">
                   <NotificationBell viewAllHref={noticesHref} />
                 </div>
               ) : (

@@ -37,6 +37,8 @@ import {
   getOrCreateApplicationThread,
   getOrCreateProjectThread,
   getThreadsForRole,
+  getReadMessageIds,
+  markMessagesAsRead,
   markThreadRead,
   saveDraftThread,
   sendComposedMessage,
@@ -593,6 +595,11 @@ export default function DashboardMessagesLayout({
     return rows;
   }, [folderThreads, search, showUnreadOnly]);
 
+  // Read message IDs for accurate unread badge count
+  const readMsgIds = useMemo(() => {
+    return getReadMessageIds(currentUserEmail);
+  }, [currentUserEmail, threads]);
+
   // Real Counts for current active folder
   const totalCount = folderThreads.length;
   const unreadCount = folderThreads.filter((t) => t.unread).length;
@@ -640,7 +647,10 @@ export default function DashboardMessagesLayout({
       return;
     }
 
-    markThreadRead(id);
+    markThreadRead(id, currentUserEmail);
+    if (thread && currentUserEmail) {
+      markMessagesAsRead(thread.messages.map((m) => m.id), currentUserEmail);
+    }
     setThreads((prev) =>
       prev.map((t) =>
         t.id === id ? { ...t, unread: false, lastReadAt: new Date().toISOString() } : t
@@ -677,8 +687,8 @@ export default function DashboardMessagesLayout({
     const isClientRole = role === "user";
 
     const recName = isClientRole
-      ? selected.recipientName || selected.participant || "Business Partner"
-      : selected.senderName || selected.participant || "Client";
+      ? selected.recipientName || resolveContactFullName(selected.recipientEmail, selected.participant) || selected.participant || "Business Partner"
+      : selected.senderName || resolveContactFullName(selected.senderEmail, selected.participant) || selected.participant || "Client";
 
     const recEmail = isClientRole
       ? (selected.recipientEmail || toEmailParam || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")).trim().toLowerCase()
@@ -776,7 +786,7 @@ export default function DashboardMessagesLayout({
     } catch {}
 
     setDraft("");
-    const recipientDisplayName = selected.recipientName || selected.participant || "recipient";
+    const recipientDisplayName = recName || "recipient";
     toast.success("Message Delivered Successfully", {
       description: `Delivered to ${recipientDisplayName}`,
       className: "!text-[#111] dark:!text-white font-bold",
@@ -1115,20 +1125,15 @@ export default function DashboardMessagesLayout({
                   const isDraftFolder = folder === "drafts";
                   const isDeletedFolder = folder === "deleted";
                   const isUnread = t.unread && !isSelected;
-                  const unreadCount = isUnread
-                    ? Math.max(
-                        1,
-                        t.messages.filter(
-                          (m) =>
-                            m.from === "them" &&
-                            (!t.lastReadAt ||
-                              new Date(m.sentAt).getTime() > new Date(t.lastReadAt).getTime())
-                        ).length
-                      )
-                    : 0;
+                  const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+                  const unreadThemMessages = t.messages.filter(
+                    (m) =>
+                      ((m.fromEmail && m.fromEmail.toLowerCase() !== currentEmail) || m.from === "them") &&
+                      !readMsgIds.has(m.id)
+                  );
+                  const unreadCount = isUnread ? unreadThemMessages.length : 0;
 
                   // Gmail Model: Always resolve the OTHER PARTY relative to the logged-in user!
-                  const currentEmail = (currentUserEmail || "").trim().toLowerCase();
                   const currentName = getDisplayName(user).trim().toLowerCase();
 
                   const isSenderMe =

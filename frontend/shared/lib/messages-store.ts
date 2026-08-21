@@ -137,10 +137,34 @@ export function syncMongoDBThreads(dbThreads: MessageThread[], currentUserEmail?
   writeGlobalEmails(merged);
 }
 
+export function getReadMessageIds(userEmail?: string): Set<string> {
+  if (typeof window === "undefined" || !userEmail) return new Set();
+  try {
+    const key = `user_read_msg_ids_${userEmail.trim().toLowerCase()}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function markMessagesAsRead(messageIds: string[], userEmail?: string) {
+  if (typeof window === "undefined" || !userEmail || messageIds.length === 0) return;
+  try {
+    const key = `user_read_msg_ids_${userEmail.trim().toLowerCase()}`;
+    const existing = getReadMessageIds(userEmail);
+    messageIds.forEach((id) => existing.add(id));
+    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
+  } catch {}
+}
+
 export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string): MessageThread[] {
   const local = readAll();
   const global = readGlobalEmails();
   const email = currentUserEmail?.trim().toLowerCase();
+  const readMsgIds = getReadMessageIds(email);
 
   const archKey = email ? `user_archived_threads_${email}` : "";
   const permKey = email ? `user_perm_deleted_threads_${email}` : "";
@@ -163,7 +187,7 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
     // 1. Thread explicitly matches current user email
     if (email) {
       if (rec === email || send === email) {
-        let unreadForMe = t.unread;
+        let unreadForMe = false;
         if (t.messages && t.messages.length > 0) {
           const lastMsg = t.messages[t.messages.length - 1];
           const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
@@ -171,8 +195,11 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
           if (isLastMsgMine) {
             unreadForMe = false;
           } else {
-            const isAfterLastRead = !t.lastReadAt || new Date(lastMsg.sentAt).getTime() > new Date(t.lastReadAt).getTime();
-            unreadForMe = isAfterLastRead;
+            unreadForMe = t.messages.some(
+              (m) =>
+                ((m.fromEmail && m.fromEmail.toLowerCase() !== email) || m.from === "them") &&
+                !readMsgIds.has(m.id)
+            );
           }
         }
 
@@ -188,7 +215,7 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
 
     // 2. Project application threads (TH-*) or role matching
     if (t.id.startsWith("TH-") || t.role === role) {
-      let unreadForMe = t.unread;
+      let unreadForMe = false;
       if (t.messages && t.messages.length > 0 && email) {
         const lastMsg = t.messages[t.messages.length - 1];
         const lastMsgEmail = (lastMsg.fromEmail || "").trim().toLowerCase();
@@ -196,8 +223,11 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
         if (isLastMsgMine) {
           unreadForMe = false;
         } else {
-          const isAfterLastRead = !t.lastReadAt || new Date(lastMsg.sentAt).getTime() > new Date(t.lastReadAt).getTime();
-          unreadForMe = isAfterLastRead;
+          unreadForMe = t.messages.some(
+            (m) =>
+              ((m.fromEmail && m.fromEmail.toLowerCase() !== email) || m.from === "them") &&
+              !readMsgIds.has(m.id)
+          );
         }
       }
 
@@ -335,8 +365,14 @@ export function getOrCreateProjectThread(input: {
   return thread;
 }
 
-export function markThreadRead(threadId: string) {
+export function markThreadRead(threadId: string, currentUserEmail?: string) {
   const now = new Date().toISOString();
+  const allThreads = [...readAll(), ...readGlobalEmails()];
+  const target = allThreads.find((t) => t.id === threadId);
+  if (target && currentUserEmail) {
+    const msgIds = (target.messages || []).map((m) => m.id);
+    markMessagesAsRead(msgIds, currentUserEmail);
+  }
   writeAll(
     readAll().map((t) => (t.id === threadId ? { ...t, unread: false, lastReadAt: now } : t))
   );

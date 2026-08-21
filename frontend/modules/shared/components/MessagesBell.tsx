@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import { MessageSquare, Mail, Trash2, CheckCheck, User } from "lucide-react";
+import { toast } from "sonner";
 import { useUser } from "@/src/context/user.provider";
 import {
   getThreadsForRole,
+  getReadMessageIds,
+  markMessagesAsRead,
   markThreadRead,
   archiveThread,
   type DashboardRole,
@@ -88,11 +91,15 @@ function formatMessageTime(dateStr?: string): string {
 type MessagesBellProps = {
   viewAllHref?: string;
   emptyLabel?: string;
+  className?: string;
+  iconClassName?: string;
 };
 
 export function MessagesBell({
   viewAllHref,
   emptyLabel = "No new messages",
+  className,
+  iconClassName = "h-5 w-5",
 }: MessagesBellProps) {
   const [open, setOpen] = useState(false);
   const isDark = useIsDarkMode();
@@ -119,8 +126,38 @@ export function MessagesBell({
     loadThreads();
   }, [userRole, currentUserEmail]);
 
-  // Sync on realtime broadcast events
+  // Sync on realtime broadcast events & show incoming toast anywhere on dashboard or landing page
   useEffect(() => {
+    const handleIncomingEmail = (event: Event) => {
+      loadThreads();
+      const customEvent = event as CustomEvent;
+      const detail = customEvent.detail;
+      if (!detail) return;
+
+      const normalizedRec = (detail.recipientEmail || "").trim().toLowerCase();
+      const normalizedSender = (detail.senderEmail || "").trim().toLowerCase();
+      const normalizedCurrent = (currentUserEmail || "").trim().toLowerCase();
+
+      const isSenderMe = normalizedCurrent && normalizedSender === normalizedCurrent;
+      const isRecipient =
+        (normalizedCurrent && normalizedRec === normalizedCurrent) ||
+        (!isSenderMe && normalizedRec && normalizedRec === normalizedCurrent);
+
+      if (isRecipient && !isSenderMe) {
+        const sender = detail.senderName || detail.senderEmail || "A user";
+        toast("You have received a new message", {
+          description: `From: ${sender} — "${(detail.body || detail.subject || "").slice(0, 70)}..."`,
+          action: {
+            label: "View message",
+            onClick: () => {
+              window.location.href = `${defaultHref}?thread=${detail.threadId}`;
+            },
+          },
+          duration: 8000,
+        });
+      }
+    };
+
     let bc: BroadcastChannel | null = null;
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -132,6 +169,32 @@ export function MessagesBell({
             event.data?.type === "vero:new_notification"
           ) {
             loadThreads();
+
+            if (event.data?.type === "platform_new_email" && event.data.detail) {
+              const detail = event.data.detail;
+              const normalizedRec = (detail.recipientEmail || "").trim().toLowerCase();
+              const normalizedSender = (detail.senderEmail || "").trim().toLowerCase();
+              const normalizedCurrent = (currentUserEmail || "").trim().toLowerCase();
+
+              const isSenderMe = normalizedCurrent && normalizedSender === normalizedCurrent;
+              const isRecipient =
+                (normalizedCurrent && normalizedRec === normalizedCurrent) ||
+                (!isSenderMe && normalizedRec && normalizedRec === normalizedCurrent);
+
+              if (isRecipient && !isSenderMe) {
+                const sender = detail.senderName || detail.senderEmail || "A user";
+                toast("You have received a new message", {
+                  description: `From: ${sender} — "${(detail.body || detail.subject || "").slice(0, 70)}..."`,
+                  action: {
+                    label: "View message",
+                    onClick: () => {
+                      window.location.href = `${defaultHref}?thread=${detail.threadId}`;
+                    },
+                  },
+                  duration: 8000,
+                });
+              }
+            }
           }
         };
       }
@@ -140,15 +203,15 @@ export function MessagesBell({
     const handleStorage = () => loadThreads();
     window.addEventListener("storage", handleStorage);
     window.addEventListener("messages_updated", handleStorage);
-    window.addEventListener("platform_new_email", handleStorage);
+    window.addEventListener("platform_new_email", handleIncomingEmail);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("messages_updated", handleStorage);
-      window.removeEventListener("platform_new_email", handleStorage);
+      window.removeEventListener("platform_new_email", handleIncomingEmail);
       if (bc) bc.close();
     };
-  }, [userRole, currentUserEmail]);
+  }, [userRole, currentUserEmail, defaultHref]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -160,6 +223,10 @@ export function MessagesBell({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
 
+  const readMsgIds = useMemo(() => {
+    return getReadMessageIds(currentUserEmail);
+  }, [currentUserEmail, threads]);
+
   const activeThreads = useMemo(() => {
     return threads.filter((t) => t.folder !== "deleted");
   }, [threads]);
@@ -169,7 +236,12 @@ export function MessagesBell({
   }, [activeThreads]);
 
   const handleMarkAllRead = () => {
-    activeThreads.forEach((t) => markThreadRead(t.id));
+    activeThreads.forEach((t) => {
+      markThreadRead(t.id, currentUserEmail);
+      if (currentUserEmail) {
+        markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
+      }
+    });
     loadThreads();
   };
 
@@ -188,13 +260,16 @@ export function MessagesBell({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+        className={
+          className ||
+          "relative rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+        }
         aria-label={unreadCount > 0 ? `${unreadCount} unread messages` : "Messages"}
         aria-expanded={open}
         aria-haspopup="menu"
         title="Messages"
       >
-        <Mail className="h-5 w-5" />
+        <MessageSquare className={iconClassName} />
         {unreadCount > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white ring-2 ring-background animate-pulse">
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -298,7 +373,10 @@ export function MessagesBell({
                     <Link
                       href={targetLink}
                       onClick={() => {
-                        markThreadRead(t.id);
+                        markThreadRead(t.id, currentUserEmail);
+                        if (currentUserEmail) {
+                          markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
+                        }
                         setOpen(false);
                       }}
                       style={{
