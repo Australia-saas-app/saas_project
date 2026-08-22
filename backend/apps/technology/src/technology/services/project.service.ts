@@ -581,6 +581,9 @@ export class ProjectService {
     const effectiveBusinessId = applicant.businessUserId || applicant.businessId;
     project.assignedBusinessId = effectiveBusinessId;
     project.assignedBusinessName = applicant.businessName || effectiveBusinessId;
+    if (applicant.businessEmail) {
+      project.assignedBusinessEmail = applicant.businessEmail;
+    }
     project.submissionStatus = SubmissionStatus.IN_PROGRESS;
     project.status = ProjectStatus.IN_PROGRESS;
     project.acceptedAt = new Date();
@@ -592,6 +595,10 @@ export class ProjectService {
       });
       if (proposal) {
         project.acceptedProposalId = proposal.id;
+        const pEmail = (proposal as any).userEmail || (proposal as any).email;
+        if (!project.assignedBusinessEmail && pEmail) {
+          project.assignedBusinessEmail = pEmail;
+        }
       }
     }
 

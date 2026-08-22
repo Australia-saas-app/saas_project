@@ -2,7 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Briefcase, ShieldAlert, MapPin, BadgeCheck, Eye, Upload, Users } from "lucide-react";
+import {
+  Loader2,
+  Briefcase,
+  ShieldAlert,
+  MapPin,
+  BadgeCheck,
+  Eye,
+  Upload,
+  Users,
+  X,
+  FileText,
+  CheckCircle2,
+  ShieldCheck,
+  DollarSign,
+  User,
+  Mail,
+  Download,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { TechnicalProject } from "../types/project.type";
 import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
@@ -14,6 +31,7 @@ import { useUser } from "@/src/context/user.provider";
 import { recordActivityLog, fetchMyApplications, applyForProject } from "../services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { DeliverableUploadModal } from "./DeliverableUploadModal";
+import { ProjectDeadlineCountdown } from "./ProjectDeadlineCountdown";
 
 interface ProjectGridViewProps {
   projects: TechnicalProject[];
@@ -25,6 +43,7 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
   const { user } = useUser();
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
   const [deliverableProject, setDeliverableProject] = useState<TechnicalProject | null>(null);
+  const [fullDetailProject, setFullDetailProject] = useState<TechnicalProject | null>(null);
   const isBusiness = user?.role === "business" || user?.role === "user";
   const uId = String((user as any)?.id || (user as any)?.userId || "");
 
@@ -80,11 +99,28 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
         );
 
         const userEmail = (user as any)?.email?.toLowerCase();
+        const userName = (user as any)?.name?.toLowerCase() || (user as any)?.fullName?.toLowerCase() || (user as any)?.businessName?.toLowerCase();
         const isAssignedToMe = Boolean(
           isBusiness && (
-            (project.assignedBusinessId && (project.assignedBusinessId === uId || project.assignedBusinessId === (user as any)?.userId)) ||
-            (project.assignedBusinessUserId && (project.assignedBusinessUserId === uId || project.assignedBusinessUserId === (user as any)?.userId)) ||
-            (project.assignedBusinessEmail && userEmail && (project.assignedBusinessEmail.toLowerCase() === userEmail))
+            (project.assignedBusinessId && (
+              project.assignedBusinessId === uId ||
+              project.assignedBusinessId === (user as any)?.userId ||
+              project.assignedBusinessId === (user as any)?.id ||
+              project.assignedBusinessId === (user as any)?.businessId
+            )) ||
+            (project.assignedBusinessUserId && (
+              project.assignedBusinessUserId === uId ||
+              project.assignedBusinessUserId === (user as any)?.userId ||
+              project.assignedBusinessUserId === (user as any)?.id
+            )) ||
+            (project.assignedBusinessEmail && userEmail && (project.assignedBusinessEmail.toLowerCase() === userEmail)) ||
+            (project.assignedBusinessName && userName && (project.assignedBusinessName.toLowerCase() === userName)) ||
+            (Array.isArray((project as any).participants) && (project as any).participants.some((part: any) =>
+              part.userId === uId ||
+              part.userId === (user as any)?.userId ||
+              part.userId === (user as any)?.id ||
+              (part.userEmail && userEmail && part.userEmail.toLowerCase() === userEmail)
+            ))
           )
         );
 
@@ -112,29 +148,46 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                   <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start">
                     {project.projectId || `PRJ-${project.id}`}
                   </span>
-                  {isAssignedToMe ? (
-                    <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                      Active
-                    </span>
-                  ) : isNotChosen ? (
-                    <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                      Thank you for applying, Better Luck Next time
-                    </span>
-                  ) : isApplied ? (
-                    <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                      Pending for Client Approval
-                    </span>
-                  ) : (
-                    <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                      Active for Public
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isAssignedToMe ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                        <Loader2 className="h-3 w-3 animate-spin text-emerald-600 dark:text-emerald-400" />
+                        In Progress
+                      </span>
+                    ) : isNotChosen ? (
+                      <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                        Thank you for applying, Better Luck Next time
+                      </span>
+                    ) : isApplied ? (
+                      <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                        Pending for Client Approval
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                        Active for Public
+                      </span>
+                    )}
+
+                    {isAssignedToMe && project.category && (
+                      <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                        {project.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
-                  <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
-                    {project.category || "Software Development"}
-                  </span>
+                  {isAssignedToMe ? (
+                    <ProjectDeadlineCountdown
+                      endDate={(project as any).endDate}
+                      createdAt={(project as any).createdAt}
+                      assignedAt={(project as any).assignedAt}
+                    />
+                  ) : (
+                    <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                      {project.category || "Software Development"}
+                    </span>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
                       <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
@@ -170,7 +223,13 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                     type="button"
                     title="View Project Details"
                     disabled={isNotChosen}
-                    onClick={() => onViewProject?.(project)}
+                    onClick={() => {
+                      if (isAssignedToMe) {
+                        setFullDetailProject(project);
+                      } else {
+                        onViewProject?.(project);
+                      }
+                    }}
                     className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <Eye className="h-4 w-4" />
@@ -235,6 +294,229 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
           </article>
         );
       })}
+
+      {/* FULL DETAILED PROJECT MODAL (FOR ASSIGNED BUSINESS USER) */}
+      {fullDetailProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div
+            style={{ maxWidth: "560px", width: "100%" }}
+            className="w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95 duration-200"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-border pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-primary font-bold">
+                    {fullDetailProject.projectId || `PRJ-${fullDetailProject.id}`}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800">
+                    <Loader2 className="h-3 w-3 animate-spin text-indigo-600 dark:text-indigo-400" />
+                    In Progress
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Assigned to You
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-foreground mt-1">{fullDetailProject.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Category: <strong className="text-foreground">{fullDetailProject.category || "Software Development"}</strong>
+                  {(fullDetailProject as any).subcategory && ` • ${(fullDetailProject as any).subcategory}`}
+                  {(fullDetailProject as any).projectType && ` • ${(fullDetailProject as any).projectType}`}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFullDetailProject(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scope Summary & Description */}
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Project Scope &amp; Summary
+              </p>
+              <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap rounded-xl bg-muted/40 p-3 border border-border">
+                {fullDetailProject.description || "No description provided."}
+              </p>
+            </div>
+
+            {/* Tech Stack, Languages & Skills */}
+            {((fullDetailProject.skills && fullDetailProject.skills.length > 0) ||
+              (fullDetailProject.languages && fullDetailProject.languages.length > 0) ||
+              ((fullDetailProject as any).preferredLanguages && (fullDetailProject as any).preferredLanguages.length > 0)) && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Required Tech Stack &amp; Skills
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-muted/40 p-3 border border-border">
+                  {((fullDetailProject as any).preferredLanguages || fullDetailProject.languages || []).map((l: string) => (
+                    <span
+                      key={l}
+                      className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400"
+                    >
+                      {l}
+                    </span>
+                  ))}
+                  {(fullDetailProject.skills || []).map((s: string) => (
+                    <span
+                      key={s}
+                      className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Budget, Payment Terms & Timeline Grid */}
+            <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl border border-border bg-muted/40 text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Target Budget</span>
+                <span className="text-sm font-extrabold text-primary">
+                  {fullDetailProject.priceRange || `${(fullDetailProject as any).currency || "USD"} $${Number((fullDetailProject as any).adminBudget || (fullDetailProject as any).price || 0).toLocaleString()}`}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Terms</span>
+                <span className="font-semibold text-foreground">{(fullDetailProject as any).paymentTerms || "One-time"}</span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
+                <span className="font-semibold text-foreground">
+                  {(fullDetailProject as any).startDate ? new Date((fullDetailProject as any).startDate).toLocaleDateString() : "Active"}
+                  {(fullDetailProject as any).endDate ? ` → ${new Date((fullDetailProject as any).endDate).toLocaleDateString()}` : ""}
+                </span>
+              </div>
+            </div>
+
+            {/* Client Contact Information */}
+            <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-1.5 text-xs">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Client Contact Information
+              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-0.5">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <User className="h-4 w-4 text-primary shrink-0" />
+                  <span>{(fullDetailProject as any).clientName || "Client"}</span>
+                </div>
+                {(fullDetailProject as any).clientEmail && (
+                  <div className="flex items-center gap-2 text-foreground font-medium">
+                    <Mail className="h-4 w-4 text-primary shrink-0" />
+                    <span>{(fullDetailProject as any).clientEmail}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Escrow Funded & Agreed Terms */}
+            <div className="rounded-xl p-3.5 border space-y-2 text-xs bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  Escrow Funded &amp; Agreed Terms
+                </p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                  Active in Progress
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Funded Escrow Budget</span>
+                  <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+                    {fullDetailProject.priceRange || `$${Number((fullDetailProject as any).adminBudget || (fullDetailProject as any).price || 0).toLocaleString()}`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
+                  <span className="font-semibold text-foreground">{(fullDetailProject as any).commissionPercent || 10}%</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Status</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    Paid in Escrow
+                  </span>
+                </div>
+              </div>
+
+              {(fullDetailProject as any).requirements && (
+                <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
+                  <strong>Admin Requirements:</strong> {(fullDetailProject as any).requirements}
+                </p>
+              )}
+              {(fullDetailProject as any).conditions && (
+                <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
+                  <strong>Delivery Conditions:</strong> {(fullDetailProject as any).conditions}
+                </p>
+              )}
+            </div>
+
+            {/* Submitted File Attachments for the Project */}
+            {(fullDetailProject as any).attachmentFile && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Attached Scope &amp; Requirements File
+                </p>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/40 shadow-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FileText className="h-5 w-5 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-foreground truncate">
+                        {(fullDetailProject as any).attachmentFile.name || "Project-Requirements.pdf"}
+                      </p>
+                      {(fullDetailProject as any).attachmentFile.size && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {((fullDetailProject as any).attachmentFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={(fullDetailProject as any).attachmentFile.url}
+                    download={(fullDetailProject as any).attachmentFile.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline shrink-0 ml-2"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFullDetailProject(null)}
+                className="rounded-xl text-xs cursor-pointer"
+              >
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const target = fullDetailProject;
+                  setFullDetailProject(null);
+                  setDeliverableProject(target);
+                }}
+                className="bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <Upload className="h-3.5 w-3.5" /> Submit Project Deliverables
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deliverableProject && (
         <DeliverableUploadModal
@@ -447,7 +729,7 @@ export function useTechnicalProjectModal() {
       }
 
       const allIds = [pId, selected.projectId, String((selected as any).id), `PRJ-${(selected as any).id}`].filter(Boolean) as string[];
-      setAppliedModalIds((prev) => Array.from(new Set([...prev, ...allIds])));
+      setAppliedModalIds((prev: string[]) => Array.from(new Set([...prev, ...allIds])));
 
       if (appliedKey && typeof window !== "undefined") {
         try {

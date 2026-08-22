@@ -53,6 +53,7 @@ import {
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
+import { ProjectDeadlineCountdown } from "./ProjectDeadlineCountdown";
 
 type SubmissionStatus =
   | "draft"
@@ -181,7 +182,7 @@ export default function UserProjectsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Filters and UI Controls
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "pending" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "in_progress" | "pending" | "completed">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "budget_high" | "budget_low">("newest");
@@ -449,19 +450,25 @@ export default function UserProjectsPage() {
 
   // Top metric stats calculation
   const stats = useMemo(() => {
+    const inProgressCount = userProjects.filter(
+      (p) =>
+        p.submissionStatus === "in_progress" ||
+        Boolean(p.assignedBusinessId || p.assignedBusinessName)
+    ).length;
     const activeCount = userProjects.filter(
       (p) =>
-        p.submissionStatus === "active" ||
-        p.submissionStatus === "in_progress" ||
-        p.paymentStatus === "paid" ||
-        p.paymentStatus === "released"
+        (p.submissionStatus === "active" || p.paymentStatus === "paid") &&
+        p.submissionStatus !== "in_progress" &&
+        !p.assignedBusinessId &&
+        !p.assignedBusinessName
     ).length;
     const pendingCount = userProjects.filter((p) => {
       const isPaid =
         p.paymentStatus === "paid" ||
         p.paymentStatus === "released" ||
         p.submissionStatus === "active" ||
-        p.submissionStatus === "in_progress";
+        p.submissionStatus === "in_progress" ||
+        Boolean(p.assignedBusinessId || p.assignedBusinessName);
       if (isPaid) return false;
       return (
         p.submissionStatus === "submitted" ||
@@ -480,24 +487,30 @@ export default function UserProjectsPage() {
       return sum + Number(b);
     }, 0);
 
-    return { activeCount, pendingCount, completedCount, totalBudget };
+    return { activeCount, inProgressCount, pendingCount, completedCount, totalBudget };
   }, [userProjects]);
 
   // Filtered and sorted projects
   const filteredProjects = useMemo(() => {
     return userProjects
       .filter((p) => {
+        const isAssignedOrInProgress =
+          p.submissionStatus === "in_progress" ||
+          Boolean(p.assignedBusinessId || p.assignedBusinessName);
+
         const isPaid =
           p.paymentStatus === "paid" ||
           p.paymentStatus === "released" ||
           p.submissionStatus === "active" ||
-          p.submissionStatus === "in_progress";
+          isAssignedOrInProgress;
 
         // Status filter
-        if (statusFilter === "active") {
-          if (!isPaid && p.submissionStatus !== "active" && p.submissionStatus !== "in_progress") return false;
+        if (statusFilter === "in_progress") {
+          if (!isAssignedOrInProgress) return false;
+        } else if (statusFilter === "active") {
+          if ((!isPaid && p.submissionStatus !== "active") || isAssignedOrInProgress) return false;
         } else if (statusFilter === "pending") {
-          // If already paid / active, it is NOT pending
+          // If already paid / active / in progress, it is NOT pending
           if (isPaid) return false;
           if (
             p.submissionStatus !== "submitted" &&
@@ -569,26 +582,31 @@ export default function UserProjectsPage() {
         </Button>
       </div>
 
-      {/* Top 4 Stat Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+      {/* Top 5 Stat Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-primary/40">
           <p className="text-xs font-semibold text-muted-foreground">Active Services</p>
-          <p className="text-3xl font-extrabold text-foreground mt-2">{stats.activeCount}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">{stats.activeCount}</p>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-emerald-500/40">
+          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">In Progress</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">{stats.inProgressCount}</p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-primary/40">
           <p className="text-xs font-semibold text-muted-foreground">Pending Approval</p>
-          <p className="text-3xl font-extrabold text-foreground mt-2">{stats.pendingCount}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">{stats.pendingCount}</p>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-primary/40">
           <p className="text-xs font-semibold text-muted-foreground">Completed Jobs</p>
-          <p className="text-3xl font-extrabold text-foreground mt-2">{stats.completedCount}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">{stats.completedCount}</p>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40">
+        <div className="col-span-2 sm:col-span-1 rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-primary/40">
           <p className="text-xs font-semibold text-muted-foreground">Total Budget / Escrow</p>
-          <p className="text-3xl font-extrabold text-foreground mt-2">
+          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
             ${stats.totalBudget.toLocaleString()}
           </p>
         </div>
@@ -601,6 +619,7 @@ export default function UserProjectsPage() {
           {[
             { id: "all", label: "All Services" },
             { id: "active", label: "Active" },
+            { id: "in_progress", label: "In Progress" },
             { id: "pending", label: "Pending" },
             { id: "completed", label: "Completed" },
           ].map((tab) => {
@@ -709,27 +728,47 @@ export default function UserProjectsPage() {
                 className="group rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between"
               >
                 <div>
-                  {/* Header Row 1: Project ID (Left) & Category Badge (Right - Full Name) */}
+                  {/* Header Row 1: Project ID (Left) & Deadline Pill / Category Badge (Right) */}
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
                       {project.projectId}
                     </span>
 
-                    {project.category && (
-                      <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
-                        {project.category}
-                      </span>
+                    {/* Top Right: Countdown Pill when assigned, else Category badge */}
+                    {project.submissionStatus === "in_progress" ||
+                    project.assignedBusinessId ||
+                    project.assignedBusinessName ? (
+                      <ProjectDeadlineCountdown
+                        endDate={project.endDate}
+                        createdAt={project.createdAt}
+                        assignedAt={project.assignedAt}
+                      />
+                    ) : (
+                      project.category && (
+                        <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
+                          {project.category}
+                        </span>
+                      )
                     )}
                   </div>
 
-                  {/* Header Row 2: Status Badge */}
-                  <div className="mb-3">
+                  {/* Header Row 2: Status Badge + Category Pill if assigned */}
+                  <div className="mb-3 flex items-center gap-2 flex-wrap">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
                     >
                       {statusCfg.icon}
                       {statusCfg.label}
                     </span>
+
+                    {(project.submissionStatus === "in_progress" ||
+                      project.assignedBusinessId ||
+                      project.assignedBusinessName) &&
+                      project.category && (
+                        <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
+                          {project.category}
+                        </span>
+                      )}
                   </div>
 
                   {/* Title & Description */}
@@ -895,8 +934,24 @@ export default function UserProjectsPage() {
                             const pKey = project.projectId || String(project.id);
                             const proposals = proposalsMap[pKey] || proposalsMap[String(project.id)] || [];
                             const count = proposals.length;
+                            const isAssigned = Boolean(
+                              project.submissionStatus === "in_progress" ||
+                              project.assignedBusinessId ||
+                              project.assignedBusinessName ||
+                              project.assignedBusinessUserId
+                            );
 
-                            return (
+                            return isAssigned ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setAppliedModalProject(project)}
+                                className="w-full rounded-xl text-xs font-bold border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                              >
+                                <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>Assigned</span>
+                              </Button>
+                            ) : (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1092,21 +1147,15 @@ export default function UserProjectsPage() {
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Client Contact Information
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="flex items-center gap-1.5 text-foreground">
-                  <User className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="truncate">{viewProject.clientName || "User"}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-0.5">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <User className="h-4 w-4 text-primary shrink-0" />
+                  <span>{viewProject.clientName || "User"}</span>
                 </div>
                 {viewProject.clientEmail && (
-                  <div className="flex items-center gap-1.5 text-foreground">
-                    <Mail className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span className="truncate">{viewProject.clientEmail}</span>
-                  </div>
-                )}
-                {viewProject.clientPhone && (
-                  <div className="flex items-center gap-1.5 text-foreground">
-                    <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>{viewProject.clientPhone}</span>
+                  <div className="flex items-center gap-2 text-foreground font-medium">
+                    <Mail className="h-4 w-4 text-primary shrink-0" />
+                    <span>{viewProject.clientEmail}</span>
                   </div>
                 )}
               </div>
@@ -1338,9 +1387,16 @@ export default function UserProjectsPage() {
                   <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md inline-block">
                     {appliedModalProject.projectId}
                   </span>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Applied Business Applicants
-                  </span>
+                  {appliedModalProject.assignedBusinessName || appliedModalProject.assignedBusinessId ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-md">
+                      <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Assigned to: {appliedModalProject.assignedBusinessName || "Assigned Business Partner"}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      Applied Business Applicants
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
                   {appliedModalProject.title}

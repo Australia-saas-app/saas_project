@@ -198,6 +198,9 @@ export class Project {
   @Column({ type: 'varchar', length: 255, nullable: true })
   assignedBusinessName: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  assignedBusinessEmail: string;
+
   @Column({ type: 'timestamp', nullable: true })
   acceptedAt: Date;
 
