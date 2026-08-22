@@ -717,30 +717,11 @@ export default function DashboardMessagesLayout({
 
         window.dispatchEvent(new CustomEvent("platform_new_email", { detail: emailDetail }));
 
-        const newReceiverNotif = {
-          id: `msg-notif-${Date.now()}`,
-          title: `New Message from ${senderDisplayName}`,
-          message: messageBody.slice(0, 100),
-          time: "Just now",
-          createdAt: sentIsoTime,
-          read: false,
-          recipientEmail: recEmail,
-          href: isClientRole ? `/dashboard/business/messages?thread=${selected.id}` : `/dashboard/user/messages?thread=${selected.id}`,
-        };
-
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("vero_channel");
           bc.postMessage({ type: "platform_new_email", detail: emailDetail });
-          bc.postMessage({ type: "vero:new_notification", targetEmail: recEmail, payload: newReceiverNotif });
+          bc.postMessage({ type: "vero:new_message", targetEmail: recEmail, detail: emailDetail });
           bc.close();
-        }
-
-        if (recEmail) {
-          const recNotifKey = `app_notifs_${recEmail}`;
-          const existingRaw = localStorage.getItem(recNotifKey);
-          const existingNotifs = existingRaw ? JSON.parse(existingRaw) : [];
-          localStorage.setItem(recNotifKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
-          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: newReceiverNotif, targetEmail: recEmail, timestamp: Date.now() }));
         }
       }
     } catch {}

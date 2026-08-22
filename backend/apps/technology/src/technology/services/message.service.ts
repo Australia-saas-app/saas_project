@@ -82,6 +82,7 @@ export class MessageService {
 
     // 1. Save directly into MongoDB (Mongoose Collection: 'project_messages')
     let mongoSavedDoc: any = null;
+    const initialReadBy = [createDto.senderEmail, senderId].filter(Boolean).map((s: string) => s.toLowerCase());
     try {
       mongoSavedDoc = await this.projectMessageMongoModel.create({
         projectId: resolvedProjectId,
@@ -102,6 +103,7 @@ export class MessageService {
           recipientUserId: createDto.recipientUserId || '',
           threadId: createDto.threadId || projectId,
           subject: createDto.subject || `Subject: Application for ${projectTitle}`,
+          readBy: initialReadBy,
         },
       });
     } catch (e: any) {
@@ -123,28 +125,6 @@ export class MessageService {
       } catch {
         // PostgreSQL fallback
       }
-    }
-
-    // 3. Identify recipient to notify
-    let recipientId: string | null = null;
-    if (createDto.recipientUserId && createDto.recipientUserId !== senderId) {
-      recipientId = createDto.recipientUserId;
-    } else if (project?.clientId && project.clientId !== senderId) {
-      recipientId = project.clientId;
-    } else if (project?.createdBy && project.createdBy !== senderId) {
-      recipientId = project.createdBy;
-    } else if (project?.assignedBusinessId && project.assignedBusinessId !== senderId) {
-      recipientId = project.assignedBusinessId;
-    }
-
-    if (recipientId) {
-      this.triggerNotification({
-        userId: recipientId,
-        type: 'PROJECT_CHAT_MESSAGE',
-        title: `New Message on "${projectTitle}"`,
-        message: `${senderName || 'Team member'}: ${createDto.content.slice(0, 80)}`,
-        href: `/dashboard/user/messages?thread=${createDto.threadId || projectId}`,
-      });
     }
 
     return mongoSavedDoc
@@ -313,9 +293,34 @@ export class MessageService {
         }
       } catch (e) {}
 
+      // 1. Find all threads/projects the user participated in
+      const initialMatches = await this.projectMessageMongoModel
+        .find({
+          isVisible: true,
+          $or: userMatchConditions,
+        })
+        .select({ 'metadata.threadId': 1, projectId: 1 })
+        .lean()
+        .exec();
+
+      const matchedThreadIds = new Set<string>();
+      initialMatches.forEach((m: any) => {
+        if (m.metadata?.threadId) matchedThreadIds.add(m.metadata.threadId);
+        if (m.projectId) matchedThreadIds.add(m.projectId);
+      });
+
+      const finalOrConditions: any[] = [...userMatchConditions];
+      if (matchedThreadIds.size > 0) {
+        const threadArray = Array.from(matchedThreadIds);
+        finalOrConditions.push(
+          { 'metadata.threadId': { $in: threadArray } },
+          { projectId: { $in: threadArray } },
+        );
+      }
+
       const query: any = {
         isVisible: true,
-        $or: userMatchConditions,
+        $or: finalOrConditions,
       };
 
       // Filter out messages that this user specifically deleted
