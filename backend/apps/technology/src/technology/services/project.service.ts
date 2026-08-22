@@ -197,7 +197,7 @@ export class ProjectService {
       .leftJoinAndSelect('project.participants', 'participant');
 
     if (options?.publicOnly) {
-      qb.andWhere('project.submissionStatus = :ss', { ss: SubmissionStatus.ACTIVE });
+      qb.andWhere('project.submissionStatus IN (:...ss)', { ss: [SubmissionStatus.ACTIVE, SubmissionStatus.IN_PROGRESS] });
     } else if (status) {
       qb.andWhere('project.status = :status', { status });
     }

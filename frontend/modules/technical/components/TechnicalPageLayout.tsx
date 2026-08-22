@@ -65,8 +65,9 @@ export default function TechnicalPageLayout() {
 
         if (res && res.projects && Array.isArray(res.projects)) {
           projectsList = res.projects
-            .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
+            .filter((p: any) => p.submissionStatus === "active" || p.submissionStatus === "in_progress" || p.paymentStatus === "paid" || p.status === "active")
             .map((p: any) => ({
+              ...p,
               id: p.id || p.projectId,
               projectId: p.projectId || `PRJ-${String(p.id).slice(0, 6)}`,
               title: p.title,
@@ -79,10 +80,21 @@ export default function TechnicalPageLayout() {
               duration: p.duration ? `${p.duration} Days` : "14 Days",
               price: Number(p.adminBudget || p.price || 1500),
               priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
-              modified: "Active Project",
+              modified: p.submissionStatus === "in_progress" ? "In Progress" : "Active Project",
               languages: (p.preferredLanguages?.length ? p.preferredLanguages : (p.languages?.length ? p.languages : ["JavaScript", "TypeScript"])),
               location: "Remote",
               description: p.description || p.requirements || "Professional technical service.",
+              assignedBusinessId: p.assignedBusinessId,
+              assignedBusinessName: p.assignedBusinessName,
+              assignedBusinessUserId: p.assignedBusinessUserId,
+              assignedBusinessEmail: p.assignedBusinessEmail,
+              submissionStatus: p.submissionStatus,
+              attachmentFile: p.attachmentFile,
+              clientName: p.clientName,
+              clientEmail: p.clientEmail,
+              startDate: p.startDate,
+              endDate: p.endDate,
+              assignedAt: p.assignedAt || p.acceptedAt,
             }));
         } else {
           // Offline fallback only when network fails
@@ -91,8 +103,9 @@ export default function TechnicalPageLayout() {
             const parsedUser = JSON.parse(userProjectsRaw);
             if (Array.isArray(parsedUser)) {
               projectsList = parsedUser
-                .filter((p: any) => p.submissionStatus === "active" || p.paymentStatus === "paid" || p.status === "active")
+                .filter((p: any) => p.submissionStatus === "active" || p.submissionStatus === "in_progress" || p.paymentStatus === "paid" || p.status === "active")
                 .map((p: any) => ({
+                  ...p,
                   id: p.id || p.projectId,
                   projectId: p.projectId || `PRJ-${String(p.id).slice(0, 6)}`,
                   title: p.title,
@@ -105,10 +118,21 @@ export default function TechnicalPageLayout() {
                   duration: p.duration ? `${p.duration} Days` : "14 Days",
                   price: Number(p.adminBudget || p.price || 1500),
                   priceRange: `$${Number(p.adminBudget || p.price || 1500).toLocaleString()}`,
-                  modified: "Active Project",
+                  modified: p.submissionStatus === "in_progress" ? "In Progress" : "Active Project",
                   languages: (p.preferredLanguages?.length ? p.preferredLanguages : (p.languages?.length ? p.languages : ["JavaScript", "TypeScript"])),
                   location: "Remote",
                   description: p.description || "Professional technical service.",
+                  assignedBusinessId: p.assignedBusinessId,
+                  assignedBusinessName: p.assignedBusinessName,
+                  assignedBusinessUserId: p.assignedBusinessUserId,
+                  assignedBusinessEmail: p.assignedBusinessEmail,
+                  submissionStatus: p.submissionStatus,
+                  attachmentFile: p.attachmentFile,
+                  clientName: p.clientName,
+                  clientEmail: p.clientEmail,
+                  startDate: p.startDate,
+                  endDate: p.endDate,
+                  assignedAt: p.assignedAt || p.acceptedAt,
                 }));
             }
           }

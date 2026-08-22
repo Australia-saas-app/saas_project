@@ -589,9 +589,9 @@ export default function UserProjectsPage() {
           <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">{stats.activeCount}</p>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-emerald-500/40">
-          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">In Progress</p>
-          <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">{stats.inProgressCount}</p>
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-primary/40">
+          <p className="text-xs font-semibold text-muted-foreground">In Progress</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-foreground mt-2">{stats.inProgressCount}</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all hover:border-primary/40">
@@ -752,8 +752,8 @@ export default function UserProjectsPage() {
                     )}
                   </div>
 
-                  {/* Header Row 2: Status Badge + Category Pill if assigned */}
-                  <div className="mb-3 flex items-center gap-2 flex-wrap">
+                  {/* Header Row 2: Status Badge (Left) + Category Pill (Right) if assigned */}
+                  <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold border whitespace-nowrap ${statusCfg.color}`}
                     >
@@ -765,7 +765,7 @@ export default function UserProjectsPage() {
                       project.assignedBusinessId ||
                       project.assignedBusinessName) &&
                       project.category && (
-                        <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
+                        <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0 ml-auto">
                           {project.category}
                         </span>
                       )}
