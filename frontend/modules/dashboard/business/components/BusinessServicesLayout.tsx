@@ -19,6 +19,13 @@ import {
   Settings,
   ShieldAlert,
   BadgeCheck,
+  Upload,
+  X,
+  CheckCircle2,
+  User,
+  Mail,
+  FileText,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -40,6 +47,8 @@ import {
   serviceStatsFromRows,
 } from "@/src/shared/lib/business-services-store";
 import axiosInstance from "@/src/shared/lib/axiosInstance";
+import { DeliverableUploadModal } from "@/src/modules/technical/components/DeliverableUploadModal";
+import { ProjectDeadlineCountdown } from "@/src/modules/technical/components/ProjectDeadlineCountdown";
 
 const PAGE_SIZE = 8;
 const TABS = ["allServices", "active", "pending", "completed"] as const;
@@ -95,6 +104,8 @@ export default function BusinessServicesLayout() {
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [deliverableProject, setDeliverableProject] = useState<any | null>(null);
+  const [assignedDetailProject, setAssignedDetailProject] = useState<any | null>(null);
   const isInitialLoadRef = useRef(true);
   const [newService, setNewService] = useState({
     category: "Technical",
@@ -155,9 +166,19 @@ export default function BusinessServicesLayout() {
           appliedIds.includes(pId) ||
           appliedIds.includes(String(p.id)) ||
           appliedIds.includes(String(p.projectId));
-        const isAssigned = p.assignedBusinessId && uId && p.assignedBusinessId === uId;
+        const isAssigned = Boolean(
+          p.assignedBusinessId && uId && (
+            p.assignedBusinessId === uId ||
+            p.assignedBusinessId === (user as any)?.userId ||
+            p.assignedBusinessId === (user as any)?.id
+          )
+        ) || Boolean(
+          p.assignedBusinessEmail && (
+            p.assignedBusinessEmail === (user as any)?.email
+          )
+        );
         const isCompleted = p.submissionStatus === "completed";
-        const isActive = isAssigned && (p.submissionStatus === "active" || p.submissionStatus === "in_progress");
+        const isInProgress = isAssigned && (p.submissionStatus === "active" || p.submissionStatus === "in_progress");
 
         return {
           id: pId,
@@ -165,7 +186,7 @@ export default function BusinessServicesLayout() {
           client: p.clientName || "Client",
           budget: `$${Number(p.adminBudget || p.price || (p as any).budgetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
           deadline: p.endDate ? new Date(p.endDate).toLocaleDateString() : (p.duration || "14 Days"),
-          status: isCompleted ? "Completed" : isApplied ? "Pending" : isActive ? "Active" : ("Open" as any),
+          status: isCompleted ? "Completed" : isInProgress ? "Active" : isApplied ? "Pending" : ("Open" as any),
           title: p.title || "Technical Project",
           summary: p.description || "",
           subCategory: p.subcategory || p.projectType || "Technical Project",
@@ -175,6 +196,8 @@ export default function BusinessServicesLayout() {
           languages: p.preferredLanguages || p.languages || [],
           priceRange: `$${Number(p.adminBudget || p.price || (p as any).budgetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} USD`,
           isApplied,
+          isAssigned,
+          isInProgress,
           rawProject: p,
         } as any;
       });
@@ -722,7 +745,9 @@ export default function BusinessServicesLayout() {
           <div className="max-h-[600px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {pageData.map((row) => {
-                const isRowApplied = Boolean((row as any).isApplied || row.status === "Pending" || (row.status as any) === "Pending for Client Approval");
+                const isRowAssigned = Boolean((row as any).isAssigned || (row as any).isInProgress);
+                const isRowApplied = !isRowAssigned && Boolean((row as any).isApplied || row.status === "Pending" || (row.status as any) === "Pending for Client Approval");
+                const rawP = (row as any).rawProject || {};
 
                 return (
                   <article
@@ -732,28 +757,50 @@ export default function BusinessServicesLayout() {
                     <div className="h-1.5 bg-primary" />
 
                     <div className="flex flex-1 flex-col p-5">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className="flex flex-col gap-1.5">
-                          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start">
-                            {row.id}
-                          </span>
-                          {isRowApplied ? (
-                            <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                              Pending for Client Approval
-                            </span>
-                          ) : (
-                            <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                              Active for Public
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                      {/* Header Row 1: ID + Countdown or Category */}
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start whitespace-nowrap shrink-0">
+                          {row.id}
+                        </span>
+                        {isRowAssigned ? (
+                          <ProjectDeadlineCountdown
+                            endDate={rawP.endDate}
+                            createdAt={rawP.createdAt}
+                            assignedAt={rawP.assignedAt || rawP.acceptedAt}
+                          />
+                        ) : (
+                          <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary whitespace-nowrap shrink-0">
                             {row.subCategory || row.category || "Software Development"}
                           </span>
-                          <span className="text-sm font-bold text-primary">{row.budget || (row as any).priceRange || "$1,300.00"}</span>
-                        </div>
+                        )}
+                      </div>
+
+                      {/* Header Row 2: Status Badge + Category (if assigned) */}
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        {isRowAssigned ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-indigo-500/10 border border-indigo-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-indigo-700 dark:text-indigo-400">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            In Progress
+                          </span>
+                        ) : isRowApplied ? (
+                          <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                            Pending for Client Approval
+                          </span>
+                        ) : (
+                          <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                            Active for Public
+                          </span>
+                        )}
+                        {isRowAssigned && (
+                          <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary whitespace-nowrap shrink-0 ml-auto">
+                            {row.subCategory || row.category || "Software Development"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Budget */}
+                      <div className="mb-2">
+                        <span className="text-sm font-bold text-primary">{row.budget || (row as any).priceRange || "$1,300.00"}</span>
                       </div>
 
                       <h3 className="mb-2 line-clamp-2 text-base font-bold leading-snug text-foreground group-hover:text-primary">
@@ -777,7 +824,31 @@ export default function BusinessServicesLayout() {
                         </div>
                       )}
 
-                      {isRowApplied ? (
+                      {/* Action Buttons */}
+                      {isRowAssigned ? (
+                        <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
+                          <button
+                            type="button"
+                            title="View Full Project Details"
+                            onClick={() => setAssignedDetailProject(rawP)}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeliverableProject(rawP)}
+                            className="flex-1 rounded-full border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Upload className="w-3.5 h-3.5 text-primary" />
+                            <span>Submit Project</span>
+                          </button>
+                          <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
+                            <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                            Assigned
+                          </div>
+                        </div>
+                      ) : isRowApplied ? (
                         <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
                           <button
                             type="button"
@@ -1196,6 +1267,195 @@ export default function BusinessServicesLayout() {
           title="Apply to technical project"
           description="Submit your proposal. The client and platform administrators will review your bid."
         />
+      )}
+
+      {/* Deliverable Upload Modal for assigned projects */}
+      {deliverableProject && (
+        <DeliverableUploadModal
+          project={{
+            projectId: String(deliverableProject.projectId || deliverableProject.id || ""),
+            title: deliverableProject.title,
+            deliverableUrls: deliverableProject.deliverableUrls,
+            deliverableFiles: deliverableProject.deliverableFiles,
+            completionNotes: deliverableProject.completionNotes,
+          }}
+          onClose={() => setDeliverableProject(null)}
+          onSuccess={() => {
+            setDeliverableProject(null);
+            load(true);
+            toast.success("Deliverables submitted for client review!");
+          }}
+        />
+      )}
+
+      {/* Full Assigned Project Detail Modal */}
+      {assignedDetailProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div
+            style={{ maxWidth: "560px", width: "100%" }}
+            className="w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto"
+          >
+            <div className="flex items-start justify-between border-b border-border pb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs text-primary font-bold">
+                    {assignedDetailProject.projectId || `PRJ-${assignedDetailProject.id}`}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    In Progress
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                    <BadgeCheck className="w-3.5 h-3.5" />
+                    Assigned to You
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-foreground mt-1">{assignedDetailProject.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Category: <strong className="text-foreground">{assignedDetailProject.category || "Software Development"}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssignedDetailProject(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Project Scope &amp; Summary</p>
+              <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap rounded-xl bg-muted/40 p-3 border border-border">
+                {assignedDetailProject.description || "No description provided."}
+              </p>
+            </div>
+
+            {((assignedDetailProject.skills && assignedDetailProject.skills.length > 0) ||
+              (assignedDetailProject.preferredLanguages && assignedDetailProject.preferredLanguages.length > 0)) && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Required Tech Stack &amp; Skills</p>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-muted/40 p-3 border border-border">
+                  {(assignedDetailProject.preferredLanguages || []).map((l: string) => (
+                    <span key={l} className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400">{l}</span>
+                  ))}
+                  {(assignedDetailProject.skills || []).map((s: string) => (
+                    <span key={s} className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl border border-border bg-muted/40 text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Target Budget</span>
+                <span className="text-sm font-extrabold text-primary">
+                  {assignedDetailProject.currency || "USD"} ${Number(assignedDetailProject.adminBudget || assignedDetailProject.price || 0).toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Terms</span>
+                <span className="font-semibold text-foreground">{assignedDetailProject.paymentTerms || "One-time"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
+                <span className="font-semibold text-foreground">
+                  {assignedDetailProject.startDate ? new Date(assignedDetailProject.startDate).toLocaleDateString() : "Active"}
+                  {assignedDetailProject.endDate ? ` → ${new Date(assignedDetailProject.endDate).toLocaleDateString()}` : ""}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-1.5 text-xs">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Client Contact Information</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-0.5">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <User className="h-4 w-4 text-primary shrink-0" />
+                  <span>{assignedDetailProject.clientName || "Client"}</span>
+                </div>
+                {assignedDetailProject.clientEmail && (
+                  <div className="flex items-center gap-2 text-foreground font-medium">
+                    <Mail className="h-4 w-4 text-primary shrink-0" />
+                    <span>{assignedDetailProject.clientEmail}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl p-3.5 border space-y-2 text-xs bg-emerald-500/10 border-emerald-500/20">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  Escrow Funded &amp; Agreed Terms
+                </p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                  Active in Progress
+                </span>
+              </div>
+              {assignedDetailProject.requirements && (
+                <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
+                  <strong>Admin Requirements:</strong> {assignedDetailProject.requirements}
+                </p>
+              )}
+              {assignedDetailProject.conditions && (
+                <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
+                  <strong>Delivery Conditions:</strong> {assignedDetailProject.conditions}
+                </p>
+              )}
+            </div>
+
+            {assignedDetailProject.attachmentFile && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Attached Scope &amp; Requirements File</p>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/40">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FileText className="h-5 w-5 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-foreground truncate">
+                        {assignedDetailProject.attachmentFile.name || "Project-Requirements.pdf"}
+                      </p>
+                      {assignedDetailProject.attachmentFile.size && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {(assignedDetailProject.attachmentFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={assignedDetailProject.attachmentFile.url}
+                    download={assignedDetailProject.attachmentFile.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline shrink-0 ml-2"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setAssignedDetailProject(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const p = assignedDetailProject;
+                  setAssignedDetailProject(null);
+                  setDeliverableProject(p);
+                }}
+                className="rounded-xl bg-primary hover:bg-primary/90 text-white px-4 py-2 text-xs font-bold cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <Upload className="h-3.5 w-3.5" /> Submit Project Deliverables
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Business KYC Verification Required Modal */}
