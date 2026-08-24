@@ -21,7 +21,15 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
 import { markProjectComplete } from "../services/technical.services";
-import { uploadFile } from "@/src/shared/utils/uploadFile";
+
+// Convert File to base64 Data URL — exactly matches CreateProjectLayout.tsx
+const toBase64 = (file: File): Promise<string> =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
 
 export interface DeliverableFile {
   name: string;
@@ -129,13 +137,17 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const isCurrentFinalSubmitted = currentMilestone.finalSubmitted;
   const totalSelectedSize = currentMilestone.files.reduce((s, f) => s + (f.size || 0), 0);
 
-  const canMarkReady =
-    !isCurrentFinalSubmitted &&
-    currentMilestone.files.length > 0 &&
-    currentMilestone.note.trim().length > 0;
+  const hasCurrentContent =
+    currentMilestone.files.length > 0 || currentMilestone.links.length > 0 || currentMilestone.note.trim().length > 0;
+  const canMarkReady = !isCurrentFinalSubmitted && hasCurrentContent;
 
   const isTabUnlocked = (idx: number) => idx === 0 || milestones[idx - 1]?.submitted;
-  const allSubmitted = milestones.every((m) => m.submitted);
+  const hasAnyContent = milestones.some(
+    (m) => m.files.length > 0 || m.links.length > 0 || m.note.trim().length > 0
+  );
+  const allSubmitted = milestones.every(
+    (m) => m.submitted || m.files.length > 0 || m.links.length > 0 || m.note.trim().length > 0
+  );
   const allFinalSubmitted = milestones.every((m) => m.finalSubmitted);
 
   // ── file handling ─────────────────────────────────────────────────────────
@@ -217,17 +229,25 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
   // ── final upload & persist to DB ──────────────────────────────────────────
   const handleFinalSubmit = async () => {
-    if (!allSubmitted) return;
     if (isUploading) return;
 
+    if (!hasAnyContent) {
+      toast.error("Please add at least one file, link, or note before submitting.");
+      return;
+    }
+
     setIsUploading(true);
-    setUploadProgress(5);
-    setCurrentFileStep("Initializing upload...");
+    setUploadProgress(10);
+    setCurrentFileStep("Processing deliverable files...");
 
     const allDeliverableFiles: DeliverableFile[] = [
       ...(project.deliverableFiles || []),
     ];
-    const allLinks: string[] = [...(project.deliverableUrls || [])];
+    const allLinks: string[] = [
+      ...(project.deliverableUrls || []).filter(
+        (u) => !(project.deliverableFiles || []).some((f) => f.url === u)
+      ),
+    ];
     const notesParts: string[] = [];
 
     try {
@@ -237,48 +257,45 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
       for (let mi = 0; mi < milestones.length; mi++) {
         const m = milestones[mi];
         const label = getMilestoneLabel(mi, milestoneCount);
-        if (m.note.trim())
+        if (m.note.trim()) {
           notesParts.push(`[${label}] ${m.note.trim()}`);
-        allLinks.push(...m.links);
+        }
+        m.links.forEach((link) => {
+          if (link && !allLinks.includes(link)) {
+            allLinks.push(link);
+          }
+        });
 
         for (const file of m.files) {
           filesProcessed++;
           setCurrentFileStep(
-            `Uploading ${filesProcessed}/${totalFiles}: ${file.name}`
+            `Saving ${filesProcessed}/${totalFiles}: ${file.name}`
           );
           setUploadProgress(
-            10 + Math.round((filesProcessed / (totalFiles || 1)) * 75)
+            15 + Math.round((filesProcessed / (totalFiles || 1)) * 70)
           );
 
-          let url = "";
-          try {
-            url = await uploadFile(file);
-          } catch {
-            url = "";
-          }
-          if (!url) url = URL.createObjectURL(file);
+          // Convert to base64 Data URL (same as CreateProjectLayout.tsx)
+          const base64Url = await toBase64(file);
 
           allDeliverableFiles.push({
             name: file.name,
-            url,
+            url: base64Url,
             size: file.size,
             type: file.type || "application/octet-stream",
             uploadedAt: new Date().toISOString(),
           });
         }
 
-        // Mark this milestone's files as final-submitted in state
-        updateMilestone(mi, { finalSubmitted: true });
+        // Mark this milestone as submitted in state
+        updateMilestone(mi, { submitted: true, finalSubmitted: true });
       }
 
       setCurrentFileStep("Saving to database...");
       setUploadProgress(90);
 
       await markProjectComplete(project.projectId, {
-        deliverableUrls: [
-          ...allLinks,
-          ...allDeliverableFiles.map((f) => f.url),
-        ],
+        deliverableUrls: allLinks,
         deliverableFiles: allDeliverableFiles,
         completionNotes: notesParts.join("\n"),
       });
@@ -287,7 +304,6 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
       setCurrentFileStep("Submitted successfully!");
       setIsCompleted(true);
 
-      // Milestone-specific toast
       if (milestoneCount === 1) {
         toast.success("Project deliverables submitted! Client has been notified.");
       } else {
@@ -296,13 +312,14 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         );
       }
 
-      // Signal parent to refresh but keep modal open
+      // Signal parent to refresh
       onSuccess();
     } catch (err: any) {
       toast.error(err?.message || "Failed to submit deliverables");
       setIsUploading(false);
     }
   };
+
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -792,11 +809,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                 <Button
                   size="sm"
                   onClick={handleFinalSubmit}
-                  disabled={
-                    (milestoneCount === 1
-                      ? !canMarkReady
-                      : !allSubmitted) || isUploading
-                  }
+                  disabled={!hasAnyContent || isUploading}
                   className="bg-primary hover:bg-primary/90 text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isUploading ? (

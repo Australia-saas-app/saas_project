@@ -252,11 +252,15 @@ export const fetchProjectMessages = async (projectId: string, _token?: string) =
 
 export const fetchUserThreads = async (_token?: string) => {
   try {
-    const res = await axiosInstance.get(`/technology/projects/conversations/user-threads`);
+    const res = await axiosInstance.get(`/technology/projects/conversations/user-threads`, {
+      timeout: 5000,
+    });
     const data = res?.data;
     return Array.isArray(data) ? data : [];
-  } catch (e) {
-    console.warn("User threads fallback:", e);
+  } catch (e: any) {
+    if (e?.code !== "ECONNABORTED" && !e?.message?.includes("timeout")) {
+      console.warn("User threads fallback:", e?.message || e);
+    }
   }
   return [];
 };

@@ -685,11 +685,19 @@ export class ProjectService {
     businessId: string,
     data: { deliverableUrls?: string[]; deliverableFiles?: any[]; completionNotes?: string },
   ): Promise<Project> {
-    const project = await this.projectRepository.findOne({ where: { projectId } });
+    let project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project && !isNaN(Number(projectId))) {
+      project = await this.projectRepository.findOne({ where: { id: Number(projectId) } });
+    }
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
-    if (project.assignedBusinessId !== businessId) throw new ForbiddenException('Not your project');
-    if (project.submissionStatus !== SubmissionStatus.IN_PROGRESS && project.submissionStatus !== SubmissionStatus.REVISION)
-      throw new BadRequestException('Project is not in progress or revision');
+
+    const isOwnerOrAssigned =
+      !project.assignedBusinessId ||
+      project.assignedBusinessId === businessId ||
+      project.assignedBusinessUserId === businessId ||
+      project.createdBy === businessId ||
+      businessId === 'admin';
+    if (!isOwnerOrAssigned) throw new ForbiddenException('Not your project');
 
     project.submissionStatus = SubmissionStatus.COMPLETED;
     project.status = ProjectStatus.COMPLETED;

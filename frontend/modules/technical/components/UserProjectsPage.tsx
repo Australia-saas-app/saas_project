@@ -203,7 +203,7 @@ export default function UserProjectsPage() {
   const [deleting, setDeleting] = useState(false);
   // Assigned provider review modal
   const [assignedViewProject, setAssignedViewProject] = useState<Project | null>(null);
-  const [assignedReviewAction, setAssignedReviewAction] = useState<"review" | "accept" | null>(null);
+  const [assignedReviewAction, setAssignedReviewAction] = useState<"revision" | "accept" | null>(null);
   const [assignedReviewNote, setAssignedReviewNote] = useState("");
   const [assignedReviewSubmitting, setAssignedReviewSubmitting] = useState(false);
   const [assignedMilestoneTab, setAssignedMilestoneTab] = useState(0);
@@ -2028,10 +2028,10 @@ export default function UserProjectsPage() {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => { setAssignedReviewAction("review"); setAssignedReviewNote(""); }}
+                        onClick={() => { setAssignedReviewAction("revision"); setAssignedReviewNote(""); }}
                         className={[
                           "flex-1 rounded-xl py-2.5 text-xs font-bold border transition-all cursor-pointer",
-                          assignedReviewAction === "review"
+                          assignedReviewAction === "revision"
                             ? "bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-300"
                             : "border-border hover:bg-muted text-muted-foreground",
                         ].join(" ")}

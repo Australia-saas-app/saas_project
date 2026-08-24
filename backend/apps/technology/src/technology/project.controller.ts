@@ -248,11 +248,20 @@ export class ProjectController {
   @ApiOperation({ summary: 'Business marks project complete and uploads deliverables' })
   async markComplete(
     @Param('projectId') projectId: string,
-    @Body() body: { deliverableUrls?: string[]; completionNotes?: string },
+    @Body() body: {
+      deliverableUrls?: string[];
+      deliverableFiles?: { name: string; url: string; size?: number; type?: string; uploadedAt?: string }[];
+      completionNotes?: string;
+      notes?: string;       // alias — frontend sends both
+    },
     @Req() req: any,
   ) {
     const businessId = req.user?.userId;
-    return this.projectService.markComplete(projectId, businessId, body);
+    return this.projectService.markComplete(projectId, businessId, {
+      deliverableUrls: body.deliverableUrls,
+      deliverableFiles: body.deliverableFiles,
+      completionNotes: body.completionNotes || body.notes,
+    });
   }
 
   @Post(':projectId/review-accept')
