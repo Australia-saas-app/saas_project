@@ -1277,6 +1277,8 @@ export default function BusinessServicesLayout() {
             projectId: String(deliverableProject.projectId || deliverableProject.id || ""),
             title: deliverableProject.title,
             paymentTerms: deliverableProject.paymentTerms,
+            submissionStatus: (deliverableProject as any).submissionStatus,
+            milestones: (deliverableProject as any).milestones,
             deliverableUrls: deliverableProject.deliverableUrls,
             deliverableFiles: deliverableProject.deliverableFiles,
             completionNotes: deliverableProject.completionNotes,

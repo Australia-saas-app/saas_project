@@ -865,50 +865,18 @@ export default function UserProjectsPage() {
                     )}
 
                   {/* Escrow Funded & Active Message once paid */}
-                  {(project.submissionStatus === "active" || project.paymentStatus === "paid") && (
-                    <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Escrow Funded &amp; Active for Public
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Published live. Verified businesses can now accept and submit deliverables.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Deliverables Section if uploaded by Business */}
-                  {((project.deliverableFiles && project.deliverableFiles.length > 0) ||
-                    (project.deliverableUrls && project.deliverableUrls.length > 0)) && (
-                    <div className="mt-3 space-y-2 rounded-xl border border-border bg-muted/30 p-3">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <FileCode className="h-3.5 w-3.5 text-primary" /> Deliverables Ready
-                      </p>
-
-                      {project.deliverableFiles && project.deliverableFiles.length > 0 && (
-                        <div className="space-y-1">
-                          {project.deliverableFiles.map((file, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between rounded-lg border border-border bg-card p-2 text-xs"
-                            >
-                              <span className="font-semibold text-foreground truncate text-xs">
-                                {file.name}
-                              </span>
-                              <a
-                                href={file.url}
-                                download={file.name}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
-                              >
-                                <Download className="h-3 w-3" /> Download
-                              </a>
-                            </div>
-                          ))}
+                  {(project.submissionStatus === "active" || project.paymentStatus === "paid") &&
+                    !project.assignedBusinessId &&
+                    !project.assignedBusinessName && (
+                      <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Escrow Funded &amp; Active for Public
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <p className="text-[11px] text-muted-foreground">
+                          Published live. Verified businesses can now apply and submit proposals.
+                        </p>
+                      </div>
+                    )}
                 </div>
 
                 {/* Actions Footer: Eye (Left) | Payment/Action (Middle) | Trash (Right) */}
@@ -940,38 +908,40 @@ export default function UserProjectsPage() {
                         </Button>
                       )}
 
-                    {(project.submissionStatus === "active" ||
+                    {/* ASSIGNED PROJECT — ALWAYS SHOW 'VIEW SUBMISSION' BUTTON */}
+                    {(Boolean(project.assignedBusinessId || project.assignedBusinessName || project.assignedBusinessUserId) ||
                       project.submissionStatus === "in_progress" ||
-                      project.paymentStatus === "paid") &&
-                      project.submissionStatus !== "completed" && (
+                      project.submissionStatus === "completed" ||
+                      project.submissionStatus === "revision" ||
+                      project.submissionStatus === "accepted") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setAssignedViewProject(project);
+                          setAssignedMilestoneTab(0);
+                          setAssignedReviewAction(null);
+                          setAssignedReviewNote("");
+                        }}
+                        className="w-full rounded-xl text-xs font-bold border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>View Submission</span>
+                      </Button>
+                    )}
+
+                    {/* UNASSIGNED ACTIVE PROJECT — SHOW APPLIED PROPOSALS BUTTON */}
+                    {!project.assignedBusinessId &&
+                      !project.assignedBusinessName &&
+                      !project.assignedBusinessUserId &&
+                      (project.submissionStatus === "active" || project.paymentStatus === "paid") && (
                         <div className="flex items-center justify-end w-full gap-2">
                           {(() => {
                             const pKey = project.projectId || String(project.id);
                             const proposals = proposalsMap[pKey] || proposalsMap[String(project.id)] || [];
                             const count = proposals.length;
-                            const isAssigned = Boolean(
-                              project.submissionStatus === "in_progress" ||
-                              project.assignedBusinessId ||
-                              project.assignedBusinessName ||
-                              project.assignedBusinessUserId
-                            );
 
-                            return isAssigned ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setAssignedViewProject(project);
-                                  setAssignedMilestoneTab(0);
-                                  setAssignedReviewAction(null);
-                                  setAssignedReviewNote("");
-                                }}
-                                className="w-full rounded-xl text-xs font-bold border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-xs"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                <span>View Project</span>
-                              </Button>
-                            ) : (
+                            return (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1007,31 +977,6 @@ export default function UserProjectsPage() {
                       <span className="text-[11px] font-semibold text-muted-foreground text-center truncate">
                         Under Admin Review
                       </span>
-                    )}
-
-                    {project.submissionStatus === "completed" && (
-                      <div className="flex items-center gap-1.5 w-full">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setRevisionProject(project);
-                            setRevisionReason("");
-                          }}
-                          disabled={isActioning}
-                          className="flex-1 rounded-xl text-xs font-semibold text-orange-500 border-orange-500/30 hover:bg-orange-500/10"
-                        >
-                          <RotateCcw className="mr-1 h-3 w-3" /> Revision
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAccept(project.projectId)}
-                          disabled={isActioning}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs"
-                        >
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> Accept &amp; Release
-                        </Button>
-                      </div>
                     )}
                   </div>
 
@@ -1877,21 +1822,26 @@ export default function UserProjectsPage() {
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-                {/* Provider Info */}
-                <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Assigned To — Provider</p>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                {/* Provider Info Card */}
+                <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-3 shadow-xs">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0">
                         <User className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-foreground leading-tight">
-                          {p.assignedBusinessName || "Business Provider"}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-foreground leading-tight">
+                            {p.assignedBusinessName || "Assigned Business Provider"}
+                          </p>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <BadgeCheck className="w-3 h-3 text-emerald-500" />
+                            Verified Business
+                          </span>
+                        </div>
                         {p.assignedBusinessEmail && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Mail className="h-3 w-3" /> {p.assignedBusinessEmail}
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                            <Mail className="h-3 w-3 text-primary/80" /> {p.assignedBusinessEmail}
                           </p>
                         )}
                       </div>
@@ -1899,30 +1849,33 @@ export default function UserProjectsPage() {
                     <button
                       type="button"
                       onClick={() => { setChatProject(p); setAssignedViewProject(null); }}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-muted hover:text-primary transition-colors cursor-pointer shrink-0"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-card px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 transition-all cursor-pointer shrink-0 shadow-xs"
                     >
-                      <MessageSquare className="h-3.5 w-3.5" /> Message
+                      <MessageSquare className="h-3.5 w-3.5" /> Send Message
                     </button>
                   </div>
-                  {p.assignedBusinessId && (
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-lg border border-border bg-background/60 p-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business ID</span>
-                        <span className="font-mono text-foreground font-semibold truncate block">{p.assignedBusinessId}</span>
-                      </div>
-                      {p.assignedAt && (
-                        <div className="rounded-lg border border-border bg-background/60 p-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Assigned On</span>
-                          <span className="font-semibold text-foreground">{new Date(p.assignedAt).toLocaleDateString()}</span>
-                        </div>
-                      )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-border/60">
+                    <div className="rounded-xl border border-border bg-background/70 p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business ID</span>
+                      <span className="font-mono text-primary font-bold truncate block mt-0.5">{p.assignedBusinessId || "BSN-01"}</span>
                     </div>
-                  )}
+                    <div className="rounded-xl border border-border bg-background/70 p-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Category / Type</span>
+                      <span className="font-semibold text-foreground truncate block mt-0.5">{p.category || "Software Development"}</span>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background/70 p-2.5 col-span-2 sm:col-span-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Assigned Date</span>
+                      <span className="font-semibold text-foreground block mt-0.5">
+                        {p.assignedAt ? new Date(p.assignedAt).toLocaleDateString() : "Active Project"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* ACCEPTED stamp for this milestone */}
                 {currentAccepted && (
-                  <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+                  <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-xs">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 shrink-0">
                       <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                     </div>
@@ -1941,7 +1894,7 @@ export default function UserProjectsPage() {
 
                 {/* REVISION status for this milestone */}
                 {currentMsStatus === "revision" && (
-                  <div className="flex items-center gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 p-3.5">
+                  <div className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 shadow-xs">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20 shrink-0">
                       <RotateCcw className="h-5 w-5 text-orange-500" />
                     </div>
@@ -1958,105 +1911,121 @@ export default function UserProjectsPage() {
                   </div>
                 )}
 
-                {/* Deliverables */}
+                {/* Deliverables Section */}
                 {hasDeliverables ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3.5">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {currentMsStatus === "revision" ? "Previous Submission (Revision Requested)" : "Project Submission by Provider"}
+                      {currentMsStatus === "revision" ? "Previous Submission (Revision Requested)" : "Submitted Deliverables by Provider"}
                     </p>
 
+                    {/* Numbered Attached Files with Download Button */}
                     {allFiles.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-[11px] font-semibold text-muted-foreground">Submitted Files</p>
-                        {allFiles.map((file, i) => (
-                          <div key={i} className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-2.5 text-xs">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                              <div className="min-w-0">
-                                <p className="font-semibold text-foreground truncate">{file.name}</p>
-                                {file.size && <p className="text-[11px] text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>}
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-foreground flex items-center justify-between">
+                          <span>Attached Files ({allFiles.length})</span>
+                        </p>
+                        <div className="space-y-2">
+                          {allFiles.map((file, i) => (
+                            <div key={i} className="flex items-center justify-between rounded-xl border border-border bg-card p-3 text-xs shadow-xs hover:border-primary/40 transition-colors">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-[11px] shrink-0">
+                                  {i + 1}
+                                </span>
+                                <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-foreground truncate">{file.name}</p>
+                                  {file.size && <p className="text-[11px] text-muted-foreground mt-0.5">{(file.size / 1024).toFixed(1)} KB</p>}
+                                </div>
                               </div>
+                              <a
+                                href={file.url}
+                                download={file.name}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 rounded-lg shadow-xs transition-all shrink-0 ml-3 cursor-pointer"
+                              >
+                                <Download className="h-3.5 w-3.5" /> Download
+                              </a>
                             </div>
-                            <a
-                              href={file.url}
-                              download={file.name}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline shrink-0 ml-2"
-                            >
-                              <Download className="h-3.5 w-3.5" /> Download
-                            </a>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
 
+                    {/* Submitted Links */}
                     {allLinks.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-[11px] font-semibold text-muted-foreground">Submitted Links</p>
-                        {allLinks.map((link, i) => (
-                          <div key={i} className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-2.5 text-xs">
-                            <ExternalLink className="h-3.5 w-3.5 text-primary shrink-0" />
-                            <a href={link} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">{link}</a>
-                          </div>
-                        ))}
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-foreground">Submitted Links ({allLinks.length})</p>
+                        <div className="space-y-1.5">
+                          {allLinks.map((link, i) => (
+                            <div key={i} className="flex items-center gap-2 rounded-xl border border-border bg-card p-2.5 text-xs shadow-xs">
+                              <ExternalLink className="h-4 w-4 text-primary shrink-0" />
+                              <a href={link} target="_blank" rel="noreferrer" className="text-primary font-medium hover:underline truncate">
+                                {link}
+                              </a>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
+                    {/* Provider Notes */}
                     {notesText && (
-                      <div>
-                        <p className="text-[11px] font-semibold text-muted-foreground mb-1">Provider Notes</p>
-                        <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-bold text-foreground">Provider Notes</p>
+                        <div className="rounded-xl border border-border bg-muted/30 p-3.5 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
                           {notesText}
                         </div>
                       </div>
                     )}
                   </div>
                 ) : !currentAccepted && currentMsStatus !== "revision" && (
-                  <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-xs text-muted-foreground">
+                  <div className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">
                     <CheckCircle2 className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                    <p className="font-semibold">No deliverables submitted yet.</p>
+                    <p className="font-bold text-foreground text-sm">No deliverables submitted yet</p>
                     <p className="mt-1">The business provider is currently working on this milestone.</p>
                   </div>
                 )}
 
-                {/* Review / Accept section — only when deliverables submitted and milestone not yet accepted */}
+                {/* Review / Accept Decision Section — Toggle buttons and Note box */}
                 {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
-                  <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+                  <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3.5 shadow-xs">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Your Decision</p>
 
-                    <div className="flex gap-2">
+                    {/* Toggle Buttons in Theme Blue Style */}
+                    <div className="grid grid-cols-2 gap-2.5">
                       <button
                         type="button"
                         onClick={() => { setAssignedReviewAction("revision"); setAssignedReviewNote(""); }}
                         className={[
-                          "flex-1 rounded-xl py-2.5 text-xs font-bold border transition-all cursor-pointer",
+                          "rounded-xl py-3 text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs",
                           assignedReviewAction === "revision"
-                            ? "bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-300"
-                            : "border-border hover:bg-muted text-muted-foreground",
+                            ? "bg-primary text-primary-foreground border-primary font-extrabold ring-2 ring-primary/30"
+                            : "border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground",
                         ].join(" ")}
                       >
-                        <RotateCcw className="h-3.5 w-3.5 inline mr-1.5" />
+                        <RotateCcw className="h-4 w-4" />
                         Request Revision
                       </button>
                       <button
                         type="button"
                         onClick={() => { setAssignedReviewAction("accept"); setAssignedReviewNote(""); }}
                         className={[
-                          "flex-1 rounded-xl py-2.5 text-xs font-bold border transition-all cursor-pointer",
+                          "rounded-xl py-3 text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs",
                           assignedReviewAction === "accept"
-                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                            : "border-border hover:bg-muted text-muted-foreground",
+                            ? "bg-primary text-primary-foreground border-primary font-extrabold ring-2 ring-primary/30"
+                            : "border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground",
                         ].join(" ")}
                       >
-                        <CheckCircle2 className="h-3.5 w-3.5 inline mr-1.5" />
-                        Accept {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "& Release"}
+                        <CheckCircle2 className="h-4 w-4" />
+                        Accept {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "& Release Payment"}
                       </button>
                     </div>
 
+                    {/* Review Note Box (revealed when toggled) */}
                     {assignedReviewAction && (
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
+                      <div className="space-y-1.5 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between">
                           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                             {assignedReviewAction === "accept"
                               ? (milestoneCount === 1 ? "Acceptance Note" : `Milestone ${assignedMilestoneTab + 1} Acceptance Note`)
@@ -2071,14 +2040,14 @@ export default function UserProjectsPage() {
                           value={assignedReviewNote}
                           onChange={(e) => { if (e.target.value.length <= ASSIGNED_NOTE_MAX) setAssignedReviewNote(e.target.value); }}
                           placeholder={assignedReviewAction === "accept"
-                            ? "Confirm the work meets requirements. Add any handover or final notes..."
-                            : "Describe exactly what needs to be revised or corrected..."
+                            ? "Confirm the work meets requirements. Add any handover comments or final acceptance notes..."
+                            : "Describe exactly what needs to be revised or corrected by the provider..."
                           }
                           rows={3}
-                          className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none resize-none"
+                          className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none resize-none shadow-inner"
                         />
                         {assignedReviewNote.trim().length === 0 && (
-                          <p className="text-[11px] text-amber-500 mt-0.5">Note is required before submitting.</p>
+                          <p className="text-[11px] text-amber-500">Note is required before submitting decision.</p>
                         )}
                       </div>
                     )}
@@ -2100,12 +2069,7 @@ export default function UserProjectsPage() {
                     type="button"
                     disabled={!canSubmitReview || assignedReviewSubmitting}
                     onClick={handleReviewSubmit}
-                    className={[
-                      "rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm",
-                      assignedReviewAction === "accept"
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                        : "bg-orange-500 hover:bg-orange-600 text-white",
-                    ].join(" ")}
+                    className="rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm bg-primary hover:bg-primary/90 text-white"
                   >
                     {assignedReviewSubmitting ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...</>

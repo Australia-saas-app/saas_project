@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   Upload,
@@ -17,6 +17,10 @@ import {
   ChevronRight,
   Download,
   CheckCheck,
+  Clock,
+  RotateCcw,
+  ExternalLink,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
@@ -43,7 +47,9 @@ interface Props {
   project: {
     projectId: string;
     title: string;
+    submissionStatus?: string;
     paymentTerms?: string;
+    milestones?: any[];
     deliverableUrls?: string[];
     deliverableFiles?: DeliverableFile[];
     completionNotes?: string;
@@ -72,15 +78,13 @@ function getMilestoneLabel(index: number, total: number): string {
 }
 
 interface MilestoneData {
-  files: File[];
+  existingFiles: DeliverableFile[];
+  newFiles: File[];
   links: string[];
   note: string;
-  submitted: boolean;       // locally marked ready
-  finalSubmitted: boolean;  // fully uploaded to DB
-}
-
-function emptyMilestone(): MilestoneData {
-  return { files: [], links: [], note: "", submitted: false, finalSubmitted: false };
+  status: "pending" | "submitted" | "accepted" | "revision";
+  clientNote?: string;
+  submitted: boolean; // locally ready or already in DB
 }
 
 const formatFileSize = (bytes?: number) => {
@@ -109,10 +113,58 @@ function downloadLocalFile(file: File) {
 
 export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const milestoneCount = getMilestoneCount(project.paymentTerms);
+  const dbMilestones: any[] = Array.isArray(project.milestones) ? project.milestones : [];
+  const isOverallCompleted = project.submissionStatus === "completed";
+  const isOverallAccepted = project.submissionStatus === "accepted";
+  const isOverallRevision = project.submissionStatus === "revision";
 
-  const [milestones, setMilestones] = useState<MilestoneData[]>(() =>
-    Array.from({ length: milestoneCount }, emptyMilestone)
-  );
+  // Parse notes per milestone if formatted as [First Time Payment] note...
+  const parseNotesForMilestone = (idx: number): string => {
+    const raw = project.completionNotes || "";
+    if (!raw) return "";
+    const label = getMilestoneLabel(idx, milestoneCount);
+    const regex = new RegExp(`\\[${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]\\s*([^\\n\\[]+)`, "i");
+    const match = raw.match(regex);
+    if (match && match[1]) return match[1].trim();
+    if (idx === 0 && !raw.startsWith("[")) return raw.trim();
+    return "";
+  };
+
+  const [milestones, setMilestones] = useState<MilestoneData[]>(() => {
+    const initialFiles = project.deliverableFiles || [];
+    const initialUrls = (project.deliverableUrls || []).filter(
+      (u) => !initialFiles.some((f) => f.url === u)
+    );
+
+    return Array.from({ length: milestoneCount }, (_, idx) => {
+      const msDb = dbMilestones[idx];
+      let status: "pending" | "submitted" | "accepted" | "revision" = "pending";
+
+      if (msDb?.status === "accepted" || isOverallAccepted) {
+        status = "accepted";
+      } else if (msDb?.status === "revision" || isOverallRevision) {
+        status = "revision";
+      } else if (isOverallCompleted || msDb?.status === "submitted" || initialFiles.length > 0 || initialUrls.length > 0) {
+        status = "submitted";
+      }
+
+      // For milestone 0, give existing files/links if not partitioned
+      const existingFiles = idx === 0 ? initialFiles : [];
+      const links = idx === 0 ? initialUrls : [];
+      const note = parseNotesForMilestone(idx);
+
+      return {
+        existingFiles,
+        newFiles: [],
+        links,
+        note,
+        status,
+        clientNote: msDb?.clientNote || "",
+        submitted: status !== "pending",
+      };
+    });
+  });
+
   const [activeTab, setActiveTab] = useState(0);
   const [newLink, setNewLink] = useState("");
 
@@ -134,26 +186,39 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
     setMilestones((prev) => prev.map((m, i) => (i === idx ? { ...m, ...patch } : m)));
 
   const currentMilestone = milestones[activeTab];
-  const isCurrentFinalSubmitted = currentMilestone.finalSubmitted;
-  const totalSelectedSize = currentMilestone.files.reduce((s, f) => s + (f.size || 0), 0);
+  const totalNewFilesSize = currentMilestone.newFiles.reduce((s, f) => s + (f.size || 0), 0);
+
+  // An active tab is locked if already accepted or submitted (unless in revision)
+  const isCurrentLocked =
+    !isOverallRevision &&
+    (currentMilestone.status === "accepted" || (currentMilestone.status === "submitted" && !isCompleted));
+
+  const isCurrentRevision = currentMilestone.status === "revision" || isOverallRevision;
 
   const hasCurrentContent =
-    currentMilestone.files.length > 0 || currentMilestone.links.length > 0 || currentMilestone.note.trim().length > 0;
-  const canMarkReady = !isCurrentFinalSubmitted && hasCurrentContent;
+    currentMilestone.existingFiles.length > 0 ||
+    currentMilestone.newFiles.length > 0 ||
+    currentMilestone.links.length > 0 ||
+    currentMilestone.note.trim().length > 0;
 
-  const isTabUnlocked = (idx: number) => idx === 0 || milestones[idx - 1]?.submitted;
-  const hasAnyContent = milestones.some(
-    (m) => m.files.length > 0 || m.links.length > 0 || m.note.trim().length > 0
+  const canMarkReady = hasCurrentContent;
+
+  const isTabUnlocked = (idx: number) => {
+    if (idx === 0) return true;
+    const prev = milestones[idx - 1];
+    return prev.status === "accepted" || prev.submitted;
+  };
+
+  const hasAnyNewContent = milestones.some(
+    (m) => m.newFiles.length > 0 || (m.status === "revision" && (m.links.length > 0 || m.note.trim().length > 0))
   );
-  const allSubmitted = milestones.every(
-    (m) => m.submitted || m.files.length > 0 || m.links.length > 0 || m.note.trim().length > 0
-  );
-  const allFinalSubmitted = milestones.every((m) => m.finalSubmitted);
+
+  const allSubmitted = milestones.every((m) => m.submitted || m.status === "submitted" || m.status === "accepted");
 
   // ── file handling ─────────────────────────────────────────────────────────
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    if (isCurrentFinalSubmitted) return; // locked after final submit
+    if (isCurrentLocked) return;
 
     const incoming = Array.from(e.target.files).filter((file) => {
       const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
@@ -170,7 +235,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
     }
 
     const newTotal =
-      totalSelectedSize + incoming.reduce((s, f) => s + (f.size || 0), 0);
+      totalNewFilesSize + incoming.reduce((s, f) => s + (f.size || 0), 0);
     if (newTotal > MAX_TOTAL_SIZE_BYTES) {
       setSizeLimitInfo({ current: newTotal, max: MAX_TOTAL_SIZE_BYTES });
       setSizeLimitModal(true);
@@ -178,19 +243,33 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
       return;
     }
 
-    updateMilestone(activeTab, { files: [...currentMilestone.files, ...incoming] });
+    updateMilestone(activeTab, { newFiles: [...currentMilestone.newFiles, ...incoming] });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // Spinning delete with 400ms delay for feel
-  const handleDeleteFile = async (tabIdx: number, fileIdx: number) => {
-    const key = `${tabIdx}-${fileIdx}`;
+  const handleDeleteNewFile = async (tabIdx: number, fileIdx: number) => {
+    const key = `new-${tabIdx}-${fileIdx}`;
     setDeletingFile(key);
-    await new Promise((r) => setTimeout(r, 420));
+    await new Promise((r) => setTimeout(r, 380));
     setMilestones((prev) =>
       prev.map((m, i) =>
         i === tabIdx
-          ? { ...m, files: m.files.filter((_, fi) => fi !== fileIdx) }
+          ? { ...m, newFiles: m.newFiles.filter((_, fi) => fi !== fileIdx) }
+          : m
+      )
+    );
+    setDeletingFile(null);
+  };
+
+  const handleDeleteExistingFile = async (tabIdx: number, fileIdx: number) => {
+    const key = `exist-${tabIdx}-${fileIdx}`;
+    setDeletingFile(key);
+    await new Promise((r) => setTimeout(r, 380));
+    setMilestones((prev) =>
+      prev.map((m, i) =>
+        i === tabIdx
+          ? { ...m, existingFiles: m.existingFiles.filter((_, fi) => fi !== fileIdx) }
           : m
       )
     );
@@ -199,7 +278,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
   const handleAddLink = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newLink.trim() || isCurrentFinalSubmitted) return;
+    if (!newLink.trim() || isCurrentLocked) return;
     try {
       new URL(newLink.trim());
       updateMilestone(activeTab, {
@@ -212,7 +291,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   };
 
   const handleRemoveLink = (linkIdx: number) => {
-    if (isCurrentFinalSubmitted) return;
+    if (isCurrentLocked) return;
     updateMilestone(activeTab, {
       links: currentMilestone.links.filter((_, i) => i !== linkIdx),
     });
@@ -231,28 +310,17 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const handleFinalSubmit = async () => {
     if (isUploading) return;
 
-    if (!hasAnyContent) {
-      toast.error("Please add at least one file, link, or note before submitting.");
-      return;
-    }
-
     setIsUploading(true);
     setUploadProgress(10);
     setCurrentFileStep("Processing deliverable files...");
 
-    const allDeliverableFiles: DeliverableFile[] = [
-      ...(project.deliverableFiles || []),
-    ];
-    const allLinks: string[] = [
-      ...(project.deliverableUrls || []).filter(
-        (u) => !(project.deliverableFiles || []).some((f) => f.url === u)
-      ),
-    ];
+    const allDeliverableFiles: DeliverableFile[] = [];
+    const allLinks: string[] = [];
     const notesParts: string[] = [];
 
     try {
       let filesProcessed = 0;
-      const totalFiles = milestones.reduce((s, m) => s + m.files.length, 0);
+      const totalNewFiles = milestones.reduce((s, m) => s + m.newFiles.length, 0);
 
       for (let mi = 0; mi < milestones.length; mi++) {
         const m = milestones[mi];
@@ -260,22 +328,27 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         if (m.note.trim()) {
           notesParts.push(`[${label}] ${m.note.trim()}`);
         }
+
+        // Add links
         m.links.forEach((link) => {
           if (link && !allLinks.includes(link)) {
             allLinks.push(link);
           }
         });
 
-        for (const file of m.files) {
-          filesProcessed++;
-          setCurrentFileStep(
-            `Saving ${filesProcessed}/${totalFiles}: ${file.name}`
-          );
-          setUploadProgress(
-            15 + Math.round((filesProcessed / (totalFiles || 1)) * 70)
-          );
+        // Add existing files
+        m.existingFiles.forEach((ef) => {
+          if (!allDeliverableFiles.some((f) => f.name === ef.name && f.url === ef.url)) {
+            allDeliverableFiles.push(ef);
+          }
+        });
 
-          // Convert to base64 Data URL (same as CreateProjectLayout.tsx)
+        // Process newly added files to base64
+        for (const file of m.newFiles) {
+          filesProcessed++;
+          setCurrentFileStep(`Saving ${filesProcessed}/${totalNewFiles}: ${file.name}`);
+          setUploadProgress(15 + Math.round((filesProcessed / (totalNewFiles || 1)) * 70));
+
           const base64Url = await toBase64(file);
 
           allDeliverableFiles.push({
@@ -288,7 +361,21 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         }
 
         // Mark this milestone as submitted in state
-        updateMilestone(mi, { submitted: true, finalSubmitted: true });
+        updateMilestone(mi, {
+          status: "submitted",
+          submitted: true,
+          existingFiles: [
+            ...m.existingFiles,
+            ...m.newFiles.map((f) => ({
+              name: f.name,
+              url: "",
+              size: f.size,
+              type: f.type,
+              uploadedAt: new Date().toISOString(),
+            })),
+          ],
+          newFiles: [],
+        });
       }
 
       setCurrentFileStep("Saving to database...");
@@ -307,19 +394,15 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
       if (milestoneCount === 1) {
         toast.success("Project deliverables submitted! Client has been notified.");
       } else {
-        toast.success(
-          `All ${milestoneCount} milestones submitted! Client has been notified.`
-        );
+        toast.success(`All ${milestoneCount} milestones submitted! Client has been notified.`);
       }
 
-      // Signal parent to refresh
       onSuccess();
     } catch (err: any) {
       toast.error(err?.message || "Failed to submit deliverables");
       setIsUploading(false);
     }
   };
-
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -336,33 +419,22 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                 <AlertTriangle className="h-7 w-7 text-red-500" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-foreground">
-                  File Size Limit Exceeded
-                </h4>
+                <h4 className="text-base font-bold text-foreground">File Size Limit Exceeded</h4>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                   Total selected files exceed the {MAX_TOTAL_SIZE_MB} MB limit per milestone.
                 </p>
               </div>
               <div className="w-full rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-left text-xs space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground font-semibold">
-                    Your Selection
-                  </span>
-                  <span className="font-bold text-red-500">
-                    {formatFileSize(sizeLimitInfo.current)}
-                  </span>
+                  <span className="text-muted-foreground font-semibold">Your Selection</span>
+                  <span className="font-bold text-red-500">{formatFileSize(sizeLimitInfo.current)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground font-semibold">
-                    Maximum Allowed
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {formatFileSize(sizeLimitInfo.max)}
-                  </span>
+                  <span className="text-muted-foreground font-semibold">Maximum Allowed</span>
+                  <span className="font-bold text-foreground">{formatFileSize(sizeLimitInfo.max)}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground pt-1">
-                  Remove some files to stay under{" "}
-                  <strong>{MAX_TOTAL_SIZE_MB} MB</strong>.
+                  Remove some files to stay under <strong>{MAX_TOTAL_SIZE_MB} MB</strong>.
                 </p>
               </div>
             </div>
@@ -382,18 +454,38 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
       {/* Main Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
         <div
-          style={{ maxWidth: "520px", width: "100%", maxHeight: "90vh" }}
+          style={{ maxWidth: "560px", width: "100%", maxHeight: "90vh" }}
           className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl my-auto"
         >
           {/* Header */}
           <div className="flex items-start justify-between border-b border-border px-5 py-4 shrink-0">
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-foreground leading-tight">
-                Submit Project Deliverables
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm">
-                {project.title}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs text-primary font-bold">{project.projectId}</span>
+                {/* Status Badges */}
+                {isOverallAccepted ? (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                    <CheckCircle2 className="w-3 h-3" />
+                    All Milestones Accepted ✓
+                  </span>
+                ) : isOverallRevision ? (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30">
+                    <RotateCcw className="w-3 h-3" />
+                    Revision Requested
+                  </span>
+                ) : isOverallCompleted || isCompleted ? (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                    <Clock className="w-3 h-3" />
+                    Pending Client Review
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    In Progress
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base font-bold text-foreground mt-1 leading-tight">{project.title}</h3>
               {project.paymentTerms && (
                 <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 rounded-md px-2 py-0.5">
                   {project.paymentTerms}
@@ -413,10 +505,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
           {milestoneCount > 1 && (
             <div className="flex gap-0.5 px-5 pt-3 shrink-0 overflow-x-auto border-b border-border pb-0">
               {milestones.map((m, idx) => {
-                // After final submit: all tabs lockable, only allow switching between finalSubmitted ones
-                const unlocked = isCompleted
-                  ? m.finalSubmitted
-                  : isTabUnlocked(idx);
+                const unlocked = isTabUnlocked(idx);
                 const isActive = activeTab === idx;
                 return (
                   <button
@@ -425,7 +514,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                     disabled={!unlocked}
                     onClick={() => unlocked && setActiveTab(idx)}
                     className={[
-                      "flex-1 flex items-center justify-center gap-1.5 rounded-t-xl border-b-2 px-3 py-2.5 text-[11px] font-bold transition-all",
+                      "flex-1 flex items-center justify-center gap-1.5 rounded-t-xl border-b-2 px-3 py-2.5 text-[11px] font-bold transition-all whitespace-nowrap",
                       isActive
                         ? "border-primary text-primary bg-primary/5 cursor-pointer"
                         : unlocked
@@ -433,18 +522,18 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                         : "border-transparent text-muted-foreground/40 cursor-not-allowed",
                     ].join(" ")}
                   >
-                    {m.finalSubmitted ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    ) : m.submitted ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    {m.status === "accepted" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ) : m.status === "revision" ? (
+                      <RotateCcw className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                    ) : m.status === "submitted" || isOverallCompleted ? (
+                      <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     ) : unlocked ? (
                       <Unlock className="h-3 w-3 shrink-0" />
                     ) : (
                       <Lock className="h-3 w-3 shrink-0" />
                     )}
-                    <span className="whitespace-nowrap">
-                      {getMilestoneLabel(idx, milestoneCount)}
-                    </span>
+                    <span>{getMilestoneLabel(idx, milestoneCount)}</span>
                   </button>
                 );
               })}
@@ -453,74 +542,139 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
-
-            {/* Final submitted success banner */}
-            {isCompleted && (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs">
-                  <CheckCheck className="h-5 w-5 text-emerald-500 shrink-0" />
-                  <div>
-                    <p className="font-bold text-emerald-700 dark:text-emerald-300">
-                      All deliverables submitted &amp; saved to database!
-                    </p>
-                    <p className="text-muted-foreground mt-0.5">
-                      The client has been notified and will review your work.
-                      You can close this window.
-                    </p>
-                  </div>
+            {/* STATUS BANNER PER MILESTONE */}
+            {currentMilestone.status === "accepted" ? (
+              <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/20 shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                 </div>
-                {/* Per-milestone submission status */}
-                {milestoneCount > 1 && (
-                  <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Milestone Status</p>
-                    {milestones.map((m, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-foreground">{getMilestoneLabel(idx, milestoneCount)}</span>
-                        {m.finalSubmitted ? (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Submitted — Pending for Review / Accept
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-muted border border-border text-muted-foreground">
-                            <Lock className="h-3 w-3" />
-                            Not Submitted
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {milestoneCount === 1 && (
-                  <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
-                    <span className="font-semibold text-foreground">One Time Payment</span>
-                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Submitted — Pending for Review / Accept
-                    </span>
-                  </div>
-                )}
+                <div>
+                  <p className="font-bold text-emerald-700 dark:text-emerald-300">
+                    {getMilestoneLabel(activeTab, milestoneCount)} — Accepted ✓
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    This milestone has been accepted by the client.
+                  </p>
+                  {currentMilestone.clientNote && (
+                    <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-1 italic">
+                      Client Note: "{currentMilestone.clientNote}"
+                    </p>
+                  )}
+                </div>
               </div>
-            )}
-
-            {/* Per-milestone ready banner */}
-            {!isCompleted && currentMilestone.submitted && (
+            ) : currentMilestone.status === "revision" ? (
+              <div className="flex items-center gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 p-3.5 text-xs">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/20 shrink-0">
+                  <RotateCcw className="h-5 w-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="font-bold text-orange-700 dark:text-orange-300">
+                    Revision Requested on {getMilestoneLabel(activeTab, milestoneCount)}
+                  </p>
+                  {currentMilestone.clientNote && (
+                    <p className="text-xs text-orange-800 dark:text-orange-200 mt-0.5 font-medium">
+                      Client Reason: "{currentMilestone.clientNote}"
+                    </p>
+                  )}
+                  <p className="text-muted-foreground mt-1">
+                    Please upload your revised deliverables below and submit.
+                  </p>
+                </div>
+              </div>
+            ) : currentMilestone.status === "submitted" || isOverallCompleted ? (
+              <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/20 shrink-0">
+                  <Clock className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="font-bold text-amber-700 dark:text-amber-400">
+                    {getMilestoneLabel(activeTab, milestoneCount)} — Pending for Review / Accept
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Your deliverables have been submitted. The client is currently reviewing them.
+                  </p>
+                </div>
+              </div>
+            ) : currentMilestone.submitted ? (
               <div className="flex items-center gap-2.5 rounded-xl border border-indigo-500/25 bg-indigo-500/10 p-3 text-xs">
                 <CheckCircle2 className="h-4 w-4 text-indigo-500 shrink-0" />
                 <span className="font-semibold text-indigo-700 dark:text-indigo-300">
                   {getMilestoneLabel(activeTab, milestoneCount)} marked as ready.
-                  {activeTab < milestoneCount - 1 &&
-                    " You can still edit files before final submission."}
                 </span>
+              </div>
+            ) : null}
+
+            {/* PREVIOUSLY SUBMITTED FILES WITH DOWNLOAD */}
+            {currentMilestone.existingFiles.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold text-foreground">
+                  Submitted Deliverable Files ({currentMilestone.existingFiles.length})
+                </p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {currentMilestone.existingFiles.map((file, i) => {
+                    const delKey = `exist-${activeTab}-${i}`;
+                    const isDeleting = deletingFile === delKey;
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-2.5 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="shrink-0">{getFileIcon(file.name)}</div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground truncate">{file.name}</p>
+                            {file.size && (
+                              <p className="text-[11px] text-muted-foreground">{formatFileSize(file.size)}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          {/* Active Download link */}
+                          {file.url ? (
+                            <a
+                              href={file.url}
+                              download={file.name}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-lg p-1.5 text-primary hover:bg-primary/10 transition-colors inline-flex items-center gap-1 font-bold text-[11px]"
+                              title="Download File"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              <span>Download</span>
+                            </a>
+                          ) : null}
+
+                          {/* Delete if in revision */}
+                          {isCurrentRevision && (
+                            <button
+                              type="button"
+                              title="Remove File"
+                              disabled={isDeleting}
+                              onClick={() => handleDeleteExistingFile(activeTab, i)}
+                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
-            {/* File Upload Drop Zone */}
-            {!isCurrentFinalSubmitted && (
+            {/* NEW FILES TO UPLOAD (ENABLED IF NOT ACCEPTED OR IF IN REVISION) */}
+            {(!isCurrentLocked || isCurrentRevision) && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Upload Files <span className="text-red-500">*</span>
+                    Upload Deliverable Files{" "}
+                    {currentMilestone.existingFiles.length === 0 && <span className="text-red-500">*</span>}
                   </label>
                   <span className="text-[11px] text-muted-foreground">
                     PDF · DOCX · DOC · ZIP · TXT &nbsp;|&nbsp; Max {MAX_TOTAL_SIZE_MB} MB
@@ -535,59 +689,53 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                   className="hidden"
                 />
                 <div
-                  onClick={() => !isCurrentFinalSubmitted && fileInputRef.current?.click()}
+                  onClick={() => fileInputRef.current?.click()}
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border p-4 hover:border-primary/60 hover:bg-muted/30 cursor-pointer transition-all text-center"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary mb-1.5">
                     <Upload className="h-4 w-4" />
                   </div>
-                  <p className="text-xs font-semibold text-foreground">
-                    Click to browse or drag &amp; drop
-                  </p>
+                  <p className="text-xs font-semibold text-foreground">Click to browse or drag &amp; drop</p>
                   <p className="text-[11px] text-muted-foreground">
                     Multiple files · PDF, DOCX, DOC, ZIP, TXT
                   </p>
                 </div>
 
-                {currentMilestone.files.length > 0 && (
+                {currentMilestone.newFiles.length > 0 && (
                   <div className="mt-1.5 flex items-center justify-between text-[11px]">
                     <span className="text-muted-foreground">
-                      {currentMilestone.files.length} file(s) selected
+                      {currentMilestone.newFiles.length} new file(s) selected
                     </span>
                     <span
                       className={`font-bold ${
-                        totalSelectedSize > MAX_TOTAL_SIZE_BYTES
-                          ? "text-red-500"
-                          : "text-foreground"
+                        totalNewFilesSize > MAX_TOTAL_SIZE_BYTES ? "text-red-500" : "text-foreground"
                       }`}
                     >
-                      {formatFileSize(totalSelectedSize)} / {MAX_TOTAL_SIZE_MB} MB
+                      {formatFileSize(totalNewFilesSize)} / {MAX_TOTAL_SIZE_MB} MB
                     </span>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Files List — always visible, Download always active, Delete locked after final submit */}
-            {currentMilestone.files.length > 0 && (
+            {/* NEWLY SELECTED FILES LIST */}
+            {currentMilestone.newFiles.length > 0 && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-foreground">
-                    Selected Files ({currentMilestone.files.length})
+                    Ready to Upload ({currentMilestone.newFiles.length})
                   </p>
-                  {!isCurrentFinalSubmitted && (
-                    <button
-                      type="button"
-                      onClick={() => updateMilestone(activeTab, { files: [] })}
-                      className="text-[11px] text-red-500 hover:underline cursor-pointer"
-                    >
-                      Clear all
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => updateMilestone(activeTab, { newFiles: [] })}
+                    className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                  >
+                    Clear all
+                  </button>
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                  {currentMilestone.files.map((file, i) => {
-                    const delKey = `${activeTab}-${i}`;
+                  {currentMilestone.newFiles.map((file, i) => {
+                    const delKey = `new-${activeTab}-${i}`;
                     const isDeleting = deletingFile === delKey;
                     return (
                       <div
@@ -597,40 +745,25 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="shrink-0">{getFileIcon(file.name)}</div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-foreground truncate">
-                              {file.name}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {formatFileSize(file.size)}
-                            </p>
+                            <p className="font-semibold text-foreground truncate">{file.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0 ml-2">
-                          {/* Download — always active */}
                           <button
                             type="button"
-                            title="Download"
+                            title="Download local"
                             onClick={() => downloadLocalFile(file)}
                             className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                           >
                             <Download className="h-3.5 w-3.5" />
                           </button>
-                          {/* Delete — spinner, disabled after final submit */}
                           <button
                             type="button"
-                            title={isCurrentFinalSubmitted ? "Locked after submission" : "Remove file"}
-                            disabled={isCurrentFinalSubmitted || isDeleting || Boolean(deletingFile)}
-                            onClick={() =>
-                              !isCurrentFinalSubmitted && handleDeleteFile(activeTab, i)
-                            }
-                            className={[
-                              "rounded-lg p-1.5 transition-colors",
-                              isCurrentFinalSubmitted
-                                ? "text-muted-foreground/30 cursor-not-allowed"
-                                : isDeleting
-                                ? "text-red-400 cursor-wait"
-                                : "text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 cursor-pointer",
-                            ].join(" ")}
+                            title="Remove file"
+                            disabled={isDeleting || Boolean(deletingFile)}
+                            onClick={() => handleDeleteNewFile(activeTab, i)}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                           >
                             {isDeleting ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -646,15 +779,16 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
               </div>
             )}
 
-            {/* External Links — locked after final submit */}
+            {/* EXTERNAL LINKS */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 External Links{" "}
                 <span className="normal-case font-normal text-muted-foreground">
-                  (Optional — GitHub, Figma, Live Demo)
+                  (GitHub, Figma, Live Demo)
                 </span>
               </label>
-              {!isCurrentFinalSubmitted && (
+
+              {(!isCurrentLocked || isCurrentRevision) && (
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <LinkIcon className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -683,6 +817,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                   </Button>
                 </div>
               )}
+
               {currentMilestone.links.length > 0 && (
                 <div className="space-y-1 max-h-28 overflow-y-auto mt-1">
                   {currentMilestone.links.map((link, i) => (
@@ -694,11 +829,12 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                         href={link}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary hover:underline truncate max-w-xs"
+                        className="text-primary hover:underline truncate max-w-xs flex items-center gap-1.5"
                       >
-                        {link}
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{link}</span>
                       </a>
-                      {!isCurrentFinalSubmitted && (
+                      {(!isCurrentLocked || isCurrentRevision) && (
                         <button
                           type="button"
                           onClick={() => handleRemoveLink(i)}
@@ -713,29 +849,25 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
               )}
             </div>
 
-            {/* Notes — locked after final submit */}
+            {/* COMPLETION NOTES */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Completion Notes{" "}
-                  <span className={isCurrentFinalSubmitted ? "" : "text-red-500"}>
-                    *
-                  </span>
+                  {(!isCurrentLocked || isCurrentRevision) && <span className="text-red-500">*</span>}
                 </label>
-                {!isCurrentFinalSubmitted && (
+                {(!isCurrentLocked || isCurrentRevision) && (
                   <span
                     className={`text-[11px] font-semibold ${
-                      currentMilestone.note.length >= MAX_NOTE_CHARS
-                        ? "text-red-500"
-                        : "text-muted-foreground"
+                      currentMilestone.note.length >= MAX_NOTE_CHARS ? "text-red-500" : "text-muted-foreground"
                     }`}
                   >
                     {currentMilestone.note.length}/{MAX_NOTE_CHARS}
                   </span>
                 )}
               </div>
-              {isCurrentFinalSubmitted ? (
-                <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-foreground leading-relaxed">
+              {isCurrentLocked && !isCurrentRevision ? (
+                <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
                   {currentMilestone.note || <span className="text-muted-foreground italic">No notes provided.</span>}
                 </div>
               ) : (
@@ -751,9 +883,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                     className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none resize-none"
                   />
                   {currentMilestone.note.trim().length === 0 && (
-                    <p className="text-[11px] text-amber-500 mt-0.5">
-                      Completion note is required to submit.
-                    </p>
+                    <p className="text-[11px] text-amber-500 mt-0.5">Completion note is required to submit.</p>
                   )}
                 </>
               )}
@@ -762,8 +892,8 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
           {/* Footer */}
           <div className="border-t border-border px-5 py-3.5 bg-muted/20 shrink-0 space-y-2.5">
-            {/* Mark milestone ready — only for multi-milestone and not yet done */}
-            {milestoneCount > 1 && !isCompleted && (
+            {/* Mark milestone ready — only for multi-milestone and editable */}
+            {milestoneCount > 1 && (!isCurrentLocked || isCurrentRevision) && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[11px] text-muted-foreground">
                   {milestones.filter((m) => m.submitted).length}/{milestoneCount} milestones ready
@@ -799,30 +929,34 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={onClose}
-                disabled={isUploading && !isCompleted}
+                disabled={isUploading}
                 className="cursor-pointer"
               >
-                {isCompleted ? "Close" : "Cancel"}
+                Close
               </Button>
 
-              {!isCompleted && (
+              {/* Submit / Resubmit button */}
+              {(!isCurrentLocked || isCurrentRevision || hasAnyNewContent) && (
                 <Button
                   size="sm"
                   onClick={handleFinalSubmit}
-                  disabled={!hasAnyContent || isUploading}
+                  disabled={!hasCurrentContent || isUploading}
                   className="bg-primary hover:bg-primary/90 text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isUploading ? (
                     <>
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      Uploading...
+                      Saving Deliverables...
+                    </>
+                  ) : isCurrentRevision ? (
+                    <>
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      Resubmit Revision
                     </>
                   ) : (
                     <>
                       <Upload className="mr-1.5 h-3.5 w-3.5" />
-                      {milestoneCount === 1
-                        ? "Submit Deliverables"
-                        : "Submit All Milestones"}
+                      {milestoneCount === 1 ? "Submit Deliverables" : "Submit All Milestones"}
                     </>
                   )}
                 </Button>
@@ -845,19 +979,13 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
               </div>
             </div>
             <div>
-              <h4 className="text-lg font-bold text-foreground">
-                Uploading Deliverables
-              </h4>
-              <p className="text-xs text-muted-foreground mt-1 truncate max-w-xs mx-auto">
-                {currentFileStep}
-              </p>
+              <h4 className="text-lg font-bold text-foreground">Saving Deliverables</h4>
+              <p className="text-xs text-muted-foreground mt-1 truncate max-w-xs mx-auto">{currentFileStep}</p>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-bold">
                 <span className="text-muted-foreground">Progress</span>
-                <span className="text-primary font-extrabold text-sm">
-                  {uploadProgress}%
-                </span>
+                <span className="text-primary font-extrabold text-sm">{uploadProgress}%</span>
               </div>
               <div className="h-3 w-full overflow-hidden rounded-full bg-muted shadow-inner">
                 <div

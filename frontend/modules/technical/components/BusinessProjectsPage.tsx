@@ -15,6 +15,7 @@ import {
   UserCheck,
   X,
   MessageSquare,
+  Eye,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
@@ -304,100 +305,126 @@ export default function BusinessProjectsPage() {
                   key={project.projectId}
                   className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4"
                 >
+                  {/* Header Row: ID, Status, and Category Pill */}
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
+                    <div className="space-y-1.5 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md whitespace-nowrap">
                           {project.projectId}
                         </span>
                         {project.submissionStatus === "in_progress" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
                             <Clock className="h-3 w-3" /> In Progress
                           </span>
                         )}
                         {project.submissionStatus === "completed" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
                             <Clock className="h-3 w-3" /> Deliverables Submitted — Under Review
                           </span>
                         )}
                         {project.submissionStatus === "revision" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 px-2.5 py-0.5 text-xs font-semibold text-orange-700 dark:text-orange-300">
                             <RotateCcw className="h-3 w-3" /> Revision Requested
                           </span>
                         )}
                         {project.submissionStatus === "accepted" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                             <CheckCircle2 className="h-3 w-3" /> Completed &amp; Paid
                           </span>
                         )}
                       </div>
                       <h3 className="text-base font-bold text-foreground">{project.title}</h3>
-                      <p className="text-xs text-muted-foreground">{project.description}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{project.description}</p>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground">Payout Value</p>
-                      <p className="text-lg font-bold text-primary">
-                        {project.currency || "USD"} {budget.toLocaleString()}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
+                        {project.category || "Software Development"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Middle Bar Separator: Budget & Client info */}
+                  <div className="pt-3 border-t border-border flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Payout Value
+                      </p>
+                      <p className="text-sm font-extrabold text-primary">
+                        {project.currency || "USD"} ${budget.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
+                        Client
+                      </p>
+                      <p className="text-xs font-semibold text-foreground">
+                        {project.clientName || "Client"}
                       </p>
                     </div>
                   </div>
 
                   {project.adminNotes && project.submissionStatus === "revision" && (
-                    <div className="rounded-lg bg-orange-50 border border-orange-200 dark:bg-orange-900/20 dark:border-orange-800 p-3 text-xs text-orange-800 dark:text-orange-200">
+                    <div className="rounded-xl bg-orange-500/10 border border-orange-500/30 p-3 text-xs text-orange-800 dark:text-orange-200">
                       <strong>Client Revision Request:</strong> {project.adminNotes}
                     </div>
                   )}
 
-                  {project.deliverableUrls && project.deliverableUrls.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-muted-foreground">Submitted Deliverables:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {project.deliverableUrls.map((url, i) => (
-                          <a
-                            key={i}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary hover:underline"
-                          >
-                            <ExternalLink className="h-3 w-3" /> Deliverable #{i + 1}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
+                  {/* Actions Footer with Separator */}
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                     <p className="text-xs text-muted-foreground">
-                      Client: <span className="font-medium text-foreground">{project.clientName || "Client"}</span>
+                      Status: <span className="font-semibold text-foreground capitalize">{project.submissionStatus?.replace("_", " ") || "Active"}</span>
                     </p>
 
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-border text-foreground hover:bg-muted"
+                        className="border-border text-foreground hover:bg-muted cursor-pointer rounded-xl text-xs font-semibold"
                         onClick={() => setChatProject(project)}
                       >
                         <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" />
                         Project Chat
                       </Button>
 
-                      {(project.submissionStatus === "in_progress" || project.submissionStatus === "revision") && (
-                        <Button
-                          size="sm"
-                          className="bg-primary hover:bg-primary/90 text-white font-semibold"
-                          onClick={() => {
-                            setCompletingProject(project);
-                            setDeliverableList(project.deliverableUrls || []);
-                            setCompletionNotes(project.completionNotes || "");
-                          }}
-                        >
-                          <Upload className="mr-1.5 h-3.5 w-3.5" />
-                          Submit Deliverables &amp; Complete
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        className={[
+                          "rounded-xl text-xs font-semibold cursor-pointer shadow-xs",
+                          project.submissionStatus === "completed"
+                            ? "bg-amber-600 hover:bg-amber-700 text-white"
+                            : project.submissionStatus === "accepted"
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : "bg-primary hover:bg-primary/90 text-white",
+                        ].join(" ")}
+                        onClick={() => {
+                          setCompletingProject(project);
+                          setDeliverableList(project.deliverableUrls || []);
+                          setCompletionNotes(project.completionNotes || "");
+                        }}
+                      >
+                        {project.submissionStatus === "completed" ? (
+                          <>
+                            <Eye className="mr-1.5 h-3.5 w-3.5" />
+                            Submitted Deliverables (Under Review)
+                          </>
+                        ) : project.submissionStatus === "accepted" ? (
+                          <>
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                            Deliverables Accepted ✓
+                          </>
+                        ) : project.submissionStatus === "revision" ? (
+                          <>
+                            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                            Resubmit Deliverables (Revision)
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-1.5 h-3.5 w-3.5" />
+                            Submit Deliverables &amp; Complete
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </div>

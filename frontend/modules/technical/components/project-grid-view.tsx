@@ -143,34 +143,35 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
             <div className="h-1.5 bg-primary" />
 
             <div className="flex flex-1 flex-col p-5">
+              {/* Header Row 1: Project ID (Left) & Deadline / Category (Right) */}
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-primary self-start">
+                  <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md self-start">
                     {project.projectId || `PRJ-${project.id}`}
                   </span>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {isAssignedToMe ? (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
                         <Loader2 className="h-3 w-3 animate-spin text-emerald-600 dark:text-emerald-400" />
                         In Progress
                       </span>
                     ) : isNotChosen ? (
-                      <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
                         Thank you for applying, Better Luck Next time
                       </span>
                     ) : isApplied ? (
-                      <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
                         Pending for Client Approval
                       </span>
                     ) : (
-                      <span className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                      <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                         Active for Public
                       </span>
                     )}
 
-                    {isAssignedToMe && project.category && (
-                      <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
-                        {project.category}
+                    {isAssignedToMe && (
+                      <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
+                        {project.category || "Software Development"}
                       </span>
                     )}
                   </div>
@@ -184,112 +185,124 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                       assignedAt={(project as any).assignedAt}
                     />
                   ) : (
-                    <span className="rounded-md bg-[#eef2f8] dark:bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
                       {project.category || "Software Development"}
                     </span>
                   )}
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                      {project.location || "Remote"}
-                    </span>
-                    <span className="text-sm font-bold text-primary">{project.priceRange}</span>
-                  </div>
                 </div>
               </div>
 
-              <h3 className="mb-2 line-clamp-2 text-base font-bold leading-snug text-foreground group-hover:text-primary">
+              {/* Title & Description */}
+              <h3 className="mb-1.5 line-clamp-2 text-base font-bold leading-snug text-foreground group-hover:text-primary transition-colors">
                 {project.title}
               </h3>
 
-              <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-muted-foreground">
+              <p className="mb-3 line-clamp-2 flex-1 text-xs leading-relaxed text-muted-foreground">
                 {project.description}
               </p>
 
-              <div className="mb-4 flex flex-wrap gap-1.5">
-                {project.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-
-              {isApplied || isAssignedToMe ? (
-                <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
-                  <button
-                    type="button"
-                    title="View Project Details"
-                    disabled={isNotChosen}
-                    onClick={() => {
-                      if (isAssignedToMe) {
-                        setFullDetailProject(project);
-                      } else {
-                        onViewProject?.(project);
-                      }
-                    }}
-                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-
-                  {isAssignedToMe ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setDeliverableProject(project)}
-                        className="flex-1 rounded-full border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                      >
-                        <Upload className="w-3.5 h-3.5 text-primary" />
-                        <span>Submit Project</span>
-                      </button>
-                      <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
-                        <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
-                        Assigned
-                      </div>
-                    </>
-                  ) : isNotChosen ? (
-                    <span className="text-[11px] font-bold text-muted-foreground italic">
-                      Position Closed
+              {/* Skills badges */}
+              {project.skills && project.skills.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {project.skills.slice(0, 3).map((skill) => (
+                    <span
+                      key={skill}
+                      className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                    >
+                      {skill}
                     </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onViewProject?.(project)}
-                        className="flex-1 rounded-full border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-primary" />
-                        <span>View Project</span>
-                      </button>
-                      <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
-                        <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
-                        Applied
-                      </div>
-                    </>
+                  ))}
+                  {project.skills.length > 3 && (
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      +{project.skills.length - 3}
+                    </span>
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
-                  <button
-                    type="button"
-                    title="View Project Details"
-                    onClick={() => onViewProject?.(project)}
-                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
+              )}
+
+              {/* Middle Bar Separator: Budget & Location */}
+              <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Budget / Payout
+                  </p>
+                  <p className="text-sm font-extrabold text-primary">
+                    {project.priceRange || `${(project as any).currency || "USD"} $${Number((project as any).adminBudget || project.price || 0).toLocaleString()}`}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
+                    Location
+                  </p>
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1 justify-end">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    {project.location || "Remote"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bottom Actions Footer with Separator */}
+              <div className="mt-4 pt-3 border-t border-border flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  title="View Project Details"
+                  disabled={isNotChosen}
+                  onClick={() => {
+                    if (isAssignedToMe) {
+                      setFullDetailProject(project);
+                    } else {
+                      onViewProject?.(project);
+                    }
+                  }}
+                  className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+
+                {isAssignedToMe ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setDeliverableProject(project)}
+                      className="flex-1 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-primary" />
+                      <span>Submit Deliverables</span>
+                    </button>
+                    <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg shrink-0">
+                      <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                      <span>Assigned</span>
+                    </div>
+                  </>
+                ) : isNotChosen ? (
+                  <span className="text-[11px] font-bold text-muted-foreground italic">
+                    Position Closed
+                  </span>
+                ) : isApplied ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onViewProject?.(project)}
+                      className="flex-1 rounded-xl border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-primary" />
+                      <span>View Project</span>
+                    </button>
+                    <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg shrink-0">
+                      <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                      <span>Applied</span>
+                    </div>
+                  </>
+                ) : (
                   <Button
                     type="button"
-                    className="flex-1 bg-primary font-semibold hover:bg-primary/90 cursor-pointer"
+                    className="flex-1 bg-primary font-semibold hover:bg-primary/90 cursor-pointer rounded-xl text-xs"
                     onClick={() => onViewProject?.(project)}
                   >
                     {t.technical.viewProject}
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </article>
         );
@@ -524,6 +537,8 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
             projectId: String(deliverableProject.projectId || deliverableProject.id || ""),
             title: deliverableProject.title,
             paymentTerms: (deliverableProject as any).paymentTerms,
+            submissionStatus: (deliverableProject as any).submissionStatus,
+            milestones: (deliverableProject as any).milestones,
             deliverableUrls: (deliverableProject as any).deliverableUrls,
             deliverableFiles: (deliverableProject as any).deliverableFiles,
             completionNotes: (deliverableProject as any).completionNotes,
