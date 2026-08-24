@@ -48,6 +48,8 @@ interface Project {
   clientName?: string;
   assignedBusinessId?: string;
   assignedBusinessName?: string;
+  paymentTerms?: string;
+  milestones?: any[];
   deliverableUrls?: string[];
   completionNotes?: string;
   adminNotes?: string;
@@ -353,6 +355,26 @@ export default function BusinessProjectsPage() {
                       <p className="text-sm font-extrabold text-primary">
                         {project.currency || "USD"} ${budget.toLocaleString()}
                       </p>
+                      {(() => {
+                        const terms = (project.paymentTerms || "").toLowerCase();
+                        const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                        if (mCount > 1 && budget > 0) {
+                          const perMs = budget / mCount;
+                          return (
+                            <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground font-semibold">
+                              {Array.from({ length: mCount }, (_, i) => (
+                                <p key={i}>
+                                  Milestone {i + 1} Payment:{" "}
+                                  <span className="text-foreground font-bold">
+                                    {project.currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">

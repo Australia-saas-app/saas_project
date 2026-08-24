@@ -148,7 +148,7 @@ export const fetchWalletBalance = async (_token?: string): Promise<{ balance: nu
         const parsed: any[] = JSON.parse(rawLedger);
         if (Array.isArray(parsed)) {
           const userDeposits = parsed
-            .filter((r) => (!uid || r.userId === uid) && (r.kind === "deposit" || r.type?.toLowerCase() === "deposit") && (r.status === "Complete" || r.status === "Completed" || r.status === "Pending"))
+            .filter((r) => (!uid || r.userId === uid) && (r.kind === "deposit" || r.kind === "earning" || r.type?.toLowerCase() === "deposit" || r.type?.toLowerCase() === "earning") && (r.status === "Complete" || r.status === "Completed" || r.status === "Pending"))
             .reduce((acc, r) => acc + (parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0), 0);
           
           const userPayments = parsed
@@ -570,6 +570,7 @@ export const assignProjectApplicant = async (
   applicant: {
     businessId: string;
     businessName: string;
+    businessFullName?: string;
     businessUserId?: string;
     businessEmail?: string;
     proposalId?: string;
@@ -580,6 +581,7 @@ export const assignProjectApplicant = async (
     assignedBusinessId: applicant.businessUserId || applicant.businessId,
     assignedBusinessUserId: applicant.businessUserId || applicant.businessId,
     assignedBusinessName: applicant.businessName,
+    assignedBusinessFullName: applicant.businessFullName,
     assignedBusinessEmail: applicant.businessEmail,
     assignedProposalId: applicant.proposalId,
     submissionStatus: "in_progress",
@@ -913,6 +915,52 @@ export const reviewMilestone = async (
     totalMilestones: number;
   }
 ) => {
+  const local = readLocalProjects();
+  const target = local.find((p) => p.projectId === projectId || String(p.id) === String(projectId));
+
+  if (target && data.action === 'accept') {
+    const total = Number(target.adminBudget || target.price || 0);
+    const commPct = Number(target.commissionPercent ?? 10);
+    const msTotal = data.totalMilestones > 0 ? total / data.totalMilestones : total;
+    const comm = parseFloat(((msTotal * commPct) / 100).toFixed(2));
+    const businessPayout = parseFloat((msTotal - comm).toFixed(2));
+
+    if (typeof window !== "undefined" && businessPayout > 0) {
+      try {
+        const rawLedger = localStorage.getItem("platform_wallet_ledger");
+        const ledger = rawLedger ? JSON.parse(rawLedger) : [];
+        const earningTx = {
+          id: `TX-PAYOUT-${Date.now().toString().slice(-6)}`,
+          kind: "earning",
+          userId: target.assignedBusinessUserId || target.assignedBusinessId || "business",
+          userName: target.assignedBusinessFullName || target.assignedBusinessName || "Business Partner",
+          amount: `+$${businessPayout.toFixed(2)} USD`,
+          method: `Milestone ${data.milestoneIndex + 1} Payout: ${target.title}`,
+          status: "Complete",
+          date: new Date().toLocaleDateString(),
+        };
+        localStorage.setItem("platform_wallet_ledger", JSON.stringify([earningTx, ...ledger]));
+        window.dispatchEvent(new Event("wallet_updated"));
+        window.dispatchEvent(new Event("platform_projects_updated"));
+        window.dispatchEvent(new Event("applied_projects_updated"));
+        window.dispatchEvent(new Event("notifications_updated"));
+
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "MILESTONE_ACCEPTED", projectId, milestoneIndex: data.milestoneIndex });
+          bc.close();
+        }
+      } catch {}
+    }
+
+    recordActivityLog({
+      title: `Milestone ${data.milestoneIndex + 1} Accepted: "${target.title}"`,
+      description: `Client accepted Milestone ${data.milestoneIndex + 1}. Released $${businessPayout.toFixed(2)} USD payout.`,
+      category: "Technical Services",
+      type: "milestone_accepted",
+    });
+  }
+
   try {
     const res = await axiosInstance.post(`/technology/projects/${projectId}/review-milestone`, data);
     return res?.data;

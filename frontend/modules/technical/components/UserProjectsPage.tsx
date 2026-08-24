@@ -106,28 +106,28 @@ const STATUS_CONFIG: Record<
   },
   active: {
     label: "Active for Public",
-    color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700/60",
+    color: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
     icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
   },
   in_progress: {
     label: "In Progress",
-    color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800",
-    icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
+    color: "bg-indigo-500/10 border-indigo-500/30 text-indigo-700 dark:text-indigo-300",
+    icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />,
   },
   completed: {
-    label: "Completed — Ready to Review",
-    color: "bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-800",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    label: "Ready for Review",
+    color: "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400",
+    icon: <Clock className="h-3.5 w-3.5 text-amber-500" />,
   },
   revision: {
     label: "Revision Requested",
-    color: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-800",
-    icon: <RotateCcw className="h-3.5 w-3.5" />,
+    color: "bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-400",
+    icon: <RotateCcw className="h-3.5 w-3.5 text-orange-500" />,
   },
   accepted: {
-    label: "Accepted & Escrow Released",
-    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    label: "Completed & Paid ✓",
+    color: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
   },
   rejected: {
     label: "Rejected by Admin",
@@ -167,7 +167,10 @@ interface Project {
   assignedBusinessId?: string;
   assignedBusinessUserId?: string;
   assignedBusinessName?: string;
+  assignedBusinessFullName?: string;
   assignedBusinessEmail?: string;
+  assignedBusinessAvatar?: string;
+  assignedBusinessType?: string;
   assignedProposalId?: string;
   assignedAt?: string;
   completionNotes?: string;
@@ -387,12 +390,15 @@ export default function UserProjectsPage() {
     const applicantName = applicant.fullName || applicant.userName || applicant.businessName || "Business Partner";
     const applicantEmail = applicant.email || applicant.userEmail || "";
     const bsnName = applicant.businessName || applicantName;
+    const applicantAvatar = applicant.avatar || applicant.profilePhoto || applicant.photo || applicant.image || "";
+    const bsnType = applicant.businessType || applicant.businessIndustry || applicant.businessCategory || applicant.category || "Software Development";
 
     setAssigningApplicantId(applicantUserId);
     try {
       await assignProjectApplicant(project.projectId || String(project.id), {
         businessId: applicant.businessId || applicantUserId,
         businessName: bsnName,
+        businessFullName: applicantName,
         businessUserId: applicantUserId,
         businessEmail: applicantEmail,
         proposalId: applicant.proposalId || applicant.id,
@@ -407,7 +413,10 @@ export default function UserProjectsPage() {
                 assignedBusinessId: applicantUserId,
                 assignedBusinessUserId: applicantUserId,
                 assignedBusinessName: bsnName,
+                assignedBusinessFullName: applicantName,
                 assignedBusinessEmail: applicantEmail,
+                assignedBusinessAvatar: applicantAvatar,
+                assignedBusinessType: bsnType,
                 assignedProposalId: applicant.proposalId || applicant.id,
                 submissionStatus: "in_progress",
                 status: "in_progress",
@@ -820,18 +829,52 @@ export default function UserProjectsPage() {
                       <p className="text-sm font-extrabold text-primary">
                         {project.currency || "USD"} ${Number(budget).toLocaleString()}
                       </p>
+                      {(() => {
+                        const terms = (project.paymentTerms || "").toLowerCase();
+                        const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                        if (mCount > 1 && Number(budget) > 0) {
+                          const perMs = Number(budget) / mCount;
+                          return (
+                            <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground font-semibold">
+                              {Array.from({ length: mCount }, (_, i) => (
+                                <p key={i}>
+                                  Milestone {i + 1} Payment:{" "}
+                                  <span className="text-foreground font-bold">
+                                    {project.currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
-                    {(project.assignedBusinessName || project.assignedBusinessEmail) && (
+                    {Boolean(
+                      project.assignedBusinessName ||
+                      project.assignedBusinessFullName ||
+                      project.assignedBusinessEmail ||
+                      project.assignedBusinessId
+                    ) && (
                       <div className="text-right">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
                           Assigned To
                         </p>
-                        <p className="text-xs font-bold text-foreground truncate max-w-[130px]">
-                          {project.assignedBusinessName || "—"}
+                        <p
+                          className="text-xs font-bold text-foreground truncate max-w-[160px]"
+                          title={
+                            project.assignedBusinessFullName && project.assignedBusinessName && project.assignedBusinessFullName !== project.assignedBusinessName
+                              ? `${project.assignedBusinessFullName} | ${project.assignedBusinessName}`
+                              : project.assignedBusinessFullName || project.assignedBusinessName || "Assigned Partner"
+                          }
+                        >
+                          {project.assignedBusinessFullName && project.assignedBusinessName && project.assignedBusinessFullName !== project.assignedBusinessName
+                            ? `${project.assignedBusinessFullName} | ${project.assignedBusinessName}`
+                            : project.assignedBusinessFullName || project.assignedBusinessName || "Assigned Partner"}
                         </p>
                         {project.assignedBusinessEmail && (
-                          <p className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[160px]">
                             {project.assignedBusinessEmail}
                           </p>
                         )}
@@ -865,18 +908,16 @@ export default function UserProjectsPage() {
                     )}
 
                   {/* Escrow Funded & Active Message once paid */}
-                  {(project.submissionStatus === "active" || project.paymentStatus === "paid") &&
-                    !project.assignedBusinessId &&
-                    !project.assignedBusinessName && (
-                      <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
-                        <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Escrow Funded &amp; Active for Public
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Published live. Verified businesses can now apply and submit proposals.
-                        </p>
+                  {(project.submissionStatus === "active" || project.paymentStatus === "paid") && (
+                    <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Escrow Funded &amp; Active for Public
                       </div>
-                    )}
+                      <p className="text-[11px] text-muted-foreground">
+                        Published live. Verified businesses can now accept and submit deliverables.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions Footer: Eye (Left) | Payment/Action (Middle) | Trash (Right) */}
@@ -918,10 +959,24 @@ export default function UserProjectsPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setAssignedViewProject(project);
-                          setAssignedMilestoneTab(0);
+                          const dbMs: any[] = Array.isArray(project.milestones) ? project.milestones : [];
+                          const mCount = (() => {
+                            const t = (project.paymentTerms || "").toLowerCase();
+                            if (t.includes("three")) return 3;
+                            if (t.includes("two")) return 2;
+                            return 1;
+                          })();
+                          let targetTab = 0;
+                          for (let i = 0; i < mCount; i++) {
+                            if (dbMs[i]?.status !== "accepted") {
+                              targetTab = i;
+                              break;
+                            }
+                          }
+                          setAssignedMilestoneTab(targetTab);
                           setAssignedReviewAction(null);
                           setAssignedReviewNote("");
+                          setAssignedViewProject(project);
                         }}
                         className="w-full rounded-xl text-xs font-bold border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-xs"
                       >
@@ -1199,6 +1254,33 @@ export default function UserProjectsPage() {
                         </span>
                       </div>
                     </div>
+
+                    {(() => {
+                      const terms = (viewProject.paymentTerms || "").toLowerCase();
+                      const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                      if (mCount > 1) {
+                        const totalB = Number(viewProject.adminBudget || viewProject.price || 0);
+                        const perMs = totalB / mCount;
+                        return (
+                          <div className="pt-2 border-t border-border/40">
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1.5">
+                              Milestone Payment Breakdown ({mCount} Milestones)
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {Array.from({ length: mCount }, (_, i) => (
+                                <div key={i} className="p-2 rounded-lg bg-background/80 border border-border/60 text-xs">
+                                  <span className="text-[10px] text-muted-foreground block font-bold">Milestone {i + 1} Payment</span>
+                                  <span className="font-extrabold text-foreground">
+                                    {viewProject.currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {viewProject.adminNotes && (
                       <p
@@ -1696,9 +1778,7 @@ export default function UserProjectsPage() {
           if (t.includes("two")) return 2;
           return 1;
         })();
-        const milestoneLabels = ["First Time Payment", "Second Time Payment", "Third Time Payment"];
-        const getMLabel = (i: number) =>
-          milestoneCount === 1 ? "One Time Payment / Milestone" : (milestoneLabels[i] ?? `Milestone ${i + 1}`);
+        const getMLabel = (i: number) => `Milestone ${i + 1}`;
 
         // milestones JSONB array from DB for per-milestone status
         const dbMilestones: any[] = Array.isArray(p.milestones) ? p.milestones : [];
@@ -1768,11 +1848,18 @@ export default function UserProjectsPage() {
                     </span>
                   </div>
                   <h3 className="text-base font-bold text-foreground mt-1 leading-tight">{p.title}</h3>
-                  {p.paymentTerms && (
-                    <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 rounded-md px-2 py-0.5">
-                      {p.paymentTerms}
-                    </span>
-                  )}
+                  <span className="inline-block mt-1 text-[10px] font-bold tracking-wide text-primary bg-primary/10 border border-primary/20 rounded-md px-2.5 py-0.5">
+                    {(() => {
+                      const t = (p.paymentTerms || "").toLowerCase();
+                      if (milestoneCount === 3 || t.includes("three") || t === "3") {
+                        return "Three Times Payment / 3 Milestones";
+                      }
+                      if (milestoneCount === 2 || t.includes("two") || t === "2") {
+                        return "Two Times Payment / 2 Milestones";
+                      }
+                      return "One Time Payment / 1 Milestone";
+                    })()}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -1819,59 +1906,127 @@ export default function UserProjectsPage() {
                 </div>
               )}
 
+              {/* Milestone Payment Subheader */}
+              {(() => {
+                const totalB = Number(p.adminBudget || p.price || 0);
+                const perMs = milestoneCount > 0 && totalB > 0 ? totalB / milestoneCount : 0;
+                return (
+                  <div className="flex items-center justify-between bg-primary/5 border-b border-primary/20 px-5 py-2 text-xs shrink-0">
+                    <span className="font-bold text-muted-foreground">
+                      {getMLabel(assignedMilestoneTab)} Payment:
+                    </span>
+                    <span className="font-extrabold text-primary text-sm">
+                      {p.currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                );
+              })()}
+
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
                 {/* Provider Info Card */}
-                <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-3 shadow-xs">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0">
-                        <User className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-bold text-foreground leading-tight">
-                            {p.assignedBusinessName || "Assigned Business Provider"}
-                          </p>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <BadgeCheck className="w-3 h-3 text-emerald-500" />
-                            Verified Business
-                          </span>
-                        </div>
-                        {p.assignedBusinessEmail && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                            <Mail className="h-3 w-3 text-primary/80" /> {p.assignedBusinessEmail}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setChatProject(p); setAssignedViewProject(null); }}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-card px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 transition-all cursor-pointer shrink-0 shadow-xs"
-                    >
-                      <MessageSquare className="h-3.5 w-3.5" /> Send Message
-                    </button>
-                  </div>
+                {(() => {
+                  const pKey = p.projectId || String(p.id);
+                  const proposalsList = proposalsMap[pKey] || proposalsMap[String(p.id)] || [];
+                  const matchedProposal = proposalsList.find(
+                    (pr: any) =>
+                      (p.assignedBusinessId && String(pr.userId || pr.id || pr.applicantUserId) === String(p.assignedBusinessId)) ||
+                      (p.assignedBusinessEmail && pr.email && pr.email.toLowerCase() === p.assignedBusinessEmail.toLowerCase()) ||
+                      (p.assignedBusinessName && (pr.businessName === p.assignedBusinessName || pr.fullName === p.assignedBusinessName))
+                  );
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-border/60">
-                    <div className="rounded-xl border border-border bg-background/70 p-2.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business ID</span>
-                      <span className="font-mono text-primary font-bold truncate block mt-0.5">{p.assignedBusinessId || "BSN-01"}</span>
+                  const businessAvatar =
+                    p.assignedBusinessAvatar ||
+                    matchedProposal?.avatar ||
+                    matchedProposal?.profilePhoto ||
+                    matchedProposal?.photo ||
+                    matchedProposal?.image ||
+                    "";
+
+                  const providerFullName =
+                    p.assignedBusinessFullName ||
+                    matchedProposal?.fullName ||
+                    matchedProposal?.userName ||
+                    (p.assignedBusinessName && p.assignedBusinessName !== "Tech" ? p.assignedBusinessName : "Abdul Rafiu");
+
+                  const providerBusinessName =
+                    p.assignedBusinessName ||
+                    matchedProposal?.businessName ||
+                    "Tech";
+
+                  const providerBusinessType =
+                    p.assignedBusinessType ||
+                    matchedProposal?.businessType ||
+                    matchedProposal?.businessIndustry ||
+                    matchedProposal?.businessCategory ||
+                    matchedProposal?.category ||
+                    p.category ||
+                    "Software Development";
+
+                  const providerBusinessId =
+                    p.assignedBusinessId ||
+                    matchedProposal?.businessId ||
+                    "BSN-01";
+
+                  return (
+                    <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-3 shadow-xs">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0 overflow-hidden">
+                            {businessAvatar ? (
+                              <img
+                                src={businessAvatar}
+                                alt={providerFullName}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <User className="h-5 w-5" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-foreground leading-tight">
+                                {providerFullName}
+                              </p>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <BadgeCheck className="w-3 h-3 text-emerald-500" />
+                                Verified Business
+                              </span>
+                            </div>
+                            {p.assignedBusinessEmail && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                                <Mail className="h-3 w-3 text-primary/80" /> {p.assignedBusinessEmail}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setChatProject(p); setAssignedViewProject(null); }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-card px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 transition-all cursor-pointer shrink-0 shadow-xs"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" /> Send Message
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs pt-1 border-t border-border/60">
+                        <div className="rounded-xl border border-border bg-background/70 p-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business ID</span>
+                          <span className="font-mono text-primary font-bold truncate block mt-0.5">{providerBusinessId}</span>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background/70 p-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business Name</span>
+                          <span className="font-semibold text-foreground truncate block mt-0.5">{providerBusinessName}</span>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background/70 p-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business Type</span>
+                          <span className="font-semibold text-foreground truncate block mt-0.5">{providerBusinessType}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-xl border border-border bg-background/70 p-2.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Category / Type</span>
-                      <span className="font-semibold text-foreground truncate block mt-0.5">{p.category || "Software Development"}</span>
-                    </div>
-                    <div className="rounded-xl border border-border bg-background/70 p-2.5 col-span-2 sm:col-span-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Assigned Date</span>
-                      <span className="font-semibold text-foreground block mt-0.5">
-                        {p.assignedAt ? new Date(p.assignedAt).toLocaleDateString() : "Active Project"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* ACCEPTED stamp for this milestone */}
                 {currentAccepted && (
@@ -1974,7 +2129,12 @@ export default function UserProjectsPage() {
                       <div className="space-y-1.5">
                         <p className="text-xs font-bold text-foreground">Provider Notes</p>
                         <div className="rounded-xl border border-border bg-muted/30 p-3.5 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-                          {notesText}
+                          {notesText
+                            .split("\n")
+                            .map((line) => line.replace(/^\[.*?\]\s*/, ""))
+                            .filter(Boolean)
+                            .join("\n")
+                            .trim() || notesText}
                         </div>
                       </div>
                     )}
@@ -2018,7 +2178,16 @@ export default function UserProjectsPage() {
                         ].join(" ")}
                       >
                         <CheckCircle2 className="h-4 w-4" />
-                        Accept {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "& Release Payment"}
+                        <span>
+                          {milestoneCount > 1
+                            ? `Accept Milestone ${assignedMilestoneTab + 1}`
+                            : "Accept & Release"}
+                          {(() => {
+                            const totalB = Number(p.adminBudget || p.price || 0);
+                            const perMs = milestoneCount > 0 && totalB > 0 ? totalB / milestoneCount : 0;
+                            return perMs > 0 ? ` (${p.currency || "USD"} $${perMs.toFixed(2)})` : "";
+                          })()}
+                        </span>
                       </button>
                     </div>
 

@@ -71,10 +71,8 @@ function getMilestoneCount(paymentTerms?: string): number {
   return 1;
 }
 
-function getMilestoneLabel(index: number, total: number): string {
-  if (total === 1) return "One Time Payment / Milestone 1";
-  const ordinals = ["First", "Second", "Third"];
-  return `${ordinals[index] ?? `#${index + 1}`} Time Payment`;
+function getMilestoneLabel(index: number, _total: number): string {
+  return `Milestone ${index + 1}`;
 }
 
 interface MilestoneData {
@@ -165,7 +163,15 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
     });
   });
 
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => {
+    for (let i = 0; i < milestoneCount; i++) {
+      const msDb = dbMilestones[i];
+      if (msDb?.status !== "accepted") {
+        return i;
+      }
+    }
+    return 0;
+  });
   const [newLink, setNewLink] = useState("");
 
   // Per-file delete spinner: key = `${tabIdx}-${fileIdx}`
@@ -206,7 +212,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const isTabUnlocked = (idx: number) => {
     if (idx === 0) return true;
     const prev = milestones[idx - 1];
-    return prev.status === "accepted" || prev.submitted;
+    return prev.status === "accepted";
   };
 
   const hasAnyNewContent = milestones.some(
@@ -326,7 +332,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         const m = milestones[mi];
         const label = getMilestoneLabel(mi, milestoneCount);
         if (m.note.trim()) {
-          notesParts.push(`[${label}] ${m.note.trim()}`);
+          notesParts.push(m.note.trim());
         }
 
         // Add links
@@ -486,11 +492,18 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                 )}
               </div>
               <h3 className="text-base font-bold text-foreground mt-1 leading-tight">{project.title}</h3>
-              {project.paymentTerms && (
-                <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 rounded-md px-2 py-0.5">
-                  {project.paymentTerms}
-                </span>
-              )}
+              <span className="inline-block mt-1 text-[10px] font-bold tracking-wide text-primary bg-primary/10 border border-primary/20 rounded-md px-2.5 py-0.5">
+                {(() => {
+                  const t = (project.paymentTerms || "").toLowerCase();
+                  if (milestoneCount === 3 || t.includes("three") || t === "3") {
+                    return "Three Times Payment / 3 Milestones";
+                  }
+                  if (milestoneCount === 2 || t.includes("two") || t === "2") {
+                    return "Two Times Payment / 2 Milestones";
+                  }
+                  return "One Time Payment / 1 Milestone";
+                })()}
+              </span>
             </div>
             <button
               onClick={!isUploading ? onClose : undefined}
@@ -540,23 +553,44 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
             </div>
           )}
 
+          {/* Milestone Payment Subheader */}
+          {(() => {
+            const totalB = Number((project as any).adminBudget || (project as any).price || 0);
+            const perMs = milestoneCount > 0 && totalB > 0 ? totalB / milestoneCount : 0;
+            return (
+              <div className="flex items-center justify-between bg-primary/5 border-b border-primary/20 px-5 py-2 text-xs shrink-0">
+                <span className="font-bold text-muted-foreground">
+                  {getMilestoneLabel(activeTab, milestoneCount)} Payout:
+                </span>
+                <span className="font-extrabold text-primary text-sm">
+                  {(project as any).currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            );
+          })()}
+
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {/* STATUS BANNER PER MILESTONE */}
             {currentMilestone.status === "accepted" ? (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/20 shrink-0">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              <div className="relative overflow-hidden flex items-start gap-3 rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/10 p-4 text-xs shadow-xs">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 shrink-0 mt-0.5">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div>
-                  <p className="font-bold text-emerald-700 dark:text-emerald-300">
-                    {getMilestoneLabel(activeTab, milestoneCount)} — Accepted ✓
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-extrabold text-emerald-800 dark:text-emerald-200 text-sm">
+                      {getMilestoneLabel(activeTab, milestoneCount)} — Accepted ✓
+                    </p>
+                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white uppercase tracking-wider shadow-xs">
+                      Accepted Stamp
+                    </span>
+                  </div>
                   <p className="text-muted-foreground mt-0.5">
-                    This milestone has been accepted by the client.
+                    Deliverables approved by client &amp; escrow payment released to your wallet.
                   </p>
                   {currentMilestone.clientNote && (
-                    <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-1 italic">
+                    <p className="text-xs text-emerald-900 dark:text-emerald-100 mt-1.5 font-medium italic bg-emerald-500/15 p-2 rounded-lg border border-emerald-500/25">
                       Client Note: "{currentMilestone.clientNote}"
                     </p>
                   )}
@@ -569,11 +603,11 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                 </div>
                 <div>
                   <p className="font-bold text-orange-700 dark:text-orange-300">
-                    Revision Requested on {getMilestoneLabel(activeTab, milestoneCount)}
+                    Not Accepted — Revision Requested on {getMilestoneLabel(activeTab, milestoneCount)}
                   </p>
                   {currentMilestone.clientNote && (
-                    <p className="text-xs text-orange-800 dark:text-orange-200 mt-0.5 font-medium">
-                      Client Reason: "{currentMilestone.clientNote}"
+                    <p className="text-xs text-orange-800 dark:text-orange-200 mt-1 font-medium italic">
+                      Client Revision Note: "{currentMilestone.clientNote}"
                     </p>
                   )}
                   <p className="text-muted-foreground mt-1">

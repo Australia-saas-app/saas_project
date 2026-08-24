@@ -837,19 +837,41 @@ export class ProjectService {
         }
         return saved;
       } else {
-        // Partial acceptance — reset deliverables so next milestone can be submitted
+        // Partial acceptance — release this milestone's payment & reset deliverables for next milestone
         project.deliverableUrls = [];
         project.deliverableFiles = [];
         project.completionNotes = '';
         project.submissionStatus = SubmissionStatus.IN_PROGRESS;
         const saved = await this.projectRepository.save(project);
 
+        const total = Number(project.adminBudget || project.price);
+        const commissionPct = Number(project.commissionPercent ?? 10);
+        const milestoneTotal = data.totalMilestones > 0 ? total / data.totalMilestones : total;
+        const commission = parseFloat(((milestoneTotal * commissionPct) / 100).toFixed(2));
+        const businessPayout = parseFloat((milestoneTotal - commission).toFixed(2));
+
+        const walletUrl =
+          process.env.WALLET_SERVICE_URL || 'http://saas-backend-wallet:3015/wallet-service';
+
+        if (project.assignedBusinessId && businessPayout > 0) {
+          await fetch(`${walletUrl}/internal/credit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: project.assignedBusinessId,
+              amount: businessPayout,
+              description: `Payment release for Milestone ${data.milestoneIndex + 1}: ${project.title} (${project.projectId})`,
+              reference: `${project.projectId}-M${data.milestoneIndex + 1}`,
+            }),
+          }).catch((e) => this.logger.error('Failed to credit business wallet for milestone', e));
+        }
+
         if (project.assignedBusinessId) {
           this.triggerNotification({
             userId: project.assignedBusinessId,
             type: 'TECHNICAL_PROJECT_MILESTONE_ACCEPTED',
-            title: `Milestone ${data.milestoneIndex + 1} Accepted`,
-            message: `Milestone ${data.milestoneIndex + 1} accepted for "${project.title}". Please submit the next milestone deliverables.`,
+            title: `Milestone ${data.milestoneIndex + 1} Accepted & Payment Released`,
+            message: `Milestone ${data.milestoneIndex + 1} accepted for "${project.title}". Payout of $${businessPayout.toFixed(2)} USD has been released to your balance!`,
             priority: 'high',
             href: '/business/technical',
           });

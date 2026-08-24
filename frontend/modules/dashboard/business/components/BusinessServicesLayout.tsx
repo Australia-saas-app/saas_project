@@ -61,10 +61,12 @@ const ROUTED_CATEGORIES: Record<string, string> = {
 
 function matchesTab(row: BusinessServiceRow, tab: TabKey) {
   const isAssigned = Boolean((row as any).isAssigned || (row as any).isInProgress);
+  const isAccepted = row.status === "Completed" || (row as any).rawProject?.submissionStatus === "accepted";
   if (tab === "allServices") return true;
-  if (tab === "active") return isAssigned || (row.status === "Active" && !(row as any).isApplied);
-  if (tab === "pending") return !isAssigned && (row.status === "Pending" || (row as any).isApplied);
-  return row.status === "Completed";
+  if (tab === "completed") return isAccepted;
+  if (tab === "active") return !isAccepted && (isAssigned || (row.status === "Active" && !(row as any).isApplied));
+  if (tab === "pending") return !isAccepted && !isAssigned && (row.status === "Pending" || (row as any).isApplied);
+  return false;
 }
 
 function deadlineToInputValue(deadline: string): string {
@@ -178,7 +180,7 @@ export default function BusinessServicesLayout() {
             p.assignedBusinessEmail === (user as any)?.email
           )
         );
-        const isCompleted = p.submissionStatus === "completed";
+        const isCompleted = p.submissionStatus === "completed" || p.submissionStatus === "accepted";
         const isInProgress = isAssigned && (p.submissionStatus === "active" || p.submissionStatus === "in_progress");
 
         return {
@@ -435,11 +437,55 @@ export default function BusinessServicesLayout() {
   const activeCount = services.filter((s) => (s as any).isAssigned || (s as any).isInProgress || (s.status === "Active" && !(s as any).isApplied)).length;
   const completedCount = services.filter((s) => s.status === "Completed").length;
 
+  const monthlyRevenueNumber = useMemo(() => {
+    let sum = 0;
+    const uId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
+    const uEmail = (user as any)?.email;
+
+    services.forEach((s: any) => {
+      const p = s.rawProject;
+      if (!p) return;
+
+      const isAssigned =
+        s.isAssigned ||
+        Boolean(
+          p.assignedBusinessId && uId && (
+            p.assignedBusinessId === uId ||
+            p.assignedBusinessId === (user as any)?.userId ||
+            p.assignedBusinessId === (user as any)?.id
+          )
+        ) ||
+        Boolean(
+          p.assignedBusinessEmail && uEmail && p.assignedBusinessEmail === uEmail
+        );
+
+      if (!isAssigned) return;
+
+      const totalBudget = Number(p.adminBudget || p.price || (p as any).budgetAmount || 0);
+      if (totalBudget <= 0) return;
+
+      const terms = (p.paymentTerms || "").toLowerCase();
+      const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+      const perMilestone = totalBudget / mCount;
+
+      if (p.submissionStatus === "accepted" || p.paymentStatus === "released") {
+        sum += totalBudget;
+      } else if (Array.isArray(p.milestones)) {
+        const acceptedCount = p.milestones.filter((m: any) => m?.status === "accepted").length;
+        sum += acceptedCount * perMilestone;
+      }
+    });
+    return sum;
+  }, [services, user]);
+
   const serviceStats = [
     { label: t.business.services.activeServices, value: String(activeCount) },
     { label: t.business.services.pendingApproval, value: String(pendingCount) },
     { label: t.business.services.completedJobs, value: String(completedCount) },
-    { label: t.business.services.monthlyRevenue, value: "$4,250" },
+    {
+      label: t.business.services.monthlyRevenue,
+      value: `$${monthlyRevenueNumber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    },
   ];
 
   const tabLabels: Record<TabKey, string> = {

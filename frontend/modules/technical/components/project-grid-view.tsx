@@ -19,6 +19,8 @@ import {
   User,
   Mail,
   Download,
+  Clock,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { TechnicalProject } from "../types/project.type";
@@ -151,10 +153,27 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                   </span>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {isAssignedToMe ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                        <Loader2 className="h-3 w-3 animate-spin text-emerald-600 dark:text-emerald-400" />
-                        In Progress
-                      </span>
+                      project.submissionStatus === "accepted" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                          Completed &amp; Paid ✓
+                        </span>
+                      ) : project.submissionStatus === "completed" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                          <Clock className="h-3 w-3 text-amber-500" />
+                          Ready for Review
+                        </span>
+                      ) : project.submissionStatus === "revision" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 px-2.5 py-0.5 text-[11px] font-bold text-orange-700 dark:text-orange-300">
+                          <RotateCcw className="h-3 w-3 text-orange-500" />
+                          Revision Requested
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
+                          <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
+                          In Progress
+                        </span>
+                      )
                     ) : isNotChosen ? (
                       <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
                         Thank you for applying, Better Luck Next time
@@ -229,6 +248,29 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                   <p className="text-sm font-extrabold text-primary">
                     {project.priceRange || `${(project as any).currency || "USD"} $${Number((project as any).adminBudget || project.price || 0).toLocaleString()}`}
                   </p>
+                  {(() => {
+                    const terms = (project.paymentTerms || "").toLowerCase();
+                    const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                    if (mCount > 1) {
+                      const totalVal = Number((project as any).adminBudget || project.price || 0);
+                      if (totalVal > 0) {
+                        const perMs = totalVal / mCount;
+                        return (
+                          <div className="mt-1 space-y-0.5 text-[10px] text-muted-foreground font-semibold">
+                            {Array.from({ length: mCount }, (_, i) => (
+                              <p key={i}>
+                                Milestone {i + 1} Payment:{" "}
+                                <span className="text-foreground font-bold">
+                                  {(project as any).currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">

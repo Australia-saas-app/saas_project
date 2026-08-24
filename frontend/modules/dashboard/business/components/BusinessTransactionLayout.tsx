@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowLeftRight, Search } from "lucide-react";
 import { toast } from "sonner";
 import { exportToCSV } from "@/src/utils/export";
@@ -14,6 +14,7 @@ import RecordDetailDrawer from "../../shared/components/RecordDetailDrawer";
 import { sortByMoney } from "../../shared/utils/sort-rows";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
+import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 
 const PAGE_SIZE = 8;
 const TABS = ["all", "deposits", "withdrawals", "invoices"] as const;
@@ -49,7 +50,7 @@ function renderType(type: TransactionType) {
 
 export default function BusinessTransactionLayout() {
   const { t } = useLocale();
-  const { demoOrEmpty } = useIsDemoAccount();
+  const { demoOrEmpty, isDemo } = useIsDemoAccount();
   const transactions = demoOrEmpty(
     BUSINESS_TRANSACTION_ROWS,
     [] as typeof BUSINESS_TRANSACTION_ROWS
@@ -60,6 +61,23 @@ export default function BusinessTransactionLayout() {
   const [search, setSearch] = useState("");
   const [sortDir, setSortDir] = useState<"Up" | "Down">("Down");
   const [page, setPage] = useState(1);
+  const [realBalance, setRealBalance] = useState<number | null>(null);
+
+  const loadBalance = async () => {
+    try {
+      const res = await fetchWalletBalance();
+      if (res?.balance !== undefined && res.balance !== null) {
+        setRealBalance(res.balance);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadBalance();
+    const onWalletUpdated = () => loadBalance();
+    window.addEventListener("wallet_updated", onWalletUpdated);
+    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -81,11 +99,13 @@ export default function BusinessTransactionLayout() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : (isDemo ? "$2,920" : "$0.00");
+
   const transactionStats = [
     { label: t.business.transactions.totalInflow, value: "$12,480" },
     { label: t.business.transactions.totalOutflow, value: "$8,920" },
     { label: t.business.transactions.pending, value: "$640" },
-    { label: t.business.transactions.availableBalance, value: "$2,920", highlight: true },
+    { label: t.business.transactions.availableBalance, value: displayBalance, highlight: true },
   ];
 
   const tabLabels: Record<TabKey, string> = {

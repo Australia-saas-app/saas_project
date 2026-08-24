@@ -27,4 +27,8 @@ export interface TechnicalProject {
   assignedProposalId?: string
   submissionStatus?: string
   status?: string
+  paymentTerms?: string
+  currency?: string
+  adminBudget?: number
+  milestones?: any[]
 }
