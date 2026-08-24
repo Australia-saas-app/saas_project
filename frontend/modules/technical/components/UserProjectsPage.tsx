@@ -45,6 +45,7 @@ import {
   writeLocalProjects,
   reviewAcceptProject,
   requestRevision,
+  reviewMilestone,
   submitProject,
   deleteProject,
   fetchProjectProposals,
@@ -172,6 +173,8 @@ interface Project {
   completionNotes?: string;
   deliverableUrls?: string[];
   deliverableFiles?: { name: string; url: string; size?: number; type?: string; uploadedAt?: string }[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  milestones?: any[];
   createdAt: string;
 }
 
@@ -198,6 +201,13 @@ export default function UserProjectsPage() {
   const [revisionReason, setRevisionReason] = useState("");
   const [deleteModalProject, setDeleteModalProject] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Assigned provider review modal
+  const [assignedViewProject, setAssignedViewProject] = useState<Project | null>(null);
+  const [assignedReviewAction, setAssignedReviewAction] = useState<"review" | "accept" | null>(null);
+  const [assignedReviewNote, setAssignedReviewNote] = useState("");
+  const [assignedReviewSubmitting, setAssignedReviewSubmitting] = useState(false);
+  const [assignedMilestoneTab, setAssignedMilestoneTab] = useState(0);
+  const ASSIGNED_NOTE_MAX = 150;
 
   const loadAllProposals = useCallback(async (list: Project[]) => {
     try {
@@ -812,14 +822,19 @@ export default function UserProjectsPage() {
                       </p>
                     </div>
 
-                    {project.assignedBusinessName && (
+                    {(project.assignedBusinessName || project.assignedBusinessEmail) && (
                       <div className="text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Provider
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
+                          Assigned To
                         </p>
-                        <p className="text-xs font-semibold text-foreground truncate max-w-[120px]">
-                          {project.assignedBusinessName}
+                        <p className="text-xs font-bold text-foreground truncate max-w-[130px]">
+                          {project.assignedBusinessName || "—"}
                         </p>
+                        {project.assignedBusinessEmail && (
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+                            {project.assignedBusinessEmail}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -945,11 +960,16 @@ export default function UserProjectsPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setAppliedModalProject(project)}
-                                className="w-full rounded-xl text-xs font-bold border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                                onClick={() => {
+                                  setAssignedViewProject(project);
+                                  setAssignedMilestoneTab(0);
+                                  setAssignedReviewAction(null);
+                                  setAssignedReviewNote("");
+                                }}
+                                className="w-full rounded-xl text-xs font-bold border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-xs"
                               >
-                                <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span>Assigned</span>
+                                <Eye className="h-3.5 w-3.5" />
+                                <span>View Project</span>
                               </Button>
                             ) : (
                               <Button
@@ -1721,6 +1741,386 @@ export default function UserProjectsPage() {
           </div>
         </div>
       )}
+
+      {/* ASSIGNED PROVIDER & DELIVERABLE REVIEW MODAL */}
+      {assignedViewProject && (() => {
+        const p = assignedViewProject;
+        const milestoneCount = (() => {
+          const t = (p.paymentTerms || "").toLowerCase();
+          if (t.includes("three")) return 3;
+          if (t.includes("two")) return 2;
+          return 1;
+        })();
+        const milestoneLabels = ["First Time Payment", "Second Time Payment", "Third Time Payment"];
+        const getMLabel = (i: number) =>
+          milestoneCount === 1 ? "One Time Payment / Milestone" : (milestoneLabels[i] ?? `Milestone ${i + 1}`);
+
+        // milestones JSONB array from DB for per-milestone status
+        const dbMilestones: any[] = Array.isArray(p.milestones) ? p.milestones : [];
+        const getMilestoneStatus = (i: number) => dbMilestones[i]?.status ?? "pending";
+        const getMilestoneClientNote = (i: number) => dbMilestones[i]?.clientNote ?? "";
+
+        const currentMsStatus = getMilestoneStatus(assignedMilestoneTab);
+        const currentAccepted = currentMsStatus === "accepted";
+
+        // Tab unlock: tab 0 always open, tab N open if previous accepted
+        const isTabOpen = (i: number) => i === 0 || getMilestoneStatus(i - 1) === "accepted";
+
+        const allFiles = p.deliverableFiles || [];
+        const allLinks = (p.deliverableUrls || []).filter(u => !allFiles.find(f => f.url === u));
+        const notesText = p.completionNotes || "";
+        const hasDeliverables = allFiles.length > 0 || allLinks.length > 0 || notesText;
+
+        const canSubmitReview = assignedReviewAction !== null && assignedReviewNote.trim().length > 0;
+
+        const handleReviewSubmit = async () => {
+          if (!canSubmitReview) return;
+          setAssignedReviewSubmitting(true);
+          try {
+            await reviewMilestone(p.projectId, {
+              milestoneIndex: assignedMilestoneTab,
+              action: assignedReviewAction as "accept" | "revision",
+              clientNote: assignedReviewNote.trim(),
+              totalMilestones: milestoneCount,
+            });
+
+            if (assignedReviewAction === "accept") {
+              const isLast = assignedMilestoneTab === milestoneCount - 1;
+              if (isLast || milestoneCount === 1) {
+                toast.success("Project accepted! Escrow payment released to the provider.");
+              } else {
+                toast.success(`Milestone ${assignedMilestoneTab + 1} accepted! Next milestone is now unlocked.`);
+                setAssignedMilestoneTab(assignedMilestoneTab + 1);
+              }
+            } else {
+              toast.success(`Revision requested on Milestone ${assignedMilestoneTab + 1}. Provider has been notified.`);
+            }
+
+            setAssignedReviewAction(null);
+            setAssignedReviewNote("");
+            loadProjects();
+          } catch (e: any) {
+            toast.error(e?.message || "Action failed. Please try again.");
+          } finally {
+            setAssignedReviewSubmitting(false);
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+            <div
+              style={{ maxWidth: "560px", width: "100%", maxHeight: "90vh" }}
+              className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl my-auto"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-border px-5 py-4 shrink-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs text-primary font-bold">{p.projectId}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${STATUS_CONFIG[p.submissionStatus]?.color ?? ""}`}>
+                      {STATUS_CONFIG[p.submissionStatus]?.icon}
+                      {STATUS_CONFIG[p.submissionStatus]?.label}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-foreground mt-1 leading-tight">{p.title}</h3>
+                  {p.paymentTerms && (
+                    <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 rounded-md px-2 py-0.5">
+                      {p.paymentTerms}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignedViewProject(null)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 ml-3 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Milestone Tabs */}
+              {milestoneCount > 1 && (
+                <div className="flex gap-0.5 px-5 pt-3 shrink-0 border-b border-border pb-0">
+                  {Array.from({ length: milestoneCount }, (_, i) => {
+                    const open = isTabOpen(i);
+                    const msStatus = getMilestoneStatus(i);
+                    const isActive = assignedMilestoneTab === i;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={!open}
+                        onClick={() => { if (open) { setAssignedMilestoneTab(i); setAssignedReviewAction(null); setAssignedReviewNote(""); } }}
+                        className={[
+                          "flex-1 flex items-center justify-center gap-1.5 rounded-t-xl border-b-2 px-3 py-2.5 text-[11px] font-bold transition-all whitespace-nowrap",
+                          isActive ? "border-primary text-primary bg-primary/5 cursor-pointer"
+                            : open ? "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer"
+                            : "border-transparent text-muted-foreground/40 cursor-not-allowed",
+                        ].join(" ")}
+                      >
+                        {msStatus === "accepted" ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        ) : msStatus === "revision" ? (
+                          <RotateCcw className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                        ) : open ? (
+                          <Eye className="h-3 w-3 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                        )}
+                        {getMLabel(i)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+                {/* Provider Info */}
+                <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Assigned To — Provider</p>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                        <User className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-foreground leading-tight">
+                          {p.assignedBusinessName || "Business Provider"}
+                        </p>
+                        {p.assignedBusinessEmail && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Mail className="h-3 w-3" /> {p.assignedBusinessEmail}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setChatProject(p); setAssignedViewProject(null); }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-muted hover:text-primary transition-colors cursor-pointer shrink-0"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Message
+                    </button>
+                  </div>
+                  {p.assignedBusinessId && (
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-lg border border-border bg-background/60 p-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Business ID</span>
+                        <span className="font-mono text-foreground font-semibold truncate block">{p.assignedBusinessId}</span>
+                      </div>
+                      {p.assignedAt && (
+                        <div className="rounded-lg border border-border bg-background/60 p-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Assigned On</span>
+                          <span className="font-semibold text-foreground">{new Date(p.assignedAt).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ACCEPTED stamp for this milestone */}
+                {currentAccepted && (
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 shrink-0">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                        {getMLabel(assignedMilestoneTab)} — Accepted ✓
+                      </p>
+                      {getMilestoneClientNote(assignedMilestoneTab) && (
+                        <p className="text-xs text-muted-foreground mt-0.5 italic">
+                          Your note: "{getMilestoneClientNote(assignedMilestoneTab)}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* REVISION status for this milestone */}
+                {currentMsStatus === "revision" && (
+                  <div className="flex items-center gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 p-3.5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20 shrink-0">
+                      <RotateCcw className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-orange-700 dark:text-orange-300">
+                        Revision Requested — Waiting for provider to resubmit
+                      </p>
+                      {getMilestoneClientNote(assignedMilestoneTab) && (
+                        <p className="text-xs text-muted-foreground mt-0.5 italic">
+                          Your note: "{getMilestoneClientNote(assignedMilestoneTab)}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Deliverables */}
+                {hasDeliverables ? (
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {currentMsStatus === "revision" ? "Previous Submission (Revision Requested)" : "Project Submission by Provider"}
+                    </p>
+
+                    {allFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-semibold text-muted-foreground">Submitted Files</p>
+                        {allFiles.map((file, i) => (
+                          <div key={i} className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-2.5 text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-semibold text-foreground truncate">{file.name}</p>
+                                {file.size && <p className="text-[11px] text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>}
+                              </div>
+                            </div>
+                            <a
+                              href={file.url}
+                              download={file.name}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline shrink-0 ml-2"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Download
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {allLinks.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-semibold text-muted-foreground">Submitted Links</p>
+                        {allLinks.map((link, i) => (
+                          <div key={i} className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-2.5 text-xs">
+                            <ExternalLink className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <a href={link} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">{link}</a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {notesText && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-muted-foreground mb-1">Provider Notes</p>
+                        <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                          {notesText}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : !currentAccepted && currentMsStatus !== "revision" && (
+                  <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                    <p className="font-semibold">No deliverables submitted yet.</p>
+                    <p className="mt-1">The business provider is currently working on this milestone.</p>
+                  </div>
+                )}
+
+                {/* Review / Accept section — only when deliverables submitted and milestone not yet accepted */}
+                {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
+                  <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Your Decision</p>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setAssignedReviewAction("review"); setAssignedReviewNote(""); }}
+                        className={[
+                          "flex-1 rounded-xl py-2.5 text-xs font-bold border transition-all cursor-pointer",
+                          assignedReviewAction === "review"
+                            ? "bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-300"
+                            : "border-border hover:bg-muted text-muted-foreground",
+                        ].join(" ")}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 inline mr-1.5" />
+                        Request Revision
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAssignedReviewAction("accept"); setAssignedReviewNote(""); }}
+                        className={[
+                          "flex-1 rounded-xl py-2.5 text-xs font-bold border transition-all cursor-pointer",
+                          assignedReviewAction === "accept"
+                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                            : "border-border hover:bg-muted text-muted-foreground",
+                        ].join(" ")}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 inline mr-1.5" />
+                        Accept {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "& Release"}
+                      </button>
+                    </div>
+
+                    {assignedReviewAction && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            {assignedReviewAction === "accept"
+                              ? (milestoneCount === 1 ? "Acceptance Note" : `Milestone ${assignedMilestoneTab + 1} Acceptance Note`)
+                              : "Revision Reason"}
+                            <span className="text-red-500 ml-0.5">*</span>
+                          </label>
+                          <span className={`text-[11px] font-semibold ${assignedReviewNote.length >= ASSIGNED_NOTE_MAX ? "text-red-500" : "text-muted-foreground"}`}>
+                            {assignedReviewNote.length}/{ASSIGNED_NOTE_MAX}
+                          </span>
+                        </div>
+                        <textarea
+                          value={assignedReviewNote}
+                          onChange={(e) => { if (e.target.value.length <= ASSIGNED_NOTE_MAX) setAssignedReviewNote(e.target.value); }}
+                          placeholder={assignedReviewAction === "accept"
+                            ? "Confirm the work meets requirements. Add any handover or final notes..."
+                            : "Describe exactly what needs to be revised or corrected..."
+                          }
+                          rows={3}
+                          className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none resize-none"
+                        />
+                        {assignedReviewNote.trim().length === 0 && (
+                          <p className="text-[11px] text-amber-500 mt-0.5">Note is required before submitting.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-border px-5 py-3.5 bg-muted/20 shrink-0 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAssignedViewProject(null)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
+                >
+                  Close
+                </button>
+                {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
+                  <button
+                    type="button"
+                    disabled={!canSubmitReview || assignedReviewSubmitting}
+                    onClick={handleReviewSubmit}
+                    className={[
+                      "rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm",
+                      assignedReviewAction === "accept"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : "bg-orange-500 hover:bg-orange-600 text-white",
+                    ].join(" ")}
+                  >
+                    {assignedReviewSubmitting ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...</>
+                    ) : assignedReviewAction === "accept" ? (
+                      <><CheckCircle2 className="h-3.5 w-3.5" /> Accept & Release {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "Payment"}</>
+                    ) : (
+                      <><RotateCcw className="h-3.5 w-3.5" /> Submit Revision Request</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* CUSTOM DELETE CONFIRMATION MODAL */}
       {deleteModalProject && (

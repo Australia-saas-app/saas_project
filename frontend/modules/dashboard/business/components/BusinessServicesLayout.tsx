@@ -60,9 +60,10 @@ const ROUTED_CATEGORIES: Record<string, string> = {
 };
 
 function matchesTab(row: BusinessServiceRow, tab: TabKey) {
+  const isAssigned = Boolean((row as any).isAssigned || (row as any).isInProgress);
   if (tab === "allServices") return true;
-  if (tab === "active") return row.status === "Active" && !(row as any).isApplied;
-  if (tab === "pending") return row.status === "Pending" || (row as any).isApplied;
+  if (tab === "active") return isAssigned || (row.status === "Active" && !(row as any).isApplied);
+  if (tab === "pending") return !isAssigned && (row.status === "Pending" || (row as any).isApplied);
   return row.status === "Completed";
 }
 
@@ -430,8 +431,8 @@ export default function BusinessServicesLayout() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const pendingCount = services.filter((s) => s.status === "Pending" || (s as any).isApplied).length;
-  const activeCount = services.filter((s) => s.status === "Active" && !(s as any).isApplied).length;
+  const pendingCount = services.filter((s) => !((s as any).isAssigned || (s as any).isInProgress) && (s.status === "Pending" || (s as any).isApplied)).length;
+  const activeCount = services.filter((s) => (s as any).isAssigned || (s as any).isInProgress || (s.status === "Active" && !(s as any).isApplied)).length;
   const completedCount = services.filter((s) => s.status === "Completed").length;
 
   const serviceStats = [
@@ -1275,6 +1276,7 @@ export default function BusinessServicesLayout() {
           project={{
             projectId: String(deliverableProject.projectId || deliverableProject.id || ""),
             title: deliverableProject.title,
+            paymentTerms: deliverableProject.paymentTerms,
             deliverableUrls: deliverableProject.deliverableUrls,
             deliverableFiles: deliverableProject.deliverableFiles,
             completionNotes: deliverableProject.completionNotes,

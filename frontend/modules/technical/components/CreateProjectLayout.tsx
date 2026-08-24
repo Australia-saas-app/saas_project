@@ -262,7 +262,7 @@ export default function CreateProjectLayout() {
       preferredLanguages: [],
       currency: "USD",
       budgetAmount: "",
-      paymentTerms: "One-time",
+      paymentTerms: "One Time Payment",
       fullName: "",
       email: "",
       phone: "",
@@ -347,7 +347,7 @@ export default function CreateProjectLayout() {
         projectType: data.projectType || "New Build",
         skills: data.requiredSkills || [],
         preferredLanguages: data.preferredLanguages || [],
-        paymentTerms: data.paymentTerms || "One-time",
+        paymentTerms: data.paymentTerms || "One Time Payment",
         clientName: clientFullName,
         clientEmail: data.email || user?.email,
         clientPhone: data.phone,
@@ -732,11 +732,9 @@ export default function CreateProjectLayout() {
                         {...field}
                         className="w-full mt-1 p-2.5 border border-border rounded-xl bg-card text-foreground text-xs font-medium cursor-pointer focus:border-primary focus:outline-none transition-colors"
                       >
-                        <option value="One-time">One-time full payment</option>
-                        <option value="Two">2-Phase Milestone payment</option>
-                        <option value="Three">3-Phase Milestone payment</option>
-                        <option value="Four">4-Phase Milestone payment</option>
-                        <option value="Five">5-Phase Milestone payment</option>
+                        <option value="One Time Payment">One Time Payment</option>
+                        <option value="Two Time Payment">Two Time Payment</option>
+                        <option value="Three Time Payment">Three Time Payment</option>
                       </select>
                     )}
                   />

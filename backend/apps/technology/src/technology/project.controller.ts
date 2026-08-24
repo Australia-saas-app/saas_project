@@ -277,6 +277,19 @@ export class ProjectController {
     return this.projectService.requestRevision(projectId, reviewerId, body.reason);
   }
 
+  @Post(':projectId/review-milestone')
+  @UseGuards(UnifiedAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Client accepts or requests revision on a specific milestone' })
+  async reviewMilestone(
+    @Param('projectId') projectId: string,
+    @Body() body: { milestoneIndex: number; action: 'accept' | 'revision'; clientNote: string; totalMilestones: number },
+    @Req() req: any,
+  ) {
+    const reviewerId = req.user?.userId || req.admin?.adminId || 'admin';
+    return this.projectService.reviewMilestone(projectId, reviewerId, body);
+  }
+
   // ─── PROPOSALS ──────────────────────────────────────────────────────────────
 
   @Post(':projectId/apply')

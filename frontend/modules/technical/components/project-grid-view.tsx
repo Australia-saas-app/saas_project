@@ -523,6 +523,7 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
           project={{
             projectId: String(deliverableProject.projectId || deliverableProject.id || ""),
             title: deliverableProject.title,
+            paymentTerms: (deliverableProject as any).paymentTerms,
             deliverableUrls: (deliverableProject as any).deliverableUrls,
             deliverableFiles: (deliverableProject as any).deliverableFiles,
             completionNotes: (deliverableProject as any).completionNotes,

@@ -429,31 +429,30 @@ export const fetchMyProjects = async (_token?: string) => {
       data?.data ||
       (Array.isArray(data) ? data : []);
 
-    if (Array.isArray(rawList)) {
+    if (Array.isArray(rawList) && rawList.length >= 0) {
       const local = readLocalProjects();
-      const map = new Map<string, any>();
+      const dbMap = new Map<string, any>();
+
+      // DB is always the source of truth
       rawList.forEach((p: any) => {
-        if (p?.projectId) map.set(p.projectId, p);
-      });
-      local.forEach((p: any) => {
         if (p?.projectId) {
-          const existing = map.get(p.projectId);
-          if (!existing) {
-            map.set(p.projectId, p);
-          } else {
-            // If local was already paid or activated, don't let stale remote status override it
-            const isPaid = p.paymentStatus === "paid" || existing.paymentStatus === "paid";
-            const isLive = p.submissionStatus === "active" || existing.submissionStatus === "active";
-            map.set(p.projectId, {
-              ...existing,
-              ...p,
-              paymentStatus: isPaid ? "paid" : existing.paymentStatus || p.paymentStatus,
-              submissionStatus: isLive ? "active" : existing.submissionStatus || p.submissionStatus,
-            });
-          }
+          // Map acceptedAt → assignedAt for frontend compatibility
+          const mapped = {
+            ...p,
+            assignedAt: p.assignedAt || p.acceptedAt || null,
+          };
+          dbMap.set(p.projectId, mapped);
         }
       });
-      const merged = Array.from(map.values());
+
+      // Only add local-only projects not yet in DB (e.g. offline-created)
+      local.forEach((p: any) => {
+        if (p?.projectId && !dbMap.has(p.projectId)) {
+          dbMap.set(p.projectId, p);
+        }
+      });
+
+      const merged = Array.from(dbMap.values());
       writeLocalProjects(merged);
       return { projects: merged };
     }
@@ -572,27 +571,48 @@ export const assignProjectApplicant = async (
     proposalId?: string;
   }
 ) => {
+  // Optimistic local update
+  const optimistic = {
+    assignedBusinessId: applicant.businessUserId || applicant.businessId,
+    assignedBusinessUserId: applicant.businessUserId || applicant.businessId,
+    assignedBusinessName: applicant.businessName,
+    assignedBusinessEmail: applicant.businessEmail,
+    assignedProposalId: applicant.proposalId,
+    submissionStatus: "in_progress",
+    status: "in_progress",
+    assignedAt: new Date().toISOString(),
+  };
+
   const local = readLocalProjects();
-  const updated = local.map((p) => {
-    if (p.projectId === projectId || String(p.id) === projectId) {
-      return {
-        ...p,
-        assignedBusinessId: applicant.businessUserId || applicant.businessId,
-        assignedBusinessUserId: applicant.businessUserId || applicant.businessId,
-        assignedBusinessName: applicant.businessName,
-        assignedBusinessEmail: applicant.businessEmail,
-        assignedProposalId: applicant.proposalId,
-        submissionStatus: "in_progress",
-        status: "in_progress",
-        assignedAt: new Date().toISOString(),
-      };
-    }
-    return p;
-  });
+  const updated = local.map((p) =>
+    p.projectId === projectId || String(p.id) === projectId
+      ? { ...p, ...optimistic }
+      : p
+  );
   writeLocalProjects(updated);
 
   try {
-    const res = await axiosInstance.post(`/technology/projects/${projectId}/assign-applicant`, applicant);
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/assign-applicant`, {
+      ...applicant,
+      businessUserId: applicant.businessUserId || applicant.businessId,
+    });
+    const dbProject = res?.data?.data || res?.data;
+
+    // Write DB response back into local cache (DB is source of truth)
+    if (dbProject?.projectId) {
+      const fresh = readLocalProjects();
+      const synced = fresh.map((p) =>
+        p.projectId === dbProject.projectId
+          ? {
+              ...p,
+              ...dbProject,
+              assignedAt: dbProject.assignedAt || dbProject.acceptedAt || optimistic.assignedAt,
+            }
+          : p
+      );
+      writeLocalProjects(synced);
+    }
+
     return res?.data;
   } catch (e: any) {
     console.warn("assignProjectApplicant fallback:", e?.response?.data || e?.message || e);
@@ -878,4 +898,22 @@ export const requestRevision = async (projectId: string, reason: string, _token?
   }
 
   return { success: true, status: "revision" };
+};
+
+export const reviewMilestone = async (
+  projectId: string,
+  data: {
+    milestoneIndex: number;
+    action: 'accept' | 'revision';
+    clientNote: string;
+    totalMilestones: number;
+  }
+) => {
+  try {
+    const res = await axiosInstance.post(`/technology/projects/${projectId}/review-milestone`, data);
+    return res?.data;
+  } catch (e: any) {
+    console.warn('reviewMilestone fallback:', e?.message || e);
+  }
+  return { success: true };
 };

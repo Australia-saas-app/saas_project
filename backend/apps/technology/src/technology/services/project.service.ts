@@ -580,6 +580,7 @@ export class ProjectService {
 
     const effectiveBusinessId = applicant.businessUserId || applicant.businessId;
     project.assignedBusinessId = effectiveBusinessId;
+    project.assignedBusinessUserId = applicant.businessUserId || effectiveBusinessId;
     project.assignedBusinessName = applicant.businessName || effectiveBusinessId;
     if (applicant.businessEmail) {
       project.assignedBusinessEmail = applicant.businessEmail;
@@ -587,6 +588,7 @@ export class ProjectService {
     project.submissionStatus = SubmissionStatus.IN_PROGRESS;
     project.status = ProjectStatus.IN_PROGRESS;
     project.acceptedAt = new Date();
+    project.assignedAt = new Date();
     project.updatedBy = clientId;
 
     if (applicant.proposalId) {
@@ -763,6 +765,118 @@ export class ProjectService {
     }
 
     return saved;
+  }
+
+  /**
+   * Per-milestone review: client accepts or requests revision on a specific milestone.
+   * Stores result in project.milestones JSONB array.
+   * On revision: resets deliverable files/urls/notes so business can re-submit.
+   * On accept of final milestone: marks project fully accepted and releases payment.
+   */
+  async reviewMilestone(
+    projectId: string,
+    reviewerId: string,
+    data: {
+      milestoneIndex: number;
+      action: 'accept' | 'revision';
+      clientNote: string;
+      totalMilestones: number;
+    },
+  ): Promise<Project> {
+    const project = await this.projectRepository.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+
+    // Build / extend the milestones array
+    const milestones: any[] = Array.isArray(project.milestones)
+      ? [...project.milestones]
+      : [];
+
+    // Ensure slots exist up to the index
+    while (milestones.length <= data.milestoneIndex) {
+      milestones.push({ index: milestones.length, status: 'pending', clientNote: '', reviewedAt: null });
+    }
+
+    if (data.action === 'accept') {
+      milestones[data.milestoneIndex] = {
+        ...milestones[data.milestoneIndex],
+        index: data.milestoneIndex,
+        status: 'accepted',
+        clientNote: data.clientNote,
+        reviewedAt: new Date().toISOString(),
+      };
+      project.milestones = milestones;
+
+      // Check if ALL milestones are accepted
+      const allAccepted = Array.from({ length: data.totalMilestones }, (_, i) => i)
+        .every((i) => milestones[i]?.status === 'accepted');
+
+      if (allAccepted || data.totalMilestones === 1) {
+        // Final acceptance → release payment
+        project.submissionStatus = SubmissionStatus.ACCEPTED;
+        project.adminNotes = data.clientNote;
+        const saved = await this.projectRepository.save(project);
+        await this.releasePayment(saved);
+
+        if (project.assignedBusinessId) {
+          this.triggerNotification({
+            userId: project.assignedBusinessId,
+            type: 'TECHNICAL_PROJECT_PAID',
+            title: 'Project Accepted & Payment Released',
+            message: `All milestones accepted for "${project.title}". Payment has been released to your wallet!`,
+            priority: 'high',
+            href: '/business/technical',
+          });
+        }
+        return saved;
+      } else {
+        // Partial acceptance — reset deliverables so next milestone can be submitted
+        project.deliverableUrls = [];
+        project.deliverableFiles = [];
+        project.completionNotes = '';
+        project.submissionStatus = SubmissionStatus.IN_PROGRESS;
+        const saved = await this.projectRepository.save(project);
+
+        if (project.assignedBusinessId) {
+          this.triggerNotification({
+            userId: project.assignedBusinessId,
+            type: 'TECHNICAL_PROJECT_MILESTONE_ACCEPTED',
+            title: `Milestone ${data.milestoneIndex + 1} Accepted`,
+            message: `Milestone ${data.milestoneIndex + 1} accepted for "${project.title}". Please submit the next milestone deliverables.`,
+            priority: 'high',
+            href: '/business/technical',
+          });
+        }
+        return saved;
+      }
+    } else {
+      // Revision: reset deliverables, store client note
+      milestones[data.milestoneIndex] = {
+        ...milestones[data.milestoneIndex],
+        index: data.milestoneIndex,
+        status: 'revision',
+        clientNote: data.clientNote,
+        reviewedAt: new Date().toISOString(),
+      };
+      project.milestones = milestones;
+      project.deliverableUrls = [];
+      project.deliverableFiles = [];
+      project.completionNotes = '';
+      project.submissionStatus = SubmissionStatus.REVISION;
+      project.adminNotes = data.clientNote;
+      const saved = await this.projectRepository.save(project);
+
+      if (project.assignedBusinessId) {
+        this.triggerNotification({
+          userId: project.assignedBusinessId,
+          type: 'TECHNICAL_PROJECT_REVISION',
+          title: `Revision Requested — Milestone ${data.milestoneIndex + 1}`,
+          message: `Client requested revision on milestone ${data.milestoneIndex + 1} for "${project.title}": ${data.clientNote}`,
+          priority: 'high',
+          href: '/business/technical',
+        });
+      }
+      return saved;
+    }
   }
 
   private async releasePayment(project: Project): Promise<void> {

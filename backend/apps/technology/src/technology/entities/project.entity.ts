@@ -164,7 +164,7 @@ export class Project {
   paymentTerms: string; // 'one_time' | 'milestone'
 
   @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
-  milestones: { id: string; title: string; amount: number; status: string }[];
+  milestones: any[];
 
   @Column({ type: 'simple-array', nullable: true })
   skills: string[];
@@ -200,6 +200,12 @@ export class Project {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   assignedBusinessEmail: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  assignedBusinessUserId: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  assignedAt: Date;
 
   @Column({ type: 'timestamp', nullable: true })
   acceptedAt: Date;
