@@ -199,6 +199,7 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                 <div className="flex flex-col items-end gap-1">
                   {isAssignedToMe ? (
                     <ProjectDeadlineCountdown
+                      projectId={String(project.projectId || project.id || "")}
                       endDate={(project as any).endDate}
                       createdAt={(project as any).createdAt}
                       assignedAt={(project as any).assignedAt}
@@ -311,10 +312,17 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                       <Upload className="w-3.5 h-3.5 text-primary" />
                       <span>Submit Deliverables</span>
                     </button>
-                    <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg shrink-0">
-                      <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
-                      <span>Assigned</span>
-                    </div>
+                    {project.submissionStatus === "accepted" ? (
+                      <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                        <span>Completed</span>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg shrink-0">
+                        <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                        <span>Assigned</span>
+                      </div>
+                    )}
                   </>
                 ) : isNotChosen ? (
                   <span className="text-[11px] font-bold text-muted-foreground italic">

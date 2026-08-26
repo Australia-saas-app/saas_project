@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { toast } from "sonner";
-import { markProjectComplete } from "../services/technical.services";
+import { markProjectComplete, readLocalProjects } from "../services/technical.services";
 
 // Convert File to base64 Data URL — exactly matches CreateProjectLayout.tsx
 const toBase64 = (file: File): Promise<string> =>
@@ -116,15 +116,42 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const isOverallAccepted = project.submissionStatus === "accepted";
   const isOverallRevision = project.submissionStatus === "revision";
 
-  // Parse notes per milestone if formatted as [First Time Payment] note...
+  // Parse notes per milestone if formatted as [Milestone 1] note...
   const parseNotesForMilestone = (idx: number): string => {
-    const raw = project.completionNotes || "";
+    // 1. Check if specific milestone has note in dbMilestones array
+    const msDb = dbMilestones[idx];
+    if (msDb && (msDb.note || msDb.completionNotes || msDb.deliveryNote || msDb.notes)) {
+      return String(msDb.note || msDb.completionNotes || msDb.deliveryNote || msDb.notes).trim();
+    }
+
+    // 2. Read completionNotes from project prop or local storage fallback
+    const localProject = typeof window !== "undefined"
+      ? readLocalProjects().find((lp: any) => lp.projectId === project.projectId || String(lp.id) === String(project.projectId))
+      : null;
+
+    const raw = (
+      project.completionNotes ||
+      (project as any).notes ||
+      (project as any).deliveryNotes ||
+      localProject?.completionNotes ||
+      localProject?.notes ||
+      ""
+    ).trim();
+
     if (!raw) return "";
+
     const label = getMilestoneLabel(idx, milestoneCount);
-    const regex = new RegExp(`\\[${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]\\s*([^\\n\\[]+)`, "i");
+    const regex = new RegExp(`\\[${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]\\s*([^\\[]+)`, "i");
     const match = raw.match(regex);
     if (match && match[1]) return match[1].trim();
-    if (idx === 0 && !raw.startsWith("[")) return raw.trim();
+
+    // If multi-line notes without milestone tag
+    const lines = raw.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    if (lines.length > idx && !raw.includes("[")) {
+      return lines[idx];
+    }
+
+    if (idx === 0) return raw.replace(/\[Milestone \d+\]/gi, "").trim();
     return "";
   };
 
@@ -332,7 +359,11 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         const m = milestones[mi];
         const label = getMilestoneLabel(mi, milestoneCount);
         if (m.note.trim()) {
-          notesParts.push(m.note.trim());
+          if (milestoneCount > 1) {
+            notesParts.push(`[${label}] ${m.note.trim()}`);
+          } else {
+            notesParts.push(m.note.trim());
+          }
         }
 
         // Add links

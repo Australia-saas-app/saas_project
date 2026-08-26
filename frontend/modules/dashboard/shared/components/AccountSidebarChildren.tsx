@@ -26,8 +26,6 @@ import {
   User,
   LayoutGrid,
 } from "lucide-react";
-import { formatAccountIdLabel } from "@/src/shared/lib/demo-user";
-import UserAccountMenu from "./UserAccountMenu";
 import { isProfileComplete } from "@/src/shared/lib/profile-completion";
 import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user";
 import { useProfileDisplay } from "../hooks/use-profile-display";
@@ -47,8 +45,7 @@ export function AccountSidebarChildren({
   const { user, isLoading } = useUser();
   const { isAffiliate, isBusiness } = usePermission();
   const { t } = useLocale();
-  const logoutMutation = useLogout();
-  const { avatarUrl, isVerified } = useProfileDisplay();
+  const { isVerified } = useProfileDisplay();
 
   let dashboardPrefix = "/user";
   if (isAffiliate) {
@@ -123,18 +120,6 @@ export function AccountSidebarChildren({
     return user.email?.split("@")[0] || "Account";
   };
 
-  const accountIdLabel = formatAccountIdLabel(user);
-  const profileLabel = isBusiness
-    ? t.business.sidebar.profile
-    : !isAffiliate
-      ? t.dashboard.user.profile
-      : t.dashboard.affiliate.profile;
-  const settingsLabel = isBusiness
-    ? t.business.sidebar.settings
-    : !isAffiliate
-      ? t.dashboard.user.settings
-      : t.dashboard.affiliate.settings;
-
   const workspaceRole = isBusiness ? "Business" : isAffiliate ? "Affiliate" : "User";
 
   const linkClass = (active: boolean, disabled: boolean) =>
@@ -204,25 +189,6 @@ export function AccountSidebarChildren({
           );
         })}
       </nav>
-
-      {/* Single account control — bottom of sidebar footer */}
-      <div className="shrink-0 border-t border-border p-3">
-        <UserAccountMenu
-          profileHref={`${dashboardPrefix}/profile`}
-          settingsHref={`${dashboardPrefix}/settings`}
-          displayName={isLoading ? "Loading..." : (user?.email || "user@example.com")}
-          subtitle={isLoading ? "..." : accountIdLabel}
-          avatarUrl={avatarUrl}
-          isExpanded={true}
-          menuPlacement="up"
-          isLoggingOut={logoutMutation.isPending}
-          onLogout={() => logoutMutation.mutate()}
-          onNavigate={() => isMobile && onCloseMobile()}
-          profileLabel={profileLabel}
-          settingsLabel={settingsLabel}
-          logoutLabel={t.common.ui.logout}
-        />
-      </div>
     </div>
   );
 }

@@ -26,6 +26,9 @@ import {
   Mail,
   FileText,
   Download,
+  Clock,
+  RotateCcw,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -45,10 +48,12 @@ import { useLocale } from "@/src/shared/context/locale.provider";
 import {
   formatDeadlineDisplay,
   serviceStatsFromRows,
+  getBusinessServices,
 } from "@/src/shared/lib/business-services-store";
 import axiosInstance from "@/src/shared/lib/axiosInstance";
 import { DeliverableUploadModal } from "@/src/modules/technical/components/DeliverableUploadModal";
 import { ProjectDeadlineCountdown } from "@/src/modules/technical/components/ProjectDeadlineCountdown";
+import { ProjectChatModal } from "@/src/modules/technical/components/ProjectChatModal";
 
 const PAGE_SIZE = 8;
 const TABS = ["allServices", "active", "pending", "completed"] as const;
@@ -86,7 +91,7 @@ export default function BusinessServicesLayout() {
   const router = useRouter();
   const { t } = useLocale();
   const { user } = useUser();
-  const [services, setServices] = useState<BusinessServiceRow[]>([]);
+  const [services, setServices] = useState<BusinessServiceRow[]>(() => getBusinessServices());
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<BusinessServiceRow | null>(null);
   const [editStatus, setEditStatus] = useState<ServiceStatus>("Pending");
@@ -106,9 +111,10 @@ export default function BusinessServicesLayout() {
   const [applyModalItem, setApplyModalItem] = useState<any | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [kycModalOpen, setKycModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => (typeof window !== "undefined" ? getBusinessServices().length === 0 : false));
   const [deliverableProject, setDeliverableProject] = useState<any | null>(null);
   const [assignedDetailProject, setAssignedDetailProject] = useState<any | null>(null);
+  const [chatProject, setChatProject] = useState<any | null>(null);
   const isInitialLoadRef = useRef(true);
   const [newService, setNewService] = useState({
     category: "Technical",
@@ -118,7 +124,7 @@ export default function BusinessServicesLayout() {
   });
 
   const load = async (showSpinner = false) => {
-    if (showSpinner || isInitialLoadRef.current) {
+    if (showSpinner) {
       setIsLoading(true);
     }
     try {
@@ -188,7 +194,7 @@ export default function BusinessServicesLayout() {
           category: p.category || "Software Development",
           client: p.clientName || "Client",
           budget: `$${Number(p.adminBudget || p.price || (p as any).budgetAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-          deadline: p.endDate ? new Date(p.endDate).toLocaleDateString() : (p.duration || "14 Days"),
+          deadline: p.endDate ? formatDeadlineDisplay(p.endDate) : (p.duration || "14 Days"),
           status: isCompleted ? "Completed" : isInProgress ? "Active" : isApplied ? "Pending" : ("Open" as any),
           title: p.title || "Technical Project",
           summary: p.description || "",
@@ -248,11 +254,20 @@ export default function BusinessServicesLayout() {
   const currentUserId = (user as any)?.id || (user as any)?.userId || (user as any)?.sub;
 
   useEffect(() => {
-    load(true);
+    const cached = getBusinessServices();
+    if (cached.length === 0) {
+      load(true);
+    } else {
+      load(false);
+    }
     const handleUpdate = () => load(false);
     window.addEventListener("applied_projects_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    window.addEventListener("focus", handleUpdate);
     return () => {
       window.removeEventListener("applied_projects_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("focus", handleUpdate);
     };
   }, [currentUserId]);
 
@@ -618,6 +633,7 @@ export default function BusinessServicesLayout() {
           <h1 className="text-xl font-bold text-foreground">{t.business.services.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t.business.services.subtitle}</p>
         </div>
+        {/* 
         <button
           type="button"
           onClick={handleNewServiceClick}
@@ -625,6 +641,7 @@ export default function BusinessServicesLayout() {
         >
           {t.business.services.newService}
         </button>
+        */}
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -811,6 +828,7 @@ export default function BusinessServicesLayout() {
                         </span>
                         {isRowAssigned ? (
                           <ProjectDeadlineCountdown
+                            projectId={String(rawP.projectId || rawP.id || row.id)}
                             endDate={rawP.endDate}
                             createdAt={rawP.createdAt}
                             assignedAt={rawP.assignedAt || rawP.acceptedAt}
@@ -823,12 +841,29 @@ export default function BusinessServicesLayout() {
                       </div>
 
                       {/* Header Row 2: Status Badge + Category (if assigned) */}
-                      <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
                         {isRowAssigned ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-indigo-500/10 border border-indigo-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-indigo-700 dark:text-indigo-400">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            In Progress
-                          </span>
+                          rawP.submissionStatus === "accepted" ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                              Completed &amp; Paid ✓
+                            </span>
+                          ) : rawP.submissionStatus === "completed" ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                              <Clock className="h-3 w-3 text-amber-500" />
+                              Ready for Review
+                            </span>
+                          ) : rawP.submissionStatus === "revision" ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/10 border border-orange-500/30 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-orange-700 dark:text-orange-400">
+                              <RotateCcw className="h-3 w-3 text-orange-500" />
+                              Revision Requested
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-indigo-500/10 border border-indigo-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-indigo-700 dark:text-indigo-400">
+                              <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
+                              In Progress
+                            </span>
+                          )
                         ) : isRowApplied ? (
                           <span className="rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                             Pending for Client Approval
@@ -873,27 +908,44 @@ export default function BusinessServicesLayout() {
 
                       {/* Action Buttons */}
                       {isRowAssigned ? (
-                        <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
-                          <button
-                            type="button"
-                            title="View Full Project Details"
-                            onClick={() => setAssignedDetailProject(rawP)}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+                        <div className="flex items-center justify-between gap-2.5 pt-2 mt-auto">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              title="View Full Project Details"
+                              onClick={() => setAssignedDetailProject(rawP)}
+                              className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title={`Chat about ${rawP.title || row.title}`}
+                              onClick={() => setChatProject(rawP)}
+                              className="p-2 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all cursor-pointer shrink-0 shadow-xs"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={() => setDeliverableProject(rawP)}
-                            className="flex-1 rounded-full border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                            className="flex-1 rounded-full border border-border/80 bg-muted/40 hover:bg-primary/10 hover:border-primary/40 text-primary font-bold text-xs px-3.5 py-2 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs min-w-0 truncate"
                           >
-                            <Upload className="w-3.5 h-3.5 text-primary" />
-                            <span>Submit Project</span>
+                            <Upload className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="truncate">Submit Project</span>
                           </button>
-                          <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
-                            <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
-                            Assigned
-                          </div>
+                          {rawP.submissionStatus === "accepted" ? (
+                            <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                              Completed
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 border-2 border-dashed border-emerald-600 dark:border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-black uppercase text-[11px] px-3 py-1 rounded-md tracking-wider transform -rotate-12 shadow-sm select-none shrink-0">
+                              <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
+                              Assigned
+                            </div>
+                          )}
                         </div>
                       ) : isRowApplied ? (
                         <div className="flex items-center justify-between gap-3 pt-2 mt-auto">
@@ -1570,6 +1622,25 @@ export default function BusinessServicesLayout() {
           </div>
         </div>
       </AppModal>
+
+      {/* Real-time Project Chat Modal */}
+      {chatProject && (
+        <ProjectChatModal
+          project={{
+            projectId: chatProject.projectId || chatProject.id,
+            title: chatProject.title,
+            clientName: chatProject.clientName || chatProject.client,
+            clientEmail: chatProject.clientEmail,
+            clientId: chatProject.clientId,
+            assignedBusinessId: chatProject.assignedBusinessId,
+            assignedBusinessUserId: chatProject.assignedBusinessUserId,
+            assignedBusinessName: chatProject.assignedBusinessName,
+            assignedBusinessFullName: chatProject.assignedBusinessFullName,
+            assignedBusinessEmail: chatProject.assignedBusinessEmail,
+          }}
+          onClose={() => setChatProject(null)}
+        />
+      )}
     </div>
   );
 }

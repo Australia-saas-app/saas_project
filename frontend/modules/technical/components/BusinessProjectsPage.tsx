@@ -26,10 +26,13 @@ import {
   fetchAssignedProjects,
   acceptProject,
   markProjectComplete,
+  formatProjectDate,
+  readLocalProjects,
 } from "../services/technical.services";
 import { useUser } from "@/src/context/user.provider";
 import { ProjectChatModal } from "./ProjectChatModal";
 import { DeliverableUploadModal } from "./DeliverableUploadModal";
+import { ProjectDeadlineCountdown } from "./ProjectDeadlineCountdown";
 
 interface Project {
   id: number;
@@ -67,9 +70,13 @@ export default function BusinessProjectsPage() {
         : "Business Partner";
 
   const [activeTab, setActiveTab] = useState<"available" | "my-projects">("available");
-  const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
-  const [myProjects, setMyProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [availableProjects, setAvailableProjects] = useState<Project[]>(() =>
+    readLocalProjects().filter((p) => p.submissionStatus === "active")
+  );
+  const [myProjects, setMyProjects] = useState<Project[]>(() =>
+    readLocalProjects().filter((p) => p.submissionStatus !== "active")
+  );
+  const [loading, setLoading] = useState(() => (typeof window !== "undefined" ? readLocalProjects().length === 0 : false));
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [chatProject, setChatProject] = useState<Project | null>(null);
 
@@ -79,8 +86,10 @@ export default function BusinessProjectsPage() {
   const [completionNotes, setCompletionNotes] = useState("");
   const [deliverableList, setDeliverableList] = useState<string[]>([]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showSpinner = false) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
     try {
       const [pubRes, myRes] = await Promise.all([
         fetchPublicProjects().catch(() => ({ projects: [] })),
@@ -96,7 +105,21 @@ export default function BusinessProjectsPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const cached = readLocalProjects();
+    if (cached.length === 0) {
+      loadData(true);
+    } else {
+      loadData(false);
+    }
+    const bgSync = () => loadData(false);
+    window.addEventListener("storage", bgSync);
+    window.addEventListener("focus", bgSync);
+    window.addEventListener("applied_projects_updated", bgSync);
+    return () => {
+      window.removeEventListener("storage", bgSync);
+      window.removeEventListener("focus", bgSync);
+      window.removeEventListener("applied_projects_updated", bgSync);
+    };
   }, [loadData]);
 
   const handleAccept = async (project: Project) => {
@@ -340,6 +363,12 @@ export default function BusinessProjectsPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
+                      <ProjectDeadlineCountdown
+                        projectId={project.projectId || String(project.id)}
+                        endDate={(project as any).endDate}
+                        createdAt={project.createdAt}
+                        assignedAt={(project as any).assignedAt}
+                      />
                       <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
                         {project.category || "Software Development"}
                       </span>

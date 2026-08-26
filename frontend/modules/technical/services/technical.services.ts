@@ -573,6 +573,7 @@ export const assignProjectApplicant = async (
     businessFullName?: string;
     businessUserId?: string;
     businessEmail?: string;
+    businessType?: string;
     proposalId?: string;
   }
 ) => {
@@ -583,6 +584,7 @@ export const assignProjectApplicant = async (
     assignedBusinessName: applicant.businessName,
     assignedBusinessFullName: applicant.businessFullName,
     assignedBusinessEmail: applicant.businessEmail,
+    assignedBusinessType: applicant.businessType || "Technology",
     assignedProposalId: applicant.proposalId,
     submissionStatus: "in_progress",
     status: "in_progress",
@@ -968,4 +970,73 @@ export const reviewMilestone = async (
     console.warn('reviewMilestone fallback:', e?.message || e);
   }
   return { success: true };
+};
+
+export function formatProjectDate(d?: string | Date | null): string {
+  if (!d) return "";
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return String(d);
+  }
+}
+
+export const extendProjectDeadline = async (projectId: string, newEndDate: string, _token?: string) => {
+  const endDateIso = new Date(newEndDate).toISOString();
+
+  // Optimistic update
+  const local = readLocalProjects();
+  const target = local.find((p) => p.projectId === projectId || String(p.id) === String(projectId));
+  const updated = local.map((p) =>
+    p.projectId === projectId || String(p.id) === String(projectId)
+      ? { ...p, endDate: endDateIso }
+      : p
+  );
+  writeLocalProjects(updated);
+
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new CustomEvent("project_deadline_updated", { detail: { projectId, endDate: endDateIso } }));
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({ type: "PROJECT_DEADLINE_EXTENDED", projectId, endDate: endDateIso });
+        bc.close();
+      }
+    } catch {}
+  }
+
+  if (target) {
+    recordActivityLog({
+      title: `Deadline Extended: "${target.title}"`,
+      description: `Project ${target.projectId} deadline extended to ${formatProjectDate(endDateIso)}`,
+      category: "Technical Services",
+      type: "project_deadline_extended",
+    });
+  }
+
+  try {
+    const res = await axiosInstance.patch(`/technology/projects/${projectId}`, {
+      endDate: endDateIso,
+    });
+    const dbProject = res?.data?.data || res?.data;
+    if (dbProject?.projectId) {
+      const fresh = readLocalProjects();
+      const synced = fresh.map((p) =>
+        p.projectId === dbProject.projectId ? { ...p, ...dbProject } : p
+      );
+      writeLocalProjects(synced);
+    }
+    return res?.data;
+  } catch (e: any) {
+    console.warn("extendProjectDeadline API fallback:", e?.message || e);
+  }
+
+  return { success: true, endDate: endDateIso };
 };

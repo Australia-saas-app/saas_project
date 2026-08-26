@@ -29,7 +29,7 @@ import {
   type LiveChatMessage,
 } from "@/src/shared/lib/live-chat-store";
 import {
-  getOrCreateProjectThread,
+  getOrCreateApplicationThread,
   sendThreadMessage,
 } from "@/src/shared/lib/messages-store";
 
@@ -52,7 +52,9 @@ interface ProjectChatProps {
     clientId?: string;
     clientEmail?: string;
     assignedBusinessName?: string;
+    assignedBusinessFullName?: string;
     assignedBusinessId?: string;
+    assignedBusinessUserId?: string;
     assignedBusinessEmail?: string;
     submissionStatus?: string;
     adminBudget?: number;
@@ -86,13 +88,23 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       : "Me";
 
   const isClient = project.clientId === currentUserId || !project.assignedBusinessId;
+  const providerFullName = project.assignedBusinessFullName || "";
+  const providerBsnName = project.assignedBusinessName || "";
+  const providerFormattedName =
+    providerFullName && providerBsnName && providerFullName !== providerBsnName
+      ? `${providerFullName} | ${providerBsnName}`
+      : providerFullName || providerBsnName || "Business Partner";
+
   const otherPartyName = isClient
-    ? project.assignedBusinessName || "Assigned Business Developer"
+    ? providerFormattedName
     : project.clientName || "Project Client";
 
-  const otherPartyEmail = isClient
-    ? project.assignedBusinessEmail || project.assignedBusinessId || "business@saas.com"
-    : project.clientEmail || project.clientId || "client@saas.com";
+  const rawOtherEmail = isClient
+    ? project.assignedBusinessEmail || "business@saas.com"
+    : project.clientEmail || "client@saas.com";
+  const normalizedEmail = (rawOtherEmail || "user@saas.com").toLowerCase().trim();
+  const projectChatKey = `project_${project.projectId}`;
+  const contactId = `contact-prj-${project.projectId}`;
 
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,31 +122,32 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Helper to sync a message into local live-chat-store for the Messages Page
+  // Helper to sync a message into local live-chat-store for the Messages Page (strictly per-project)
   const syncToLiveChatStore = (content: string, isFromMe: boolean) => {
     try {
       const store = readLiveChatMessages();
-      const contactKey = otherPartyEmail;
-      const existing = store[contactKey] || [];
+      const existing = store[projectChatKey] || store[contactId] || [];
 
       const newMsg: LiveChatMessage = {
         id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        senderId: isFromMe ? currentUserId : otherPartyEmail,
+        senderId: isFromMe ? currentUserId : contactId,
         senderName: isFromMe ? currentUserName : otherPartyName,
-        senderEmail: isFromMe ? currentUserEmail : otherPartyEmail,
+        senderEmail: isFromMe ? currentUserEmail : normalizedEmail,
         content,
         sentAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         timestamp: Date.now(),
         status: "delivered",
       };
 
-      store[contactKey] = [...existing, newMsg];
+      const updated = [...existing, newMsg];
+      store[projectChatKey] = updated;
+      store[contactId] = updated;
       writeLiveChatMessages(store);
 
-      // Make sure contact is in active list
+      // Make sure contact is in active list with full formatted name "Hello | Tech"
       addContactToLiveChat({
         name: otherPartyName,
-        email: otherPartyEmail,
+        email: normalizedEmail,
         role: isClient ? "Business Partner" : "Client",
       });
 
@@ -143,7 +156,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
         broadcastChannelRef.current.postMessage({
           type: "NEW_MESSAGE",
           payload: {
-            contactId: contactKey,
+            contactId,
             message: newMsg,
           },
         });
@@ -161,8 +174,8 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
         ? data.map((m: any) => ({
             id: m.id || m.messageId || `msg_${Date.now()}_${Math.random()}`,
             projectId: m.projectId,
-            senderId: m.senderId || (m.isClient ? project.clientId : project.assignedBusinessId) || "user",
-            senderName: m.senderName || (m.isClient ? project.clientName : project.assignedBusinessName) || "User",
+            senderId: m.senderId || (m.isClient ? project.clientId : (project.assignedBusinessUserId || project.assignedBusinessId)) || "user",
+            senderName: m.senderName || (m.isClient ? project.clientName : otherPartyName) || "User",
             messageType: m.messageType || "general",
             content: m.content || m.message || "",
             createdAt: m.createdAt || new Date().toISOString(),
@@ -170,9 +183,9 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
           }))
         : [];
 
-      // Also read any local messages from Live Chat Store for this contact
+      // Read local messages strictly scoped for this specific project
       const store = readLiveChatMessages();
-      const localContactMsgs = store[otherPartyEmail] || [];
+      const localContactMsgs = store[projectChatKey] || store[contactId] || [];
 
       // Merge avoiding duplicates by content & approximate time
       const merged = [...dbMsgs];
@@ -201,7 +214,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     } catch {
       // fallback to store
       const store = readLiveChatMessages();
-      const localContactMsgs = store[otherPartyEmail] || [];
+      const localContactMsgs = store[projectChatKey] || store[contactId] || [];
       const msgs = localContactMsgs.map((lm) => ({
         id: lm.id,
         projectId: project.projectId,
@@ -215,8 +228,9 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       setMessages(msgs);
     } finally {
       setLoading(false);
+      setTimeout(scrollToBottom, 100);
     }
-  }, [otherPartyEmail, otherPartyName, project.assignedBusinessId, project.assignedBusinessName, project.clientId, project.clientName, project.projectId]);
+  }, [project.projectId, project.clientId, project.clientName, project.assignedBusinessUserId, project.assignedBusinessId, otherPartyName, projectChatKey, contactId]);
 
   useEffect(() => {
     loadMessages();
@@ -236,7 +250,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
 
         bc.onmessage = (event) => {
           const { type, payload } = event.data || {};
-          if (type === "NEW_MESSAGE" && payload?.contactId === otherPartyEmail) {
+          if (type === "NEW_MESSAGE" && (payload?.contactId === contactId || payload?.contactId === normalizedEmail)) {
             const lm = payload.message;
             setMessages((prev) => {
               if (prev.some((m) => m.content === lm.content && Math.abs(new Date(m.createdAt).getTime() - lm.timestamp) < 3000)) {
@@ -256,7 +270,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
                 },
               ];
             });
-          } else if (type === "TYPING_STATUS" && payload?.contactId === otherPartyEmail) {
+          } else if (type === "TYPING_STATUS" && (payload?.contactId === contactId || payload?.contactId === normalizedEmail)) {
             setIsOtherTyping(Boolean(payload.isTyping));
           }
         };
@@ -315,7 +329,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
         }
       }
     };
-  }, [conversationRoom, currentUserId, isClient, otherPartyEmail, otherPartyName, project.projectId]);
+  }, [contactId, conversationRoom, currentUserId, isClient, normalizedEmail, otherPartyName, project.projectId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
@@ -367,25 +381,30 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     // 2. Sync to Live Chat Store & Broadcast to Messages Page
     syncToLiveChatStore(text, true);
 
-    // Sync to Dashboard Thread Inbox & Sent
+    // Sync to Dashboard Thread Inbox & Sent matching the exact project thread
     try {
-      const th = getOrCreateProjectThread({
+      const threadId = `TH-${project.projectId}`;
+
+      getOrCreateApplicationThread({
+        threadId,
         role: isClient ? "user" : "business",
+        applicantName: providerFullName || providerBsnName || otherPartyName,
+        applicantBusiness: providerBsnName,
+        applicantEmail: normalizedEmail,
+        applicantUserId: project.assignedBusinessUserId || project.assignedBusinessId || "",
+        clientName: project.clientName || currentUserName,
+        clientEmail: project.clientEmail || currentUserEmail,
         projectId: project.projectId,
         projectName: project.title,
-        participant: otherPartyName,
       });
-      if (th && th.id) {
-        sendThreadMessage(
-          th.id,
-          text,
-          currentUserId,
-          currentUserName,
-          isClient ? "user" : "business",
-          currentUserEmail,
-          otherPartyEmail
-        );
-      }
+
+      sendThreadMessage(
+        threadId,
+        text,
+        currentUserName,
+        currentUserEmail
+      );
+
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         const veroBc = new BroadcastChannel("vero_channel");
         veroBc.postMessage({ type: "vero:new_message", detail: { projectId: project.projectId, text } });
@@ -441,18 +460,23 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
             </div>
 
             <div className="min-w-0">
-              <h3 className="font-bold text-foreground truncate text-xs sm:text-sm leading-tight">
-                {otherPartyName}
-              </h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-bold text-foreground truncate text-xs sm:text-sm leading-tight">
+                  {otherPartyName}
+                </h3>
+                <span className="font-mono text-[9px] font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.2 rounded-md whitespace-nowrap">
+                  {project.projectId}
+                </span>
+              </div>
 
               {isOtherTyping ? (
                 <p className="text-[10px] font-semibold text-emerald-500 flex items-center gap-1 animate-pulse">
                   typing...
                 </p>
               ) : (
-                <p className="text-[11px] text-muted-foreground truncate max-w-[200px] flex items-center gap-1 mt-0.5">
+                <p className="text-[11px] text-muted-foreground truncate max-w-[240px] flex items-center gap-1 mt-0.5" title={project.title}>
                   <Briefcase className="h-3 w-3 text-primary shrink-0" />
-                  <span className="truncate">{project.title}</span>
+                  <span className="truncate font-medium">{project.title}</span>
                 </p>
               )}
             </div>
@@ -521,7 +545,6 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
                         }`}
                       >
                         <span>{time}</span>
-                        {isMine && <CheckCheck className="h-3 w-3 text-primary-foreground/90" />}
                       </div>
                     </div>
                   </div>

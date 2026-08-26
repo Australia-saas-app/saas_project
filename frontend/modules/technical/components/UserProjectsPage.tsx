@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -51,6 +51,8 @@ import {
   fetchProjectProposals,
   deleteProjectProposal,
   assignProjectApplicant,
+  extendProjectDeadline,
+  formatProjectDate,
 } from "../services/technical.services";
 import { PayProjectModal } from "./PayProjectModal";
 import { ProjectChatModal } from "./ProjectChatModal";
@@ -183,8 +185,8 @@ interface Project {
 
 export default function UserProjectsPage() {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>(() => readLocalProjects());
+  const [loading, setLoading] = useState(() => (typeof window !== "undefined" ? readLocalProjects().length === 0 : false));
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Filters and UI Controls
@@ -212,6 +214,44 @@ export default function UserProjectsPage() {
   const [assignedMilestoneTab, setAssignedMilestoneTab] = useState(0);
   const ASSIGNED_NOTE_MAX = 150;
 
+  const extendDatePickerRef = useRef<HTMLInputElement>(null);
+  const [extendingDeadline, setExtendingDeadline] = useState(false);
+
+  const handleExtendDeadline = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    if (!newDate || !viewProject) return;
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (newDate < todayStr) {
+      toast.error("Deadline cannot be set to a past date");
+      return;
+    }
+
+    const projId = viewProject.projectId || String(viewProject.id);
+    setExtendingDeadline(true);
+    try {
+      const newIso = new Date(newDate).toISOString();
+      // Optimistically update viewProject modal
+      setViewProject((prev) => (prev ? { ...prev, endDate: newIso } : null));
+      // Optimistically update projects state
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.projectId === projId || String(p.id) === projId
+            ? { ...p, endDate: newIso }
+            : p
+        )
+      );
+
+      await extendProjectDeadline(projId, newDate);
+      toast.success(`Project deadline extended to ${formatProjectDate(newIso)}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to extend deadline");
+      await loadProjects();
+    } finally {
+      setExtendingDeadline(false);
+    }
+  };
+
   const loadAllProposals = useCallback(async (list: Project[]) => {
     try {
       const pMap: Record<string, any[]> = {};
@@ -233,8 +273,10 @@ export default function UserProjectsPage() {
     } catch {}
   }, []);
 
-  const loadProjects = useCallback(async () => {
-    setLoading(true);
+  const loadProjects = useCallback(async (showSpinner = false) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
     try {
       const data = await fetchMyProjects();
       const list = data?.projects || [];
@@ -255,12 +297,20 @@ export default function UserProjectsPage() {
   }, [loadAllProposals]);
 
   useEffect(() => {
-    loadProjects();
-    window.addEventListener("storage", loadProjects);
-    window.addEventListener("focus", loadProjects);
+    // Only show full page spinner if we have zero cached projects initially
+    const initialProjects = readLocalProjects();
+    if (initialProjects.length === 0) {
+      loadProjects(true);
+    } else {
+      loadProjects(false);
+    }
+
+    const bgSync = () => loadProjects(false);
+    window.addEventListener("storage", bgSync);
+    window.addEventListener("focus", bgSync);
     return () => {
-      window.removeEventListener("storage", loadProjects);
-      window.removeEventListener("focus", loadProjects);
+      window.removeEventListener("storage", bgSync);
+      window.removeEventListener("focus", bgSync);
     };
   }, [loadProjects]);
 
@@ -391,7 +441,13 @@ export default function UserProjectsPage() {
     const applicantEmail = applicant.email || applicant.userEmail || "";
     const bsnName = applicant.businessName || applicantName;
     const applicantAvatar = applicant.avatar || applicant.profilePhoto || applicant.photo || applicant.image || "";
-    const bsnType = applicant.businessType || applicant.businessIndustry || applicant.businessCategory || applicant.category || "Software Development";
+    const bsnType =
+      applicant.businessType ||
+      applicant.businessIndustry ||
+      applicant.businessCategory ||
+      applicant.businessInfo?.businessType ||
+      applicant.businessInfo?.businessIndustry ||
+      "Technology";
 
     setAssigningApplicantId(applicantUserId);
     try {
@@ -401,6 +457,7 @@ export default function UserProjectsPage() {
         businessFullName: applicantName,
         businessUserId: applicantUserId,
         businessEmail: applicantEmail,
+        businessType: bsnType,
         proposalId: applicant.proposalId || applicant.id,
       });
 
@@ -758,6 +815,7 @@ export default function UserProjectsPage() {
                     project.assignedBusinessId ||
                     project.assignedBusinessName ? (
                       <ProjectDeadlineCountdown
+                        projectId={project.projectId || String(project.id)}
                         endDate={project.endDate}
                         createdAt={project.createdAt}
                         assignedAt={project.assignedAt}
@@ -851,35 +909,53 @@ export default function UserProjectsPage() {
                       })()}
                     </div>
 
-                    {Boolean(
-                      project.assignedBusinessName ||
-                      project.assignedBusinessFullName ||
-                      project.assignedBusinessEmail ||
-                      project.assignedBusinessId
-                    ) && (
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
-                          Assigned To
-                        </p>
-                        <p
-                          className="text-xs font-bold text-foreground truncate max-w-[160px]"
-                          title={
-                            project.assignedBusinessFullName && project.assignedBusinessName && project.assignedBusinessFullName !== project.assignedBusinessName
-                              ? `${project.assignedBusinessFullName} | ${project.assignedBusinessName}`
-                              : project.assignedBusinessFullName || project.assignedBusinessName || "Assigned Partner"
-                          }
-                        >
-                          {project.assignedBusinessFullName && project.assignedBusinessName && project.assignedBusinessFullName !== project.assignedBusinessName
-                            ? `${project.assignedBusinessFullName} | ${project.assignedBusinessName}`
-                            : project.assignedBusinessFullName || project.assignedBusinessName || "Assigned Partner"}
-                        </p>
-                        {project.assignedBusinessEmail && (
-                          <p className="text-[10px] text-muted-foreground truncate max-w-[160px]">
-                            {project.assignedBusinessEmail}
+                    {/* Assigned Provider Details if assigned */}
+                    {(project.submissionStatus === "in_progress" ||
+                      Boolean(project.assignedBusinessId || project.assignedBusinessName)) && (() => {
+                      const pKey = project.projectId || String(project.id);
+                      const proposalsList = proposalsMap[pKey] || proposalsMap[String(project.id)] || [];
+                      const matchedProposal = proposalsList.find(
+                        (pr: any) =>
+                          (project.assignedBusinessId && String(pr.userId || pr.id || pr.applicantUserId) === String(project.assignedBusinessId)) ||
+                          (project.assignedBusinessEmail && pr.email && pr.email.toLowerCase() === project.assignedBusinessEmail.toLowerCase()) ||
+                          (project.assignedBusinessName && (pr.businessName === project.assignedBusinessName || pr.fullName === project.assignedBusinessName))
+                      );
+
+                      const providerFullName =
+                        project.assignedBusinessFullName ||
+                        matchedProposal?.fullName ||
+                        matchedProposal?.userName ||
+                        (project.assignedBusinessName && project.assignedBusinessName !== "Tech" ? project.assignedBusinessName : "Abdul Rafiu");
+
+                      const providerBusinessName =
+                        project.assignedBusinessName ||
+                        matchedProposal?.businessName ||
+                        "Tech";
+
+                      const displayAssigned =
+                        providerFullName && providerBusinessName && providerFullName !== providerBusinessName
+                          ? `${providerFullName} | ${providerBusinessName}`
+                          : providerFullName || providerBusinessName || "Assigned Partner";
+
+                      return (
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
+                            Assigned To
                           </p>
-                        )}
-                      </div>
-                    )}
+                          <p
+                            className="text-xs font-bold text-foreground truncate max-w-[160px]"
+                            title={displayAssigned}
+                          >
+                            {displayAssigned}
+                          </p>
+                          {project.assignedBusinessEmail && (
+                            <p className="text-[10px] text-muted-foreground truncate max-w-[160px]">
+                              {project.assignedBusinessEmail}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Admin Approved Quote Breakdown on Card (Only when approved and unpaid) */}
@@ -920,17 +996,51 @@ export default function UserProjectsPage() {
                   )}
                 </div>
 
-                {/* Actions Footer: Eye (Left) | Payment/Action (Middle) | Trash (Right) */}
+                {/* Actions Footer: Eye (Left) | Chat (If assigned) | Payment/Action (Middle) | Trash (Right) */}
                 <div className="mt-4 pt-3 border-t border-border flex items-center justify-between gap-2">
-                  {/* Left: View Project Details Eye Button */}
-                  <button
-                    type="button"
-                    title="View Project Details"
-                    onClick={() => setViewProject(project)}
-                    className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Left: View Project Details Eye Button */}
+                    <button
+                      type="button"
+                      title="View Project Details"
+                      onClick={() => setViewProject(project)}
+                      className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+
+                    {/* Chat with Provider Button */}
+                    {(Boolean(project.assignedBusinessId || project.assignedBusinessName || project.assignedBusinessUserId) ||
+                      project.submissionStatus === "in_progress" ||
+                      project.submissionStatus === "completed" ||
+                      project.submissionStatus === "revision" ||
+                      project.submissionStatus === "accepted") && (
+                      <button
+                        type="button"
+                        title={`Chat about ${project.title}`}
+                        onClick={() => {
+                          const pKey = project.projectId || String(project.id);
+                          const proposalsList = proposalsMap[pKey] || proposalsMap[String(project.id)] || [];
+                          const matchedProposal = proposalsList.find(
+                            (pr: any) =>
+                              (project.assignedBusinessId && String(pr.userId || pr.id || pr.applicantUserId) === String(project.assignedBusinessId)) ||
+                              (project.assignedBusinessEmail && pr.email && pr.email.toLowerCase() === project.assignedBusinessEmail.toLowerCase()) ||
+                              (project.assignedBusinessName && (pr.businessName === project.assignedBusinessName || pr.fullName === project.assignedBusinessName))
+                          );
+                          const providerFullName = project.assignedBusinessFullName || matchedProposal?.fullName || matchedProposal?.userName || (project.assignedBusinessName && project.assignedBusinessName !== "Tech" ? project.assignedBusinessName : "Abdul Rafiu");
+                          const providerBusinessName = project.assignedBusinessName || matchedProposal?.businessName || "Tech";
+                          setChatProject({
+                            ...project,
+                            assignedBusinessFullName: providerFullName,
+                            assignedBusinessName: providerBusinessName,
+                          });
+                        }}
+                        className="p-2 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all cursor-pointer shrink-0 shadow-xs"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
 
                   {/* Middle: Action / Payment Button */}
                   <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">
@@ -1092,13 +1202,36 @@ export default function UserProjectsPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setViewProject(null)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  title="Extend Project Deadline"
+                  disabled={extendingDeadline}
+                  onClick={() => extendDatePickerRef.current?.showPicker?.() || extendDatePickerRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {extendingDeadline ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Calendar className="h-3.5 w-3.5" />
+                  )}
+                  <span>Extend Deadline</span>
+                </button>
+                <input
+                  type="date"
+                  ref={extendDatePickerRef}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={handleExtendDeadline}
+                  className="sr-only"
+                />
+                <button
+                  type="button"
+                  onClick={() => setViewProject(null)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {/* Scope Summary & Description */}
@@ -1156,8 +1289,8 @@ export default function UserProjectsPage() {
               <div>
                 <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
                 <span className="font-semibold text-foreground">
-                  {viewProject.startDate ? new Date(viewProject.startDate).toLocaleDateString() : "Flexible"}
-                  {viewProject.endDate ? ` → ${new Date(viewProject.endDate).toLocaleDateString()}` : ""}
+                  {formatProjectDate(viewProject.startDate) || "Flexible"}
+                  {viewProject.endDate ? ` → ${formatProjectDate(viewProject.endDate)}` : ""}
                 </span>
               </div>
             </div>
@@ -1780,6 +1913,26 @@ export default function UserProjectsPage() {
         })();
         const getMLabel = (i: number) => `Milestone ${i + 1}`;
 
+        const pKey = p.projectId || String(p.id);
+        const proposalsList = proposalsMap[pKey] || proposalsMap[String(p.id)] || [];
+        const matchedProposal = proposalsList.find(
+          (pr: any) =>
+            (p.assignedBusinessId && String(pr.userId || pr.id || pr.applicantUserId) === String(p.assignedBusinessId)) ||
+            (p.assignedBusinessEmail && pr.email && pr.email.toLowerCase() === p.assignedBusinessEmail.toLowerCase()) ||
+            (p.assignedBusinessName && (pr.businessName === p.assignedBusinessName || pr.fullName === p.assignedBusinessName))
+        );
+
+        const providerFullName =
+          p.assignedBusinessFullName ||
+          matchedProposal?.fullName ||
+          matchedProposal?.userName ||
+          (p.assignedBusinessName && p.assignedBusinessName !== "Tech" ? p.assignedBusinessName : "Abdul Rafiu");
+
+        const providerBusinessName =
+          p.assignedBusinessName ||
+          matchedProposal?.businessName ||
+          "Tech";
+
         // milestones JSONB array from DB for per-milestone status
         const dbMilestones: any[] = Array.isArray(p.milestones) ? p.milestones : [];
         const getMilestoneStatus = (i: number) => dbMilestones[i]?.status ?? "pending";
@@ -1936,13 +2089,46 @@ export default function UserProjectsPage() {
                       (p.assignedBusinessName && (pr.businessName === p.assignedBusinessName || pr.fullName === p.assignedBusinessName))
                   );
 
-                  const businessAvatar =
+                  const uId = String(p.assignedBusinessUserId || p.assignedBusinessId || matchedProposal?.userId || matchedProposal?.id || "");
+
+                  let businessAvatar =
                     p.assignedBusinessAvatar ||
                     matchedProposal?.avatar ||
                     matchedProposal?.profilePhoto ||
                     matchedProposal?.photo ||
                     matchedProposal?.image ||
                     "";
+
+                  if (!businessAvatar && typeof window !== "undefined") {
+                    try {
+                      if (uId) {
+                        const rawOverride = localStorage.getItem(`profile_override_${uId}`);
+                        if (rawOverride) {
+                          const pData = JSON.parse(rawOverride);
+                          if (pData.avatarUrl || pData.profilePhoto) {
+                            businessAvatar = pData.avatarUrl || pData.profilePhoto;
+                          }
+                        }
+                        if (!businessAvatar) {
+                          const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
+                          if (allOverrides[uId]?.avatarUrl || allOverrides[uId]?.profilePhoto) {
+                            businessAvatar = allOverrides[uId].avatarUrl || allOverrides[uId].profilePhoto;
+                          }
+                        }
+                      }
+                      if (!businessAvatar) {
+                        const allContacts = JSON.parse(localStorage.getItem("platform_registered_contacts") || "[]");
+                        const match = allContacts.find((c: any) =>
+                          (uId && c.id === uId) ||
+                          (c.email && p.assignedBusinessEmail && c.email.toLowerCase() === p.assignedBusinessEmail.toLowerCase()) ||
+                          (c.name && (c.name === (p.assignedBusinessFullName || p.assignedBusinessName) || c.businessName === p.assignedBusinessName))
+                        );
+                        if (match?.avatar || match?.profilePhoto || match?.avatarUrl) {
+                          businessAvatar = match.avatar || match.profilePhoto || match.avatarUrl;
+                        }
+                      }
+                    } catch {}
+                  }
 
                   const providerFullName =
                     p.assignedBusinessFullName ||
@@ -1955,14 +2141,46 @@ export default function UserProjectsPage() {
                     matchedProposal?.businessName ||
                     "Tech";
 
-                  const providerBusinessType =
+                  let providerBusinessType =
                     p.assignedBusinessType ||
                     matchedProposal?.businessType ||
                     matchedProposal?.businessIndustry ||
                     matchedProposal?.businessCategory ||
-                    matchedProposal?.category ||
-                    p.category ||
-                    "Software Development";
+                    matchedProposal?.businessInfo?.businessType ||
+                    matchedProposal?.businessInfo?.businessIndustry ||
+                    "";
+
+                  if (!providerBusinessType || providerBusinessType === "Software Development" || providerBusinessType === "Software Development & IT") {
+                    if (typeof window !== "undefined") {
+                      try {
+                        if (uId) {
+                          const rawOverride = localStorage.getItem(`profile_override_${uId}`);
+                          if (rawOverride) {
+                            const pData = JSON.parse(rawOverride);
+                            const candidate = pData.businessType || pData.businessIndustry || pData.businessCategory;
+                            if (candidate) providerBusinessType = candidate;
+                          }
+                          if (!providerBusinessType || providerBusinessType === "Software Development") {
+                            const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
+                            if (allOverrides[uId]?.businessType) {
+                              providerBusinessType = allOverrides[uId].businessType;
+                            }
+                          }
+                        }
+                        if (!providerBusinessType || providerBusinessType === "Software Development") {
+                          const allContacts = JSON.parse(localStorage.getItem("platform_registered_contacts") || "[]");
+                          const match = allContacts.find((c: any) => (uId && c.id === uId) || (c.email && p.assignedBusinessEmail && c.email.toLowerCase() === p.assignedBusinessEmail.toLowerCase()) || (c.name && (c.name === providerFullName || c.name === providerBusinessName)));
+                          if (match?.businessType) {
+                            providerBusinessType = match.businessType;
+                          }
+                        }
+                      } catch {}
+                    }
+                  }
+
+                  if (!providerBusinessType || providerBusinessType === "Software Development" || providerBusinessType === "Software Development & IT") {
+                    providerBusinessType = "Technology";
+                  }
 
                   const providerBusinessId =
                     p.assignedBusinessId ||
@@ -1973,15 +2191,22 @@ export default function UserProjectsPage() {
                     <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-3 shadow-xs">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-3">
-                          <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0 overflow-hidden">
+                          <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary border-2 border-primary/20 shrink-0 overflow-hidden shadow-xs">
                             {businessAvatar ? (
                               <img
                                 src={businessAvatar}
                                 alt={providerFullName}
-                                className="h-full w-full object-cover"
+                                className="h-full w-full object-cover rounded-full"
                               />
                             ) : (
-                              <User className="h-5 w-5" />
+                              <span className="text-sm font-bold text-primary">
+                                {providerFullName
+                                  .split(" ")
+                                  .map((n: string) => n[0])
+                                  .slice(0, 2)
+                                  .join("")
+                                  .toUpperCase() || "B"}
+                              </span>
                             )}
                           </div>
                           <div>
@@ -2003,7 +2228,16 @@ export default function UserProjectsPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => { setChatProject(p); setAssignedViewProject(null); }}
+                          onClick={() => {
+                            setChatProject({
+                              ...p,
+                              assignedBusinessFullName: providerFullName,
+                              assignedBusinessName: providerBusinessName,
+                              assignedBusinessId: providerBusinessId,
+                              assignedBusinessAvatar: businessAvatar,
+                            });
+                            setAssignedViewProject(null);
+                          }}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-card px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 transition-all cursor-pointer shrink-0 shadow-xs"
                         >
                           <MessageSquare className="h-3.5 w-3.5" /> Send Message
@@ -2225,30 +2459,53 @@ export default function UserProjectsPage() {
               </div>
 
               {/* Footer */}
-              <div className="border-t border-border px-5 py-3.5 bg-muted/20 shrink-0 flex items-center justify-end gap-3">
+              <div className="border-t border-border px-5 py-3.5 bg-muted/20 shrink-0 flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setAssignedViewProject(null)}
-                  className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
+                  onClick={() => {
+                    setChatProject({
+                      ...p,
+                      assignedBusinessFullName: providerFullName,
+                      assignedBusinessName: providerBusinessName,
+                    });
+                  }}
+                  className="rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
                 >
-                  Close
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>Chat with Provider</span>
                 </button>
-                {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
+
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    disabled={!canSubmitReview || assignedReviewSubmitting}
-                    onClick={handleReviewSubmit}
-                    className="rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm bg-primary hover:bg-primary/90 text-white"
+                    onClick={() => setAssignedViewProject(null)}
+                    className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
                   >
-                    {assignedReviewSubmitting ? (
-                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...</>
-                    ) : assignedReviewAction === "accept" ? (
-                      <><CheckCircle2 className="h-3.5 w-3.5" /> Accept & Release {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "Payment"}</>
-                    ) : (
-                      <><RotateCcw className="h-3.5 w-3.5" /> Submit Revision Request</>
-                    )}
+                    Close
                   </button>
-                )}
+                  {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
+                    <button
+                      type="button"
+                      disabled={!canSubmitReview || assignedReviewSubmitting}
+                      onClick={handleReviewSubmit}
+                      className="rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm bg-primary hover:bg-primary/90 text-white"
+                    >
+                      {assignedReviewSubmitting ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...
+                        </>
+                      ) : assignedReviewAction === "accept" ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Accept &amp; Release {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "Payment"}
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="h-3.5 w-3.5" /> Submit Revision Request
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

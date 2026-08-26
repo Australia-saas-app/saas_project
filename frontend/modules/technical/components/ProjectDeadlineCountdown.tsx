@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 
 interface ProjectDeadlineCountdownProps {
+  projectId?: string;
   endDate?: string | Date;
   createdAt?: string | Date;
   assignedAt?: string | Date;
@@ -11,11 +12,13 @@ interface ProjectDeadlineCountdownProps {
 }
 
 export function ProjectDeadlineCountdown({
+  projectId,
   endDate,
   createdAt,
   assignedAt,
   className = "",
 }: ProjectDeadlineCountdownProps) {
+  const [effectiveEndDate, setEffectiveEndDate] = useState<string | Date | undefined>(endDate);
   const [timeLeft, setTimeLeft] = useState<{
     days: number;
     hours: number;
@@ -26,9 +29,23 @@ export function ProjectDeadlineCountdown({
   } | null>(null);
 
   useEffect(() => {
+    setEffectiveEndDate(endDate);
+  }, [endDate]);
+
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      if (projectId && e.detail?.projectId === projectId && e.detail?.endDate) {
+        setEffectiveEndDate(e.detail.endDate);
+      }
+    };
+    window.addEventListener("project_deadline_updated", handleUpdate);
+    return () => window.removeEventListener("project_deadline_updated", handleUpdate);
+  }, [projectId]);
+
+  useEffect(() => {
     let target = 0;
-    if (endDate) {
-      const parsed = new Date(endDate).getTime();
+    if (effectiveEndDate) {
+      const parsed = new Date(effectiveEndDate).getTime();
       if (!isNaN(parsed) && parsed > 0) {
         target = parsed;
       }

@@ -12,7 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/form/label";
 import FileUpload from "@/src/components/form/FileUpload";
 import ReactSelectMulti from "@/src/components/form/ReactSelectMulti";
-import { createProject } from "../services/technical.services";
+import { createProject, formatProjectDate } from "../services/technical.services";
 import { registerContact } from "@/src/shared/lib/contacts-store";
 import { useUser } from "@/src/context/user.provider";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
@@ -39,8 +39,18 @@ const projectSchema = z.object({
   subcategory: z.string().optional(),
   requiredSkills: z.array(z.string()).min(1, "Please select at least one required skill"),
   preferredLanguages: z.array(z.string()).min(1, "Please select at least one programming language"),
-  expectedStartDate: z.string().optional(),
-  expectedEndDate: z.string().optional(),
+  expectedStartDate: z.string().min(1, "Expected start date is required").refine((val) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(val);
+    return !isNaN(d.getTime()) && d.getTime() >= today.getTime();
+  }, "Start date cannot be in the past"),
+  expectedEndDate: z.string().min(1, "Expected end date is required").refine((val) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(val);
+    return !isNaN(d.getTime()) && d.getTime() >= today.getTime();
+  }, "End date cannot be in the past"),
   currency: z.string().optional(),
   budgetAmount: z.string().min(1, "Budget amount is required"),
   paymentTerms: z.string().min(1, "Payment terms are required"),
@@ -53,6 +63,14 @@ const projectSchema = z.object({
     .string()
     .min(1, "Service summary is required")
     .max(150, "Summary cannot exceed 150 characters"),
+}).refine((data) => {
+  if (data.expectedStartDate && data.expectedEndDate) {
+    return new Date(data.expectedEndDate).getTime() >= new Date(data.expectedStartDate).getTime();
+  }
+  return true;
+}, {
+  message: "End date must be on or after start date",
+  path: ["expectedEndDate"],
 });
 
 type ProjectForm = z.infer<typeof projectSchema>;
@@ -263,6 +281,8 @@ export default function CreateProjectLayout() {
       currency: "USD",
       budgetAmount: "",
       paymentTerms: "One Time Payment",
+      expectedStartDate: "",
+      expectedEndDate: "",
       fullName: "",
       email: "",
       phone: "",
@@ -280,7 +300,9 @@ export default function CreateProjectLayout() {
 
   const formValues = form.getValues();
   const selectedCategory = useWatch({ control, name: "category" });
+  const startDateValue = useWatch({ control, name: "expectedStartDate" });
   const descriptionValue = useWatch({ control, name: "description" }) || "";
+  const todayDateStr = new Date().toISOString().slice(0, 10);
 
   const availableSubcategories =
     selectedCategory && CATEGORY_SUBCATEGORY_MAP[selectedCategory]
@@ -397,7 +419,7 @@ export default function CreateProjectLayout() {
   const stepValidationFields: (keyof ProjectForm)[][] = [
     ["title", "category", "description"],
     ["requiredSkills", "preferredLanguages", "projectType"],
-    ["budgetAmount", "paymentTerms", "fullName", "email", "phone"],
+    ["budgetAmount", "paymentTerms", "expectedStartDate", "expectedEndDate", "fullName", "email", "phone"],
     ["title"],
   ];
 
@@ -748,21 +770,33 @@ export default function CreateProjectLayout() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>Expected Start Date (Optional)</Label>
+                  <Label>Expected Start Date *</Label>
                   <Input
                     type="date"
+                    min={todayDateStr}
                     {...register("expectedStartDate")}
                     className="mt-1 [color-scheme:dark]"
                   />
+                  {errors.expectedStartDate && (
+                    <p className="text-xs text-rose-500 mt-1 font-medium">
+                      {errors.expectedStartDate.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <Label>Expected End Date (Optional)</Label>
+                  <Label>Expected End Date *</Label>
                   <Input
                     type="date"
+                    min={startDateValue && startDateValue > todayDateStr ? startDateValue : todayDateStr}
                     {...register("expectedEndDate")}
                     className="mt-1 [color-scheme:dark]"
                   />
+                  {errors.expectedEndDate && (
+                    <p className="text-xs text-rose-500 mt-1 font-medium">
+                      {errors.expectedEndDate.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -841,7 +875,7 @@ export default function CreateProjectLayout() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-border text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 border-t border-border text-xs">
                   <div>
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">
                       Service Type
@@ -854,6 +888,14 @@ export default function CreateProjectLayout() {
                     </span>
                     <span className="font-semibold text-foreground">
                       {formValues.subcategory || "General"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">
+                      Timeline
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {formatProjectDate(formValues.expectedStartDate)} → {formatProjectDate(formValues.expectedEndDate)}
                     </span>
                   </div>
                   <div>

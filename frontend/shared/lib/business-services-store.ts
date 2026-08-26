@@ -76,7 +76,7 @@ export function formatDeadlineDisplay(isoDate: string): string {
   if (!isoDate) return ""
   const d = new Date(isoDate)
   if (Number.isNaN(d.getTime())) return isoDate
-  return d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
 export function serviceStatsFromRows(rows: BusinessServiceRow[]) {
