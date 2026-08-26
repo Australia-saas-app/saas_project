@@ -1,13 +1,12 @@
 "use client"
 
 import type { ReactNode } from "react"
+import Header from "@/src/modules/shared/header"
+import MobileBottomNav from "@/src/modules/shared/components/search/MobileBottomNav"
 
 interface AccountLayoutProps {
   children: ReactNode
 }
-
-import Header from "@/src/modules/shared/header"
-import MobileBottomNav from "@/src/modules/shared/components/search/MobileBottomNav"
 
 function AccountLayout({ children }: AccountLayoutProps) {
   return (
@@ -15,7 +14,7 @@ function AccountLayout({ children }: AccountLayoutProps) {
       <div className="hidden lg:block shrink-0">
         <Header />
       </div>
-      <div className="flex flex-1 flex-col overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="flex flex-1 flex-col overflow-y-auto lg:overflow-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
         {children}
       </div>
       <MobileBottomNav />

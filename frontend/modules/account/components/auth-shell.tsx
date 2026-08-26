@@ -23,9 +23,9 @@ export function AuthShell({
   wide = false,
 }: AuthShellProps) {
   return (
-    <div className="grid min-h-[100dvh] flex-1 lg:grid-cols-[1fr_1.05fr] overflow-x-hidden">
+    <div className="grid min-h-[100dvh] lg:min-h-0 lg:h-full flex-1 lg:grid-cols-[1fr_1.05fr] overflow-x-hidden lg:overflow-hidden">
       {/* Brand panel — homepage navy/blue palette */}
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#06153A] via-[#1D4ED8] to-[#2563EB] lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#06153A] via-[#1D4ED8] to-[#2563EB] lg:flex lg:flex-col lg:justify-between lg:p-8 xl:p-10 lg:h-full">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-40"
@@ -55,18 +55,18 @@ export function AuthShell({
           </Link>
         </div>
 
-        <div className="relative max-w-md">
+        <div className="relative max-w-md my-auto py-3">
           {badge && (
-            <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25">
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/25">
               <Sparkles className="h-3.5 w-3.5" />
               {badge}
             </span>
           )}
-          <h1 className="text-3xl font-bold leading-tight tracking-tight text-white xl:text-4xl">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-white xl:text-3xl">
             {title}
           </h1>
-          <p className="mt-4 text-base leading-relaxed text-white/85">{subtitle}</p>
-          <ul className="mt-8 space-y-3 text-sm text-white/85">
+          <p className="mt-2 text-sm leading-relaxed text-white/85 xl:text-base">{subtitle}</p>
+          <ul className="mt-5 space-y-2.5 text-sm text-white/85">
             <li className="flex items-center gap-2.5">
               <ShieldCheck className="h-4 w-4 shrink-0 text-[#86EFAC]" strokeWidth={2.25} />
               Secure payments &amp; escrow for every order
@@ -88,7 +88,7 @@ export function AuthShell({
       </div>
 
       {/* Form side — homepage light surfaces */}
-      <div className="flex flex-1 flex-col bg-background">
+      <div className="flex flex-1 flex-col bg-background lg:h-full lg:overflow-y-auto">
         <div className="border-b border-border bg-card px-4 py-3.5 sm:px-6 lg:hidden">
           <Link href="/" className="inline-flex items-center gap-2">
             <Image
@@ -103,17 +103,17 @@ export function AuthShell({
           </Link>
         </div>
 
-        <div className="flex flex-1 items-center justify-center p-4 sm:p-8">
+        <div className="flex flex-1 items-center justify-center p-3 sm:p-5 lg:p-6">
           <div className={`w-full ${wide ? "max-w-3xl" : "max-w-md"}`}>
-            <div className="mb-6 lg:hidden">
+            <div className="mb-4 lg:hidden">
               <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
             </div>
-            <div className="relative flex min-h-[520px] flex-col justify-center rounded-2xl border border-border bg-card p-4 sm:p-6 lg:p-10 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
+            <div className="relative flex min-h-0 flex-col justify-center rounded-2xl border border-border bg-card p-4 sm:p-6 lg:p-6 xl:p-8 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
               {children}
             </div>
             {footer && (
-              <div className="mt-6 text-center text-sm text-muted-foreground">{footer}</div>
+              <div className="mt-3 text-center text-xs sm:text-sm text-muted-foreground">{footer}</div>
             )}
           </div>
         </div>
