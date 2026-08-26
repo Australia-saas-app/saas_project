@@ -29,6 +29,7 @@ import {
   type LiveChatMessage,
 } from "@/src/shared/lib/live-chat-store";
 import {
+  findExistingThreadForProject,
   getOrCreateApplicationThread,
   sendThreadMessage,
 } from "@/src/shared/lib/messages-store";
@@ -104,7 +105,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     : project.clientEmail || "client@saas.com";
   const normalizedEmail = (rawOtherEmail || "user@saas.com").toLowerCase().trim();
   const projectChatKey = `project_${project.projectId}`;
-  const contactId = `contact-prj-${project.projectId}`;
+  const contactId = `contact-${normalizedEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,11 +123,11 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Helper to sync a message into local live-chat-store for the Messages Page (strictly per-project)
+  // Helper to sync a message into local live-chat-store for the Messages Page (strictly per-project and per-contact)
   const syncToLiveChatStore = (content: string, isFromMe: boolean) => {
     try {
       const store = readLiveChatMessages();
-      const existing = store[projectChatKey] || store[contactId] || [];
+      const existing = store[contactId] || store[normalizedEmail] || store[projectChatKey] || [];
 
       const newMsg: LiveChatMessage = {
         id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -140,8 +141,9 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       };
 
       const updated = [...existing, newMsg];
-      store[projectChatKey] = updated;
       store[contactId] = updated;
+      store[normalizedEmail] = updated;
+      store[projectChatKey] = updated;
       writeLiveChatMessages(store);
 
       // Make sure contact is in active list with full formatted name "Hello | Tech"
@@ -166,7 +168,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     }
   };
 
-  // Load existing persistent messages from PostgreSQL DB & sync with Live Chat Store
+  // Load existing persistent messages from PostgreSQL DB & sync with Live Chat Store and Messages Threads
   const loadMessages = useCallback(async () => {
     try {
       const data = await fetchProjectMessages(project.projectId);
@@ -183,17 +185,32 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
           }))
         : [];
 
-      // Read local messages strictly scoped for this specific project
+      // Read local live-chat messages
       const store = readLiveChatMessages();
-      const localContactMsgs = store[projectChatKey] || store[contactId] || [];
+      const localContactMsgs = store[contactId] || store[normalizedEmail] || store[projectChatKey] || [];
+
+      // Also read thread messages from messages-store if exists
+      const existingThread = findExistingThreadForProject(
+        project.projectId,
+        normalizedEmail,
+        project.assignedBusinessUserId || project.assignedBusinessId
+      );
+      const threadMsgs: any[] = (existingThread?.messages || []).map((tm) => ({
+        id: tm.id,
+        content: tm.body,
+        senderName: tm.fromName,
+        senderId: tm.from === "me" ? currentUserId : contactId,
+        timestamp: new Date(tm.sentAt).getTime(),
+        status: "seen",
+      }));
 
       // Merge avoiding duplicates by content & approximate time
       const merged = [...dbMsgs];
-      localContactMsgs.forEach((lm) => {
+      [...localContactMsgs, ...threadMsgs].forEach((lm: any) => {
         const exists = merged.some(
           (m) =>
-            m.content === lm.content &&
-            Math.abs(new Date(m.createdAt).getTime() - lm.timestamp) < 5000
+            m.content.trim() === lm.content.trim() &&
+            Math.abs(new Date(m.createdAt).getTime() - lm.timestamp) < 60000
         );
         if (!exists) {
           merged.push({
@@ -204,7 +221,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
             messageType: "general",
             content: lm.content,
             createdAt: new Date(lm.timestamp).toISOString(),
-            status: lm.status,
+            status: lm.status || "seen",
           });
         }
       });
@@ -214,7 +231,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     } catch {
       // fallback to store
       const store = readLiveChatMessages();
-      const localContactMsgs = store[projectChatKey] || store[contactId] || [];
+      const localContactMsgs = store[contactId] || store[normalizedEmail] || store[projectChatKey] || [];
       const msgs = localContactMsgs.map((lm) => ({
         id: lm.id,
         projectId: project.projectId,
@@ -230,7 +247,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       setLoading(false);
       setTimeout(scrollToBottom, 100);
     }
-  }, [project.projectId, project.clientId, project.clientName, project.assignedBusinessUserId, project.assignedBusinessId, otherPartyName, projectChatKey, contactId]);
+  }, [project.projectId, project.clientId, project.clientName, project.assignedBusinessUserId, project.assignedBusinessId, otherPartyName, projectChatKey, contactId, normalizedEmail, currentUserId]);
 
   useEffect(() => {
     loadMessages();
@@ -383,7 +400,14 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
 
     // Sync to Dashboard Thread Inbox & Sent matching the exact project thread
     try {
-      const threadId = `TH-${project.projectId}`;
+      const existingThread = findExistingThreadForProject(
+        project.projectId,
+        normalizedEmail,
+        project.assignedBusinessUserId || project.assignedBusinessId
+      );
+
+      const targetApplicantId = project.assignedBusinessUserId || project.assignedBusinessId || "";
+      const threadId = existingThread?.id || `TH-${project.projectId}${targetApplicantId ? "-" + targetApplicantId : ""}`;
 
       getOrCreateApplicationThread({
         threadId,
@@ -391,7 +415,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
         applicantName: providerFullName || providerBsnName || otherPartyName,
         applicantBusiness: providerBsnName,
         applicantEmail: normalizedEmail,
-        applicantUserId: project.assignedBusinessUserId || project.assignedBusinessId || "",
+        applicantUserId: targetApplicantId,
         clientName: project.clientName || currentUserName,
         clientEmail: project.clientEmail || currentUserEmail,
         projectId: project.projectId,
@@ -407,7 +431,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
 
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         const veroBc = new BroadcastChannel("vero_channel");
-        veroBc.postMessage({ type: "vero:new_message", detail: { projectId: project.projectId, text } });
+        veroBc.postMessage({ type: "vero:new_message", detail: { projectId: project.projectId, text, threadId } });
         veroBc.close();
       }
     } catch {

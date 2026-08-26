@@ -775,6 +775,14 @@ export function useTechnicalProjectModal() {
 
       // Save proposal to PostgreSQL database
       try {
+        const realAvatar =
+          latestUser?.avatarUrl ||
+          latestUser?.profilePhoto ||
+          (user as any)?.avatarUrl ||
+          (user as any)?.profilePhoto ||
+          (typeof window !== "undefined" ? localStorage.getItem(`profile_override_${(user as any)?.userId || (user as any)?.id}`) : "") ||
+          "";
+
         await applyForProject(pId, {
           proposal: `Business application for project "${selected.title}"`,
           price: parseFloat(String(selected.priceRange || "").replace(/[^0-9.]/g, "")) || 0,
@@ -788,6 +796,9 @@ export function useTechnicalProjectModal() {
           businessId: realCustomId,
           email: latestUser?.email || (user as any)?.email || "",
           userEmail: latestUser?.email || (user as any)?.email || "",
+          avatar: realAvatar,
+          profilePhoto: realAvatar,
+          avatarUrl: realAvatar,
           kycStatus: "verified",
         });
       } catch (e: any) {

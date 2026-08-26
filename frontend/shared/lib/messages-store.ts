@@ -275,6 +275,49 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
   );
 }
 
+export function findExistingThreadForProject(
+  projectId: string,
+  participantEmail?: string,
+  participantUserId?: string
+): MessageThread | undefined {
+  const local = readAll();
+  const global = readGlobalEmails();
+  const all = [...local, ...global];
+  const pEmail = (participantEmail || "").trim().toLowerCase();
+  const pId = (projectId || "").trim();
+
+  if (!pId && !pEmail) return undefined;
+
+  // 1. Direct match by projectId AND participant email/userId
+  const match1 = all.find((t) => {
+    const tPrj = (t.projectId || "").trim();
+    if (tPrj && (tPrj === pId || `PRJ-${tPrj}` === pId || tPrj.replace(/^PRJ-/, "") === pId.replace(/^PRJ-/, ""))) {
+      if (pEmail && (t.recipientEmail?.toLowerCase() === pEmail || t.senderEmail?.toLowerCase() === pEmail)) return true;
+      if (participantUserId && (t.recipientUserId === participantUserId || t.senderUserId === participantUserId)) return true;
+      return true;
+    }
+    return false;
+  });
+  if (match1) return match1;
+
+  // 2. Match by thread ID pattern
+  const match2 = all.find((t) =>
+    (t.projectId || "").trim() === pId ||
+    t.id === `TH-${pId}` ||
+    t.id.startsWith(`TH-${pId}-`) ||
+    t.id.startsWith(`TH-${pId.replace(/^PRJ-/, "")}-`)
+  );
+  if (match2) return match2;
+
+  // 3. Match by participant email if project thread
+  if (pEmail) {
+    const match3 = all.find((t) => (t.recipientEmail?.toLowerCase() === pEmail || t.senderEmail?.toLowerCase() === pEmail) && t.projectId);
+    if (match3) return match3;
+  }
+
+  return undefined;
+}
+
 export function getThreadById(id: string): MessageThread | undefined {
   return readAll().find((t) => t.id === id) || readGlobalEmails().find((t) => t.id === id);
 }
@@ -294,7 +337,11 @@ export function getOrCreateApplicationThread(input: {
 }): MessageThread {
   const local = readAll();
   const global = readGlobalEmails();
-  const existing = local.find((t) => t.id === input.threadId) || global.find((t) => t.id === input.threadId);
+  let existing = local.find((t) => t.id === input.threadId) || global.find((t) => t.id === input.threadId);
+
+  if (!existing) {
+    existing = findExistingThreadForProject(input.projectId, input.applicantEmail, input.applicantUserId);
+  }
 
   if (existing) {
     let changed = false;

@@ -204,6 +204,15 @@ export class Project {
   @Column({ type: 'varchar', length: 255, nullable: true })
   assignedBusinessUserId: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  assignedBusinessFullName: string;
+
+  @Column({ type: 'text', nullable: true })
+  assignedBusinessAvatar: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  assignedBusinessType: string;
+
   @Column({ type: 'timestamp', nullable: true })
   assignedAt: Date;
 

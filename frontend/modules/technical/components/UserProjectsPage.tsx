@@ -457,6 +457,7 @@ export default function UserProjectsPage() {
         businessFullName: applicantName,
         businessUserId: applicantUserId,
         businessEmail: applicantEmail,
+        businessAvatar: applicantAvatar,
         businessType: bsnType,
         proposalId: applicant.proposalId || applicant.id,
       });
@@ -1008,38 +1009,6 @@ export default function UserProjectsPage() {
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-
-                    {/* Chat with Provider Button */}
-                    {(Boolean(project.assignedBusinessId || project.assignedBusinessName || project.assignedBusinessUserId) ||
-                      project.submissionStatus === "in_progress" ||
-                      project.submissionStatus === "completed" ||
-                      project.submissionStatus === "revision" ||
-                      project.submissionStatus === "accepted") && (
-                      <button
-                        type="button"
-                        title={`Chat about ${project.title}`}
-                        onClick={() => {
-                          const pKey = project.projectId || String(project.id);
-                          const proposalsList = proposalsMap[pKey] || proposalsMap[String(project.id)] || [];
-                          const matchedProposal = proposalsList.find(
-                            (pr: any) =>
-                              (project.assignedBusinessId && String(pr.userId || pr.id || pr.applicantUserId) === String(project.assignedBusinessId)) ||
-                              (project.assignedBusinessEmail && pr.email && pr.email.toLowerCase() === project.assignedBusinessEmail.toLowerCase()) ||
-                              (project.assignedBusinessName && (pr.businessName === project.assignedBusinessName || pr.fullName === project.assignedBusinessName))
-                          );
-                          const providerFullName = project.assignedBusinessFullName || matchedProposal?.fullName || matchedProposal?.userName || (project.assignedBusinessName && project.assignedBusinessName !== "Tech" ? project.assignedBusinessName : "Abdul Rafiu");
-                          const providerBusinessName = project.assignedBusinessName || matchedProposal?.businessName || "Tech";
-                          setChatProject({
-                            ...project,
-                            assignedBusinessFullName: providerFullName,
-                            assignedBusinessName: providerBusinessName,
-                          });
-                        }}
-                        className="p-2 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all cursor-pointer shrink-0 shadow-xs"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </button>
-                    )}
                   </div>
 
                   {/* Middle: Action / Payment Button */}
@@ -1935,11 +1904,21 @@ export default function UserProjectsPage() {
 
         // milestones JSONB array from DB for per-milestone status
         const dbMilestones: any[] = Array.isArray(p.milestones) ? p.milestones : [];
-        const getMilestoneStatus = (i: number) => dbMilestones[i]?.status ?? "pending";
-        const getMilestoneClientNote = (i: number) => dbMilestones[i]?.clientNote ?? "";
+        const isProjectResubmitted = p.submissionStatus === "completed";
+        const getMilestoneStatus = (i: number) => {
+          const rawSt = dbMilestones[i]?.status ?? "pending";
+          if (rawSt === "accepted") return "accepted";
+          if (isProjectResubmitted) return "submitted";
+          return rawSt;
+        };
+        const getMilestoneClientNote = (i: number) => {
+          if (isProjectResubmitted) return "";
+          return dbMilestones[i]?.clientNote ?? "";
+        };
 
         const currentMsStatus = getMilestoneStatus(assignedMilestoneTab);
         const currentAccepted = currentMsStatus === "accepted";
+        const isCurrentMsRevision = p.submissionStatus === "revision" && currentMsStatus === "revision";
 
         // Tab unlock: tab 0 always open, tab N open if previous accepted
         const isTabOpen = (i: number) => i === 0 || getMilestoneStatus(i - 1) === "accepted";
@@ -2095,9 +2074,21 @@ export default function UserProjectsPage() {
                     p.assignedBusinessAvatar ||
                     matchedProposal?.avatar ||
                     matchedProposal?.profilePhoto ||
+                    matchedProposal?.avatarUrl ||
                     matchedProposal?.photo ||
                     matchedProposal?.image ||
                     "";
+
+                  if (!businessAvatar) {
+                    // Check any proposal across the project
+                    for (const pr of proposalsList) {
+                      const av = pr.avatar || pr.profilePhoto || pr.avatarUrl || pr.photo || pr.image;
+                      if (av) {
+                        businessAvatar = av;
+                        break;
+                      }
+                    }
+                  }
 
                   if (!businessAvatar && typeof window !== "undefined") {
                     try {
@@ -2105,17 +2096,18 @@ export default function UserProjectsPage() {
                         const rawOverride = localStorage.getItem(`profile_override_${uId}`);
                         if (rawOverride) {
                           const pData = JSON.parse(rawOverride);
-                          if (pData.avatarUrl || pData.profilePhoto) {
-                            businessAvatar = pData.avatarUrl || pData.profilePhoto;
+                          if (pData.avatarUrl || pData.profilePhoto || pData.avatar) {
+                            businessAvatar = pData.avatarUrl || pData.profilePhoto || pData.avatar;
                           }
                         }
                         if (!businessAvatar) {
                           const allOverrides = JSON.parse(localStorage.getItem("global_profile_overrides") || "{}");
-                          if (allOverrides[uId]?.avatarUrl || allOverrides[uId]?.profilePhoto) {
-                            businessAvatar = allOverrides[uId].avatarUrl || allOverrides[uId].profilePhoto;
+                          if (allOverrides[uId]?.avatarUrl || allOverrides[uId]?.profilePhoto || allOverrides[uId]?.avatar) {
+                            businessAvatar = allOverrides[uId].avatarUrl || allOverrides[uId].profilePhoto || allOverrides[uId].avatar;
                           }
                         }
                       }
+
                       if (!businessAvatar) {
                         const allContacts = JSON.parse(localStorage.getItem("platform_registered_contacts") || "[]");
                         const match = allContacts.find((c: any) =>
@@ -2125,6 +2117,42 @@ export default function UserProjectsPage() {
                         );
                         if (match?.avatar || match?.profilePhoto || match?.avatarUrl) {
                           businessAvatar = match.avatar || match.profilePhoto || match.avatarUrl;
+                        }
+                      }
+
+                      if (!businessAvatar) {
+                        const bsnOverride = localStorage.getItem("profile_override_business");
+                        if (bsnOverride) {
+                          const bData = JSON.parse(bsnOverride);
+                          if (bData.avatarUrl || bData.profilePhoto) {
+                            businessAvatar = bData.avatarUrl || bData.profilePhoto;
+                          }
+                        }
+                      }
+
+                      if (!businessAvatar) {
+                        const bsnProf = localStorage.getItem("business_profile");
+                        if (bsnProf) {
+                          const bp = JSON.parse(bsnProf);
+                          if (bp.avatarUrl || bp.profilePhoto || bp.avatar) {
+                            businessAvatar = bp.avatarUrl || bp.profilePhoto || bp.avatar;
+                          }
+                        }
+                      }
+
+                      if (!businessAvatar) {
+                        // Check all localStorage keys starting with profile_override_
+                        for (let k = 0; k < localStorage.length; k++) {
+                          const key = localStorage.key(k);
+                          if (key && key.startsWith("profile_override_")) {
+                            try {
+                              const po = JSON.parse(localStorage.getItem(key) || "{}");
+                              if (po.avatarUrl || po.profilePhoto) {
+                                businessAvatar = po.avatarUrl || po.profilePhoto;
+                                break;
+                              }
+                            } catch {}
+                          }
                         }
                       }
                     } catch {}
@@ -2281,8 +2309,8 @@ export default function UserProjectsPage() {
                   </div>
                 )}
 
-                {/* REVISION status for this milestone */}
-                {currentMsStatus === "revision" && (
+                {/* REVISION status for this milestone — only show when project is actively waiting for provider revision */}
+                {isCurrentMsRevision && (
                   <div className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 shadow-xs">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20 shrink-0">
                       <RotateCcw className="h-5 w-5 text-orange-500" />
@@ -2304,7 +2332,7 @@ export default function UserProjectsPage() {
                 {hasDeliverables ? (
                   <div className="space-y-3.5">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {currentMsStatus === "revision" ? "Previous Submission (Revision Requested)" : "Submitted Deliverables by Provider"}
+                      {isCurrentMsRevision ? "Previous Submission (Revision Requested)" : "Submitted Deliverables by Provider"}
                     </p>
 
                     {/* Numbered Attached Files with Download Button */}
@@ -2373,7 +2401,7 @@ export default function UserProjectsPage() {
                       </div>
                     )}
                   </div>
-                ) : !currentAccepted && currentMsStatus !== "revision" && (
+                ) : !currentAccepted && !isCurrentMsRevision && (
                   <div className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">
                     <CheckCircle2 className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
                     <p className="font-bold text-foreground text-sm">No deliverables submitted yet</p>
@@ -2382,7 +2410,7 @@ export default function UserProjectsPage() {
                 )}
 
                 {/* Review / Accept Decision Section — Toggle buttons and Note box */}
-                {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
+                {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && !isCurrentMsRevision && (
                   <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3.5 shadow-xs">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Your Decision</p>
 
@@ -2459,31 +2487,15 @@ export default function UserProjectsPage() {
               </div>
 
               {/* Footer */}
-              <div className="border-t border-border px-5 py-3.5 bg-muted/20 shrink-0 flex items-center justify-between gap-3">
+              <div className="border-t border-border px-5 py-3.5 bg-muted/20 shrink-0 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setChatProject({
-                      ...p,
-                      assignedBusinessFullName: providerFullName,
-                      assignedBusinessName: providerBusinessName,
-                    });
-                  }}
-                  className="rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 px-3.5 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  onClick={() => setAssignedViewProject(null)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
                 >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Chat with Provider</span>
+                  Close
                 </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAssignedViewProject(null)}
-                    className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-muted cursor-pointer"
-                  >
-                    Close
-                  </button>
-                  {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && currentMsStatus !== "revision" && (
+                  {(p.submissionStatus === "completed" || hasDeliverables) && !currentAccepted && !isCurrentMsRevision && (
                     <button
                       type="button"
                       disabled={!canSubmitReview || assignedReviewSubmitting}
@@ -2494,18 +2506,17 @@ export default function UserProjectsPage() {
                         <>
                           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...
                         </>
-                      ) : assignedReviewAction === "accept" ? (
+                      ) : assignedReviewAction === "revision" ? (
                         <>
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Accept &amp; Release {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "Payment"}
+                          <RotateCcw className="h-3.5 w-3.5" /> Submit Revision Request
                         </>
                       ) : (
                         <>
-                          <RotateCcw className="h-3.5 w-3.5" /> Submit Revision Request
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Accept &amp; Release {milestoneCount > 1 ? `Milestone ${assignedMilestoneTab + 1}` : "Payment"}
                         </>
                       )}
                     </button>
                   )}
-                </div>
               </div>
             </div>
           </div>

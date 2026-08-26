@@ -150,6 +150,11 @@ export class AuthController {
     return this.authService.completeProfile(req.user.userId, dto);
   }
 
+  @Get('contacts')
+  getContacts(@Query('search') search?: string) {
+    return this.authService.getAllRegisteredContacts(search);
+  }
+
   @Get('admin/users')
   @UseGuards(JwtAuthGuard)
   getUsers(@Query() query: any, @Request() req: any) {

@@ -1655,5 +1655,67 @@ export class AuthService {
 
     return { success: true, message: 'Password updated successfully' };
   }
+
+  async getAllRegisteredContacts(search?: string) {
+    try {
+      const qb = this.userRepository.createQueryBuilder('user')
+        .select(['user.userId', 'user.fullName', 'user.firstName', 'user.lastName', 'user.email', 'user.phone', 'user.accountType', 'user.role', 'user.profilePicture']);
+
+      if (search && search.trim()) {
+        const like = `%${search.trim().toLowerCase()}%`;
+        qb.where('(LOWER(user.fullName) LIKE :like OR LOWER(user.email) LIKE :like OR LOWER(user.firstName) LIKE :like OR LOWER(user.lastName) LIKE :like)', { like });
+      }
+
+      const users = await qb.getMany();
+
+      const adminQb = this.adminRepository.createQueryBuilder('admin')
+        .select(['admin.adminId', 'admin.name', 'admin.email', 'admin.role', 'admin.phone']);
+
+      if (search && search.trim()) {
+        const like = `%${search.trim().toLowerCase()}%`;
+        adminQb.where('(LOWER(admin.name) LIKE :like OR LOWER(admin.email) LIKE :like)', { like });
+      }
+
+      const admins = await adminQb.getMany();
+
+      const contactMap = new Map<string, any>();
+
+      admins.forEach((a) => {
+        const email = (a.email || '').toLowerCase().trim();
+        if (email && !contactMap.has(email)) {
+          const roleStr = a.role ? (a.role.charAt(0).toUpperCase() + a.role.slice(1).replace(/_/g, ' ')) : 'Admin';
+          contactMap.set(email, {
+            id: a.adminId || `admin-${email}`,
+            name: a.name || email.split('@')[0],
+            email: a.email,
+            phone: a.phone || '',
+            role: roleStr,
+          });
+        }
+      });
+
+      users.forEach((u) => {
+        const email = (u.email || '').toLowerCase().trim();
+        if (email && !contactMap.has(email)) {
+          const displayName = u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || email.split('@')[0];
+          const roleLabel = u.accountType
+            ? (u.accountType.charAt(0).toUpperCase() + u.accountType.slice(1))
+            : (u.role || 'User');
+          contactMap.set(email, {
+            id: u.userId || `user-${email}`,
+            name: displayName,
+            email: u.email,
+            phone: u.phone || '',
+            role: roleLabel,
+            avatar: u.profilePicture || '',
+          });
+        }
+      });
+
+      return Array.from(contactMap.values());
+    } catch (e: any) {
+      return [];
+    }
+  }
 }
 

@@ -374,6 +374,14 @@ export default function BusinessServicesLayout() {
 
     // Save proposal to PostgreSQL database
     try {
+      const realAvatar =
+        latestUser?.avatarUrl ||
+        latestUser?.profilePhoto ||
+        (user as any)?.avatarUrl ||
+        (user as any)?.profilePhoto ||
+        (typeof window !== "undefined" ? localStorage.getItem(`profile_override_${(user as any)?.userId || (user as any)?.id}`) : "") ||
+        "";
+
       await applyForProject(row.id, {
         proposal: `Business application for project "${row.title}"`,
         price: parseFloat(String(row.budget || "").replace(/[^0-9.]/g, "")) || 0,
@@ -385,6 +393,9 @@ export default function BusinessServicesLayout() {
         fullName: realFullName,
         businessType: realBusinessType,
         businessId: realCustomId,
+        avatar: realAvatar,
+        profilePhoto: realAvatar,
+        avatarUrl: realAvatar,
         kycStatus: "verified",
       });
     } catch (e: any) {
@@ -917,14 +928,6 @@ export default function BusinessServicesLayout() {
                               className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer shrink-0"
                             >
                               <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              title={`Chat about ${rawP.title || row.title}`}
-                              onClick={() => setChatProject(rawP)}
-                              className="p-2 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all cursor-pointer shrink-0 shadow-xs"
-                            >
-                              <MessageSquare className="h-4 w-4" />
                             </button>
                           </div>
                           <button

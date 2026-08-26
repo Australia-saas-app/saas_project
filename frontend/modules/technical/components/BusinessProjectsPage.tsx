@@ -430,16 +430,6 @@ export default function BusinessProjectsPage() {
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="border-border text-foreground hover:bg-muted cursor-pointer rounded-xl text-xs font-semibold"
-                        onClick={() => setChatProject(project)}
-                      >
-                        <MessageSquare className="mr-1.5 h-3.5 w-3.5 text-primary" />
-                        Project Chat
-                      </Button>
-
-                      <Button
-                        size="sm"
                         className={[
                           "rounded-xl text-xs font-semibold cursor-pointer shadow-xs",
                           project.submissionStatus === "completed"

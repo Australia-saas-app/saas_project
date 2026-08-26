@@ -77,11 +77,11 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   submitted: { label: "Submitted — Needs Review", color: "bg-purple-100 text-purple-700" },
   admin_review: { label: "In Review", color: "bg-blue-100 text-blue-700" },
   approved: { label: "Approved — Awaiting Payment", color: "bg-amber-100 text-amber-700" },
-  active: { label: "Paid — Available to Businesses", color: "bg-green-100 text-green-700" },
-  in_progress: { label: "In Progress (Business Working)", color: "bg-indigo-100 text-indigo-700" },
-  completed: { label: "Completed — Needs Review", color: "bg-teal-100 text-teal-700" },
-  revision: { label: "Revision Requested", color: "bg-orange-100 text-orange-700" },
-  accepted: { label: "Accepted & Payment Released", color: "bg-emerald-100 text-emerald-700" },
+  active: { label: "Active", color: "bg-emerald-100 text-emerald-700" },
+  in_progress: { label: "Active (In Progress)", color: "bg-emerald-100 text-emerald-700" },
+  completed: { label: "Active (Deliverables Submitted)", color: "bg-emerald-100 text-emerald-700" },
+  revision: { label: "Active (Revision Requested)", color: "bg-emerald-100 text-emerald-700" },
+  accepted: { label: "Completed & Released", color: "bg-teal-100 text-teal-700" },
   rejected: { label: "Rejected", color: "bg-red-100 text-red-700" },
 };
 

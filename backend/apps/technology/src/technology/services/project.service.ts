@@ -585,6 +585,15 @@ export class ProjectService {
     if (applicant.businessEmail) {
       project.assignedBusinessEmail = applicant.businessEmail;
     }
+    if ((applicant as any).businessFullName) {
+      project.assignedBusinessFullName = (applicant as any).businessFullName;
+    }
+    if ((applicant as any).businessAvatar || (applicant as any).avatar || (applicant as any).profilePhoto) {
+      project.assignedBusinessAvatar = (applicant as any).businessAvatar || (applicant as any).avatar || (applicant as any).profilePhoto;
+    }
+    if ((applicant as any).businessType) {
+      project.assignedBusinessType = (applicant as any).businessType;
+    }
     project.submissionStatus = SubmissionStatus.IN_PROGRESS;
     project.status = ProjectStatus.IN_PROGRESS;
     project.acceptedAt = new Date();
@@ -600,6 +609,18 @@ export class ProjectService {
         const pEmail = (proposal as any).userEmail || (proposal as any).email;
         if (!project.assignedBusinessEmail && pEmail) {
           project.assignedBusinessEmail = pEmail;
+        }
+        let pMeta: any = {};
+        try {
+          if (proposal.proposal && (proposal.proposal.startsWith('{') || proposal.proposal.startsWith('['))) {
+            pMeta = JSON.parse(proposal.proposal);
+          }
+        } catch {}
+        if (!project.assignedBusinessAvatar && (pMeta.avatar || pMeta.profilePhoto || pMeta.avatarUrl)) {
+          project.assignedBusinessAvatar = pMeta.avatar || pMeta.profilePhoto || pMeta.avatarUrl;
+        }
+        if (!project.assignedBusinessFullName && (pMeta.fullName || pMeta.userName)) {
+          project.assignedBusinessFullName = pMeta.fullName || pMeta.userName;
         }
       }
     }
@@ -706,6 +727,15 @@ export class ProjectService {
     project.completionNotes = data.completionNotes ?? '';
     project.completedAt = new Date();
     project.updatedBy = businessId;
+
+    // Reset any active milestone revisions to submitted upon resubmission
+    if (Array.isArray(project.milestones) && project.milestones.length > 0) {
+      project.milestones = project.milestones.map((ms: any) => ({
+        ...ms,
+        status: ms.status === 'revision' ? 'submitted' : (ms.status || 'submitted'),
+      }));
+    }
+
     const saved = await this.projectRepository.save(project);
 
     // Notify Client & Admin
@@ -1007,6 +1037,9 @@ export class ProjectService {
           fullName: (applyDto as any)?.fullName || (applyDto as any)?.userName || '',
           businessType: (applyDto as any)?.businessType || (applyDto as any)?.businessIndustry || (applyDto as any)?.businessCategory || (applyDto as any)?.industry || '',
           businessId: (applyDto as any)?.businessId || null,
+          avatar: (applyDto as any)?.avatar || (applyDto as any)?.profilePhoto || (applyDto as any)?.avatarUrl || (applyDto as any)?.photo || '',
+          profilePhoto: (applyDto as any)?.profilePhoto || (applyDto as any)?.avatar || (applyDto as any)?.avatarUrl || '',
+          avatarUrl: (applyDto as any)?.avatarUrl || (applyDto as any)?.avatar || (applyDto as any)?.profilePhoto || '',
           kycStatus: (applyDto as any)?.kycStatus || 'verified',
         });
 
@@ -1133,12 +1166,25 @@ export class ProjectService {
         (p as any).businessIndustry ||
         'Technology';
 
+      const resolvedAvatar =
+        meta.avatar ||
+        meta.profilePhoto ||
+        meta.avatarUrl ||
+        meta.photo ||
+        meta.image ||
+        (p as any).avatar ||
+        (p as any).profilePhoto ||
+        '';
+
       return {
         ...p,
         businessId: customBusinessId,
         fullName: meta.fullName || meta.userName || (p as any).userName || p.userId || '',
         businessName: meta.businessName || (p as any).businessName || '',
         businessType: resolvedBusinessType,
+        avatar: resolvedAvatar,
+        profilePhoto: resolvedAvatar,
+        avatarUrl: resolvedAvatar,
         accountStatus: meta.kycStatus || 'verified',
         proposalMessage: meta.text || p.proposal,
       };

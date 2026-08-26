@@ -320,16 +320,39 @@ export default function TechnicalProjectLayout() {
     }
   };
 
+  const isProjectFullyAccepted = (p: any): boolean => {
+    if (!p) return false;
+    const st = (p.submissionStatus || "").toLowerCase();
+    if (st === "accepted") return true;
+    const dbMs = Array.isArray(p.milestones) ? p.milestones : [];
+    const mCount = (() => {
+      const t = (p.paymentTerms || "").toLowerCase();
+      if (t.includes("three") || t === "3") return 3;
+      if (t.includes("two") || t === "2") return 2;
+      return 1;
+    })();
+    if (dbMs.length > 0 && dbMs.length >= mCount && dbMs.every((m: any) => m.status === "accepted")) {
+      return true;
+    }
+    return false;
+  };
+
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase();
     return projects.filter((p) => {
+      const isPaid =
+        p.paymentStatus?.toLowerCase() === "paid" ||
+        p.paymentStatus?.toLowerCase() === "released" ||
+        ["active", "in_progress", "completed", "accepted"].includes((p.submissionStatus || "").toLowerCase());
+      const isAccepted = isProjectFullyAccepted(p);
+
       // Subtab filter
       if (activeTab === "my-project") {
-        if (!["active", "in_progress"].includes(p.submissionStatus)) return false;
+        if (isAccepted || (!["active", "in_progress", "completed", "revision"].includes(p.submissionStatus) && !isPaid)) return false;
       } else if (activeTab === "refund") {
         if (!["rejected", "refunded", "cancelled"].includes(p.submissionStatus)) return false;
       } else if (activeTab === "report") {
-        if (!["revision", "completed"].includes(p.submissionStatus)) return false;
+        if (!isAccepted) return false;
       }
 
       // Search query
@@ -355,11 +378,11 @@ export default function TechnicalProjectLayout() {
 
       // Status filter
       if (statusFilter !== "all") {
-        if (statusFilter === "pending" && !["submitted", "admin_review"].includes(p.submissionStatus)) return false;
-        if (statusFilter === "approved" && p.submissionStatus !== "approved") return false;
-        if (statusFilter === "active" && p.submissionStatus !== "active") return false;
-        if (statusFilter === "in_progress" && p.submissionStatus !== "in_progress") return false;
-        if (statusFilter === "completed" && p.submissionStatus !== "completed") return false;
+        if (statusFilter === "pending" && !["submitted", "admin_review", "pending"].includes(p.submissionStatus)) return false;
+        if (statusFilter === "approved" && !["approved", "payment_pending"].includes(p.submissionStatus)) return false;
+        if (statusFilter === "active" && (isAccepted || (!["active", "in_progress", "completed", "revision"].includes(p.submissionStatus) && !isPaid))) return false;
+        if (statusFilter === "in_progress" && (isAccepted || (!["active", "in_progress", "completed", "revision"].includes(p.submissionStatus) && !isPaid))) return false;
+        if (statusFilter === "completed" && !isAccepted) return false;
         if (statusFilter === "rejected" && p.submissionStatus !== "rejected") return false;
       }
 
@@ -480,7 +503,6 @@ export default function TechnicalProjectLayout() {
                 <SelectItem value="pending" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-lg text-xs">Pending</SelectItem>
                 <SelectItem value="approved" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-lg text-xs">Approved</SelectItem>
                 <SelectItem value="active" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-lg text-xs">Active</SelectItem>
-                <SelectItem value="in_progress" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-lg text-xs">In Progress</SelectItem>
                 <SelectItem value="completed" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-lg text-xs">Completed</SelectItem>
                 <SelectItem value="rejected" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-lg text-xs">Rejected</SelectItem>
               </SelectContent>
@@ -495,13 +517,13 @@ export default function TechnicalProjectLayout() {
           Project ({projects.length})
         </button>
         <button onClick={() => setActiveTab("my-project")} className={tabClass(activeTab === "my-project")}>
-          My Project ({projects.filter((p) => ["active", "in_progress"].includes(p.submissionStatus)).length})
+          My Project ({projects.filter((p) => !isProjectFullyAccepted(p) && (["active", "in_progress", "completed", "revision"].includes(p.submissionStatus) || p.paymentStatus === "paid")).length})
         </button>
         <button onClick={() => setActiveTab("refund")} className={tabClass(activeTab === "refund")}>
           Refund Project ({projects.filter((p) => ["rejected", "refunded", "cancelled"].includes(p.submissionStatus)).length})
         </button>
         <button onClick={() => setActiveTab("report")} className={tabClass(activeTab === "report")}>
-          Report Project ({projects.filter((p) => ["revision", "completed"].includes(p.submissionStatus)).length})
+          Report Project ({projects.filter((p) => isProjectFullyAccepted(p)).length})
         </button>
       </div>
 
@@ -550,6 +572,8 @@ export default function TechnicalProjectLayout() {
                   const totalAmountNum = Number(p.totalAmount || (baseBudget + commission));
                   const currency = p.currency || "USD";
 
+                  const isAccepted = isProjectFullyAccepted(p);
+
                   const isPaid =
                     p.paymentStatus?.toLowerCase() === "paid" ||
                     p.paymentStatus?.toLowerCase() === "released" ||
@@ -572,15 +596,18 @@ export default function TechnicalProjectLayout() {
                   let displayStatus = "Pending";
                   let statusBadgeStyle = "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900";
 
-                  if (rawStatus === "approved" || rawStatus === "payment_pending") {
-                    displayStatus = "Approved";
-                    statusBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
-                  } else if (rawStatus === "active" || rawStatus === "in_progress") {
-                    displayStatus = "Active";
-                    statusBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
-                  } else if (rawStatus === "completed" || rawStatus === "accepted") {
+                  if (isAccepted) {
                     displayStatus = "Completed";
                     statusBadgeStyle = "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-900";
+                  } else if (
+                    ["active", "in_progress", "completed", "revision"].includes(rawStatus) ||
+                    isPaid
+                  ) {
+                    displayStatus = "Active";
+                    statusBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
+                  } else if (rawStatus === "approved" || rawStatus === "payment_pending") {
+                    displayStatus = "Approved";
+                    statusBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
                   } else if (rawStatus === "rejected") {
                     displayStatus = "Rejected";
                     statusBadgeStyle = "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900";
@@ -851,24 +878,39 @@ export default function TechnicalProjectLayout() {
                     <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                       <ShieldCheck className="h-4 w-4 text-amber-600" /> Admin Pricing &amp; Terms
                     </span>
-                    {!isPending && (
-                      <span
-                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                          selectedProject.submissionStatus === "active" ||
-                          selectedProject.submissionStatus === "approved" ||
-                          selectedProject.submissionStatus === "accepted" ||
-                          selectedProject.submissionStatus === "completed"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 font-extrabold"
-                            : selectedProject.submissionStatus === "rejected"
-                            ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25 font-extrabold"
-                            : selectedProject.submissionStatus === "in_progress"
-                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25 font-extrabold"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 font-extrabold"
-                        }`}
-                      >
-                        Status: {selectedProject.submissionStatus}
-                      </span>
-                    )}
+                    {!isPending && (() => {
+                      const isFullyAccepted = isProjectFullyAccepted(selectedProject);
+                      const rawSt = (selectedProject.submissionStatus || "").toLowerCase();
+                      const isPaid =
+                        selectedProject.paymentStatus?.toLowerCase() === "paid" ||
+                        selectedProject.paymentStatus?.toLowerCase() === "released" ||
+                        ["active", "in_progress", "completed", "accepted"].includes(rawSt);
+
+                      let modalStatusText = "Pending";
+                      let modalBadgeStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25";
+
+                      if (isFullyAccepted) {
+                        modalStatusText = "Completed";
+                        modalBadgeStyle = "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/25";
+                      } else if (["active", "in_progress", "completed", "revision"].includes(rawSt) || isPaid) {
+                        modalStatusText = "Active";
+                        modalBadgeStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+                      } else if (rawSt === "approved" || rawSt === "payment_pending") {
+                        modalStatusText = "Approved";
+                        modalBadgeStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+                      } else if (rawSt === "rejected") {
+                        modalStatusText = "Rejected";
+                        modalBadgeStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25";
+                      }
+
+                      return (
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border font-extrabold ${modalBadgeStyle}`}
+                        >
+                          Status: {modalStatusText}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">

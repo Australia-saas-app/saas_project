@@ -28,6 +28,7 @@ import { ProposalQueryDto } from './dto/proposal-query.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
 import { UnifiedAuthGuard } from '../common/guards/unified-auth.guard';
 import { ParticipantRole } from './entities/project-participant.entity';
+import { ServiceTaxonomyService } from './services/service-taxonomy.service';
 
 @ApiTags('projects')
 @Controller('projects')
@@ -36,7 +37,59 @@ export class ProjectController {
     private readonly projectService: ProjectService,
     private readonly taskService: TaskService,
     private readonly messageService: MessageService,
+    private readonly taxonomyService: ServiceTaxonomyService,
   ) {}
+
+  // ─── TAXONOMY (CATEGORIES, SUBCATEGORIES, SKILLS) ──────────────────────────
+
+  @Get('taxonomy')
+  @ApiOperation({ summary: 'Get categories, subcategories, and skills for service' })
+  async getTaxonomy(@Query('serviceType') serviceType?: string) {
+    return this.taxonomyService.getTaxonomy(serviceType || 'technology');
+  }
+
+  @Post('taxonomy/add')
+  @ApiOperation({ summary: 'Add category, subcategory, or skill' })
+  async addTaxonomyItem(
+    @Body()
+    body: {
+      serviceType?: string;
+      type: 'category' | 'subcategory' | 'skill';
+      name: string;
+      parentCategory?: string;
+    },
+  ) {
+    return this.taxonomyService.addItem(body);
+  }
+
+  @Post('taxonomy/remove')
+  @ApiOperation({ summary: 'Remove category, subcategory, or skill' })
+  async removeTaxonomyItem(
+    @Body()
+    body: {
+      serviceType?: string;
+      type: 'category' | 'subcategory' | 'skill';
+      name: string;
+    },
+  ) {
+    return this.taxonomyService.removeItem(body);
+  }
+
+  @Delete('taxonomy')
+  @ApiOperation({ summary: 'Delete category, subcategory, or skill' })
+  async deleteTaxonomyItem(
+    @Query('serviceType') serviceType: string,
+    @Query('type') type: string,
+    @Query('name') name: string,
+  ) {
+    return this.taxonomyService.removeItem({ serviceType, type, name });
+  }
+
+  @Post('taxonomy/seed')
+  @ApiOperation({ summary: 'Get current taxonomy' })
+  async seedTaxonomy(@Body('serviceType') serviceType?: string) {
+    return this.taxonomyService.getTaxonomy(serviceType || 'technology');
+  }
 
   // ─── PROJECT CRUD ───────────────────────────────────────────────────────────
 

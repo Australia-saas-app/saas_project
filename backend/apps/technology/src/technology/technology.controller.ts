@@ -26,13 +26,49 @@ import { AdminAuthGuard } from '../common/guards/admin-auth.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RequestWithAdmin, RequestWithUser } from '../common/interfaces/request.interface';
 
+import { ServiceTaxonomyService } from './services/service-taxonomy.service';
+
 @ApiTags('services')
 @Controller('services')
 export class TechnologyController {
   constructor(
     private readonly technicalServiceService: TechnicalServiceService,
     private readonly technicalCategoryService: TechnicalCategoryService,
+    private readonly taxonomyService: ServiceTaxonomyService,
   ) {}
+
+  @Get('taxonomy')
+  @ApiOperation({ summary: 'Get categories, subcategories, and skills for service' })
+  async getTaxonomy(@Query('serviceType') serviceType?: string) {
+    return this.taxonomyService.getTaxonomy(serviceType || 'technology');
+  }
+
+  @Post('taxonomy/add')
+  @ApiOperation({ summary: 'Add category, subcategory, or skill' })
+  async addTaxonomyItem(
+    @Body()
+    body: {
+      serviceType?: string;
+      type: 'category' | 'subcategory' | 'skill';
+      name: string;
+      parentCategory?: string;
+    },
+  ) {
+    return this.taxonomyService.addItem(body);
+  }
+
+  @Post('taxonomy/remove')
+  @ApiOperation({ summary: 'Remove category, subcategory, or skill' })
+  async removeTaxonomyItem(
+    @Body()
+    body: {
+      serviceType?: string;
+      type: 'category' | 'subcategory' | 'skill';
+      name: string;
+    },
+  ) {
+    return this.taxonomyService.removeItem(body);
+  }
 
   // ==========================================
   // PUBLIC ROUTES - Services

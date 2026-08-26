@@ -112,9 +112,9 @@ function downloadLocalFile(file: File) {
 export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const milestoneCount = getMilestoneCount(project.paymentTerms);
   const dbMilestones: any[] = Array.isArray(project.milestones) ? project.milestones : [];
-  const isOverallCompleted = project.submissionStatus === "completed";
+  const isOverallCompleted = project.submissionStatus === "completed" || isCompleted;
   const isOverallAccepted = project.submissionStatus === "accepted";
-  const isOverallRevision = project.submissionStatus === "revision";
+  const isOverallRevision = project.submissionStatus === "revision" && !isCompleted;
 
   // Parse notes per milestone if formatted as [Milestone 1] note...
   const parseNotesForMilestone = (idx: number): string => {
@@ -167,9 +167,11 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
       if (msDb?.status === "accepted" || isOverallAccepted) {
         status = "accepted";
+      } else if (isOverallCompleted) {
+        status = "submitted";
       } else if (msDb?.status === "revision" || isOverallRevision) {
         status = "revision";
-      } else if (isOverallCompleted || msDb?.status === "submitted" || initialFiles.length > 0 || initialUrls.length > 0) {
+      } else if (msDb?.status === "submitted" || initialFiles.length > 0 || initialUrls.length > 0) {
         status = "submitted";
       }
 
@@ -184,7 +186,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         links,
         note,
         status,
-        clientNote: msDb?.clientNote || "",
+        clientNote: isOverallCompleted ? "" : (msDb?.clientNote || ""),
         submitted: status !== "pending",
       };
     });
@@ -221,12 +223,12 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
   const currentMilestone = milestones[activeTab];
   const totalNewFilesSize = currentMilestone.newFiles.reduce((s, f) => s + (f.size || 0), 0);
 
-  // An active tab is locked if already accepted or submitted (unless in revision)
-  const isCurrentLocked =
-    !isOverallRevision &&
-    (currentMilestone.status === "accepted" || (currentMilestone.status === "submitted" && !isCompleted));
+  const isCurrentRevision = !isOverallCompleted && !isCompleted && (currentMilestone.status === "revision" || isOverallRevision);
 
-  const isCurrentRevision = currentMilestone.status === "revision" || isOverallRevision;
+  // An active tab is locked if already accepted or submitted (unless in active revision)
+  const isCurrentLocked =
+    !isCurrentRevision &&
+    (currentMilestone.status === "accepted" || currentMilestone.status === "submitted" || isOverallCompleted || isCompleted);
 
   const hasCurrentContent =
     currentMilestone.existingFiles.length > 0 ||
@@ -401,6 +403,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
         updateMilestone(mi, {
           status: "submitted",
           submitted: true,
+          clientNote: "",
           existingFiles: [
             ...m.existingFiles,
             ...m.newFiles.map((f) => ({
@@ -479,20 +482,20 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
               <button
                 type="button"
                 onClick={() => setSizeLimitModal(false)}
-                className="rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold px-8 py-2.5 text-sm cursor-pointer shadow-md transition-colors"
+                className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-5 py-2.5 transition-all cursor-pointer shadow-sm"
               >
-                OK, Got It
+                Got It
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+      {/* Main Deliverable Upload Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
         <div
           style={{ maxWidth: "560px", width: "100%", maxHeight: "90vh" }}
-          className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl my-auto"
+          className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header */}
           <div className="flex items-start justify-between border-b border-border px-5 py-4 shrink-0">
@@ -505,7 +508,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                     <CheckCircle2 className="w-3 h-3" />
                     All Milestones Accepted ✓
                   </span>
-                ) : isOverallRevision ? (
+                ) : isCurrentRevision ? (
                   <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30">
                     <RotateCcw className="w-3 h-3" />
                     Revision Requested
@@ -568,14 +571,12 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                   >
                     {m.status === "accepted" ? (
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    ) : m.status === "revision" ? (
+                    ) : m.status === "revision" && !isOverallCompleted ? (
                       <RotateCcw className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                     ) : m.status === "submitted" || isOverallCompleted ? (
                       <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                    ) : unlocked ? (
-                      <Unlock className="h-3 w-3 shrink-0" />
                     ) : (
-                      <Lock className="h-3 w-3 shrink-0" />
+                      <div className="h-2 w-2 rounded-full bg-muted-foreground/40 shrink-0" />
                     )}
                     <span>{getMilestoneLabel(idx, milestoneCount)}</span>
                   </button>
@@ -602,16 +603,16 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {/* STATUS BANNER PER MILESTONE */}
-            {currentMilestone.status === "accepted" ? (
-              <div className="relative overflow-hidden flex items-start gap-3 rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/10 p-4 text-xs shadow-xs">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 shrink-0 mt-0.5">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            {/* STATUS BANNER */}
+            {currentMilestone.status === "accepted" || isOverallAccepted ? (
+              <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/20 shrink-0">
+                  <CheckCheck className="h-5 w-5 text-emerald-500" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-extrabold text-emerald-800 dark:text-emerald-200 text-sm">
-                      {getMilestoneLabel(activeTab, milestoneCount)} — Accepted ✓
+                    <p className="font-bold text-emerald-700 dark:text-emerald-300">
+                      {getMilestoneLabel(activeTab, milestoneCount)} — Milestone Accepted
                     </p>
                     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white uppercase tracking-wider shadow-xs">
                       Accepted Stamp
@@ -627,7 +628,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                   )}
                 </div>
               </div>
-            ) : currentMilestone.status === "revision" ? (
+            ) : isCurrentRevision ? (
               <div className="flex items-center gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 p-3.5 text-xs">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/20 shrink-0">
                   <RotateCcw className="h-5 w-5 text-orange-500" />
@@ -646,7 +647,7 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
                   </p>
                 </div>
               </div>
-            ) : currentMilestone.status === "submitted" || isOverallCompleted ? (
+            ) : currentMilestone.status === "submitted" || isOverallCompleted || isCompleted ? (
               <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/20 shrink-0">
                   <Clock className="h-5 w-5 text-amber-500" />

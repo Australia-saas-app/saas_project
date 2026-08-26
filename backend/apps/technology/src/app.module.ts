@@ -10,6 +10,7 @@ import { TechnologyModule } from './technology/technology.module';
 import { HealthModule } from './health/health.module';
 import { TechnicalService } from './technology/entities/technical-service.entity';
 import { TechnicalCategory } from './technology/entities/technical-category.entity';
+import { ServiceTaxonomy } from './technology/entities/service-taxonomy.entity';
 import { Project } from './technology/entities/project.entity';
 import { ProjectTask } from './technology/entities/project-task.entity';
 import { ProjectParticipant } from './technology/entities/project-participant.entity';
@@ -86,6 +87,7 @@ import { ProjectProposal } from './technology/entities/project-proposal.entity';
         entities: [
           TechnicalService,
           TechnicalCategory,
+          ServiceTaxonomy,
           Project,
           ProjectTask,
           ProjectParticipant,

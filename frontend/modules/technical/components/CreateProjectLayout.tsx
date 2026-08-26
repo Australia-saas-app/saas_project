@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm, Controller, useWatch } from "react-hook-form";
@@ -12,7 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/form/label";
 import FileUpload from "@/src/components/form/FileUpload";
 import ReactSelectMulti from "@/src/components/form/ReactSelectMulti";
-import { createProject, formatProjectDate } from "../services/technical.services";
+import { createProject, formatProjectDate, fetchServiceTaxonomy } from "../services/technical.services";
 import { registerContact } from "@/src/shared/lib/contacts-store";
 import { useUser } from "@/src/context/user.provider";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
@@ -90,152 +90,6 @@ const projectTypeOptions = [
   { value: "Installation", label: "Installation" },
 ];
 
-const categoryOptions = [
-  { value: "Software Development", label: "Software Development" },
-  { value: "Web Design & UI/UX", label: "Web Design & UI/UX" },
-  { value: "QA & Testing", label: "QA & Testing" },
-  { value: "Troubleshooting", label: "Troubleshooting" },
-  { value: "Maintenance", label: "Maintenance" },
-];
-
-const CATEGORY_SUBCATEGORY_MAP: Record<string, { value: string; label: string }[]> = {
-  "Software Development": [
-    { value: "Web Development", label: "Web Development" },
-    { value: "Frontend Development", label: "Frontend Development" },
-    { value: "Backend Development", label: "Backend Development" },
-    { value: "Fullstack Development", label: "Fullstack Development" },
-    { value: "Mobile App Development", label: "Mobile App Development" },
-    { value: "DevOps & Cloud Infrastructure", label: "DevOps & Cloud Infrastructure" },
-    { value: "AI & Machine Learning", label: "AI & Machine Learning" },
-    { value: "API & Microservices", label: "API & Microservices Architecture" },
-  ],
-  "Web Design & UI/UX": [
-    { value: "UI/UX Design", label: "UI/UX Design" },
-    { value: "Figma Prototyping", label: "Figma Prototyping & Wireframing" },
-    { value: "Website Redesign", label: "Website Redesign" },
-    { value: "Landing Page Design", label: "Landing Page Design" },
-    { value: "Design System & Brand Assets", label: "Design System & Brand Assets" },
-  ],
-  "QA & Testing": [
-    { value: "Automation Testing", label: "Automation Testing (Cypress / Playwright / Selenium)" },
-    { value: "Manual QA Testing", label: "Manual QA & Test Plan Creation" },
-    { value: "Performance Testing", label: "Performance & Load Testing" },
-    { value: "Security Audit", label: "Security & Vulnerability Audit" },
-  ],
-  "Troubleshooting": [
-    { value: "Bug Fixing", label: "Bug Fixing & Debugging" },
-    { value: "Code Review", label: "Code Review & Refactoring" },
-    { value: "Security Patching", label: "Security Patching" },
-    { value: "Performance Optimization", label: "Performance Optimization" },
-  ],
-  "Maintenance": [
-    { value: "Server Maintenance", label: "Server & Database Maintenance" },
-    { value: "App Updates", label: "Application Updates & Version Migration" },
-    { value: "Routine Backups", label: "Routine Backups & Security Monitoring" },
-  ],
-};
-
-const DEFAULT_SUBCATEGORIES = [
-  { value: "Web Development", label: "Web Development" },
-  { value: "Frontend Development", label: "Frontend Development" },
-  { value: "Backend Development", label: "Backend Development" },
-  { value: "Mobile App Development", label: "Mobile App Development" },
-  { value: "UI/UX Design", label: "UI/UX Design" },
-  { value: "DevOps", label: "DevOps & Cloud" },
-];
-
-const CATEGORY_SKILLS_MAP: Record<string, { value: string; label: string }[]> = {
-  "Software Development": [
-    { value: "React", label: "React.js" },
-    { value: "Next.js", label: "Next.js (App Router / SSR)" },
-    { value: "Vue.js", label: "Vue.js / Nuxt.js" },
-    { value: "Angular", label: "Angular" },
-    { value: "Svelte", label: "Svelte / SvelteKit" },
-    { value: "Tailwind CSS", label: "Tailwind CSS" },
-    { value: "HTML5/CSS3", label: "HTML5 & Modern CSS" },
-    { value: "Node.js", label: "Node.js" },
-    { value: "Express.js", label: "Express.js" },
-    { value: "NestJS", label: "NestJS" },
-    { value: "Django", label: "Django (Python)" },
-    { value: "FastAPI", label: "FastAPI" },
-    { value: "Spring Boot", label: "Spring Boot (Java)" },
-    { value: "ASP.NET Core", label: "ASP.NET Core (C#)" },
-    { value: "Laravel", label: "Laravel (PHP)" },
-    { value: "REST APIs", label: "REST APIs & Endpoints" },
-    { value: "GraphQL", label: "GraphQL" },
-    { value: "PostgreSQL", label: "PostgreSQL" },
-    { value: "MongoDB", label: "MongoDB" },
-    { value: "MySQL", label: "MySQL" },
-    { value: "Redis", label: "Redis Caching" },
-    { value: "Docker", label: "Docker Containers" },
-    { value: "Kubernetes", label: "Kubernetes" },
-    { value: "AWS", label: "AWS Cloud" },
-    { value: "React Native", label: "React Native" },
-    { value: "Flutter", label: "Flutter" },
-  ],
-  "Web Design & UI/UX": [
-    { value: "Figma", label: "Figma UI/UX Design" },
-    { value: "Adobe XD", label: "Adobe XD" },
-    { value: "Wireframing", label: "Wireframing & UX Prototyping" },
-    { value: "Design Systems", label: "Design Systems & Tokens" },
-    { value: "UX Research", label: "UX Research & User Testing" },
-    { value: "Responsive Web Design", label: "Responsive Web Design" },
-    { value: "Mobile UI Design", label: "Mobile App UI Design" },
-    { value: "Landing Page Design", label: "High-Converting Landing Pages" },
-    { value: "Tailwind CSS", label: "Tailwind CSS Styling" },
-    { value: "HTML5/CSS3", label: "HTML5 & CSS3" },
-    { value: "Brand Identity", label: "Graphic & Brand Identity" },
-    { value: "Web Accessibility (WCAG)", label: "Web Accessibility (WCAG)" },
-  ],
-  "QA & Testing": [
-    { value: "Cypress", label: "Cypress End-to-End Testing" },
-    { value: "Playwright", label: "Playwright Automation" },
-    { value: "Selenium", label: "Selenium WebDriver" },
-    { value: "Jest / Vitest", label: "Jest & Vitest Unit Testing" },
-    { value: "Postman", label: "Postman API Automation" },
-    { value: "Manual QA", label: "Manual QA & Test Cases" },
-    { value: "Load Testing", label: "Load Testing (k6 / JMeter)" },
-    { value: "Security Audit", label: "Security & Vulnerability Audit" },
-    { value: "CI/CD Test Automation", label: "CI/CD Test Pipelines" },
-  ],
-  "Troubleshooting": [
-    { value: "Bug Fixing", label: "Bug Fixing & Issue Resolution" },
-    { value: "Code Review & Refactoring", label: "Code Review & Refactoring" },
-    { value: "Performance Tuning", label: "Performance Tuning & Speed Optimization" },
-    { value: "Security Patching", label: "Security Patching & Vulnerability Fixes" },
-    { value: "Database Query Optimization", label: "Database Query Optimization" },
-    { value: "API Debugging", label: "API Integration & Webhook Debugging" },
-    { value: "Memory Leak Resolution", label: "Server Crash & Memory Leak Resolution" },
-  ],
-  "Maintenance": [
-    { value: "Server Maintenance", label: "Server & VPS Maintenance (Linux / Ubuntu)" },
-    { value: "Database Maintenance", label: "Database Maintenance & Indexing" },
-    { value: "Automated Backups", label: "Automated Backup & Disaster Recovery" },
-    { value: "SSL & DNS Management", label: "SSL Certificates & DNS Management" },
-    { value: "Dependency Upgrades", label: "Package & Dependency Version Upgrades" },
-    { value: "Security Monitoring", label: "24/7 Security & Uptime Monitoring" },
-  ],
-};
-
-const DEFAULT_SKILLS = [
-  { value: "React", label: "React.js" },
-  { value: "Next.js", label: "Next.js" },
-  { value: "Vue.js", label: "Vue.js" },
-  { value: "Node.js", label: "Node.js" },
-  { value: "Express.js", label: "Express.js" },
-  { value: "NestJS", label: "NestJS" },
-  { value: "TypeScript", label: "TypeScript" },
-  { value: "Python", label: "Python" },
-  { value: "REST APIs", label: "REST APIs" },
-  { value: "GraphQL", label: "GraphQL" },
-  { value: "PostgreSQL", label: "PostgreSQL" },
-  { value: "MongoDB", label: "MongoDB" },
-  { value: "Docker", label: "Docker" },
-  { value: "AWS", label: "AWS Cloud" },
-  { value: "Figma", label: "Figma" },
-  { value: "Tailwind CSS", label: "Tailwind CSS" },
-];
-
 const programmingLanguagesOptions = [
   { value: "JavaScript", label: "JavaScript (ES6+)" },
   { value: "TypeScript", label: "TypeScript" },
@@ -268,14 +122,62 @@ const currencyOptions = [
 export default function CreateProjectLayout() {
   const [step, setStep] = useState(0);
 
+  // Dynamic DB Taxonomy State (strictly driven by what Admin stores in DB)
+  const [taxonomy, setTaxonomy] = useState<{
+    categories: string[];
+    subcategories: string[];
+    skills: string[];
+  }>({
+    categories: [],
+    subcategories: [],
+    skills: [],
+  });
+
+  const loadTaxonomyData = useCallback(async () => {
+    try {
+      const data = await fetchServiceTaxonomy("technology");
+      if (data) {
+        setTaxonomy({
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          subcategories: Array.isArray(data.subcategories) ? data.subcategories : [],
+          skills: Array.isArray(data.skills) ? data.skills : [],
+        });
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadTaxonomyData();
+    window.addEventListener("platform_taxonomy_updated", loadTaxonomyData);
+    window.addEventListener("storage", loadTaxonomyData);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === "TAXONOMY_UPDATED") {
+            loadTaxonomyData();
+          }
+        };
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener("platform_taxonomy_updated", loadTaxonomyData);
+      window.removeEventListener("storage", loadTaxonomyData);
+      if (bc) bc.close();
+    };
+  }, [loadTaxonomyData]);
+
   const form = useForm<ProjectForm>({
     resolver: zodResolver(projectSchema),
     mode: "onBlur",
     defaultValues: {
       title: "",
       projectType: "New Build",
-      category: "Software Development",
-      subcategory: "Web Development",
+      category: "",
+      subcategory: "",
       requiredSkills: [],
       preferredLanguages: [],
       currency: "USD",
@@ -298,21 +200,44 @@ export default function CreateProjectLayout() {
     formState: { errors },
   } = form;
 
-  const formValues = form.getValues();
+  const formValues = form.watch();
   const selectedCategory = useWatch({ control, name: "category" });
   const startDateValue = useWatch({ control, name: "expectedStartDate" });
   const descriptionValue = useWatch({ control, name: "description" }) || "";
   const todayDateStr = new Date().toISOString().slice(0, 10);
 
-  const availableSubcategories =
-    selectedCategory && CATEGORY_SUBCATEGORY_MAP[selectedCategory]
-      ? CATEGORY_SUBCATEGORY_MAP[selectedCategory]
-      : DEFAULT_SUBCATEGORIES;
+  // Set default initial category if form is empty and taxonomy loads
+  useEffect(() => {
+    if (taxonomy.categories.length > 0) {
+      const currentCat = form.getValues("category");
+      if (!currentCat || !taxonomy.categories.includes(currentCat)) {
+        form.setValue("category", taxonomy.categories[0]);
+      }
+    } else {
+      form.setValue("category", "");
+    }
+  }, [taxonomy.categories, form]);
 
-  const availableSkills =
-    selectedCategory && CATEGORY_SKILLS_MAP[selectedCategory]
-      ? CATEGORY_SKILLS_MAP[selectedCategory]
-      : DEFAULT_SKILLS;
+  const categoryOptions = useMemo(() => {
+    if (taxonomy.categories && taxonomy.categories.length > 0) {
+      return taxonomy.categories.map((c) => ({ value: c, label: c }));
+    }
+    return [{ value: "", label: "No categories added yet" }];
+  }, [taxonomy.categories]);
+
+  const availableSubcategories = useMemo(() => {
+    if (taxonomy.subcategories && taxonomy.subcategories.length > 0) {
+      return taxonomy.subcategories.map((s) => ({ value: s, label: s }));
+    }
+    return [{ value: "", label: "No subcategories added yet" }];
+  }, [taxonomy.subcategories]);
+
+  const availableSkills = useMemo(() => {
+    if (taxonomy.skills && taxonomy.skills.length > 0) {
+      return taxonomy.skills.map((k) => ({ value: k, label: k }));
+    }
+    return [];
+  }, [taxonomy.skills]);
 
   const router = useRouter();
   const { user } = useUser();

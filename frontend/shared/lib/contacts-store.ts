@@ -1,5 +1,4 @@
-import { getAllAdminUsers } from "@/src/shared/lib/admin-users-store";
-import { DEMO_ACCOUNTS } from "@/src/shared/constants/demo-accounts";
+import axiosInstance from "@/src/lib/axiosInstance";
 
 export interface RegisteredContact {
   id: string;
@@ -10,16 +9,32 @@ export interface RegisteredContact {
   avatar?: string;
 }
 
-const DEFAULT_SEEDED_CONTACTS: RegisteredContact[] = [
-  {
-    id: "contact-support",
-    name: "Customer Support & Escrow",
-    email: "support@saas.com",
-    role: "Support",
-  },
-];
-
+const DB_CONTACTS_KEY = "platform_db_registered_contacts";
 const CUSTOM_CONTACTS_KEY = "registered_custom_email_contacts";
+
+let inMemoryDbContacts: RegisteredContact[] = [];
+
+function readCachedDbContacts(): RegisteredContact[] {
+  if (typeof window === "undefined") return inMemoryDbContacts;
+  try {
+    const raw = localStorage.getItem(DB_CONTACTS_KEY);
+    if (!raw) return inMemoryDbContacts;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      inMemoryDbContacts = parsed;
+      return parsed;
+    }
+  } catch {}
+  return inMemoryDbContacts;
+}
+
+function writeCachedDbContacts(contacts: RegisteredContact[]) {
+  inMemoryDbContacts = contacts;
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DB_CONTACTS_KEY, JSON.stringify(contacts));
+  } catch {}
+}
 
 function readCustomContacts(): RegisteredContact[] {
   if (typeof window === "undefined") return [];
@@ -70,73 +85,123 @@ export function saveCustomContact(contact: {
 
 export const registerContact = saveCustomContact;
 
+/**
+ * Fetch all registered users and admins from the live Database without restrictions
+ */
+export async function fetchRegisteredContactsFromDB(search?: string): Promise<RegisteredContact[]> {
+  try {
+    let res: any = null;
+    const qParam = search ? `?search=${encodeURIComponent(search.trim())}` : "";
+
+    try {
+      res = await axiosInstance.get(`/sso/auth/contacts${qParam}`);
+    } catch {
+      try {
+        res = await axiosInstance.get(`/auth/contacts${qParam}`);
+      } catch {
+        try {
+          res = await axiosInstance.get(`/admin-service/users${qParam}`);
+        } catch {
+          try {
+            res = await axiosInstance.get(`/sso/auth/admin/users${qParam}`);
+          } catch {}
+        }
+      }
+    }
+
+    const data = res?.data?.data || res?.data || res;
+    const userList: any[] = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.users)
+      ? data.users
+      : Array.isArray(data?.items)
+      ? data.items
+      : [];
+
+    if (userList.length > 0) {
+      const contacts: RegisteredContact[] = userList
+        .filter((u) => u && (u.email || u.userId || u.id))
+        .map((u) => {
+          const email = (u.email || "").trim().toLowerCase();
+          const name =
+            u.fullName ||
+            u.name ||
+            `${u.firstName || ""} ${u.lastName || ""}`.trim() ||
+            (email ? email.split("@")[0] : "User");
+          
+          let role = u.role || u.accountType || "User";
+          if (role) {
+            role = role.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase());
+          }
+
+          return {
+            id: u.id || u.userId || u.adminId || `user-${email}`,
+            name,
+            email,
+            phone: u.phone || "",
+            role,
+            avatar: u.profilePicture || u.avatar || "",
+          };
+        })
+        .filter((c) => Boolean(c.email));
+
+      if (contacts.length > 0) {
+        writeCachedDbContacts(contacts);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("platform_contacts_updated", { detail: contacts }));
+        }
+        return contacts;
+      }
+    }
+  } catch (e) {
+    console.warn("fetchRegisteredContactsFromDB fallback:", e);
+  }
+
+  return readCachedDbContacts();
+}
+
+/**
+ * Return all registered DB contacts without any dummy accounts
+ */
 export function getAllRegisteredContacts(): RegisteredContact[] {
   const contactsMap = new Map<string, RegisteredContact>();
 
-  // 1. Add default seeded registered contacts
-  DEFAULT_SEEDED_CONTACTS.forEach((c) => {
-    contactsMap.set(c.email.toLowerCase(), c);
+  // 1. Add DB cached contacts
+  readCachedDbContacts().forEach((c) => {
+    if (c.email) contactsMap.set(c.email.toLowerCase(), c);
   });
 
-  // 2. Add demo accounts
-  Object.values(DEMO_ACCOUNTS).forEach((demo) => {
-    const email = demo.email.toLowerCase();
-    if (!contactsMap.has(email)) {
-      contactsMap.set(email, {
-        id: `demo-${demo.type}`,
-        name: demo.label,
-        email: demo.email,
-        role: demo.type.charAt(0).toUpperCase() + demo.type.slice(1),
-      });
-    }
-  });
-
-  // 3. Add admin store registered accounts
-  try {
-    const adminUsers = getAllAdminUsers();
-    adminUsers.forEach((u) => {
-      const email = (u.email || "").toLowerCase();
-      if (email && !contactsMap.has(email)) {
-        contactsMap.set(email, {
-          id: u.id,
-          name: u.name || email.split("@")[0],
-          email: u.email,
-          role: u.role,
-        });
-      }
-    });
-  } catch {
-    // ignore
-  }
-
-  // 4. Add custom contacts from localStorage
+  // 2. Add custom contacts from localStorage
   readCustomContacts().forEach((c) => {
-    const email = c.email.toLowerCase();
-    if (!contactsMap.has(email)) {
-      contactsMap.set(email, c);
+    if (c.email && !contactsMap.has(c.email.toLowerCase())) {
+      contactsMap.set(c.email.toLowerCase(), c);
     }
   });
 
   return Array.from(contactsMap.values());
 }
 
+/**
+ * Live search through registered contacts
+ */
 export function searchRegisteredContacts(query: string): RegisteredContact[] {
   const q = query.trim().toLowerCase();
   const all = getAllRegisteredContacts();
-  if (!q) return all.slice(0, 10);
+  if (!q) return all.slice(0, 15);
 
   return all
     .filter((contact) => {
-      const email = contact.email.toLowerCase();
-      const name = contact.name.toLowerCase();
-      // Match anywhere: starts with, middle, ends with in email or name
-      return email.includes(q) || name.includes(q);
+      const email = (contact.email || "").toLowerCase();
+      const name = (contact.name || "").toLowerCase();
+      const phone = (contact.phone || "").toLowerCase();
+      const role = (contact.role || "").toLowerCase();
+      return email.includes(q) || name.includes(q) || phone.includes(q) || role.includes(q);
     })
     .sort((a, b) => {
-      const aEmail = a.email.toLowerCase();
-      const bEmail = b.email.toLowerCase();
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
+      const aEmail = (a.email || "").toLowerCase();
+      const bEmail = (b.email || "").toLowerCase();
+      const aName = (a.name || "").toLowerCase();
+      const bName = (b.name || "").toLowerCase();
 
       // Exact match first
       if (aEmail === q) return -1;
@@ -153,13 +218,6 @@ export function searchRegisteredContacts(query: string): RegisteredContact[] {
       const bStartsName = bName.startsWith(q);
       if (aStartsName && !bStartsName) return -1;
       if (!aStartsName && bStartsName) return 1;
-
-      // Substring match in email
-      const aEmailIndex = aEmail.indexOf(q);
-      const bEmailIndex = bEmail.indexOf(q);
-      if (aEmailIndex !== -1 && bEmailIndex !== -1) {
-        return aEmailIndex - bEmailIndex;
-      }
 
       return aName.localeCompare(bName);
     });
@@ -186,4 +244,3 @@ export function resolveContactFullName(email?: string, fallbackName?: string): s
   }
   return "Unknown";
 }
-

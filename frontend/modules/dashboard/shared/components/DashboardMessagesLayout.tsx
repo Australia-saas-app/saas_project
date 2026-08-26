@@ -34,6 +34,7 @@ import { useNotifications } from "@/src/shared/context/notification.provider";
 import {
   archiveThread,
   permanentlyDeleteThread,
+  findExistingThreadForProject,
   getOrCreateApplicationThread,
   getOrCreateProjectThread,
   getThreadsForRole,
@@ -51,6 +52,7 @@ import {
 } from "@/src/shared/lib/messages-store";
 import {
   getAllRegisteredContacts,
+  fetchRegisteredContactsFromDB,
   resolveContactFullName,
   saveCustomContact,
   searchRegisteredContacts,
@@ -242,6 +244,55 @@ export default function DashboardMessagesLayout({
   const recipientInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Live Registered DB Contacts
+  const [dbContacts, setDbContacts] = useState<RegisteredContact[]>(() => getAllRegisteredContacts());
+
+  useEffect(() => {
+    fetchRegisteredContactsFromDB().then((contacts) => {
+      if (contacts && contacts.length > 0) {
+        setDbContacts(contacts);
+      }
+    });
+
+    const handleContactsUpdated = () => {
+      setDbContacts(getAllRegisteredContacts());
+    };
+
+    window.addEventListener("platform_contacts_updated", handleContactsUpdated);
+    window.addEventListener("storage", handleContactsUpdated);
+
+    return () => {
+      window.removeEventListener("platform_contacts_updated", handleContactsUpdated);
+      window.removeEventListener("storage", handleContactsUpdated);
+    };
+  }, []);
+
+  // When recipientQuery changes, trigger DB search
+  useEffect(() => {
+    if (recipientQuery.trim()) {
+      const timer = setTimeout(() => {
+        fetchRegisteredContactsFromDB(recipientQuery.trim()).then((contacts) => {
+          if (contacts && contacts.length > 0) {
+            setDbContacts(contacts);
+          }
+        });
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [recipientQuery]);
+
+  const searchResults = useMemo(() => {
+    const q = recipientQuery.trim().toLowerCase();
+    if (!q) return dbContacts.slice(0, 15);
+    return dbContacts.filter((contact) => {
+      const email = (contact.email || "").toLowerCase();
+      const name = (contact.name || "").toLowerCase();
+      const role = (contact.role || "").toLowerCase();
+      const phone = (contact.phone || "").toLowerCase();
+      return email.includes(q) || name.includes(q) || role.includes(q) || phone.includes(q);
+    });
+  }, [recipientQuery, dbContacts]);
+
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [editingDraftId, setEditingDraftId] = useState<string | undefined>();
@@ -398,7 +449,9 @@ export default function DashboardMessagesLayout({
     if (initializedParamRef.current === threadParam) return;
     initializedParamRef.current = threadParam;
 
-    let thread = getThreadsForRole(role, currentUserEmail).find((t) => t.id === threadParam);
+    let thread =
+      getThreadsForRole(role, currentUserEmail).find((t) => t.id === threadParam) ||
+      findExistingThreadForProject(projectIdParam || threadParam.replace(/^TH-/, ""), toEmailParam || undefined, toUserIdParam || undefined);
 
     const clientDisplayName = getDisplayName(user);
     const targetName = toNameParam || "Business Partner";
@@ -505,11 +558,6 @@ export default function DashboardMessagesLayout({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const searchResults = useMemo(() => {
-    if (!recipientQuery.trim()) return [];
-    return searchRegisteredContacts(recipientQuery.trim());
-  }, [recipientQuery]);
 
   const folderThreads = useMemo(() => {
     return threads.filter((t) => {
@@ -1470,15 +1518,25 @@ export default function DashboardMessagesLayout({
         </div>
       )}
 
-      {/* Gmail-Style Floating / Modal Compose Dialog */}
+      {/* Centered Modal Compose Dialog */}
       {composeOpen && (
-        <div className="fixed bottom-0 right-4 sm:right-10 z-50 w-full max-w-lg shadow-2xl animate-fade-in">
-          <div className="overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            style={{
+              maxWidth: "520px",
+              width: "100%",
+              height: isMinimized ? "auto" : "540px",
+              maxHeight: "88vh",
+            }}
+            className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+          >
             {/* Compose Header */}
-            <div className="flex items-center justify-between bg-muted px-4 py-3 border-b border-border">
+            <div className="flex items-center justify-between bg-muted/60 px-4 py-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
-                <PenSquare className="h-4 w-4 text-primary" />
-                <span className="text-xs font-bold text-foreground">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+                  <PenSquare className="h-4 w-4" />
+                </div>
+                <span className="text-xs sm:text-sm font-bold text-foreground">
                   {editingDraftId ? "Edit Draft" : "New Message"}
                 </span>
               </div>
@@ -1487,14 +1545,22 @@ export default function DashboardMessagesLayout({
                 <button
                   type="button"
                   onClick={() => setIsMinimized(!isMinimized)}
-                  className="rounded p-1 text-muted-foreground hover:bg-card hover:text-foreground cursor-pointer"
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  title={isMinimized ? "Expand" : "Minimize"}
                 >
                   {isMinimized ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setComposeOpen(false)}
-                  className="rounded p-1 text-muted-foreground hover:bg-card hover:text-foreground cursor-pointer"
+                  onClick={() => {
+                    setComposeOpen(false);
+                    setSelectedRecipient(null);
+                    setRecipientQuery("");
+                    setComposeSubject("");
+                    setComposeBody("");
+                  }}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  title="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1503,9 +1569,9 @@ export default function DashboardMessagesLayout({
 
             {/* Compose Body */}
             {!isMinimized && (
-              <div className="p-4 space-y-3 bg-card">
+              <div className="flex-1 flex flex-col p-4 space-y-3 bg-card overflow-y-auto min-h-0">
                 {/* Recipients (To:) with Search, Match Highlight, Pill Badge, and Single Email Rule */}
-                <div className="relative border-b border-border pb-2.5">
+                <div className="relative border-b border-border pb-2.5 shrink-0">
                   <div className="flex items-center gap-2 flex-wrap min-h-[34px]">
                     <span className="w-10 text-xs font-bold text-muted-foreground select-none">To:</span>
 
@@ -1574,7 +1640,7 @@ export default function DashboardMessagesLayout({
                   {!selectedRecipient && isDropdownOpen && recipientQuery.trim() && (
                     <div
                       ref={dropdownRef}
-                      className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-64 overflow-y-auto rounded-xl border border-border bg-card shadow-2xl divide-y divide-border/60 animate-in fade-in slide-in-from-top-2 duration-150"
+                      className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-2xl divide-y divide-border/60 animate-in fade-in slide-in-from-top-2 duration-150"
                     >
                       <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                         <span>Registered Users &amp; Emails</span>
@@ -1631,7 +1697,7 @@ export default function DashboardMessagesLayout({
                 </div>
 
                 {/* Subject Line - Automatic Bold Type */}
-                <div className="flex items-center border-b border-border pb-2">
+                <div className="flex items-center border-b border-border pb-2 shrink-0">
                   <span className="w-10 text-xs font-bold text-muted-foreground select-none">Subject:</span>
                   <input
                     type="text"
@@ -1644,15 +1710,15 @@ export default function DashboardMessagesLayout({
 
                 {/* Email Body - Normal Weight */}
                 <textarea
-                  rows={8}
+                  rows={6}
                   placeholder="Write your email message here..."
                   value={composeBody}
                   onChange={(e) => setComposeBody(e.target.value)}
-                  className="w-full resize-none bg-transparent p-1 text-xs font-normal text-foreground placeholder:text-muted-foreground focus:outline-none leading-relaxed"
+                  className="flex-1 w-full min-h-[140px] resize-none bg-transparent p-1 text-xs font-normal text-foreground placeholder:text-muted-foreground focus:outline-none leading-relaxed"
                 />
 
                 {/* Footer Controls: Send, Save Draft, Trash */}
-                <div className="flex items-center justify-between border-t border-border pt-3">
+                <div className="flex items-center justify-between border-t border-border pt-3 mt-auto shrink-0">
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"

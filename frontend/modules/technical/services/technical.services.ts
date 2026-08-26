@@ -573,6 +573,7 @@ export const assignProjectApplicant = async (
     businessFullName?: string;
     businessUserId?: string;
     businessEmail?: string;
+    businessAvatar?: string;
     businessType?: string;
     proposalId?: string;
   }
@@ -584,6 +585,7 @@ export const assignProjectApplicant = async (
     assignedBusinessName: applicant.businessName,
     assignedBusinessFullName: applicant.businessFullName,
     assignedBusinessEmail: applicant.businessEmail,
+    assignedBusinessAvatar: applicant.businessAvatar || "",
     assignedBusinessType: applicant.businessType || "Technology",
     assignedProposalId: applicant.proposalId,
     submissionStatus: "in_progress",
@@ -808,12 +810,59 @@ export const markProjectComplete = async (
   }
 
   const local = readLocalProjects();
-  const updated = local.map((p) =>
-    p.projectId === projectId
-      ? { ...p, submissionStatus: "completed", deliverableUrls, deliverableFiles, completionNotes }
-      : p
-  );
+  const updated = local.map((p) => {
+    if (p.projectId === projectId || String(p.id) === String(projectId)) {
+      const updatedMilestones = Array.isArray(p.milestones)
+        ? p.milestones.map((ms: any) => ({
+            ...ms,
+            status: ms.status === "revision" ? "submitted" : ms.status || "submitted",
+          }))
+        : [];
+      return {
+        ...p,
+        submissionStatus: "completed",
+        status: "completed",
+        deliverableUrls,
+        deliverableFiles,
+        completionNotes,
+        milestones: updatedMilestones,
+      };
+    }
+    return p;
+  });
   writeLocalProjects(updated);
+
+  if (typeof window !== "undefined") {
+    try {
+      // Also update business_services_rows cache if present
+      const bsnServicesKey = "business_services_rows";
+      const existingBsn = JSON.parse(localStorage.getItem(bsnServicesKey) || "[]");
+      if (Array.isArray(existingBsn) && existingBsn.length > 0) {
+        const updatedBsn = existingBsn.map((row: any) => {
+          if (row.id === projectId || row.serviceId === projectId) {
+            return {
+              ...row,
+              status: "pending",
+              submissionStatus: "completed",
+              rawProject: {
+                ...(row.rawProject || {}),
+                submissionStatus: "completed",
+                status: "completed",
+                deliverableUrls,
+                deliverableFiles,
+                completionNotes,
+              },
+            };
+          }
+          return row;
+        });
+        localStorage.setItem(bsnServicesKey, JSON.stringify(updatedBsn));
+      }
+      window.dispatchEvent(new Event("project_milestones_updated"));
+      window.dispatchEvent(new Event("business_services_updated"));
+      window.dispatchEvent(new Event("storage"));
+    } catch {}
+  }
 
   try {
     const res = await axiosInstance.post(`/technology/projects/${projectId}/complete`, {
@@ -1040,3 +1089,70 @@ export const extendProjectDeadline = async (projectId: string, newEndDate: strin
 
   return { success: true, endDate: endDateIso };
 };
+
+const LOCAL_STORAGE_TAXONOMY_KEY = "platform_service_taxonomies";
+
+export async function fetchServiceTaxonomy(serviceType: string = "technology"): Promise<{
+  categories: string[];
+  subcategories: string[];
+  skills: string[];
+}> {
+  const sKey = (serviceType || "technology").toLowerCase().trim().replace(/\s+/g, "-");
+  let localCache = {
+    categories: [] as string[],
+    subcategories: [] as string[],
+    skills: [] as string[],
+  };
+
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_TAXONOMY_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed[sKey]) {
+          localCache = {
+            categories: Array.isArray(parsed[sKey].categories) ? parsed[sKey].categories : [],
+            subcategories: Array.isArray(parsed[sKey].subcategories) ? parsed[sKey].subcategories : [],
+            skills: Array.isArray(parsed[sKey].skills) ? parsed[sKey].skills : [],
+          };
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    let res: any = null;
+    try {
+      res = await axiosInstance.get(`/technology/projects/taxonomy?serviceType=${sKey}`);
+    } catch {
+      try {
+        res = await axiosInstance.get(`/technology/services/taxonomy?serviceType=${sKey}`);
+      } catch {
+        res = await axiosInstance.get(`/technology/taxonomy?serviceType=${sKey}`);
+      }
+    }
+
+    const data = res?.data?.data || res?.data;
+    if (data && (Array.isArray(data.categories) || Array.isArray(data.subcategories) || Array.isArray(data.skills))) {
+      const categories: string[] = Array.isArray(data.categories) ? data.categories : [];
+      const subcategories: string[] = Array.isArray(data.subcategories) ? data.subcategories : [];
+      const skills: string[] = Array.isArray(data.skills) ? data.skills : [];
+
+      if (typeof window !== "undefined") {
+        try {
+          let store: any = {};
+          const raw = localStorage.getItem(LOCAL_STORAGE_TAXONOMY_KEY);
+          if (raw) store = JSON.parse(raw) || {};
+          store[sKey] = { categories, subcategories, skills };
+          localStorage.setItem(LOCAL_STORAGE_TAXONOMY_KEY, JSON.stringify(store));
+        } catch {}
+      }
+
+      return { categories, subcategories, skills };
+    }
+  } catch (e: any) {
+    // fallback to local cache
+  }
+
+  return localCache;
+}
