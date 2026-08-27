@@ -25,6 +25,7 @@ import {
   RotateCcw,
   User,
   LayoutGrid,
+  Home,
 } from "lucide-react";
 import { isProfileComplete } from "@/src/shared/lib/profile-completion";
 import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user";
@@ -157,7 +158,22 @@ export function AccountSidebarChildren({
         )}
       </div>
 
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+      {/* Top Separate Home Action Button (Redirects to Landing Page) */}
+      <div className="p-3 pb-0 shrink-0">
+        <Link
+          href="/"
+          onClick={() => isMobile && onCloseMobile()}
+          className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground/80 hover:text-primary hover:bg-primary/10 transition-all border border-border/60 hover:border-primary/30 shadow-2xs cursor-pointer"
+        >
+          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
+            <Home className="h-3.5 w-3.5" />
+          </div>
+          <span className="truncate font-bold">Home</span>
+        </Link>
+        <div className="my-2 border-b border-border/60" />
+      </div>
+
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
         {menuItems.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
