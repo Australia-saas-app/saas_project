@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { readLocalProjects } from "../services/technical.services";
 
 interface ProjectDeadlineCountdownProps {
   projectId?: string;
@@ -50,15 +51,37 @@ export function ProjectDeadlineCountdown({
     return () => window.removeEventListener("project_deadline_updated", handleUpdate);
   }, [projectId]);
 
+  const localProject =
+    typeof window !== "undefined" && projectId
+      ? readLocalProjects().find(
+          (lp: any) =>
+            lp.projectId === projectId ||
+            String(lp.id) === String(projectId) ||
+            `PRJ-${lp.id}` === projectId ||
+            lp.projectId === `PRJ-${projectId}`
+        )
+      : null;
+
   const isProjectDone =
     isCompleted ||
     status === "completed" ||
-    status === "accepted";
+    status === "accepted" ||
+    localProject?.submissionStatus === "completed" ||
+    localProject?.submissionStatus === "accepted" ||
+    localProject?.status === "completed" ||
+    localProject?.status === "accepted" ||
+    (() => {
+      const ms = (localProject as any)?.milestones;
+      const terms = ((localProject as any)?.paymentTerms || "").toLowerCase();
+      const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+      return Array.isArray(ms) && ms.length >= mCount && mCount > 0 && ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
+    })();
 
   useEffect(() => {
     let target = 0;
-    if (effectiveEndDate) {
-      const parsed = new Date(effectiveEndDate).getTime();
+    const finalEnd = effectiveEndDate || localProject?.endDate;
+    if (finalEnd) {
+      const parsed = new Date(finalEnd).getTime();
       if (!isNaN(parsed) && parsed > 0) {
         target = parsed;
       }
@@ -66,10 +89,10 @@ export function ProjectDeadlineCountdown({
 
     if (!target) {
       // Fallback: 7 days after assignedAt or createdAt
-      const base = assignedAt
-        ? new Date(assignedAt).getTime()
-        : createdAt
-        ? new Date(createdAt).getTime()
+      const base = assignedAt || localProject?.assignedAt
+        ? new Date(assignedAt || localProject?.assignedAt).getTime()
+        : createdAt || localProject?.createdAt
+        ? new Date(createdAt || localProject?.createdAt).getTime()
         : Date.now();
       target = base + 7 * 24 * 60 * 60 * 1000;
     }
@@ -77,15 +100,25 @@ export function ProjectDeadlineCountdown({
     // 1. If project is finished/completed: Freeze the recorded time!
     if (isProjectDone) {
       let finishTimestamp = 0;
-      if (completedAt) {
-        const cParsed = new Date(completedAt).getTime();
+      const compDate =
+        completedAt ||
+        (localProject as any)?.completedAt ||
+        (localProject as any)?.acceptedAt ||
+        (localProject as any)?.updatedAt;
+
+      if (compDate) {
+        const cParsed = new Date(compDate).getTime();
         if (!isNaN(cParsed) && cParsed > 0) {
           finishTimestamp = cParsed;
         }
       }
 
       if (!finishTimestamp && typeof window !== "undefined" && projectId) {
-        const cached = localStorage.getItem(`project_completed_at_${projectId}`);
+        const cleanId = projectId.replace(/^PRJ-/i, "");
+        const cached =
+          localStorage.getItem(`project_completed_at_${projectId}`) ||
+          localStorage.getItem(`project_completed_at_${cleanId}`) ||
+          localStorage.getItem(`project_completed_at_PRJ-${cleanId}`);
         if (cached) {
           const cachedTime = Number(cached);
           if (!isNaN(cachedTime) && cachedTime > 0) {

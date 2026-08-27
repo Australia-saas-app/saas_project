@@ -64,21 +64,9 @@ export async function DELETE(req: Request) {
       writeDeleted(deletedStore);
     }
 
-    // Also clean messages for this contact from DB if exists
-    if (fs.existsSync(MESSAGES_FILE)) {
-      try {
-        const raw = fs.readFileSync(MESSAGES_FILE, "utf-8");
-        const messagesStore = JSON.parse(raw) || {};
-        if (messagesStore[contactId]) {
-          delete messagesStore[contactId];
-          fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messagesStore, null, 2), "utf-8");
-        }
-      } catch {}
-    }
-
     return NextResponse.json({
       success: true,
-      message: "Conversation deleted from database",
+      message: "Conversation deleted for user",
     });
   } catch (error: any) {
     return NextResponse.json(

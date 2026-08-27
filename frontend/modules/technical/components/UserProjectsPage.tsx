@@ -1235,11 +1235,17 @@ export default function UserProjectsPage() {
                   <span className="font-mono text-xs text-primary font-bold">{viewProject.projectId}</span>
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
-                      (STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).color
+                      isProjectCompleted(viewProject)
+                        ? STATUS_CONFIG.completed.color
+                        : (STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).color
                     }`}
                   >
-                    {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).icon}
-                    {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).label}
+                    {isProjectCompleted(viewProject)
+                      ? STATUS_CONFIG.completed.icon
+                      : (STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).icon}
+                    {isProjectCompleted(viewProject)
+                      ? STATUS_CONFIG.completed.label
+                      : (STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).label}
                   </span>
                   {(viewProject.submissionStatus === "in_progress" ||
                     viewProject.submissionStatus === "completed" ||

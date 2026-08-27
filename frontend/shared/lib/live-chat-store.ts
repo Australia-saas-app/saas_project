@@ -172,7 +172,25 @@ export async function syncLiveChatFromDb(currentUserEmail?: string) {
     if (msgRes?.ok) {
       const data = await msgRes.json();
       if (data?.data && typeof data.data === "object") {
-        writeLiveChatMessages(data.data);
+        const local = readLiveChatMessages();
+        const merged: Record<string, LiveChatMessage[]> = { ...local, ...data.data };
+
+        // Ensure cross-indexing for all conversations
+        Object.keys(data.data).forEach((key) => {
+          const msgs: LiveChatMessage[] = data.data[key] || [];
+          msgs.forEach((m) => {
+            const sEmail = (m.senderEmail || "").toLowerCase().trim();
+            if (sEmail) {
+              const sKey = `contact-${sEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+              if (!merged[sKey]) merged[sKey] = [];
+              if (!merged[sKey].some((existing) => existing.id === m.id)) {
+                merged[sKey].push(m);
+              }
+            }
+          });
+        });
+
+        writeLiveChatMessages(merged);
       }
     }
 

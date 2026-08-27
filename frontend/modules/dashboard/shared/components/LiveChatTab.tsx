@@ -25,6 +25,8 @@ import {
   Trash2,
   UserCheck,
   Inbox,
+  ArrowLeft,
+  LogOut,
 } from "lucide-react";
 import { useUser } from "@/src/context/user.provider";
 import { Button } from "@/src/components/ui/button";
@@ -68,7 +70,12 @@ function getInitials(name?: string | null): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
+interface LiveChatTabProps {
+  role?: DashboardRole;
+  onExitLiveChat?: () => void;
+}
+
+export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
   const { user } = useUser();
   const currentUserEmail = user?.email || "";
   const currentUserId = user?.id || "my-user";
@@ -80,8 +87,17 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
 
   // Connection State & Animation
   const [isConnecting, setIsConnecting] = useState(true);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+
+  const handleExitClick = () => {
+    setIsDisconnecting(true);
+    setTimeout(() => {
+      setIsDisconnecting(false);
+      onExitLiveChat?.();
+    }, 600);
+  };
 
   // Contacts & Chat state
   const [contacts, setContacts] = useState<LiveChatContact[]>([]);
@@ -202,17 +218,38 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
                 return prev;
               });
             }
+          } else if (type === "NEW_REQUEST") {
+            const req = payload;
+            const rEmail = (req?.receiverEmail || "").toLowerCase().trim();
+            const myClean = (currentUserEmail || "").toLowerCase().trim();
+            if (rEmail && myClean && rEmail === myClean) {
+              toast.info(`New Live Chat Request from ${req?.senderName || "a user"}!`);
+            }
+            syncLiveChatFromDb(currentUserEmail).then(() => {
+              reloadRequests();
+              reloadContacts();
+              setRequestVersion((v) => v + 1);
+            });
+          } else if (type === "REQUEST_ACCEPTED") {
+            const req = payload;
+            const sEmail = (req?.senderEmail || "").toLowerCase().trim();
+            const myClean = (currentUserEmail || "").toLowerCase().trim();
+            if (sEmail && myClean && sEmail === myClean) {
+              toast.success(`${req?.receiverName || "Contact"} accepted your Live Chat Request!`);
+            }
+            syncLiveChatFromDb(currentUserEmail).then(() => {
+              reloadRequests();
+              reloadContacts();
+              setRequestVersion((v) => v + 1);
+            });
+          } else if (type === "REQUEST_REJECTED" || type === "REQUEST_CANCELLED") {
+            syncLiveChatFromDb(currentUserEmail).then(() => {
+              reloadRequests();
+              reloadContacts();
+              setRequestVersion((v) => v + 1);
+            });
           } else if (type === "USER_PRESENCE") {
             syncLiveChatFromDb(currentUserEmail).then(reloadContacts);
-          } else if (
-            type === "NEW_REQUEST" ||
-            type === "REQUEST_ACCEPTED" ||
-            type === "REQUEST_REJECTED" ||
-            type === "REQUEST_CANCELLED"
-          ) {
-            reloadRequests();
-            reloadContacts();
-            setRequestVersion((v) => v + 1);
           } else if (type === "CHAT_DELETED") {
             reloadContacts();
           }
@@ -346,10 +383,16 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
         ...prev,
         [targetContactId]: [...existing, msgToSave],
         [contactId]: [...existing, msgToSave],
+        ...(senderClean ? { [senderClean]: [...existing, msgToSave] } : {}),
       };
       writeLiveChatMessages(next);
       return next;
     });
+
+    // In-app toast notification if chat is not currently open
+    if (!isCurrentlyOpen && senderClean && myClean && senderClean !== myClean) {
+      toast.info(`New message from ${message.senderName || "Contact"}: "${message.content.length > 30 ? message.content.slice(0, 30) + '...' : message.content}"`);
+    }
 
     // Notify sender back immediately with delivery / seen receipt
     try {
@@ -415,7 +458,7 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
     setIncomingRequests(reqs);
   };
 
-  // Live presence listener & periodic timer
+  // Live presence listener & periodic real-time sync timer
   useEffect(() => {
     if (currentUserEmail) {
       setUserOnlineStatus(currentUserEmail, true);
@@ -440,14 +483,18 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
     window.addEventListener("user_presence_updated", handlePresenceEvent);
     window.addEventListener("storage", handlePresenceEvent);
 
-    const presenceTimer = setInterval(() => {
-      setContacts(getAllLiveChatContacts(currentUserEmail));
-    }, 15000);
+    // Periodic fast sync timer (3 seconds) to ensure real-time cross-browser and cross-device sync
+    const livePollTimer = setInterval(() => {
+      syncLiveChatFromDb(currentUserEmail).then(() => {
+        reloadContacts();
+        reloadRequests();
+      });
+    }, 3000);
 
     return () => {
       window.removeEventListener("user_presence_updated", handlePresenceEvent);
       window.removeEventListener("storage", handlePresenceEvent);
-      clearInterval(presenceTimer);
+      clearInterval(livePollTimer);
     };
   }, [currentUserEmail, requestVersion]);
 
@@ -720,21 +767,30 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       unDeleteLiveChatContact(currentContact.id, currentUserEmail);
     }
 
-    // Update messages store
+    const myContactKey = `contact-${currentUserEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+    // Update messages store under currentContact.id, targetEmail, and myContactKey
     const updatedContactMsgs = [...(messagesStore[currentContact.id] || []), newMsg];
     const newStore = {
       ...messagesStore,
       [currentContact.id]: updatedContactMsgs,
+      ...(targetEmail ? { [targetEmail]: updatedContactMsgs } : {}),
+      [myContactKey]: updatedContactMsgs,
     };
     setMessagesStore(newStore);
     writeLiveChatMessages(newStore);
 
-    // Persist sent message to Database API
+    // Persist sent message to Database API with both sender and receiver emails
     if (typeof window !== "undefined") {
       fetch("/api/live-chat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId: currentContact.id, message: newMsg }),
+        body: JSON.stringify({
+          contactId: currentContact.id,
+          message: newMsg,
+          senderEmail: currentUserEmail,
+          receiverEmail: currentContact.email,
+        }),
       }).catch(() => null);
     }
 
@@ -814,7 +870,7 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
   };
 
   return (
-    <div className="relative flex h-[640px] w-full overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+    <div className="relative flex h-full w-full overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
       {/* Connecting Animation Overlay */}
       {isConnecting && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md transition-all duration-300">
@@ -848,10 +904,61 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
         </div>
       )}
 
+      {/* Disconnecting Animation Overlay */}
+      {isDisconnecting && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md transition-all duration-300">
+          <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-amber-500/10 border border-amber-500/20 shadow-2xl">
+            <Wifi className="h-10 w-10 text-amber-500 animate-pulse" />
+            <span className="absolute -top-1 -right-1 flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500" />
+            </span>
+          </div>
+
+          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+            Disconnecting Live Chat
+            <span className="inline-flex gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-bounce" />
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0.15s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0.3s]" />
+            </span>
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Closing live chat session and returning to Inbox...
+          </p>
+
+          {/* Animated Disconnecting Signal Boxes */}
+          <div className="mt-6 flex items-center gap-2">
+            <div className="h-2 w-8 rounded-full bg-amber-500 animate-pulse" />
+            <div className="h-2 w-8 rounded-full bg-amber-400 animate-pulse [animation-delay:0.2s]" />
+            <div className="h-2 w-8 rounded-full bg-amber-300 animate-pulse [animation-delay:0.4s]" />
+            <div className="h-2 w-8 rounded-full bg-amber-200 animate-pulse [animation-delay:0.6s]" />
+          </div>
+        </div>
+      )}
+
       {/* Left Sidebar - Contacts & Conversations List */}
-      <div className="flex w-80 shrink-0 flex-col border-r border-border bg-muted/15 relative">
-        {/* Sidebar Header with Live Chats, Add User, and Requests Buttons */}
-        <div className="border-b border-border p-3.5 bg-card relative z-30">
+      <div className={`w-full md:w-80 shrink-0 flex-col border-r border-border bg-muted/15 relative h-full overflow-hidden ${selectedContactId ? "hidden md:flex" : "flex"}`}>
+        {/* Sidebar Header with Exit Button, Live Chats, Add User, and Requests Buttons */}
+        <div className="border-b border-border p-3.5 bg-card relative z-30 space-y-2.5">
+          {/* Top Bar: Exit Live Chat & Active Live Indicator */}
+          <div className="flex items-center justify-between gap-1">
+            <button
+              type="button"
+              onClick={handleExitClick}
+              disabled={isDisconnecting}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+              title="Exit Live Chat and return to Inbox"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Exit Live Chat</span>
+            </button>
+
+            <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shadow-xs">
+              <Circle className="h-1.5 w-1.5 fill-emerald-500 text-emerald-500 animate-pulse" /> Live Active
+            </span>
+          </div>
+
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1.5 min-w-0">
               <h3 className="text-sm font-bold text-foreground truncate">Live Chats</h3>
@@ -1242,7 +1349,7 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       </div>
 
       {/* Right Main Chat Window */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-background">
+      <div className={`flex-1 flex-col h-full min-h-0 overflow-hidden bg-background ${selectedContactId ? "flex" : "hidden md:flex"}`}>
         {!selectedContact ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center p-8 bg-muted/5 select-none">
             <div className="h-20 w-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 text-primary shadow-xs">
@@ -1255,9 +1362,18 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
           </div>
         ) : (
           <>
-            {/* Chat Header with Avatar Photo, Full Name, and Online/Typing Status */}
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-5 bg-card/80 backdrop-blur-xs">
-              <div className="flex items-center gap-3 min-w-0">
+            {/* Chat Header with Avatar Photo, Full Name, Back Arrow (on mobile) and Online/Typing Status */}
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-3 sm:px-5 bg-card/80 backdrop-blur-xs">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                {/* Mobile Back Button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedContactId("")}
+                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-muted/50 text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer mr-0.5"
+                  title="Back to conversations"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
                 <div className="relative shrink-0">
                   <div className="h-10 w-10 overflow-hidden rounded-full border border-border bg-primary/10 shadow-xs flex items-center justify-center">
                     {selectedContact.id === "support-team" ? (

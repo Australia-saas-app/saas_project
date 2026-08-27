@@ -1034,6 +1034,14 @@ export default function DashboardMessagesLayout({
     setComposeOpen(true);
   };
 
+  if (folder === "live") {
+    return (
+      <div className="w-full h-[calc(100vh-5.5rem)] max-h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden">
+        <LiveChatTab role={role} onExitLiveChat={() => setFolder("inbox")} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Top Header with Title and Compose Button */}
@@ -1117,13 +1125,10 @@ export default function DashboardMessagesLayout({
         })}
       </div>
 
-      {/* Main Folder Content: Live Chat vs Email Client */}
-      {folder === "live" ? (
-        <LiveChatTab role={role} />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 h-[680px] max-h-[calc(100vh-210px)] min-h-[560px] overflow-hidden">
-          {/* Left Column: Email Thread List */}
-          <div className="lg:col-span-5 rounded-2xl border border-border bg-card shadow-xs flex flex-col h-full overflow-hidden">
+      {/* Main Folder Content: Email Client */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 h-[680px] max-h-[calc(100vh-210px)] min-h-[560px] overflow-hidden">
+        {/* Left Column: Email Thread List */}
+        <div className={`lg:col-span-5 rounded-2xl border border-border bg-card shadow-xs flex flex-col h-full overflow-hidden ${selected ? "hidden lg:flex" : "flex"}`}>
             {/* Search & Filter Bar with Total Chats Summary */}
             <div className="p-3 border-b border-border space-y-2.5 bg-muted/20">
               {/* Total Chats & Unread Summary Header with Refresh Button */}
@@ -1385,36 +1390,47 @@ export default function DashboardMessagesLayout({
             </div>
           </div>
 
-          {/* Right Column: Selected Email Conversation View */}
-          <div className="lg:col-span-7 rounded-2xl border border-border bg-card shadow-xs flex flex-col h-full overflow-hidden">
-            {selected ? (
-              <div className="flex flex-col h-full">
-                {/* Conversation Header */}
-                <div className="p-5 border-b border-border bg-muted/20">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1 min-w-0">
-                      {(() => {
-                        const currentEmail = (currentUserEmail || "").trim().toLowerCase();
-                        const currentName = getDisplayName(user).trim().toLowerCase();
-                        const isClientRole = role === "user";
+        {/* Right Column: Selected Email Conversation View */}
+        <div className={`lg:col-span-7 rounded-2xl border border-border bg-card shadow-xs flex flex-col h-full overflow-hidden ${selected ? "flex" : "hidden lg:flex"}`}>
+          {selected ? (
+            <div className="flex flex-col h-full">
+              {/* Conversation Header */}
+              <div className="p-3.5 sm:p-5 border-b border-border bg-muted/20">
+                <div className="flex items-start justify-between gap-2 sm:gap-4">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    {(() => {
+                      const currentEmail = (currentUserEmail || "").trim().toLowerCase();
+                      const currentName = getDisplayName(user).trim().toLowerCase();
+                      const isClientRole = role === "user";
 
-                        const displayHeaderName = isClientRole
-                          ? selected.recipientName || selected.participant || "Business Partner"
-                          : selected.senderName || selected.participant || "Client";
+                      const displayHeaderName = isClientRole
+                        ? selected.recipientName || selected.participant || "Business Partner"
+                        : selected.senderName || selected.participant || "Client";
 
-                        const displayHeaderEmail = isClientRole
-                          ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
-                          : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
+                      const displayHeaderEmail = isClientRole
+                        ? selected.recipientEmail || (selected.recipientName ? `${selected.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "")
+                        : selected.senderEmail || (selected.senderName ? `${selected.senderName.toLowerCase().replace(/\s+/g, ".")}@client.com` : "");
 
-                        const projectTitle = selected.project || selected.projectId || "Project";
-                        const rawSubject = selected.subject || `Subject: Application for ${projectTitle}`;
-                        const displaySubject = rawSubject.startsWith("Subject:")
-                          ? rawSubject
-                          : `Subject: ${rawSubject.replace(/^(Project Application:\s*|Application:\s*)/i, "Application for ")}`;
+                      const projectTitle = selected.project || selected.projectId || "Project";
+                      const rawSubject = selected.subject || `Subject: Application for ${projectTitle}`;
+                      const displaySubject = rawSubject.startsWith("Subject:")
+                        ? rawSubject
+                        : `Subject: ${rawSubject.replace(/^(Project Application:\s*|Application:\s*)/i, "Application for ")}`;
 
-                        return (
-                          <>
-                            <h2 className="text-base font-bold text-foreground truncate">{displaySubject}</h2>
+                      return (
+                        <>
+                          <div className="flex items-center gap-2">
+                            {/* Mobile Back Button */}
+                            <button
+                              type="button"
+                              onClick={handleCloseSelectedMessage}
+                              className="lg:hidden flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
+                              title="Back to inbox list"
+                            >
+                              <ArrowLeft className="h-3.5 w-3.5" />
+                            </button>
+                            <h2 className="text-sm sm:text-base font-bold text-foreground truncate">{displaySubject}</h2>
+                          </div>
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <span className="font-bold text-foreground">
                                 {displayHeaderName}
@@ -1577,7 +1593,6 @@ export default function DashboardMessagesLayout({
             )}
           </div>
         </div>
-      )}
 
       {/* Centered Modal Compose Dialog */}
       {composeOpen && (

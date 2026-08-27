@@ -30,7 +30,7 @@ import AppModal from "@/src/modules/dashboard/shared/components/AppModal";
 import { Button } from "@/src/components/ui/button";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useUser } from "@/src/context/user.provider";
-import { recordActivityLog, fetchMyApplications, applyForProject, formatProjectDate } from "../services/technical.services";
+import { recordActivityLog, fetchMyApplications, applyForProject, formatProjectDate, readLocalProjects } from "../services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { DeliverableUploadModal } from "./DeliverableUploadModal";
 import { ProjectDeadlineCountdown } from "./ProjectDeadlineCountdown";
@@ -89,7 +89,30 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {projects.map((project) => {
+      {projects.map((rawProject) => {
+        const localProjects = typeof window !== "undefined" ? readLocalProjects() : [];
+        const rawId = String(rawProject.projectId || rawProject.id || "");
+        const localMatch = localProjects.find(
+          (lp: any) =>
+            lp.projectId === rawId ||
+            String(lp.id) === rawId ||
+            `PRJ-${lp.id}` === rawId ||
+            lp.projectId === `PRJ-${rawId}` ||
+            String(lp.id) === String(rawProject.id)
+        );
+
+        const project = {
+          ...rawProject,
+          ...(localMatch || {}),
+          submissionStatus: localMatch?.submissionStatus || rawProject.submissionStatus,
+          status: localMatch?.status || rawProject.status,
+          milestones: localMatch?.milestones || (rawProject as any).milestones,
+          assignedBusinessId: localMatch?.assignedBusinessId || rawProject.assignedBusinessId,
+          assignedBusinessName: localMatch?.assignedBusinessName || rawProject.assignedBusinessName,
+          assignedBusinessUserId: localMatch?.assignedBusinessUserId || rawProject.assignedBusinessUserId,
+          assignedBusinessEmail: localMatch?.assignedBusinessEmail || rawProject.assignedBusinessEmail,
+        } as TechnicalProject;
+
         const pId = String(project.projectId || project.id);
         const isApplied = Boolean(
           isBusiness && (
@@ -204,7 +227,17 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                       createdAt={(project as any).createdAt}
                       assignedAt={(project as any).assignedAt}
                       completedAt={(project as any).completedAt || (project as any).acceptedAt || (project as any).updatedAt}
-                      isCompleted={(project as any).submissionStatus === "completed" || (project as any).submissionStatus === "accepted" || project.status === "completed" || project.status === "accepted"}
+                      isCompleted={(() => {
+                        const p = project as any;
+                        if (p.submissionStatus === "completed" || p.submissionStatus === "accepted" || p.status === "completed" || p.status === "accepted") return true;
+                        const terms = (p.paymentTerms || "").toLowerCase();
+                        const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                        const ms = p.milestones;
+                        if (Array.isArray(ms) && ms.length >= mCount && mCount > 0) {
+                          return ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
+                        }
+                        return false;
+                      })()}
                       status={(project as any).submissionStatus || project.status}
                     />
                   ) : (
@@ -370,12 +403,37 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
           >
             {/* Modal Header */}
             {(() => {
+              const localProjects = typeof window !== "undefined" ? readLocalProjects() : [];
+              const pId = fullDetailProject.projectId || String(fullDetailProject.id || "");
+              const localMatch = localProjects.find(
+                (lp: any) =>
+                  lp.projectId === pId ||
+                  String(lp.id) === pId ||
+                  `PRJ-${lp.id}` === pId ||
+                  lp.projectId === `PRJ-${pId}` ||
+                  String(lp.id) === String(fullDetailProject.id)
+              );
+
+              const merged = {
+                ...fullDetailProject,
+                ...(localMatch || {}),
+                submissionStatus: localMatch?.submissionStatus || fullDetailProject.submissionStatus,
+                status: localMatch?.status || fullDetailProject.status,
+                milestones: localMatch?.milestones || (fullDetailProject as any).milestones,
+              } as any;
+
               const isDone = (() => {
-                const p = fullDetailProject as any;
-                if (p.submissionStatus === "completed" || p.submissionStatus === "accepted" || p.status === "completed" || p.status === "accepted") return true;
-                const terms = (p.paymentTerms || "").toLowerCase();
+                if (
+                  merged.submissionStatus === "completed" ||
+                  merged.submissionStatus === "accepted" ||
+                  merged.status === "completed" ||
+                  merged.status === "accepted"
+                ) {
+                  return true;
+                }
+                const terms = (merged.paymentTerms || "").toLowerCase();
                 const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
-                const ms = p.milestones;
+                const ms = merged.milestones;
                 if (Array.isArray(ms) && ms.length >= mCount && mCount > 0) {
                   return ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
                 }

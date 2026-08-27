@@ -67,7 +67,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { contactId, message } = body || {};
+    const { contactId, message, senderEmail, receiverEmail } = body || {};
 
     if (!contactId || !message) {
       return NextResponse.json(
@@ -77,12 +77,29 @@ export async function POST(req: Request) {
     }
 
     const messagesStore = readDbMessages();
-    const existing = messagesStore[contactId] || [];
 
-    if (!existing.some((m) => m.id === message.id)) {
-      messagesStore[contactId] = [...existing, message];
-      writeDbMessages(messagesStore);
+    // Determine all relevant keys for this conversation
+    const sEmail = (senderEmail || message.senderEmail || "").toLowerCase().trim();
+    const rEmail = (receiverEmail || "").toLowerCase().trim();
+
+    const keysToSave = new Set<string>([contactId]);
+    if (sEmail) {
+      keysToSave.add(`contact-${sEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      keysToSave.add(sEmail);
     }
+    if (rEmail) {
+      keysToSave.add(`contact-${rEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      keysToSave.add(rEmail);
+    }
+
+    keysToSave.forEach((key) => {
+      const existing = messagesStore[key] || [];
+      if (!existing.some((m) => m.id === message.id)) {
+        messagesStore[key] = [...existing, message];
+      }
+    });
+
+    writeDbMessages(messagesStore);
 
     return NextResponse.json({ success: true, data: message }, { status: 201 });
   } catch (error: any) {
@@ -96,22 +113,37 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { contactId } = body || {};
+    const { contactId, readerEmail, senderEmail } = body || {};
 
-    if (!contactId) {
+    if (!contactId && !senderEmail) {
       return NextResponse.json(
-        { success: false, message: "contactId is required" },
+        { success: false, message: "contactId or senderEmail is required" },
         { status: 400 }
       );
     }
 
     const messagesStore = readDbMessages();
-    const contactMsgs = messagesStore[contactId] || [];
-    const updated = contactMsgs.map((m) => ({ ...m, status: "seen" }));
-    messagesStore[contactId] = updated;
+    const keysToUpdate = new Set<string>();
+    if (contactId) keysToUpdate.add(contactId);
+    if (senderEmail) {
+      const s = senderEmail.toLowerCase().trim();
+      keysToUpdate.add(`contact-${s.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      keysToUpdate.add(s);
+    }
+    if (readerEmail) {
+      const r = readerEmail.toLowerCase().trim();
+      keysToUpdate.add(`contact-${r.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      keysToUpdate.add(r);
+    }
+
+    keysToUpdate.forEach((key) => {
+      const contactMsgs = messagesStore[key] || [];
+      messagesStore[key] = contactMsgs.map((m) => ({ ...m, status: "seen" }));
+    });
+
     writeDbMessages(messagesStore);
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({ success: true, message: "Messages marked as seen" });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, message: error.message || "Failed to update messages" },

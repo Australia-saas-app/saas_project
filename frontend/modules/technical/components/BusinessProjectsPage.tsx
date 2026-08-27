@@ -96,11 +96,38 @@ export default function BusinessProjectsPage() {
         fetchPublicProjects().catch(() => ({ projects: [] })),
         fetchAssignedProjects().catch(() => ({ projects: [] })),
       ]);
-      setAvailableProjects(pubRes?.projects || []);
-      setMyProjects(myRes?.projects || []);
+      const local = readLocalProjects();
+      const mergeWithLocal = (list: any[]) =>
+        list.map((p: any) => {
+          const localMatch = local.find(
+            (lp: any) =>
+              lp.projectId === p.projectId ||
+              String(lp.id) === String(p.id) ||
+              lp.projectId === String(p.id) ||
+              `PRJ-${lp.id}` === p.projectId ||
+              lp.projectId === `PRJ-${p.projectId}`
+          );
+          if (localMatch) {
+            return {
+              ...p,
+              ...localMatch,
+              submissionStatus: localMatch.submissionStatus || p.submissionStatus,
+              status: localMatch.status || p.status,
+              milestones: localMatch.milestones || p.milestones,
+              completedAt: localMatch.completedAt || localMatch.acceptedAt || p.completedAt,
+            };
+          }
+          return p;
+        });
+
+      const mergedPub = mergeWithLocal(pubRes?.projects || []);
+      const mergedMy = mergeWithLocal(myRes?.projects || []);
+
+      setAvailableProjects(mergedPub);
+      setMyProjects(mergedMy);
       setCompletingProject((prev) => {
         if (!prev) return null;
-        const allList = [...(pubRes?.projects || []), ...(myRes?.projects || [])];
+        const allList = [...mergedPub, ...mergedMy];
         const fresh = allList.find((p: Project) => p.projectId === prev.projectId || String(p.id) === prev.projectId || p.projectId === String(prev.id));
         return fresh || prev;
       });
