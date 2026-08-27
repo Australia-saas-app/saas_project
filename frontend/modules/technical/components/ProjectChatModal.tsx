@@ -399,6 +399,15 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
     syncToLiveChatStore(text, true);
 
     // Sync to Dashboard Thread Inbox & Sent matching the exact project thread
+    let resolvedThreadId = `TH-${project.projectId}`;
+    let recName = otherPartyName;
+    let recEmail = normalizedEmail;
+    let recBusiness = providerBsnName || "Tech";
+    let recUserId = project.assignedBusinessUserId || project.assignedBusinessId || "";
+    let prjTitle = project.title || "Project Application";
+    let prjSubject = `Subject: Application for ${prjTitle}`;
+    const sentIsoTime = new Date().toISOString();
+
     try {
       const existingThread = findExistingThreadForProject(
         project.projectId,
@@ -407,32 +416,91 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       );
 
       const targetApplicantId = project.assignedBusinessUserId || project.assignedBusinessId || "";
-      const threadId = existingThread?.id || `TH-${project.projectId}${targetApplicantId ? "-" + targetApplicantId : ""}`;
+      resolvedThreadId = existingThread?.id || `TH-${project.projectId}${targetApplicantId ? "-" + targetApplicantId : ""}`;
+
+      recName = isClient
+        ? existingThread?.recipientName || providerFormattedName || otherPartyName || "Business Partner"
+        : existingThread?.senderName || project.clientName || "Client";
+
+      recEmail = (
+        existingThread?.recipientEmail ||
+        (isClient
+          ? project.assignedBusinessEmail || (existingThread?.recipientName ? `${existingThread.recipientName.toLowerCase().replace(/\s+/g, ".")}@business.com` : "hello@business.com")
+          : project.clientEmail || "client@saas.com")
+      ).trim().toLowerCase();
+
+      recBusiness = isClient
+        ? existingThread?.recipientBusiness || providerBsnName || "Tech"
+        : "Client";
+
+      recUserId = isClient
+        ? existingThread?.recipientUserId || targetApplicantId || recEmail
+        : project.clientId || existingThread?.senderUserId || recEmail;
+
+      prjTitle = existingThread?.project || project.title || "Project Application";
+      prjSubject = existingThread?.subject || `Subject: Application for ${prjTitle}`;
 
       getOrCreateApplicationThread({
-        threadId,
+        threadId: resolvedThreadId,
         role: isClient ? "user" : "business",
-        applicantName: providerFullName || providerBsnName || otherPartyName,
-        applicantBusiness: providerBsnName,
-        applicantEmail: normalizedEmail,
+        applicantName: recName,
+        applicantBusiness: recBusiness,
+        applicantEmail: recEmail,
         applicantUserId: targetApplicantId,
         clientName: project.clientName || currentUserName,
         clientEmail: project.clientEmail || currentUserEmail,
         projectId: project.projectId,
-        projectName: project.title,
+        projectName: prjTitle,
       });
 
       sendThreadMessage(
-        threadId,
+        resolvedThreadId,
         text,
         currentUserName,
         currentUserEmail
       );
 
-      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
-        const veroBc = new BroadcastChannel("vero_channel");
-        veroBc.postMessage({ type: "vero:new_message", detail: { projectId: project.projectId, text, threadId } });
-        veroBc.close();
+      if (typeof window !== "undefined") {
+        const emailDetail = {
+          threadId: resolvedThreadId,
+          recipientEmail: recEmail,
+          recipientName: recName,
+          senderName: currentUserName,
+          senderEmail: currentUserEmail,
+          subject: prjSubject,
+          project: prjTitle,
+          body: text,
+          sentAt: sentIsoTime,
+        };
+
+        window.dispatchEvent(new CustomEvent("platform_new_email", { detail: emailDetail }));
+        window.dispatchEvent(new Event("messages_updated"));
+
+        // Save receiver notification locally
+        try {
+          const recKey = `app_notifs_${recEmail}`;
+          const existingRaw = localStorage.getItem(recKey);
+          const existingNotifs = existingRaw ? JSON.parse(existingRaw) : [];
+          const newReceiverNotif = {
+            id: `msg-notif-${Date.now()}`,
+            title: `New Message from ${currentUserName}`,
+            message: text.slice(0, 80),
+            time: "Just now",
+            createdAt: sentIsoTime,
+            read: false,
+            recipientEmail: recEmail,
+            href: `/dashboard/${isClient ? "business" : "user"}/messages?thread=${resolvedThreadId}`,
+          };
+          localStorage.setItem(recKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
+          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: newReceiverNotif, targetEmail: recEmail, timestamp: Date.now() }));
+        } catch {}
+
+        if ("BroadcastChannel" in window) {
+          const veroBc = new BroadcastChannel("vero_channel");
+          veroBc.postMessage({ type: "platform_new_email", detail: emailDetail });
+          veroBc.postMessage({ type: "vero:new_message", targetEmail: recEmail, detail: emailDetail });
+          veroBc.close();
+        }
       }
     } catch {
       // ignore
@@ -446,9 +514,19 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       senderName: currentUserName,
     });
 
-    // 4. Persist to DB
+    // 4. Persist to MongoDB backend
     try {
-      await sendProjectMessage(project.projectId, text, "general");
+      await sendProjectMessage(project.projectId, text, "general", {
+        senderName: currentUserName,
+        senderEmail: currentUserEmail,
+        recipientName: recName,
+        recipientEmail: recEmail,
+        recipientBusiness: recBusiness,
+        recipientUserId: recUserId,
+        threadId: resolvedThreadId,
+        projectTitle: prjTitle,
+        subject: prjSubject,
+      });
     } catch {
       // keep optimistic
     } finally {

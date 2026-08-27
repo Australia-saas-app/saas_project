@@ -20,9 +20,24 @@ export const setCookie = (name: string, value: string, days = 7) => {
 };
 
 /**
- * Deletes a cookie by its name.
+ * Deletes a cookie by its name across all path and domain variations.
  */
 export const deleteCookie = (name: string) => {
   if (typeof window === "undefined") return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  const pastDate = "Thu, 01 Jan 1970 00:00:00 GMT";
+  document.cookie = `${name}=; expires=${pastDate}; path=/; SameSite=Lax`;
+  document.cookie = `${name}=; expires=${pastDate}; path=/; SameSite=Strict`;
+  document.cookie = `${name}=; expires=${pastDate}; path=/; SameSite=None; Secure`;
+  document.cookie = `${name}=; expires=${pastDate}; path=/`;
+  document.cookie = `${name}=; expires=${pastDate}`;
+  try {
+    const host = window.location.hostname;
+    document.cookie = `${name}=; expires=${pastDate}; path=/; domain=${host}`;
+    document.cookie = `${name}=; expires=${pastDate}; path=/; domain=.${host}`;
+    const hostParts = host.split(".");
+    if (hostParts.length > 2) {
+      const rootDomain = hostParts.slice(-2).join(".");
+      document.cookie = `${name}=; expires=${pastDate}; path=/; domain=.${rootDomain}`;
+    }
+  } catch {}
 };

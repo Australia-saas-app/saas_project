@@ -110,6 +110,16 @@ function downloadLocalFile(file: File) {
 }
 
 export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentFileStep, setCurrentFileStep] = useState("");
+  const [newLink, setNewLink] = useState("");
+  const [deletingFile, setDeletingFile] = useState<string | null>(null);
+  const [sizeLimitModal, setSizeLimitModal] = useState(false);
+  const [sizeLimitInfo, setSizeLimitInfo] = useState({ current: 0, max: 0 });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const milestoneCount = getMilestoneCount(project.paymentTerms);
   const dbMilestones: any[] = Array.isArray(project.milestones) ? project.milestones : [];
   const isOverallCompleted = project.submissionStatus === "completed" || isCompleted;
@@ -201,20 +211,6 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
     }
     return 0;
   });
-  const [newLink, setNewLink] = useState("");
-
-  // Per-file delete spinner: key = `${tabIdx}-${fileIdx}`
-  const [deletingFile, setDeletingFile] = useState<string | null>(null);
-
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [currentFileStep, setCurrentFileStep] = useState("");
-  const [isCompleted, setIsCompleted] = useState(false);
-
-  const [sizeLimitModal, setSizeLimitModal] = useState(false);
-  const [sizeLimitInfo, setSizeLimitInfo] = useState({ current: 0, max: 0 });
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── helpers ──────────────────────────────────────────────────────────────
   const updateMilestone = (idx: number, patch: Partial<MilestoneData>) =>

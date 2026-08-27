@@ -31,14 +31,39 @@ import {
   User,
 } from "lucide-react";
 
+const KNOWN_PROGRAMMING_LANGUAGES: string[] = [
+  "javascript", "js", "typescript", "ts", "python", "java", "c#", "csharp",
+  "c++", "cpp", "c", "php", "go", "golang", "rust", "kotlin", "swift",
+  "dart", "ruby", "sql", "plsql", "t-sql", "html", "html5", "css", "css3",
+  "shell", "bash", "powershell", "zsh", "solidity", "r", "scala", "perl",
+  "lua", "haskell", "elixir", "erlang", "clojure", "groovy", "matlab",
+  "assembly", "vba", "fortran", "cobol", "julia", "graphql"
+];
+
+function isProgrammingLanguage(skillName: string): boolean {
+  if (!skillName) return false;
+  const clean = skillName.toLowerCase().trim().replace(/[^a-z0-9#+]/g, "");
+  const cleanRaw = skillName.toLowerCase().trim();
+  
+  return KNOWN_PROGRAMMING_LANGUAGES.some((lang) => {
+    return (
+      clean === lang ||
+      cleanRaw === lang ||
+      cleanRaw.startsWith(lang + " ") ||
+      cleanRaw.startsWith(lang + "(") ||
+      cleanRaw.startsWith(lang + "/")
+    );
+  });
+}
+
 // Schema for technical service project submission
 const projectSchema = z.object({
   title: z.string().min(3, "Service / Project title is required (min 3 characters)"),
-  projectType: z.string().min(1, "Please select a service type"),
-  category: z.string().min(1, "Please select a category"),
-  subcategory: z.string().optional(),
+  projectType: z.string().min(1, "Please select a project / service type"),
+  category: z.string().min(1, "Category is required to select"),
+  subcategory: z.string().min(1, "Subcategory is required to select"),
   requiredSkills: z.array(z.string()).min(1, "Please select at least one required skill"),
-  preferredLanguages: z.array(z.string()).min(1, "Please select at least one programming language"),
+  preferredLanguages: z.array(z.string()).optional(),
   expectedStartDate: z.string().min(1, "Expected start date is required").refine((val) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -90,7 +115,7 @@ const projectTypeOptions = [
   { value: "Installation", label: "Installation" },
 ];
 
-const programmingLanguagesOptions = [
+const defaultProgrammingLanguagesFallback = [
   { value: "JavaScript", label: "JavaScript (ES6+)" },
   { value: "TypeScript", label: "TypeScript" },
   { value: "Python", label: "Python 3" },
@@ -156,7 +181,7 @@ export default function CreateProjectLayout() {
       if ("BroadcastChannel" in window) {
         bc = new BroadcastChannel("vero_channel");
         bc.onmessage = (ev) => {
-          if (ev.data?.type === "TAXONOMY_UPDATED") {
+          if (ev.data?.type === "TAXONOMY_UPDATED" || ev.data?.type === "platform_taxonomy_updated") {
             loadTaxonomyData();
           }
         };
@@ -175,7 +200,7 @@ export default function CreateProjectLayout() {
     mode: "onBlur",
     defaultValues: {
       title: "",
-      projectType: "New Build",
+      projectType: "",
       category: "",
       subcategory: "",
       requiredSkills: [],
@@ -202,42 +227,76 @@ export default function CreateProjectLayout() {
 
   const formValues = form.watch();
   const selectedCategory = useWatch({ control, name: "category" });
+  const selectedLanguages = useWatch({ control, name: "preferredLanguages" }) || [];
+  const selectedSkills = useWatch({ control, name: "requiredSkills" }) || [];
   const startDateValue = useWatch({ control, name: "expectedStartDate" });
   const descriptionValue = useWatch({ control, name: "description" }) || "";
   const todayDateStr = new Date().toISOString().slice(0, 10);
-
-  // Set default initial category if form is empty and taxonomy loads
-  useEffect(() => {
-    if (taxonomy.categories.length > 0) {
-      const currentCat = form.getValues("category");
-      if (!currentCat || !taxonomy.categories.includes(currentCat)) {
-        form.setValue("category", taxonomy.categories[0]);
-      }
-    } else {
-      form.setValue("category", "");
-    }
-  }, [taxonomy.categories, form]);
 
   const categoryOptions = useMemo(() => {
     if (taxonomy.categories && taxonomy.categories.length > 0) {
       return taxonomy.categories.map((c) => ({ value: c, label: c }));
     }
-    return [{ value: "", label: "No categories added yet" }];
+    return [];
   }, [taxonomy.categories]);
 
   const availableSubcategories = useMemo(() => {
     if (taxonomy.subcategories && taxonomy.subcategories.length > 0) {
       return taxonomy.subcategories.map((s) => ({ value: s, label: s }));
     }
-    return [{ value: "", label: "No subcategories added yet" }];
+    return [];
   }, [taxonomy.subcategories]);
 
+  // Skills dropdown shows ALL skills from DB (frameworks, tools, languages)
+  // BUT excludes any programming language that the user has already selected in the Programming/Tech dropdown
   const availableSkills = useMemo(() => {
     if (taxonomy.skills && taxonomy.skills.length > 0) {
-      return taxonomy.skills.map((k) => ({ value: k, label: k }));
+      return taxonomy.skills
+        .filter((k) => !selectedLanguages.some((lang) => lang.toLowerCase().trim() === k.toLowerCase().trim()))
+        .map((k) => ({ value: k, label: k }));
     }
     return [];
-  }, [taxonomy.skills]);
+  }, [taxonomy.skills, selectedLanguages]);
+
+  // Programming/Tech dropdown dynamically filters from DB skills to show ONLY programming languages (e.g. JavaScript, Python)
+  // BUT excludes any skill already selected in the Skills dropdown
+  const availableProgrammingLanguages = useMemo(() => {
+    if (taxonomy.skills && taxonomy.skills.length > 0) {
+      const filtered = taxonomy.skills.filter((skill) => isProgrammingLanguage(skill));
+      if (filtered.length > 0) {
+        return filtered
+          .filter((lang) => !selectedSkills.some((s) => s.toLowerCase().trim() === lang.toLowerCase().trim()))
+          .map((lang) => ({ value: lang, label: lang }));
+      }
+    }
+    return defaultProgrammingLanguagesFallback.filter(
+      (lang) => !selectedSkills.some((s) => s.toLowerCase().trim() === lang.value.toLowerCase().trim())
+    );
+  }, [taxonomy.skills, selectedSkills]);
+
+  const handleLanguageChange = (vals: string[]) => {
+    setValue("preferredLanguages", vals);
+    // If any selected language was already in requiredSkills, remove it from requiredSkills
+    const currentSkills = form.getValues("requiredSkills") || [];
+    const cleanedSkills = currentSkills.filter(
+      (skill) => !vals.some((v) => v.toLowerCase().trim() === skill.toLowerCase().trim())
+    );
+    if (cleanedSkills.length !== currentSkills.length) {
+      setValue("requiredSkills", cleanedSkills);
+    }
+  };
+
+  const handleSkillChange = (vals: string[]) => {
+    setValue("requiredSkills", vals);
+    // If any selected skill was already in preferredLanguages, remove it from preferredLanguages
+    const currentLangs = form.getValues("preferredLanguages") || [];
+    const cleanedLangs = currentLangs.filter(
+      (lang) => !vals.some((v) => v.toLowerCase().trim() === lang.toLowerCase().trim())
+    );
+    if (cleanedLangs.length !== currentLangs.length) {
+      setValue("preferredLanguages", cleanedLangs);
+    }
+  };
 
   const router = useRouter();
   const { user } = useUser();
@@ -342,8 +401,8 @@ export default function CreateProjectLayout() {
 
   // Step-by-step validation fields
   const stepValidationFields: (keyof ProjectForm)[][] = [
-    ["title", "category", "description"],
-    ["requiredSkills", "preferredLanguages", "projectType"],
+    ["title", "category", "subcategory", "description"],
+    ["projectType", "requiredSkills"],
     ["budgetAmount", "paymentTerms", "expectedStartDate", "expectedEndDate", "fullName", "email", "phone"],
     ["title"],
   ];
@@ -477,12 +536,14 @@ export default function CreateProjectLayout() {
                     render={({ field }) => (
                       <select
                         {...field}
+                        onFocus={() => loadTaxonomyData()}
                         onChange={(e) => {
                           field.onChange(e);
                           setValue("subcategory", "");
                         }}
                         className="w-full mt-1 p-2.5 border border-border rounded-xl bg-card text-foreground text-xs font-medium cursor-pointer focus:border-primary focus:outline-none transition-colors"
                       >
+                        <option value="">Select Category</option>
                         {categoryOptions.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
@@ -497,15 +558,17 @@ export default function CreateProjectLayout() {
                 </div>
 
                 <div>
-                  <Label>Sub Category (Optional)</Label>
+                  <Label>Sub Category *</Label>
                   <Controller
                     name="subcategory"
                     control={control}
                     render={({ field }) => (
                       <select
                         {...field}
+                        onFocus={() => loadTaxonomyData()}
                         className="w-full mt-1 p-2.5 border border-border rounded-xl bg-card text-foreground text-xs font-medium cursor-pointer focus:border-primary focus:outline-none transition-colors"
                       >
+                        <option value="">Select Subcategory</option>
                         {availableSubcategories.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
@@ -514,6 +577,9 @@ export default function CreateProjectLayout() {
                       </select>
                     )}
                   />
+                  {errors.subcategory && (
+                    <p className="text-xs text-rose-500 mt-1 font-medium">{errors.subcategory.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -566,6 +632,7 @@ export default function CreateProjectLayout() {
                         {...field}
                         className="w-full mt-1 p-2.5 border border-border rounded-xl bg-card text-foreground text-xs font-medium cursor-pointer focus:border-primary focus:outline-none transition-colors"
                       >
+                        <option value="">Select Project / Service Type</option>
                         {projectTypeOptions.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
@@ -582,17 +649,19 @@ export default function CreateProjectLayout() {
                 </div>
 
                 <div>
-                  <Label>Programming / Tech Languages *</Label>
+                  <Label>Programming / Tech (Optional)</Label>
                   <Controller
                     name="preferredLanguages"
                     control={control}
                     render={({ field }) => (
-                      <ReactSelectMulti
-                        value={field.value || []}
-                        onChange={(vals: string[]) => setValue("preferredLanguages", vals)}
-                        options={programmingLanguagesOptions}
-                        placeholder="Select languages (e.g. TypeScript, JavaScript, Python...)"
-                      />
+                      <div onFocus={() => loadTaxonomyData()}>
+                        <ReactSelectMulti
+                          value={field.value || []}
+                          onChange={handleLanguageChange}
+                          options={availableProgrammingLanguages}
+                          placeholder="Select programming languages (e.g. JavaScript, Python...)"
+                        />
+                      </div>
                     )}
                   />
                   {errors.preferredLanguages && (
@@ -609,12 +678,14 @@ export default function CreateProjectLayout() {
                   name="requiredSkills"
                   control={control}
                   render={({ field }) => (
-                    <ReactSelectMulti
-                      value={field.value || []}
-                      onChange={(vals: string[]) => setValue("requiredSkills", vals)}
-                      options={availableSkills}
-                      placeholder="Select frameworks & skills (e.g. Next.js, React, NestJS, APIs...)"
-                    />
+                    <div onFocus={() => loadTaxonomyData()}>
+                      <ReactSelectMulti
+                        value={field.value || []}
+                        onChange={handleSkillChange}
+                        options={availableSkills}
+                        placeholder="Select frameworks & skills (e.g. Next.js, React, NestJS, APIs...)"
+                      />
+                    </div>
                   )}
                 />
                 {errors.requiredSkills && (

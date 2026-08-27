@@ -15,8 +15,6 @@ import {
   MessageCircle,
   X,
   Loader2,
-  Maximize2,
-  Minimize2,
   Paperclip,
   Reply,
   Clock,
@@ -62,6 +60,10 @@ import { io, Socket } from "socket.io-client";
 import { fetchProjectMessages, fetchUserThreads, sendProjectMessage, deleteUserThread, markUserThreadRead } from "@/src/modules/technical/services/technical.services";
 import { Button } from "@/src/components/ui/button";
 import { LiveChatTab } from "./LiveChatTab";
+import {
+  getLiveChatUnreadConversationsCount,
+  syncLiveChatFromDb,
+} from "@/src/shared/lib/live-chat-store";
 
 interface DashboardMessagesLayoutProps {
   role: DashboardRole;
@@ -235,7 +237,6 @@ export default function DashboardMessagesLayout({
   
   // Gmail Compose States
   const [composeOpen, setComposeOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   
   // Recipient state (Single-email selection with pill)
   const [selectedRecipient, setSelectedRecipient] = useState<RegisteredContact | null>(null);
@@ -246,6 +247,46 @@ export default function DashboardMessagesLayout({
 
   // Live Registered DB Contacts
   const [dbContacts, setDbContacts] = useState<RegisteredContact[]>(() => getAllRegisteredContacts());
+
+  // Number of Live Chat conversations that have unread messages
+  const [liveUnreadChatCount, setLiveUnreadChatCount] = useState<number>(0);
+
+  useEffect(() => {
+    const updateLiveChatUnread = () => {
+      setLiveUnreadChatCount(getLiveChatUnreadConversationsCount(currentUserEmail));
+    };
+
+    updateLiveChatUnread();
+    syncLiveChatFromDb(currentUserEmail).then(updateLiveChatUnread);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("platform_live_chat_rooms");
+        bc.onmessage = () => {
+          updateLiveChatUnread();
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key?.includes("live_chat")) {
+        updateLiveChatUnread();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("platform_live_chat_unread_changed", updateLiveChatUnread);
+
+    // Periodic check every 3s
+    const interval = setInterval(updateLiveChatUnread, 3000);
+
+    return () => {
+      bc?.close();
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("platform_live_chat_unread_changed", updateLiveChatUnread);
+      clearInterval(interval);
+    };
+  }, [currentUserEmail, folder]);
 
   useEffect(() => {
     fetchRegisteredContactsFromDB().then((contacts) => {
@@ -362,7 +403,7 @@ export default function DashboardMessagesLayout({
                     label: "View message",
                     onClick: () => {
                       setFolder("inbox");
-                      openThread(detail.threadId);
+                      setSelectedId(detail.threadId);
                     },
                   },
                   duration: 8000,
@@ -888,7 +929,7 @@ export default function DashboardMessagesLayout({
     // Simulate realistic mail dispatch
     await new Promise((r) => setTimeout(r, 600));
 
-    sendComposedMessage({
+    const createdThread = sendComposedMessage({
       role,
       to: recipientEmail,
       recipientName,
@@ -899,7 +940,7 @@ export default function DashboardMessagesLayout({
       draftId: editingDraftId,
     });
 
-    // Receiver local notification queuing
+    // Receiver local notification queuing & real-time broadcast
     try {
       const recEmail = recipientEmail.toLowerCase();
       const recKey = `app_notifs_${recEmail}`;
@@ -913,7 +954,7 @@ export default function DashboardMessagesLayout({
         createdAt: new Date().toISOString(),
         read: false,
         recipientEmail: recEmail,
-        href: `/dashboard/business/messages`,
+        href: `/dashboard/${role}/messages`,
       };
       if (typeof window !== "undefined") {
         localStorage.setItem(recKey, JSON.stringify([newReceiverNotif, ...existingNotifs].slice(0, 50)));
@@ -921,6 +962,20 @@ export default function DashboardMessagesLayout({
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("vero_channel");
           bc.postMessage({ type: "vero:new_notification", targetEmail: recEmail, payload: newReceiverNotif });
+          bc.postMessage({
+            type: "platform_new_email",
+            targetEmail: recEmail,
+            detail: {
+              threadId: createdThread.id,
+              recipientEmail: recEmail,
+              recipientName,
+              senderName: getDisplayName(user),
+              senderEmail: currentUserEmail,
+              subject: composeSubject.trim(),
+              body: composeBody.trim(),
+              sentAt: new Date().toISOString(),
+            },
+          });
           bc.close();
         }
       }
@@ -935,6 +990,7 @@ export default function DashboardMessagesLayout({
     setEditingDraftId(undefined);
     setFolder("sent");
     refresh();
+    setSelectedId(createdThread.id);
     toast.success("Message Delivered Successfully", {
       description: `Delivered to ${recipientName} (${recipientEmail})`,
       className: "!text-[#111] dark:!text-white font-bold",
@@ -975,7 +1031,6 @@ export default function DashboardMessagesLayout({
     setRecipientQuery("");
     setComposeSubject("");
     setComposeBody("");
-    setIsMinimized(false);
     setComposeOpen(true);
   };
 
@@ -1022,6 +1077,8 @@ export default function DashboardMessagesLayout({
           const count =
             f.id === "inbox"
               ? unreadCount
+              : f.id === "live"
+              ? liveUnreadChatCount
               : threads.filter((t) => (t.folder ?? "inbox") === f.id).length;
 
           return (
@@ -1043,7 +1100,11 @@ export default function DashboardMessagesLayout({
               {count > 0 && (
                 <span
                   className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                    isActive
+                    f.id === "live"
+                      ? isActive
+                        ? "bg-white text-primary"
+                        : "bg-red-500 text-white animate-pulse"
+                      : isActive
                       ? "bg-white/20 text-white"
                       : "bg-muted-foreground/15 text-foreground"
                   }`}
@@ -1058,7 +1119,7 @@ export default function DashboardMessagesLayout({
 
       {/* Main Folder Content: Live Chat vs Email Client */}
       {folder === "live" ? (
-        <LiveChatTab />
+        <LiveChatTab role={role} />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 h-[680px] max-h-[calc(100vh-210px)] min-h-[560px] overflow-hidden">
           {/* Left Column: Email Thread List */}
@@ -1525,7 +1586,7 @@ export default function DashboardMessagesLayout({
             style={{
               maxWidth: "520px",
               width: "100%",
-              height: isMinimized ? "auto" : "540px",
+              height: "540px",
               maxHeight: "88vh",
             }}
             className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-150"
@@ -1544,14 +1605,6 @@ export default function DashboardMessagesLayout({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setIsMinimized(!isMinimized)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                  title={isMinimized ? "Expand" : "Minimize"}
-                >
-                  {isMinimized ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
-                </button>
-                <button
-                  type="button"
                   onClick={() => {
                     setComposeOpen(false);
                     setSelectedRecipient(null);
@@ -1568,145 +1621,144 @@ export default function DashboardMessagesLayout({
             </div>
 
             {/* Compose Body */}
-            {!isMinimized && (
-              <div className="flex-1 flex flex-col p-4 space-y-3 bg-card overflow-y-auto min-h-0">
-                {/* Recipients (To:) with Search, Match Highlight, Pill Badge, and Single Email Rule */}
-                <div className="relative border-b border-border pb-2.5 shrink-0">
-                  <div className="flex items-center gap-2 flex-wrap min-h-[34px]">
-                    <span className="w-10 text-xs font-bold text-muted-foreground select-none">To:</span>
+            <div className="flex-1 flex flex-col p-4 space-y-3 bg-card overflow-y-auto min-h-0">
+              {/* Recipients (To:) with Search, Match Highlight, Pill Badge, and Single Email Rule */}
+              <div className="relative border-b border-border pb-2.5 shrink-0">
+                <div className="flex items-center gap-2 flex-wrap min-h-[34px]">
+                  <span className="w-16 text-xs font-bold text-muted-foreground select-none shrink-0">To:</span>
 
-                    {selectedRecipient ? (
-                      /* Pill Form with Cross Button */
-                      <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs text-foreground font-medium shadow-xs animate-in fade-in zoom-in-95 duration-150">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white uppercase">
-                          {getInitials(selectedRecipient.name || selectedRecipient.email)}
+                  {selectedRecipient ? (
+                    /* Pill Form with Cross Button */
+                    <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs text-foreground font-medium shadow-xs animate-in fade-in zoom-in-95 duration-150">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white uppercase">
+                        {getInitials(selectedRecipient.name || selectedRecipient.email)}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-primary">
+                          {selectedRecipient.name || selectedRecipient.email}
                         </span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-primary">
-                            {selectedRecipient.name || selectedRecipient.email}
-                          </span>
-                          {selectedRecipient.name && (
-                            <span className="text-muted-foreground text-[11px]">
-                              &lt;{selectedRecipient.email}&gt;
-                            </span>
-                          )}
-                        </div>
-                        {selectedRecipient.role && (
-                          <span className="rounded bg-background/80 border border-border/50 px-1.5 py-0.2 text-[9px] uppercase font-bold text-muted-foreground">
-                            {selectedRecipient.role}
+                        {selectedRecipient.name && (
+                          <span className="text-muted-foreground text-[11px]">
+                            &lt;{selectedRecipient.email}&gt;
                           </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={handleRemoveRecipient}
-                          className="ml-1 rounded-full p-0.5 text-muted-foreground hover:bg-red-500/20 hover:text-red-600 transition-colors cursor-pointer"
-                          title="Remove recipient"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
                       </div>
-                    ) : (
-                      /* Input to search registered emails */
-                      <div className="flex-1 relative">
-                        <input
-                          ref={recipientInputRef}
-                          type="text"
-                          placeholder="Type recipient name or email (e.g. ahmed...)"
-                          value={recipientQuery}
-                          onChange={(e) => {
-                            setRecipientQuery(e.target.value);
-                            setIsDropdownOpen(true);
-                          }}
-                          onFocus={() => {
-                            if (recipientQuery.trim()) setIsDropdownOpen(true);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && recipientQuery.trim()) {
-                              e.preventDefault();
-                              if (searchResults.length > 0) {
-                                handleSelectContact(searchResults[0]);
-                              } else {
-                                handleUseCustomQueryAsEmail(recipientQuery);
-                              }
-                            }
-                          }}
-                          className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Registered Emails Search Dropdown */}
-                  {!selectedRecipient && isDropdownOpen && recipientQuery.trim() && (
-                    <div
-                      ref={dropdownRef}
-                      className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-2xl divide-y divide-border/60 animate-in fade-in slide-in-from-top-2 duration-150"
-                    >
-                      <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                        <span>Registered Users &amp; Emails</span>
-                        <span>
-                          {searchResults.length} match{searchResults.length === 1 ? "" : "es"}
+                      {selectedRecipient.role && (
+                        <span className="rounded bg-background/80 border border-border/50 px-1.5 py-0.2 text-[9px] uppercase font-bold text-muted-foreground">
+                          {selectedRecipient.role}
                         </span>
-                      </div>
-
-                      {searchResults.length > 0 ? (
-                        searchResults.map((contact) => (
-                          <button
-                            key={contact.id + contact.email}
-                            type="button"
-                            onClick={() => handleSelectContact(contact)}
-                            className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-primary/5 transition-colors group cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold uppercase group-hover:bg-primary group-hover:text-white transition-colors">
-                                {getInitials(contact.name || contact.email)}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-foreground truncate">
-                                  <HighlightMatch text={contact.name} query={recipientQuery} />
-                                </p>
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                  <HighlightMatch text={contact.email} query={recipientQuery} />
-                                </p>
-                              </div>
-                            </div>
-
-                            {contact.role && (
-                              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                                {contact.role}
-                              </span>
-                            )}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-3.5 text-center space-y-2">
-                          <p className="text-xs text-muted-foreground">
-                            No registered account matching "{recipientQuery}"
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => handleUseCustomQueryAsEmail(recipientQuery)}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline cursor-pointer"
-                          >
-                            <Plus className="h-3.5 w-3.5" /> Use "{recipientQuery}" as recipient
-                          </button>
-                        </div>
                       )}
+                      <button
+                        type="button"
+                        onClick={handleRemoveRecipient}
+                        className="ml-1 rounded-full p-0.5 text-muted-foreground hover:bg-red-500/20 hover:text-red-600 transition-colors cursor-pointer"
+                        title="Remove recipient"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    /* Input to search registered emails */
+                    <div className="flex-1 relative">
+                      <input
+                        ref={recipientInputRef}
+                        type="text"
+                        placeholder="Type recipient name or email (e.g. ahmed...)"
+                        value={recipientQuery}
+                        onChange={(e) => {
+                          setRecipientQuery(e.target.value);
+                          setIsDropdownOpen(true);
+                        }}
+                        onFocus={() => {
+                          if (recipientQuery.trim()) setIsDropdownOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && recipientQuery.trim()) {
+                            e.preventDefault();
+                            if (searchResults.length > 0) {
+                              handleSelectContact(searchResults[0]);
+                            } else {
+                              handleUseCustomQueryAsEmail(recipientQuery);
+                            }
+                          }
+                        }}
+                        className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      />
                     </div>
                   )}
                 </div>
 
-                {/* Subject Line - Automatic Bold Type */}
-                <div className="flex items-center border-b border-border pb-2 shrink-0">
-                  <span className="w-10 text-xs font-bold text-muted-foreground select-none">Subject:</span>
-                  <input
-                    type="text"
-                    placeholder="Subject line"
-                    value={composeSubject}
-                    onChange={(e) => setComposeSubject(e.target.value)}
-                    className="flex-1 bg-transparent text-sm font-bold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none"
-                  />
-                </div>
+                {/* Registered Emails Search Dropdown */}
+                {!selectedRecipient && isDropdownOpen && recipientQuery.trim() && (
+                  <div
+                    ref={dropdownRef}
+                    className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-2xl divide-y divide-border/60 animate-in fade-in slide-in-from-top-2 duration-150"
+                  >
+                    <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Registered Users &amp; Emails</span>
+                      <span>
+                        {searchResults.length} match{searchResults.length === 1 ? "" : "es"}
+                      </span>
+                    </div>
+
+                    {searchResults.length > 0 ? (
+                      searchResults.map((contact) => (
+                        <button
+                          key={contact.id + contact.email}
+                          type="button"
+                          onClick={() => handleSelectContact(contact)}
+                          className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-primary/5 transition-colors group cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold uppercase group-hover:bg-primary group-hover:text-white transition-colors">
+                              {getInitials(contact.name || contact.email)}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-foreground truncate">
+                                <HighlightMatch text={contact.name} query={recipientQuery} />
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                <HighlightMatch text={contact.email} query={recipientQuery} />
+                              </p>
+                            </div>
+                          </div>
+
+                          {contact.role && (
+                            <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                              {contact.role}
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-3.5 text-center space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          No registered account matching "{recipientQuery}"
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleUseCustomQueryAsEmail(recipientQuery)}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Use "{recipientQuery}" as recipient
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Subject Line - Automatic Bold Type */}
+              <div className="flex items-center gap-2 border-b border-border pb-2.5 shrink-0">
+                <span className="w-16 text-xs font-bold text-muted-foreground select-none shrink-0">Subject:</span>
+                <input
+                  type="text"
+                  placeholder="Subject line"
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  className="flex-1 bg-transparent text-sm font-bold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none"
+                />
+              </div>
 
                 {/* Email Body - Normal Weight */}
                 <textarea
@@ -1771,7 +1823,6 @@ export default function DashboardMessagesLayout({
                   </button>
                 </div>
               </div>
-            )}
           </div>
         </div>
       )}

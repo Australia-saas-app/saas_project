@@ -57,8 +57,21 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
       }
     })();
 
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (ev) => {
+          if (ev.data?.type === "USER_LOGGED_OUT") {
+            setUser(null);
+          }
+        };
+      }
+    } catch {}
+
     return () => {
       mounted = false;
+      if (bc) bc.close();
     };
   }, []);
 

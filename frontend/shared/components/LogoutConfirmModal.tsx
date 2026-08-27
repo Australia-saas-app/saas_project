@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { LogOut, Loader2 } from "lucide-react";
+import { deleteCookie } from "@/src/utils/cookie-utils";
 import { logout } from "@/src/shared/server/AuthService";
 import { useUser } from "@/src/context/user.provider";
 import { toast } from "sonner";
@@ -30,6 +31,21 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
     try {
       if (user) {
         accountType = ((user as any)?.accountType || (user as any)?.role || "user").toLowerCase();
+        const userEmail = (user as any)?.email;
+        if (userEmail) {
+          try {
+            const { setUserOnlineStatus } = await import("@/src/shared/lib/live-chat-store");
+            setUserOnlineStatus(userEmail, false);
+            if ("BroadcastChannel" in window) {
+              const bc = new BroadcastChannel("platform_live_chat_rooms");
+              bc.postMessage({
+                type: "USER_PRESENCE",
+                payload: { email: userEmail, isOnline: false },
+              });
+              bc.close();
+            }
+          } catch {}
+        }
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
         await recordRealActivity(
           "USER_LOGOUT",
@@ -37,16 +53,16 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
           { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
         ).catch(() => undefined);
       }
-      await logout();
+      await logout().catch(() => undefined);
       setUser(null);
     } catch (error) {
       console.error("Logout error:", error);
     }
-    setIsLoggingOut(false);
-    onClose();
 
-    // ── Security: wipe ALL client-side storage on logout ──────────────────
-    // No cached profile, KYC, session or auth data should remain in the browser.
+    // ── Security: wipe ALL client-side cookies and storage on logout ──────────────────
+    const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user", "next-auth.session-token"];
+    cookieNames.forEach(deleteCookie);
+
     if (typeof window !== "undefined") {
       try {
         const deviceId = localStorage.getItem("vero_device_id");
@@ -61,6 +77,8 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
         }
       } catch {
         const knownKeys = [
+          "accessToken",
+          "token",
           "user_profile_overrides_v2",
           "user_profile_documents_v2",
           "user_storage_scope",
@@ -71,6 +89,18 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
           try { localStorage.removeItem(k); } catch { /* ignore */ }
         });
       }
+
+      // Broadcast logout to all other open tabs
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "USER_LOGGED_OUT" });
+          bc.close();
+        }
+      } catch {}
+
+      setIsLoggingOut(false);
+      onClose();
 
       const pathname = window.location.pathname;
       const isLandingPage = pathname === "/" || pathname === "";
@@ -88,9 +118,9 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
       let cleanPath = "/account/user/login";
       if (isAdminApp) {
         cleanPath = "/account/admin/login";
-      } else if (accountType === "affiliate") {
+      } else if (accountType === "affiliate" || pathname.includes("/affiliate")) {
         cleanPath = "/account/affiliate/login";
-      } else if (accountType === "business") {
+      } else if (accountType === "business" || pathname.includes("/business")) {
         cleanPath = "/account/business/login";
       }
       window.location.href = cleanPath;

@@ -87,7 +87,7 @@ const customStyles: StylesConfig<Option, true> = {
   menuList: (base) => ({
     ...base,
     padding: "4px",
-    maxHeight: "200px",
+    maxHeight: "152px",
   }),
   option: (base, state) => ({
     ...base,

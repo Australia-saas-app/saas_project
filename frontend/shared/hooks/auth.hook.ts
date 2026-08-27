@@ -223,12 +223,23 @@ export const useLogout = () => {
             setUser(null);
             toast.success('Logged out');
             if (typeof window !== "undefined") {
+              const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user", "next-auth.session-token"];
+              cookieNames.forEach(deleteCookie);
+
               try {
-                localStorage.removeItem("accessToken");
-                localStorage.removeItem("token");
-                deleteCookie("accessToken");
-                deleteCookie("client_access_token");
+                const deviceId = localStorage.getItem("vero_device_id");
+                localStorage.clear();
+                sessionStorage.clear();
                 sessionStorage.setItem("manual_logout", "true");
+                if (deviceId) localStorage.setItem("vero_device_id", deviceId);
+              } catch {}
+
+              try {
+                if ("BroadcastChannel" in window) {
+                  const bc = new BroadcastChannel("vero_channel");
+                  bc.postMessage({ type: "USER_LOGGED_OUT" });
+                  bc.close();
+                }
               } catch {}
 
               const pathname = window.location.pathname;
@@ -259,13 +270,25 @@ export const useLogout = () => {
         onError: (error) => {
             setUser(null);
             if (typeof window !== "undefined") {
+                const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user", "next-auth.session-token"];
+                cookieNames.forEach(deleteCookie);
+
                 try {
-                  localStorage.removeItem("accessToken");
-                  localStorage.removeItem("token");
-                  deleteCookie("accessToken");
-                  deleteCookie("client_access_token");
+                  const deviceId = localStorage.getItem("vero_device_id");
+                  localStorage.clear();
+                  sessionStorage.clear();
                   sessionStorage.setItem("manual_logout", "true");
+                  if (deviceId) localStorage.setItem("vero_device_id", deviceId);
                 } catch {}
+
+                try {
+                  if ("BroadcastChannel" in window) {
+                    const bc = new BroadcastChannel("vero_channel");
+                    bc.postMessage({ type: "USER_LOGGED_OUT" });
+                    bc.close();
+                  }
+                } catch {}
+
                 const pathname = window.location.pathname;
                 const isLandingPage = pathname === "/" || pathname === "";
                 if (isLandingPage) {

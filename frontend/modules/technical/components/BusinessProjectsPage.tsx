@@ -97,6 +97,12 @@ export default function BusinessProjectsPage() {
       ]);
       setAvailableProjects(pubRes?.projects || []);
       setMyProjects(myRes?.projects || []);
+      setCompletingProject((prev) => {
+        if (!prev) return null;
+        const allList = [...(pubRes?.projects || []), ...(myRes?.projects || [])];
+        const fresh = allList.find((p: Project) => p.projectId === prev.projectId || String(p.id) === prev.projectId || p.projectId === String(prev.id));
+        return fresh || prev;
+      });
     } catch {
       toast.error("Failed to load business projects");
     } finally {

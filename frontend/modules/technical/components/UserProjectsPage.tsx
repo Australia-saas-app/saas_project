@@ -287,10 +287,33 @@ export default function UserProjectsPage() {
           localStorage.setItem("platform_user_technical_projects", JSON.stringify(list));
         } catch {}
       }
+      // Instantly sync any currently open modal with fresh data from database
+      setAssignedViewProject((prev) => {
+        if (!prev) return null;
+        const fresh = list.find((p: Project) => p.projectId === prev.projectId || String(p.id) === prev.projectId || p.projectId === String(prev.id));
+        return fresh || prev;
+      });
+      setViewProject((prev) => {
+        if (!prev) return null;
+        const fresh = list.find((p: Project) => p.projectId === prev.projectId || String(p.id) === prev.projectId || p.projectId === String(prev.id));
+        return fresh || prev;
+      });
+      return list;
     } catch {
       const local = readLocalProjects();
       setProjects(local);
       loadAllProposals(local);
+      setAssignedViewProject((prev) => {
+        if (!prev) return null;
+        const fresh = local.find((p: Project) => p.projectId === prev.projectId || String(p.id) === prev.projectId || p.projectId === String(prev.id));
+        return fresh || prev;
+      });
+      setViewProject((prev) => {
+        if (!prev) return null;
+        const fresh = local.find((p: Project) => p.projectId === prev.projectId || String(p.id) === prev.projectId || p.projectId === String(prev.id));
+        return fresh || prev;
+      });
+      return local;
     } finally {
       setLoading(false);
     }
@@ -332,7 +355,11 @@ export default function UserProjectsPage() {
     try {
       await reviewAcceptProject(projectId);
       toast.success("Project accepted! Escrow payment released to the provider.");
-      await loadProjects();
+      const updatedList = await loadProjects();
+      const fresh = updatedList?.find((p: Project) => p.projectId === projectId || String(p.id) === projectId);
+      if (fresh) {
+        setAssignedViewProject(fresh);
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to accept");
     } finally {
@@ -345,13 +372,25 @@ export default function UserProjectsPage() {
       toast.error("Please enter revision instructions for the business.");
       return;
     }
-    setActionLoading(revisionProject.projectId);
+    const targetProj = revisionProject;
+    const reasonText = revisionReason.trim();
+    setActionLoading(targetProj.projectId);
     try {
-      await requestRevision(revisionProject.projectId, revisionReason);
+      await requestRevision(targetProj.projectId, reasonText);
       toast.success("Revision requested from the business.");
       setRevisionProject(null);
       setRevisionReason("");
-      await loadProjects();
+      const updatedList = await loadProjects();
+      const fresh = updatedList?.find((p: Project) => p.projectId === targetProj.projectId || String(p.id) === targetProj.projectId);
+      if (fresh) {
+        setAssignedViewProject(fresh);
+      } else {
+        setAssignedViewProject({
+          ...targetProj,
+          submissionStatus: "revision",
+          adminNotes: reasonText,
+        });
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to request revision");
     } finally {
@@ -654,7 +693,7 @@ export default function UserProjectsPage() {
           className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2.5 rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
         >
           <Link href="/dashboard/user/technical/create">
-            + New Service
+            New Service
           </Link>
         </Button>
       </div>
@@ -784,7 +823,7 @@ export default function UserProjectsPage() {
             className="bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-xs cursor-pointer"
           >
             <Link href="/dashboard/user/technical/create">
-              + New Service
+              New Service
             </Link>
           </Button>
         </div>
@@ -1953,9 +1992,45 @@ export default function UserProjectsPage() {
               toast.success(`Revision requested on Milestone ${assignedMilestoneTab + 1}. Provider has been notified.`);
             }
 
+            const currentAction = assignedReviewAction;
+            const currentNote = assignedReviewNote.trim();
             setAssignedReviewAction(null);
             setAssignedReviewNote("");
-            loadProjects();
+
+            const updatedList = await loadProjects();
+            const fresh = updatedList?.find(
+              (item: Project) =>
+                item.projectId === p.projectId ||
+                String(item.id) === p.projectId ||
+                item.projectId === String(p.id)
+            );
+            if (fresh) {
+              setAssignedViewProject(fresh);
+            } else {
+              setAssignedViewProject((prev) => {
+                if (!prev) return null;
+                const nextMilestones = [...(prev.milestones || [])];
+                if (nextMilestones[assignedMilestoneTab]) {
+                  nextMilestones[assignedMilestoneTab] = {
+                    ...nextMilestones[assignedMilestoneTab],
+                    status: currentAction === "accept" ? "accepted" : "revision",
+                    clientNote: currentNote,
+                  };
+                }
+                const isProjectCompleted =
+                  currentAction === "accept" &&
+                  (assignedMilestoneTab === milestoneCount - 1 || milestoneCount === 1);
+                return {
+                  ...prev,
+                  submissionStatus: isProjectCompleted
+                    ? ("accepted" as any)
+                    : currentAction === "revision"
+                    ? ("revision" as any)
+                    : prev.submissionStatus,
+                  milestones: nextMilestones,
+                };
+              });
+            }
           } catch (e: any) {
             toast.error(e?.message || "Action failed. Please try again.");
           } finally {

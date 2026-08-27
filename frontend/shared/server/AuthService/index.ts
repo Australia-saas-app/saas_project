@@ -366,14 +366,18 @@ export const loginUser = async (userData: FieldValues) => {
 export const logout = async () => {
   const cookieStore = await cookies();
   try {
-    await axiosInstance.post("/auth/logout");
+    await axiosInstance.post("/auth/logout", {}, { timeout: 3000 });
   } catch {
     // ignore logout API errors
   }
-  cookieStore.delete("accessToken");
-  cookieStore.delete("client_access_token");
-  cookieStore.delete("refreshToken");
-  cookieStore.delete("user");
+  const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user"];
+  for (const name of cookieNames) {
+    try {
+      cookieStore.set(name, "", { path: "/", maxAge: 0, expires: new Date(0) });
+      cookieStore.delete(name);
+      cookieStore.delete({ name, path: "/" });
+    } catch {}
+  }
 };
 
 export const getCurrentUser = async () => {

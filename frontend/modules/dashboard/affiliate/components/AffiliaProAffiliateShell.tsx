@@ -4,7 +4,7 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Crown, Globe, LayoutGrid, LogOut, Menu, Settings, X } from "lucide-react";
+import { ChevronDown, Crown, Globe, LayoutGrid, LogOut, Menu, Settings, X, Home } from "lucide-react";
 import DashboardVerificationGate from "@/src/shared/components/DashboardVerificationGate";
 import LogoutConfirmModal from "@/src/shared/components/LogoutConfirmModal";
 import { useUser } from "@/src/context/user.provider";
@@ -100,7 +100,22 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
         </button>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      {/* Top Separate Home Action Button (Redirects to Landing Page) */}
+      <div className="p-3 pb-0 shrink-0">
+        <Link
+          href="/"
+          onClick={() => setMobileOpen(false)}
+          className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-gray-100 hover:border-indigo-200 shadow-2xs cursor-pointer"
+        >
+          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+            <Home className="h-3.5 w-3.5" />
+          </div>
+          <span className="truncate font-bold">Home</span>
+        </Link>
+        <div className="my-2 border-b border-gray-100" />
+      </div>
+
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         <ul className="space-y-0.5">
           {AFFILIAPRO_AFFILIATE_NAV.map((item) => {
             const Icon = item.icon;
