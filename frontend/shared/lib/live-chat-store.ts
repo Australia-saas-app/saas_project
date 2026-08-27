@@ -516,3 +516,45 @@ export function getLiveChatUnreadConversationsCount(currentUserEmail?: string): 
   const contacts = getAllLiveChatContacts(currentUserEmail);
   return contacts.filter((c) => (c.unreadCount || 0) > 0).length;
 }
+
+export function addContactToLiveChat(contact: {
+  id?: string;
+  name: string;
+  email: string;
+  role?: string;
+  avatar?: string;
+}) {
+  if (!contact?.email) return;
+  const requests = readLiveChatRequests();
+  const cEmail = contact.email.trim().toLowerCase();
+  const existing = requests.find(
+    (r) =>
+      (r.senderEmail.toLowerCase() === cEmail || r.receiverEmail.toLowerCase() === cEmail) &&
+      r.status === "accepted"
+  );
+  if (!existing) {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const newReq: LiveChatRequest = {
+      id: `req-proj-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      senderEmail: "support@saas.com",
+      senderName: "Customer Support & Escrow",
+      senderRole: "Support",
+      receiverEmail: cEmail,
+      receiverName: contact.name || "User",
+      receiverRole: contact.role || "User",
+      receiverAvatar: contact.avatar,
+      status: "accepted",
+      createdAt: Date.now(),
+      formattedDate,
+    };
+    writeLiveChatRequests([...requests, newReq]);
+  }
+}
