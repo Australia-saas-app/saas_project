@@ -30,7 +30,7 @@ import AppModal from "@/src/modules/dashboard/shared/components/AppModal";
 import { Button } from "@/src/components/ui/button";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useUser } from "@/src/context/user.provider";
-import { recordActivityLog, fetchMyApplications, applyForProject } from "../services/technical.services";
+import { recordActivityLog, fetchMyApplications, applyForProject, formatProjectDate } from "../services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { DeliverableUploadModal } from "./DeliverableUploadModal";
 import { ProjectDeadlineCountdown } from "./ProjectDeadlineCountdown";
@@ -203,6 +203,9 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
                       endDate={(project as any).endDate}
                       createdAt={(project as any).createdAt}
                       assignedAt={(project as any).assignedAt}
+                      completedAt={(project as any).completedAt || (project as any).acceptedAt || (project as any).updatedAt}
+                      isCompleted={(project as any).submissionStatus === "completed" || (project as any).submissionStatus === "accepted" || project.status === "completed" || project.status === "accepted"}
+                      status={(project as any).submissionStatus || project.status}
                     />
                   ) : (
                     <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap shrink-0">
@@ -366,37 +369,60 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
             className="w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95 duration-200"
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-border pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-primary font-bold">
-                    {fullDetailProject.projectId || `PRJ-${fullDetailProject.id}`}
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800">
-                    <Loader2 className="h-3 w-3 animate-spin text-indigo-600 dark:text-indigo-400" />
-                    In Progress
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Assigned to You
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-foreground mt-1">{fullDetailProject.title}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Category: <strong className="text-foreground">{fullDetailProject.category || "Software Development"}</strong>
-                  {(fullDetailProject as any).subcategory && ` • ${(fullDetailProject as any).subcategory}`}
-                  {(fullDetailProject as any).projectType && ` • ${(fullDetailProject as any).projectType}`}
-                </p>
-              </div>
+            {(() => {
+              const isDone = (() => {
+                const p = fullDetailProject as any;
+                if (p.submissionStatus === "completed" || p.submissionStatus === "accepted" || p.status === "completed" || p.status === "accepted") return true;
+                const terms = (p.paymentTerms || "").toLowerCase();
+                const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                const ms = p.milestones;
+                if (Array.isArray(ms) && ms.length >= mCount && mCount > 0) {
+                  return ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
+                }
+                return false;
+              })();
 
-              <button
-                type="button"
-                onClick={() => setFullDetailProject(null)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+              return (
+                <div className="flex items-start justify-between border-b border-border pb-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs text-primary font-bold">
+                        {fullDetailProject.projectId || `PRJ-${fullDetailProject.id}`}
+                      </span>
+                      {isDone ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                          Completed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800">
+                          <Loader2 className="h-3 w-3 animate-spin text-indigo-600 dark:text-indigo-400" />
+                          In Progress
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                        <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        Assigned to You
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-bold text-foreground mt-1">{fullDetailProject.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Category: <strong className="text-foreground">{fullDetailProject.category || "Software Development"}</strong>
+                      {(fullDetailProject as any).subcategory && ` • ${(fullDetailProject as any).subcategory}`}
+                      {(fullDetailProject as any).projectType && ` • ${(fullDetailProject as any).projectType}`}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setFullDetailProject(null)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              );
+            })()}
 
             {/* Scope Summary & Description */}
             <div className="space-y-1">
@@ -454,8 +480,8 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
               <div>
                 <span className="text-muted-foreground block text-[10px] uppercase font-bold">Timeline</span>
                 <span className="font-semibold text-foreground">
-                  {(fullDetailProject as any).startDate ? new Date((fullDetailProject as any).startDate).toLocaleDateString() : "Active"}
-                  {(fullDetailProject as any).endDate ? ` → ${new Date((fullDetailProject as any).endDate).toLocaleDateString()}` : ""}
+                  {formatProjectDate((fullDetailProject as any).startDate || (fullDetailProject as any).createdAt) || "Flexible"}
+                  {(fullDetailProject as any).endDate ? ` → ${formatProjectDate((fullDetailProject as any).endDate)}` : ""}
                 </span>
               </div>
             </div>
@@ -480,47 +506,63 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
             </div>
 
             {/* Escrow Funded & Agreed Terms */}
-            <div className="rounded-xl p-3.5 border space-y-2 text-xs bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                  Escrow Funded &amp; Agreed Terms
-                </p>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
-                  Active in Progress
-                </span>
-              </div>
+            {(() => {
+              const isDone = (() => {
+                const p = fullDetailProject as any;
+                if (p.submissionStatus === "completed" || p.submissionStatus === "accepted" || p.status === "completed" || p.status === "accepted") return true;
+                const terms = (p.paymentTerms || "").toLowerCase();
+                const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                const ms = p.milestones;
+                if (Array.isArray(ms) && ms.length >= mCount && mCount > 0) {
+                  return ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
+                }
+                return false;
+              })();
 
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Funded Escrow Budget</span>
-                  <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {fullDetailProject.priceRange || `$${Number((fullDetailProject as any).adminBudget || (fullDetailProject as any).price || 0).toLocaleString()}`}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
-                  <span className="font-semibold text-foreground">{(fullDetailProject as any).commissionPercent || 10}%</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Status</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    Paid in Escrow
-                  </span>
-                </div>
-              </div>
+              return (
+                <div className="rounded-xl p-3.5 border space-y-2 text-xs bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                      Escrow Funded &amp; Agreed Terms
+                    </p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                      {isDone ? "Completed" : "Active in Progress"}
+                    </span>
+                  </div>
 
-              {(fullDetailProject as any).requirements && (
-                <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
-                  <strong>Admin Requirements:</strong> {(fullDetailProject as any).requirements}
-                </p>
-              )}
-              {(fullDetailProject as any).conditions && (
-                <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
-                  <strong>Delivery Conditions:</strong> {(fullDetailProject as any).conditions}
-                </p>
-              )}
-            </div>
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Funded Escrow Budget</span>
+                      <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {fullDetailProject.priceRange || `$${Number((fullDetailProject as any).adminBudget || (fullDetailProject as any).price || 0).toLocaleString()}`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Commission</span>
+                      <span className="font-semibold text-foreground">{(fullDetailProject as any).commissionPercent || 10}%</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Status</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {isDone ? "Released from Escrow" : "Paid in Escrow"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(fullDetailProject as any).requirements && (
+                    <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
+                      <strong>Admin Requirements:</strong> {(fullDetailProject as any).requirements}
+                    </p>
+                  )}
+                  {(fullDetailProject as any).conditions && (
+                    <p className="text-xs p-2.5 rounded-lg border bg-background/80 border-emerald-500/20">
+                      <strong>Delivery Conditions:</strong> {(fullDetailProject as any).conditions}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Submitted File Attachments for the Project */}
             {(fullDetailProject as any).attachmentFile && (

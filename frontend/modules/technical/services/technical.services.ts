@@ -968,6 +968,35 @@ export const reviewMilestone = async (
 ) => {
   const local = readLocalProjects();
   const target = local.find((p) => p.projectId === projectId || String(p.id) === String(projectId));
+  const isLastMilestone = data.action === 'accept' && (data.milestoneIndex >= data.totalMilestones - 1 || data.totalMilestones <= 1);
+
+  // Optimistically update local cache with milestone status and completion
+  const updatedLocal = local.map((p) => {
+    if (p.projectId === projectId || String(p.id) === String(projectId)) {
+      const nextMilestones = Array.isArray(p.milestones) ? [...p.milestones] : [];
+      while (nextMilestones.length <= data.milestoneIndex) {
+        nextMilestones.push({});
+      }
+      nextMilestones[data.milestoneIndex] = {
+        ...(nextMilestones[data.milestoneIndex] || {}),
+        status: data.action === 'accept' ? 'accepted' : 'revision',
+        clientNote: data.clientNote,
+      };
+
+      const allAccepted = data.totalMilestones > 0 && nextMilestones.slice(0, data.totalMilestones).every((m: any) => m?.status === 'accepted');
+      const isFinished = isLastMilestone || allAccepted;
+
+      return {
+        ...p,
+        submissionStatus: isFinished ? 'accepted' : data.action === 'revision' ? 'revision' : p.submissionStatus,
+        status: isFinished ? 'accepted' : data.action === 'revision' ? 'revision' : p.status,
+        paymentStatus: isFinished ? 'released' : p.paymentStatus,
+        milestones: nextMilestones,
+      };
+    }
+    return p;
+  });
+  writeLocalProjects(updatedLocal);
 
   if (target && data.action === 'accept') {
     const total = Number(target.adminBudget || target.price || 0);

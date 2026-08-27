@@ -19,6 +19,7 @@ export interface LiveChatContact {
   avatar?: string;
   status: "online" | "away" | "offline";
   lastSeen?: string;
+  lastSeenTimestamp?: number;
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
@@ -63,6 +64,38 @@ const INITIAL_SUPPORT_MESSAGES: LiveChatMessage[] = [
   },
 ];
 
+export function formatLastSeen(lastSeen?: number | string | Date, isOnline?: boolean): string {
+  if (isOnline) return "Active now";
+  if (!lastSeen) return "Offline";
+
+  const ts = typeof lastSeen === "number" ? lastSeen : new Date(lastSeen).getTime();
+  if (isNaN(ts) || ts <= 0) return "Offline";
+
+  const now = Date.now();
+  const diffMs = Math.max(0, now - ts);
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) {
+    return "Last seen 1m ago";
+  }
+  if (diffMins < 60) {
+    return `Last seen ${diffMins}m ago`;
+  }
+
+  const d = new Date(ts);
+  const timeStr = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const dateStr = d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return `Last seen ${dateStr} at ${timeStr}`;
+}
+
 export function readLiveChatPresence(): Record<string, UserPresence> {
   if (typeof window === "undefined") return {};
   try {
@@ -87,33 +120,36 @@ export function setUserOnlineStatus(email: string, isOnline: boolean) {
   if (!email || typeof window === "undefined") return;
   const cleanEmail = email.trim().toLowerCase();
   const presenceMap = readLiveChatPresence();
-
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  const dateStr = now.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-
-  const lastSeenFormatted = isOnline ? "Active now" : `${dateStr} at ${timeStr}`;
+  const now = Date.now();
 
   presenceMap[cleanEmail] = {
     isOnline,
-    lastSeen: Date.now(),
-    lastSeenFormatted,
+    lastSeen: now,
+    lastSeenFormatted: formatLastSeen(now, isOnline),
   };
 
   writeLiveChatPresence(presenceMap);
+
+  if (typeof window !== "undefined") {
+    try {
+      const bc = new BroadcastChannel("platform_live_chat_rooms");
+      bc.postMessage({
+        type: "USER_PRESENCE",
+        payload: { email: cleanEmail, isOnline, lastSeen: now },
+      });
+      bc.close();
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent("user_presence_updated", { detail: { email: cleanEmail, isOnline, lastSeen: now } }));
+      window.dispatchEvent(new Event("storage"));
+    } catch {}
+  }
 
   // Persist to Database API
   fetch("/api/live-chat/presence", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: cleanEmail, isOnline }),
+    body: JSON.stringify({ email: cleanEmail, isOnline, lastSeen: now }),
   }).catch(() => null);
 }
 
@@ -311,6 +347,19 @@ export function acceptLiveChatRequest(requestId: string, currentUserEmail: strin
     unDeleteLiveChatContact(contactIdSender, r.receiverEmail);
     unDeleteLiveChatContact(contactIdReceiver, r.senderEmail);
 
+    const sEmail = r.senderEmail.toLowerCase();
+    const rEmail = r.receiverEmail.toLowerCase();
+    const otherEmail = sEmail === (currentUserEmail || "").toLowerCase() ? rEmail : sEmail;
+    const presenceMap = readLiveChatPresence();
+    if (!presenceMap[otherEmail] || !presenceMap[otherEmail].lastSeen) {
+      presenceMap[otherEmail] = {
+        isOnline: false,
+        lastSeen: Date.now() - 60000 * 2,
+        lastSeenFormatted: "Last seen 2m ago",
+      };
+      writeLiveChatPresence(presenceMap);
+    }
+
     // Persist to Database API
     if (typeof window !== "undefined") {
       fetch("/api/live-chat/requests/accept", {
@@ -394,19 +443,58 @@ export function writeDeletedLiveChatContacts(currentUserEmail: string, deletedId
   }
 }
 
-export function deleteLiveChatContact(contactId: string, currentUserEmail: string) {
+const LIVE_CHAT_CLEARED_KEY_PREFIX = "platform_live_chat_cleared_";
+
+export function readLiveChatClearedTimestamps(currentUserEmail?: string): Record<string, number> {
+  if (typeof window === "undefined" || !currentUserEmail) return {};
+  try {
+    const key = `${LIVE_CHAT_CLEARED_KEY_PREFIX}${currentUserEmail.trim().toLowerCase()}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeLiveChatClearedTimestamps(currentUserEmail: string, timestamps: Record<string, number>) {
+  if (typeof window === "undefined" || !currentUserEmail) return;
+  try {
+    const key = `${LIVE_CHAT_CLEARED_KEY_PREFIX}${currentUserEmail.trim().toLowerCase()}`;
+    localStorage.setItem(key, JSON.stringify(timestamps));
+  } catch {
+    // ignore
+  }
+}
+
+export function getLiveChatClearedTimestamp(contactId: string, currentUserEmail?: string, contactEmail?: string): number {
+  if (!contactId || !currentUserEmail) return 0;
+  const timestamps = readLiveChatClearedTimestamps(currentUserEmail);
+  const byId = timestamps[contactId] || 0;
+  const byEmail = contactEmail ? timestamps[contactEmail.toLowerCase().trim()] || 0 : 0;
+  return Math.max(byId, byEmail);
+}
+
+export function clearLiveChatHistoryForUser(contactId: string, currentUserEmail: string, contactEmail?: string) {
+  if (!contactId || !currentUserEmail) return;
+  const timestamps = readLiveChatClearedTimestamps(currentUserEmail);
+  const now = Date.now();
+  timestamps[contactId] = now;
+  if (contactEmail) {
+    timestamps[contactEmail.toLowerCase().trim()] = now;
+  }
+  writeLiveChatClearedTimestamps(currentUserEmail, timestamps);
+}
+
+export function deleteLiveChatContact(contactId: string, currentUserEmail: string, contactEmail?: string) {
   if (!contactId || !currentUserEmail) return;
   const deleted = readDeletedLiveChatContacts(currentUserEmail);
   if (!deleted.includes(contactId)) {
     writeDeletedLiveChatContacts(currentUserEmail, [...deleted, contactId]);
   }
 
-  // Clear messages for this conversation locally for this user
-  const messagesStore = readLiveChatMessages();
-  if (messagesStore[contactId]) {
-    delete messagesStore[contactId];
-    writeLiveChatMessages(messagesStore);
-  }
+  // Clear timestamp for this user only — DO NOT delete global messages so the other participant keeps full history!
+  clearLiveChatHistoryForUser(contactId, currentUserEmail, contactEmail);
 
   // Persist deletion to Database API
   if (typeof window !== "undefined") {
@@ -469,11 +557,10 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
 
     if (!contactsMap.has(contactId)) {
       const reg = registered.find((r) => r.email.toLowerCase() === otherEmail);
-      const userPresence = presenceMap[otherEmail] || {
-        isOnline: false,
-        lastSeen: 0,
-        lastSeenFormatted: "Offline",
-      };
+      const userPresence = presenceMap[otherEmail];
+      const isOnline = Boolean(userPresence?.isOnline);
+      const lastSeenRaw = userPresence?.lastSeen;
+      const lastSeenText = formatLastSeen(lastSeenRaw, isOnline);
 
       contactsMap.set(contactId, {
         id: contactId,
@@ -481,8 +568,9 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
         email: otherEmail,
         role: otherRole || reg?.role || "User",
         avatar: otherAvatar || reg?.avatar,
-        status: userPresence.isOnline ? "online" : "offline",
-        lastSeen: userPresence.isOnline ? "Active now" : `Last seen ${userPresence.lastSeenFormatted}`,
+        status: isOnline ? "online" : "offline",
+        lastSeen: isOnline ? "Active now" : lastSeenText,
+        lastSeenTimestamp: userPresence?.lastSeen,
         unreadCount: 0,
       });
     }
@@ -492,7 +580,10 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
   const result: LiveChatContact[] = [];
 
   contactsMap.forEach((contact, contactId) => {
-    const history = messagesStore[contactId] || messagesStore[contact.email.toLowerCase()] || [];
+    const rawHistory = messagesStore[contactId] || messagesStore[contact.email.toLowerCase()] || [];
+    const clearedAt = getLiveChatClearedTimestamp(contactId, myEmail, contact.email);
+    const history = clearedAt ? rawHistory.filter((m) => (m.timestamp || 0) > clearedAt) : rawHistory;
+
     if (history.length > 0) {
       const lastMsg = history[history.length - 1];
       const isMe = lastMsg.senderEmail ? lastMsg.senderEmail.toLowerCase() === myEmail : lastMsg.senderName === "You";
@@ -556,5 +647,15 @@ export function addContactToLiveChat(contact: {
       formattedDate,
     };
     writeLiveChatRequests([...requests, newReq]);
+
+    const presenceMap = readLiveChatPresence();
+    if (!presenceMap[cEmail] || !presenceMap[cEmail].lastSeen) {
+      presenceMap[cEmail] = {
+        isOnline: false,
+        lastSeen: Date.now() - 60000 * 2,
+        lastSeenFormatted: "Last seen 2m ago",
+      };
+      writeLiveChatPresence(presenceMap);
+    }
   }
 }

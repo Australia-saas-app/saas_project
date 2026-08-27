@@ -183,6 +183,28 @@ interface Project {
   createdAt: string;
 }
 
+export function isProjectCompleted(p: any): boolean {
+  if (!p) return false;
+  if (
+    p.submissionStatus === "accepted" ||
+    p.submissionStatus === "completed" ||
+    p.status === "completed" ||
+    p.status === "accepted"
+  ) {
+    return true;
+  }
+  const mCount = (() => {
+    const t = (p.paymentTerms || "").toLowerCase();
+    if (t.includes("three") || t === "3") return 3;
+    if (t.includes("two") || t === "2") return 2;
+    return 1;
+  })();
+  if (Array.isArray(p.milestones) && p.milestones.length >= mCount && mCount > 0) {
+    return p.milestones.slice(0, mCount).every((m: any) => m?.status === "accepted");
+  }
+  return false;
+}
+
 export default function UserProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>(() => readLocalProjects());
@@ -219,7 +241,7 @@ export default function UserProjectsPage() {
 
   const handleExtendDeadline = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
-    if (!newDate || !viewProject) return;
+    if (!newDate || !viewProject || isProjectCompleted(viewProject)) return;
 
     const todayStr = new Date().toISOString().slice(0, 10);
     if (newDate < todayStr) {
@@ -566,25 +588,36 @@ export default function UserProjectsPage() {
 
   // Top metric stats calculation
   const stats = useMemo(() => {
-    const inProgressCount = userProjects.filter(
-      (p) =>
+    const completedCount = userProjects.filter((p) => isProjectCompleted(p)).length;
+
+    const inProgressCount = userProjects.filter((p) => {
+      if (isProjectCompleted(p)) return false;
+      return (
         p.submissionStatus === "in_progress" ||
-        Boolean(p.assignedBusinessId || p.assignedBusinessName)
-    ).length;
+        p.submissionStatus === "revision" ||
+        (Boolean(p.assignedBusinessId || p.assignedBusinessName) && p.submissionStatus !== "rejected")
+      );
+    }).length;
+
     const activeCount = userProjects.filter(
       (p) =>
+        !isProjectCompleted(p) &&
         (p.submissionStatus === "active" || p.paymentStatus === "paid") &&
         p.submissionStatus !== "in_progress" &&
+        p.submissionStatus !== "revision" &&
         !p.assignedBusinessId &&
         !p.assignedBusinessName
     ).length;
+
     const pendingCount = userProjects.filter((p) => {
+      if (isProjectCompleted(p)) return false;
+      const isAssigned = Boolean(p.assignedBusinessId || p.assignedBusinessName);
+      if (isAssigned) return false;
       const isPaid =
         p.paymentStatus === "paid" ||
         p.paymentStatus === "released" ||
         p.submissionStatus === "active" ||
-        p.submissionStatus === "in_progress" ||
-        Boolean(p.assignedBusinessId || p.assignedBusinessName);
+        p.submissionStatus === "in_progress";
       if (isPaid) return false;
       return (
         p.submissionStatus === "submitted" ||
@@ -595,9 +628,7 @@ export default function UserProjectsPage() {
         p.submissionStatus === "draft"
       );
     }).length;
-    const completedCount = userProjects.filter(
-      (p) => p.submissionStatus === "completed" || p.submissionStatus === "accepted"
-    ).length;
+
     const totalBudget = userProjects.reduce((sum, p) => {
       const b = p.adminBudget || p.price || 0;
       return sum + Number(b);
@@ -610,24 +641,28 @@ export default function UserProjectsPage() {
   const filteredProjects = useMemo(() => {
     return userProjects
       .filter((p) => {
+        const isCompleted = isProjectCompleted(p);
         const isAssignedOrInProgress =
-          p.submissionStatus === "in_progress" ||
-          Boolean(p.assignedBusinessId || p.assignedBusinessName);
+          !isCompleted &&
+          (p.submissionStatus === "in_progress" ||
+            p.submissionStatus === "revision" ||
+            (Boolean(p.assignedBusinessId || p.assignedBusinessName) && p.submissionStatus !== "rejected"));
 
         const isPaid =
           p.paymentStatus === "paid" ||
           p.paymentStatus === "released" ||
           p.submissionStatus === "active" ||
-          isAssignedOrInProgress;
+          isAssignedOrInProgress ||
+          isCompleted;
 
         // Status filter
         if (statusFilter === "in_progress") {
           if (!isAssignedOrInProgress) return false;
         } else if (statusFilter === "active") {
-          if ((!isPaid && p.submissionStatus !== "active") || isAssignedOrInProgress) return false;
+          if (isCompleted || isAssignedOrInProgress || (!isPaid && p.submissionStatus !== "active")) return false;
         } else if (statusFilter === "pending") {
-          // If already paid / active / in progress, it is NOT pending
-          if (isPaid) return false;
+          // If already paid / active / in progress / completed, it is NOT pending
+          if (isCompleted || isPaid || isAssignedOrInProgress) return false;
           if (
             p.submissionStatus !== "submitted" &&
             p.submissionStatus !== "pending" &&
@@ -638,7 +673,7 @@ export default function UserProjectsPage() {
           )
             return false;
         } else if (statusFilter === "completed") {
-          if (p.submissionStatus !== "completed" && p.submissionStatus !== "accepted") return false;
+          if (!isCompleted) return false;
         }
 
         // Category filter
@@ -850,8 +885,10 @@ export default function UserProjectsPage() {
                       {project.projectId}
                     </span>
 
-                    {/* Top Right: Countdown Pill when assigned, else Category badge */}
+                    {/* Top Right: Countdown / Completion Pill when assigned or completed, else Category badge */}
                     {project.submissionStatus === "in_progress" ||
+                    project.submissionStatus === "completed" ||
+                    project.submissionStatus === "accepted" ||
                     project.assignedBusinessId ||
                     project.assignedBusinessName ? (
                       <ProjectDeadlineCountdown
@@ -859,6 +896,9 @@ export default function UserProjectsPage() {
                         endDate={project.endDate}
                         createdAt={project.createdAt}
                         assignedAt={project.assignedAt}
+                        completedAt={(project as any).completedAt || (project as any).acceptedAt || (project as any).updatedAt}
+                        isCompleted={isProjectCompleted(project)}
+                        status={project.submissionStatus}
                       />
                     ) : (
                       project.category && (
@@ -1191,7 +1231,7 @@ export default function UserProjectsPage() {
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-xs text-primary font-bold">{viewProject.projectId}</span>
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
@@ -1201,6 +1241,21 @@ export default function UserProjectsPage() {
                     {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).icon}
                     {(STATUS_CONFIG[viewProject.submissionStatus] ?? STATUS_CONFIG.draft).label}
                   </span>
+                  {(viewProject.submissionStatus === "in_progress" ||
+                    viewProject.submissionStatus === "completed" ||
+                    viewProject.submissionStatus === "accepted" ||
+                    viewProject.assignedBusinessId ||
+                    viewProject.assignedBusinessName) && (
+                    <ProjectDeadlineCountdown
+                      projectId={viewProject.projectId || String(viewProject.id)}
+                      endDate={viewProject.endDate}
+                      createdAt={viewProject.createdAt}
+                      assignedAt={viewProject.assignedAt}
+                      completedAt={(viewProject as any).completedAt || (viewProject as any).acceptedAt || (viewProject as any).updatedAt}
+                      isCompleted={isProjectCompleted(viewProject)}
+                      status={viewProject.submissionStatus}
+                    />
+                  )}
                 </div>
                 <h3 className="text-lg font-bold text-foreground mt-1">{viewProject.title}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -1211,27 +1266,31 @@ export default function UserProjectsPage() {
               </div>
 
               <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  title="Extend Project Deadline"
-                  disabled={extendingDeadline}
-                  onClick={() => extendDatePickerRef.current?.showPicker?.() || extendDatePickerRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                >
-                  {extendingDeadline ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Calendar className="h-3.5 w-3.5" />
-                  )}
-                  <span>Extend Deadline</span>
-                </button>
-                <input
-                  type="date"
-                  ref={extendDatePickerRef}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={handleExtendDeadline}
-                  className="sr-only"
-                />
+                {!isProjectCompleted(viewProject) && viewProject.submissionStatus !== "rejected" && (
+                  <>
+                    <button
+                      type="button"
+                      title="Extend Project Deadline"
+                      disabled={extendingDeadline}
+                      onClick={() => extendDatePickerRef.current?.showPicker?.() || extendDatePickerRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      {extendingDeadline ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Calendar className="h-3.5 w-3.5" />
+                      )}
+                      <span>Extend Deadline</span>
+                    </button>
+                    <input
+                      type="date"
+                      ref={extendDatePickerRef}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={handleExtendDeadline}
+                      className="sr-only"
+                    />
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => setViewProject(null)}
@@ -1980,9 +2039,9 @@ export default function UserProjectsPage() {
               totalMilestones: milestoneCount,
             });
 
+            const isLast = assignedMilestoneTab >= milestoneCount - 1 || milestoneCount <= 1;
             if (assignedReviewAction === "accept") {
-              const isLast = assignedMilestoneTab === milestoneCount - 1;
-              if (isLast || milestoneCount === 1) {
+              if (isLast) {
                 toast.success("Project accepted! Escrow payment released to the provider.");
               } else {
                 toast.success(`Milestone ${assignedMilestoneTab + 1} accepted! Next milestone is now unlocked.`);
@@ -1996,6 +2055,33 @@ export default function UserProjectsPage() {
             const currentNote = assignedReviewNote.trim();
             setAssignedReviewAction(null);
             setAssignedReviewNote("");
+
+            // Optimistically update projects state immediately
+            setProjects((prev) =>
+              prev.map((proj) => {
+                if (proj.projectId === p.projectId || String(proj.id) === String(p.id) || String(proj.id) === p.projectId) {
+                  const nextMilestones = Array.isArray(proj.milestones) ? [...proj.milestones] : [];
+                  while (nextMilestones.length <= assignedMilestoneTab) {
+                    nextMilestones.push({});
+                  }
+                  nextMilestones[assignedMilestoneTab] = {
+                    ...(nextMilestones[assignedMilestoneTab] || {}),
+                    status: currentAction === "accept" ? "accepted" : "revision",
+                    clientNote: currentNote,
+                  };
+                  const allAccepted = milestoneCount > 0 && nextMilestones.slice(0, milestoneCount).every((m: any) => m?.status === "accepted");
+                  const isFinished = isLast || allAccepted;
+                  return {
+                    ...proj,
+                    submissionStatus: isFinished ? ("accepted" as any) : currentAction === "revision" ? ("revision" as any) : proj.submissionStatus,
+                    status: isFinished ? ("accepted" as any) : currentAction === "revision" ? ("revision" as any) : (proj as any).status,
+                    paymentStatus: isFinished ? "released" : proj.paymentStatus,
+                    milestones: nextMilestones,
+                  };
+                }
+                return proj;
+              })
+            );
 
             const updatedList = await loadProjects();
             const fresh = updatedList?.find(
@@ -2019,7 +2105,7 @@ export default function UserProjectsPage() {
                 }
                 const isProjectCompleted =
                   currentAction === "accept" &&
-                  (assignedMilestoneTab === milestoneCount - 1 || milestoneCount === 1);
+                  (assignedMilestoneTab >= milestoneCount - 1 || milestoneCount <= 1);
                 return {
                   ...prev,
                   submissionStatus: isProjectCompleted
@@ -2027,6 +2113,12 @@ export default function UserProjectsPage() {
                     : currentAction === "revision"
                     ? ("revision" as any)
                     : prev.submissionStatus,
+                  status: isProjectCompleted
+                    ? ("accepted" as any)
+                    : currentAction === "revision"
+                    ? ("revision" as any)
+                    : (prev as any).status,
+                  paymentStatus: isProjectCompleted ? "released" : prev.paymentStatus,
                   milestones: nextMilestones,
                 };
               });

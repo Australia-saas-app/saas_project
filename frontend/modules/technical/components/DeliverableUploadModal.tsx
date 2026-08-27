@@ -583,16 +583,60 @@ export function DeliverableUploadModal({ project, onClose, onSuccess }: Props) {
 
           {/* Milestone Payment Subheader */}
           {(() => {
-            const totalB = Number((project as any).adminBudget || (project as any).price || 0);
-            const perMs = milestoneCount > 0 && totalB > 0 ? totalB / milestoneCount : 0;
+            const parseAmount = (val: any): number => {
+              if (typeof val === "number" && !isNaN(val) && val > 0) return val;
+              if (!val) return 0;
+              const cleaned = String(val).replace(/[^0-9.]/g, "");
+              const num = parseFloat(cleaned);
+              return isNaN(num) ? 0 : num;
+            };
+
+            const localPrj = typeof window !== "undefined"
+              ? readLocalProjects().find((lp: any) => lp.projectId === project.projectId || String(lp.id) === String(project.projectId))
+              : null;
+
+            const totalB =
+              parseAmount((project as any).adminBudget) ||
+              parseAmount((project as any).price) ||
+              parseAmount((project as any).budget) ||
+              parseAmount((project as any).targetBudget) ||
+              parseAmount((project as any).totalAmount) ||
+              parseAmount((project as any).minBudget) ||
+              parseAmount(localPrj?.adminBudget) ||
+              parseAmount(localPrj?.price) ||
+              parseAmount(localPrj?.budget) ||
+              parseAmount(localPrj?.targetBudget) ||
+              parseAmount(localPrj?.totalAmount) ||
+              parseAmount(localPrj?.minBudget) ||
+              1500;
+
+            const count = Math.max(1, milestoneCount || 1);
+            const msDb = dbMilestones[activeTab];
+            const specificMsAmount = parseAmount(msDb?.amount) || parseAmount(msDb?.payout) || parseAmount(msDb?.price);
+            const perMs = specificMsAmount > 0 ? specificMsAmount : totalB / count;
+            const currency = (project as any).currency || localPrj?.currency || "USD";
+            const isThisMsAccepted = currentMilestone.status === "accepted" || isOverallAccepted;
+
             return (
-              <div className="flex items-center justify-between bg-primary/5 border-b border-primary/20 px-5 py-2 text-xs shrink-0">
-                <span className="font-bold text-muted-foreground">
-                  {getMilestoneLabel(activeTab, milestoneCount)} Payout:
+              <div className="flex items-center justify-between bg-primary/5 border-b border-primary/20 px-5 py-2.5 text-xs shrink-0">
+                <span className="font-bold text-muted-foreground flex items-center gap-1.5">
+                  <span>{getMilestoneLabel(activeTab, milestoneCount)} Payout:</span>
+                  {count > 1 && (
+                    <span className="text-[10px] text-muted-foreground/70 font-normal">
+                      ({activeTab + 1} of {count} Milestones)
+                    </span>
+                  )}
                 </span>
-                <span className="font-extrabold text-primary text-sm">
-                  {(project as any).currency || "USD"} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-primary text-sm">
+                    {currency} ${perMs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  {isThisMsAccepted && (
+                    <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Released ✓
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })()}

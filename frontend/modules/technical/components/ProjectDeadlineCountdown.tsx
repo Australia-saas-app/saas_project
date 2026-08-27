@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ProjectDeadlineCountdownProps {
   projectId?: string;
   endDate?: string | Date;
   createdAt?: string | Date;
   assignedAt?: string | Date;
+  completedAt?: string | Date;
+  isCompleted?: boolean;
+  status?: string;
   className?: string;
 }
 
@@ -16,6 +19,9 @@ export function ProjectDeadlineCountdown({
   endDate,
   createdAt,
   assignedAt,
+  completedAt,
+  isCompleted = false,
+  status,
   className = "",
 }: ProjectDeadlineCountdownProps) {
   const [effectiveEndDate, setEffectiveEndDate] = useState<string | Date | undefined>(endDate);
@@ -26,6 +32,8 @@ export function ProjectDeadlineCountdown({
     seconds: number;
     totalMs: number;
     isExpired: boolean;
+    isFinished?: boolean;
+    finishedBefore?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -41,6 +49,11 @@ export function ProjectDeadlineCountdown({
     window.addEventListener("project_deadline_updated", handleUpdate);
     return () => window.removeEventListener("project_deadline_updated", handleUpdate);
   }, [projectId]);
+
+  const isProjectDone =
+    isCompleted ||
+    status === "completed" ||
+    status === "accepted";
 
   useEffect(() => {
     let target = 0;
@@ -61,6 +74,58 @@ export function ProjectDeadlineCountdown({
       target = base + 7 * 24 * 60 * 60 * 1000;
     }
 
+    // 1. If project is finished/completed: Freeze the recorded time!
+    if (isProjectDone) {
+      let finishTimestamp = 0;
+      if (completedAt) {
+        const cParsed = new Date(completedAt).getTime();
+        if (!isNaN(cParsed) && cParsed > 0) {
+          finishTimestamp = cParsed;
+        }
+      }
+
+      if (!finishTimestamp && typeof window !== "undefined" && projectId) {
+        const cached = localStorage.getItem(`project_completed_at_${projectId}`);
+        if (cached) {
+          const cachedTime = Number(cached);
+          if (!isNaN(cachedTime) && cachedTime > 0) {
+            finishTimestamp = cachedTime;
+          }
+        }
+      }
+
+      if (!finishTimestamp) {
+        finishTimestamp = Date.now();
+        if (typeof window !== "undefined" && projectId) {
+          try {
+            localStorage.setItem(`project_completed_at_${projectId}`, String(finishTimestamp));
+          } catch {}
+        }
+      }
+
+      const diff = target - finishTimestamp;
+      const finishedBefore = diff >= 0;
+      const absDiff = Math.abs(diff);
+
+      const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((absDiff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((absDiff / (1000 * 60)) % 60);
+      const seconds = Math.floor((absDiff / 1000) % 60);
+
+      setTimeLeft({
+        days,
+        hours,
+        minutes,
+        seconds,
+        totalMs: absDiff,
+        isExpired: !finishedBefore,
+        isFinished: true,
+        finishedBefore,
+      });
+      return;
+    }
+
+    // 2. Active / In-progress: Real-time ticking countdown to deadline
     const updateTimer = () => {
       const now = Date.now();
       const diff = target - now;
@@ -73,6 +138,7 @@ export function ProjectDeadlineCountdown({
           seconds: 0,
           totalMs: 0,
           isExpired: true,
+          isFinished: false,
         });
         return;
       }
@@ -89,20 +155,52 @@ export function ProjectDeadlineCountdown({
         seconds,
         totalMs: diff,
         isExpired: false,
+        isFinished: false,
       });
     };
 
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [endDate, createdAt, assignedAt]);
+  }, [effectiveEndDate, createdAt, assignedAt, completedAt, isProjectDone, projectId]);
 
   if (!timeLeft) return null;
 
-  // Red pill when 24 hours (23H 59M 59S) or less remain, or expired
-  const isUrgent = timeLeft.totalMs <= 24 * 60 * 60 * 1000 || timeLeft.isExpired;
-
   const pad = (n: number) => String(n).padStart(2, "0");
+
+  // A. Completed Project: Frozen time pill
+  if (timeLeft.isFinished) {
+    const formatted = `${timeLeft.finishedBefore ? "Before" : "After"} ${timeLeft.days}D ${pad(
+      timeLeft.hours
+    )}H ${pad(timeLeft.minutes)}M ${pad(timeLeft.seconds)}S`;
+
+    if (timeLeft.finishedBefore) {
+      // Completed Under Deadline: Green Pill
+      return (
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-mono font-extrabold uppercase tracking-wide border transition-all select-none bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 ${className}`}
+          title={`Completed before deadline by ${timeLeft.days}D ${timeLeft.hours}H ${timeLeft.minutes}M ${timeLeft.seconds}S`}
+        >
+          <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+          <span>{formatted}</span>
+        </span>
+      );
+    } else {
+      // Completed After Deadline: Red Pill
+      return (
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-mono font-extrabold uppercase tracking-wide border transition-all select-none bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 ${className}`}
+          title={`Completed after deadline by ${timeLeft.days}D ${timeLeft.hours}H ${timeLeft.minutes}M ${timeLeft.seconds}S`}
+        >
+          <AlertCircle className="h-3 w-3 text-rose-500 shrink-0" />
+          <span>{formatted}</span>
+        </span>
+      );
+    }
+  }
+
+  // B. Active / In-progress: Countdown Pill
+  const isUrgent = timeLeft.totalMs <= 24 * 60 * 60 * 1000 || timeLeft.isExpired;
 
   const formatted = timeLeft.isExpired
     ? "00D 00H 00M 00S"

@@ -17,6 +17,13 @@ export function SessionSync() {
     const isDashboard = pathname.includes("/dashboard/");
     const bc = new BroadcastChannel("session-sync");
 
+    const userEmail = user?.email;
+    if (userEmail) {
+      import("@/src/shared/lib/live-chat-store").then(({ setUserOnlineStatus }) => {
+        setUserOnlineStatus(userEmail, true);
+      }).catch(() => null);
+    }
+
     const handleLock = async (reason: "session_superseded" | "inactivity" = "session_superseded") => {
       try {
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");

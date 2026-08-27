@@ -34,6 +34,8 @@ import {
   readLiveChatMessages,
   writeLiveChatMessages,
   deleteLiveChatContact,
+  unDeleteLiveChatContact,
+  getLiveChatClearedTimestamp,
   sendLiveChatRequest,
   cancelLiveChatRequest,
   acceptLiveChatRequest,
@@ -42,6 +44,8 @@ import {
   getOutgoingRequestStatus,
   syncLiveChatFromDb,
   setUserOnlineStatus,
+  formatLastSeen,
+  readLiveChatPresence,
   type LiveChatContact,
   type LiveChatMessage,
   type LiveChatRequest,
@@ -127,11 +131,76 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
           if (type === "NEW_MESSAGE") {
             handleReceiveLiveMessage(payload);
           } else if (type === "TYPING_STATUS") {
-            if (payload?.contactId) {
+            const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
+            const myClean = (currentUserEmail || "").toLowerCase().trim();
+
+            if (senderClean && myClean && senderClean === myClean) {
+              return;
+            }
+
+            const isTyping = Boolean(payload?.isTyping);
+            const targetContactId = senderClean
+              ? `contact-${senderClean.replace(/[^a-zA-Z0-9]/g, "_")}`
+              : payload?.contactId;
+
+            if (targetContactId) {
               setTypingContacts((prev) => ({
                 ...prev,
-                [payload.contactId]: Boolean(payload.isTyping),
+                [targetContactId]: isTyping,
+                [payload?.contactId]: isTyping,
+                ...(senderClean ? { [senderClean]: isTyping } : {}),
               }));
+            }
+          } else if (type === "MESSAGES_DELIVERED") {
+            const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
+            const myClean = (currentUserEmail || "").toLowerCase().trim();
+            if (senderClean && myClean && senderClean === myClean) {
+              const contactId = payload?.contactId;
+              const msgId = payload?.messageId;
+              setMessagesStore((prev) => {
+                const next = { ...prev };
+                let modified = false;
+                Object.keys(next).forEach((key) => {
+                  if (contactId && key !== contactId && !key.includes(senderClean)) return;
+                  next[key] = next[key].map((m) => {
+                    if ((!msgId || m.id === msgId) && m.status === "sent") {
+                      modified = true;
+                      return { ...m, status: "delivered" as const };
+                    }
+                    return m;
+                  });
+                });
+                if (modified) {
+                  writeLiveChatMessages(next);
+                  return next;
+                }
+                return prev;
+              });
+            }
+          } else if (type === "MESSAGES_SEEN") {
+            const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
+            const myClean = (currentUserEmail || "").toLowerCase().trim();
+            if (senderClean && myClean && senderClean === myClean) {
+              const contactId = payload?.contactId;
+              const msgId = payload?.messageId;
+              setMessagesStore((prev) => {
+                const next = { ...prev };
+                let modified = false;
+                Object.keys(next).forEach((key) => {
+                  next[key] = next[key].map((m) => {
+                    if ((!msgId || m.id === msgId) && m.status !== "seen") {
+                      modified = true;
+                      return { ...m, status: "seen" as const };
+                    }
+                    return m;
+                  });
+                });
+                if (modified) {
+                  writeLiveChatMessages(next);
+                  return next;
+                }
+                return prev;
+              });
             }
           } else if (type === "USER_PRESENCE") {
             syncLiveChatFromDb(currentUserEmail).then(reloadContacts);
@@ -230,35 +299,91 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
 
   // Handle incoming message from websocket / broadcast channel
   const handleReceiveLiveMessage = (payload: {
+    senderEmail?: string;
+    receiverEmail?: string;
     contactId: string;
     message: LiveChatMessage;
   }) => {
-    const { contactId, message } = payload;
-    if (!contactId || !message) return;
+    const { contactId, message, senderEmail, receiverEmail } = payload;
+    if (!message) return;
 
-    // Save into messages store
+    const senderClean = (senderEmail || message.senderEmail || "").toLowerCase().trim();
+    const myClean = (currentUserEmail || "").toLowerCase().trim();
+
+    // If I sent it myself from another handler, ignore duplicate
+    if (senderClean && myClean && senderClean === myClean && message.senderName === currentUserName) {
+      return;
+    }
+
+    // Determine target contact ID for this receiving user
+    let targetContactId = contactId;
+    if (senderClean && myClean && senderClean !== myClean) {
+      targetContactId = `contact-${senderClean.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    }
+
+    if (myClean) {
+      unDeleteLiveChatContact(targetContactId, myClean);
+      unDeleteLiveChatContact(contactId, myClean);
+    }
+
+    // Determine if User B currently has User A's chat open
+    const isCurrentlyOpen =
+      selectedContactId === contactId ||
+      selectedContactId === targetContactId ||
+      (selectedContact && selectedContact.email.toLowerCase() === senderClean);
+
+    const finalStatus: "seen" | "delivered" = isCurrentlyOpen ? "seen" : "delivered";
+    const msgToSave: LiveChatMessage = {
+      ...message,
+      status: finalStatus,
+    };
+
+    // Save into messages store under targetContactId and contactId
     setMessagesStore((prev) => {
-      const existing = prev[contactId] || [];
+      const existing = prev[targetContactId] || prev[contactId] || [];
       if (existing.some((m) => m.id === message.id)) return prev;
-      const next = { ...prev, [contactId]: [...existing, message] };
+      const next = {
+        ...prev,
+        [targetContactId]: [...existing, msgToSave],
+        [contactId]: [...existing, msgToSave],
+      };
       writeLiveChatMessages(next);
       return next;
     });
 
-    // Persist to Database API
-    if (typeof window !== "undefined") {
-      fetch("/api/live-chat/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, message }),
-      }).catch(() => null);
-    }
+    // Notify sender back immediately with delivery / seen receipt
+    try {
+      if (isCurrentlyOpen) {
+        broadcastChannelRef.current?.postMessage({
+          type: "MESSAGES_SEEN",
+          payload: {
+            readerEmail: currentUserEmail,
+            senderEmail: senderClean,
+            contactId: targetContactId,
+            messageId: message.id,
+          },
+        });
+      } else {
+        broadcastChannelRef.current?.postMessage({
+          type: "MESSAGES_DELIVERED",
+          payload: {
+            receiverEmail: currentUserEmail,
+            senderEmail: senderClean,
+            contactId: targetContactId,
+            messageId: message.id,
+          },
+        });
+      }
+    } catch {}
 
     // Update contacts list in sidebar
-    setContacts((prev) =>
-      prev.map((c) => {
-        if (c.id === contactId) {
-          const isCurrentlyOpen = contactId === selectedContactId;
+    setContacts((prev) => {
+      const exists = prev.some((c) => c.id === targetContactId || c.id === contactId || (senderClean && c.email.toLowerCase() === senderClean));
+      if (!exists) {
+        return getAllLiveChatContacts(currentUserEmail);
+      }
+      return prev.map((c) => {
+        if (c.id === targetContactId || c.id === contactId || (senderClean && c.email.toLowerCase() === senderClean)) {
           return {
             ...c,
             lastMessage: message.content,
@@ -267,8 +392,8 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
           };
         }
         return c;
-      })
-    );
+      });
+    });
   };
 
   // 3. Load Contacts, Requests, and Messages from Store & DB
@@ -286,11 +411,11 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
   };
 
   const reloadRequests = () => {
-    if (currentUserEmail) {
-      setIncomingRequests(getPendingIncomingRequests(currentUserEmail));
-    }
+    const reqs = getPendingIncomingRequests(currentUserEmail);
+    setIncomingRequests(reqs);
   };
 
+  // Live presence listener & periodic timer
   useEffect(() => {
     if (currentUserEmail) {
       setUserOnlineStatus(currentUserEmail, true);
@@ -306,24 +431,35 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       reloadContacts();
       reloadRequests();
     });
+
+    const handlePresenceEvent = () => {
+      reloadContacts();
+      reloadRequests();
+    };
+
+    window.addEventListener("user_presence_updated", handlePresenceEvent);
+    window.addEventListener("storage", handlePresenceEvent);
+
+    const presenceTimer = setInterval(() => {
+      setContacts(getAllLiveChatContacts(currentUserEmail));
+    }, 15000);
+
+    return () => {
+      window.removeEventListener("user_presence_updated", handlePresenceEvent);
+      window.removeEventListener("storage", handlePresenceEvent);
+      clearInterval(presenceTimer);
+    };
   }, [currentUserEmail, requestVersion]);
 
   // Delete a conversation for this user only (one-sided delete)
   const handleDeleteChat = (contactId: string, contactName: string) => {
-    deleteLiveChatContact(contactId, currentUserEmail);
+    const targetContact = contacts.find((c) => c.id === contactId);
+    deleteLiveChatContact(contactId, currentUserEmail, targetContact?.email);
     if (selectedContactId === contactId) {
       setSelectedContactId("");
     }
     reloadContacts();
     toast.success(`Conversation with ${contactName} deleted`);
-    try {
-      broadcastChannelRef.current?.postMessage({
-        type: "CHAT_DELETED",
-        payload: { contactId, userEmail: currentUserEmail },
-      });
-    } catch {
-      // ignore
-    }
   };
 
   // Click outside listener for Dropdowns
@@ -353,14 +489,13 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       c.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Available users to add manually
+  // Available users to add manually - only shows contacts when user types a search query
   const searchableUsers = useMemo(() => {
-    if (!addUserQuery.trim()) {
-      return getAllRegisteredContacts().filter(
-        (c) => c.email.toLowerCase() !== currentUserEmail.toLowerCase()
-      );
+    const q = addUserQuery.trim();
+    if (!q) {
+      return [];
     }
-    return searchRegisteredContacts(addUserQuery.trim()).filter(
+    return searchRegisteredContacts(q).filter(
       (c) => c.email.toLowerCase() !== currentUserEmail.toLowerCase()
     );
   }, [addUserQuery, currentUserEmail]);
@@ -382,11 +517,14 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
     return contacts.find((c) => c.id === selectedContactId) || null;
   }, [contacts, selectedContactId]);
 
-  // Active messages for the selected contact
+  // Active messages for the selected contact (filters out messages sent before this user cleared/deleted the chat)
   const activeMessages = useMemo(() => {
     if (!selectedContact) return [];
-    return messagesStore[selectedContact.id] || [];
-  }, [messagesStore, selectedContact]);
+    const allMsgs = messagesStore[selectedContact.id] || (selectedContact.email && messagesStore[selectedContact.email.toLowerCase()]) || [];
+    const clearedAt = getLiveChatClearedTimestamp(selectedContact.id, currentUserEmail, selectedContact.email);
+    if (!clearedAt) return allMsgs;
+    return allMsgs.filter((m) => (m.timestamp || 0) > clearedAt);
+  }, [messagesStore, selectedContact, currentUserEmail]);
 
   const isOtherTyping = Boolean(selectedContactId && typingContacts[selectedContactId]);
 
@@ -406,13 +544,21 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       prev.map((c) => (c.id === contactId ? { ...c, unreadCount: 0 } : c))
     );
 
+    const targetContact = contacts.find((c) => c.id === contactId);
+
     // Mark messages as seen in store
     setMessagesStore((prev) => {
-      const contactMsgs = prev[contactId] || [];
+      const contactMsgs = prev[contactId] || (targetContact?.email && prev[targetContact.email.toLowerCase()]) || [];
       const updatedMsgs = contactMsgs.map((m) =>
-        m.status !== "seen" ? { ...m, status: "seen" as const } : m
+        m.senderEmail?.toLowerCase() !== currentUserEmail.toLowerCase()
+          ? { ...m, status: "seen" as const }
+          : m
       );
-      const next = { ...prev, [contactId]: updatedMsgs };
+      const next = {
+        ...prev,
+        [contactId]: updatedMsgs,
+        ...(targetContact?.email ? { [targetContact.email.toLowerCase()]: updatedMsgs } : {}),
+      };
       writeLiveChatMessages(next);
       return next;
     });
@@ -431,6 +577,16 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
           type: "CHAT_READ",
           payload: { contactId, userEmail: currentUserEmail },
         });
+        if (targetContact?.email) {
+          broadcastChannelRef.current?.postMessage({
+            type: "MESSAGES_SEEN",
+            payload: {
+              readerEmail: currentUserEmail,
+              senderEmail: targetContact.email,
+              contactId: contactId,
+            },
+          });
+        }
       } catch {}
     }
 
@@ -543,6 +699,12 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       hour12: true,
     });
 
+    const targetEmail = (currentContact.email || "").toLowerCase().trim();
+    const presenceMap = readLiveChatPresence();
+    const isRecipientOnline = Boolean(presenceMap[targetEmail]?.isOnline || currentContact.status === "online");
+
+    const initialStatus: "sent" | "delivered" = isRecipientOnline ? "delivered" : "sent";
+
     const newMsg: LiveChatMessage = {
       id: `msg-${Date.now()}`,
       senderId: currentUserId,
@@ -551,8 +713,12 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       content: sentContent,
       sentAt: sentTime,
       timestamp: Date.now(),
-      status: "sent", // Single tick
+      status: initialStatus,
     };
+
+    if (currentUserEmail) {
+      unDeleteLiveChatContact(currentContact.id, currentUserEmail);
+    }
 
     // Update messages store
     const updatedContactMsgs = [...(messagesStore[currentContact.id] || []), newMsg];
@@ -580,10 +746,12 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
       });
     }
 
-    // Broadcast across browser tabs
+    // Broadcast across browser tabs and live components
     broadcastChannelRef.current?.postMessage({
       type: "NEW_MESSAGE",
       payload: {
+        senderEmail: currentUserEmail,
+        receiverEmail: currentContact.email,
         contactId: currentContact.id,
         message: newMsg,
       },
@@ -604,103 +772,45 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
 
     setInputText("");
 
-    // Simulate WhatsApp Double Gray Tick (Delivered) after 450ms
-    setTimeout(() => {
-      setMessagesStore((prev) => {
-        const msgs = (prev[currentContact.id] || []).map((m) =>
-          m.id === newMsg.id ? { ...m, status: "delivered" as const } : m
+    // Only Customer Support & Escrow provides automated instant system acknowledgment
+    if (currentContact.id === "support-team") {
+      if (replyTimeoutRef.current) clearTimeout(replyTimeoutRef.current);
+      replyTimeoutRef.current = setTimeout(() => {
+        const supportReply: LiveChatMessage = {
+          id: `reply-support-${Date.now()}`,
+          senderId: "support-team",
+          senderName: "Customer Support & Escrow",
+          senderEmail: "support@saas.com",
+          content: "Thank you for reaching out to Live Support. A support representative will review your inquiry shortly.",
+          sentAt: new Date().toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          }),
+          timestamp: Date.now(),
+          status: "seen",
+        };
+
+        setMessagesStore((prev) => {
+          const msgs = [...(prev["support-team"] || []), supportReply];
+          const next = { ...prev, ["support-team"]: msgs };
+          writeLiveChatMessages(next);
+          return next;
+        });
+
+        setContacts((prev) =>
+          prev.map((c) =>
+            c.id === "support-team"
+              ? {
+                  ...c,
+                  lastMessage: supportReply.content,
+                  lastMessageTime: supportReply.sentAt,
+                }
+              : c
+          )
         );
-        const next = { ...prev, [currentContact.id]: msgs };
-        writeLiveChatMessages(next);
-        return next;
-      });
-    }, 450);
-
-    // Simulate WhatsApp Double Blue Tick (Seen) after 1000ms
-    setTimeout(() => {
-      setMessagesStore((prev) => {
-        const msgs = (prev[currentContact.id] || []).map((m) =>
-          m.id === newMsg.id ? { ...m, status: "seen" as const } : m
-        );
-        const next = { ...prev, [currentContact.id]: msgs };
-        writeLiveChatMessages(next);
-        return next;
-      });
-    }, 1000);
-
-    // Simulate Receiver typing and replying (e.g. "Hello")
-    if (replyTimeoutRef.current) clearTimeout(replyTimeoutRef.current);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    typingTimeoutRef.current = setTimeout(() => {
-      setTypingContacts((prev) => ({ ...prev, [currentContact.id]: true }));
-      broadcastChannelRef.current?.postMessage({
-        type: "TYPING_STATUS",
-        payload: { contactId: currentContact.id, isTyping: true },
-      });
-    }, 1000);
-
-    // 2. Reply delivered after 3.2s
-    replyTimeoutRef.current = setTimeout(() => {
-      setTypingContacts((prev) => ({ ...prev, [currentContact.id]: false }));
-      broadcastChannelRef.current?.postMessage({
-        type: "TYPING_STATUS",
-        payload: { contactId: currentContact.id, isTyping: false },
-      });
-
-      const replyContent =
-        sentContent.toLowerCase() === "hi" || sentContent.toLowerCase() === "hey"
-          ? "Hello! How can I help you today?"
-          : sentContent.toLowerCase().includes("hello")
-          ? "Hello! Nice to connect with you. How are you doing?"
-          : `Thanks for your message: "${sentContent}". I received it and will follow up shortly!`;
-
-      const replyTime = new Date().toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-
-      const replyMsg: LiveChatMessage = {
-        id: `reply-${Date.now()}`,
-        senderId: currentContact.id,
-        senderName: currentContact.name,
-        senderEmail: currentContact.email,
-        content: replyContent,
-        sentAt: replyTime,
-        timestamp: Date.now(),
-        status: "seen",
-      };
-
-      setMessagesStore((prev) => {
-        const msgs = [...(prev[currentContact.id] || []), replyMsg];
-        const next = { ...prev, [currentContact.id]: msgs };
-        writeLiveChatMessages(next);
-        return next;
-      });
-
-      // Persist reply message to Database API
-      if (typeof window !== "undefined") {
-        fetch("/api/live-chat/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contactId: currentContact.id, message: replyMsg }),
-        }).catch(() => null);
-      }
-
-      // Update sidebar contact subtext to the receiver's latest message
-      setContacts((prev) =>
-        prev.map((c) =>
-          c.id === currentContact.id
-            ? {
-                ...c,
-                lastMessage: replyContent,
-                lastMessageTime: replyTime,
-              }
-            : c
-        )
-      );
-    }, 3200);
+      }, 1500);
+    }
   };
 
   return (
@@ -755,8 +865,12 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
               <button
                 type="button"
                 onClick={() => {
-                  setIsAddUserOpen(!isAddUserOpen);
+                  const next = !isAddUserOpen;
+                  setIsAddUserOpen(next);
                   setIsRequestsOpen(false);
+                  if (next) {
+                    setAddUserQuery("");
+                  }
                 }}
                 className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 ${
                   isAddUserOpen
@@ -842,9 +956,16 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
               </div>
 
               <div className="max-h-60 overflow-y-auto min-h-0 divide-y divide-border/50 bg-card [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full">
-                {searchableUsers.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">
-                    {addUserQuery.trim() ? "No matching users found" : "Type a name or email above to search"}
+                {!addUserQuery.trim() ? (
+                  <div className="p-5 text-center text-xs text-muted-foreground">
+                    <Search className="mx-auto h-6 w-6 opacity-30 mb-2 text-primary" />
+                    <p className="font-semibold text-foreground">Search to Add Users</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Type any name or email above to search contacts</p>
+                  </div>
+                ) : searchableUsers.length === 0 ? (
+                  <div className="p-5 text-center text-xs text-muted-foreground">
+                    <p className="font-semibold text-foreground">No matching users found</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Try searching with a different keyword</p>
                   </div>
                 ) : (
                   searchableUsers.map((u) => {
@@ -1248,11 +1369,31 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
 
                         <div
-                          className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
+                          className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${
                             isMe ? "text-white/80" : "text-muted-foreground"
                           }`}
                         >
                           <span>{msg.sentAt}</span>
+                          {isMe && (
+                            <span
+                              className="inline-flex items-center ml-0.5"
+                              title={
+                                msg.status === "seen"
+                                  ? "Read"
+                                  : msg.status === "delivered"
+                                  ? "Delivered"
+                                  : "Sent"
+                              }
+                            >
+                              {msg.status === "seen" ? (
+                                <CheckCheck className="h-3.5 w-3.5 text-sky-300 dark:text-sky-300 stroke-[2.5]" />
+                              ) : msg.status === "delivered" ? (
+                                <CheckCheck className="h-3.5 w-3.5 text-white/70 dark:text-white/70 stroke-[2]" />
+                              ) : (
+                                <Check className="h-3.5 w-3.5 text-white/70 dark:text-white/70 stroke-[2]" />
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1311,17 +1452,43 @@ export function LiveChatTab({ role }: { role?: DashboardRole } = {}) {
                             contactId: selectedContact.id,
                             isTyping: Boolean(val.trim()),
                             senderEmail: currentUserEmail,
+                            receiverEmail: selectedContact.email,
                           },
                         });
                         if (socketRef.current?.connected) {
                           socketRef.current.emit("typing:status", {
                             conversationId: selectedContact.id,
                             isTyping: Boolean(val.trim()),
+                            senderEmail: currentUserEmail,
+                            receiverEmail: selectedContact.email,
                           });
                         }
                       } catch {
                         // ignore
                       }
+
+                      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                      typingTimeoutRef.current = setTimeout(() => {
+                        try {
+                          broadcastChannelRef.current?.postMessage({
+                            type: "TYPING_STATUS",
+                            payload: {
+                              contactId: selectedContact.id,
+                              isTyping: false,
+                              senderEmail: currentUserEmail,
+                              receiverEmail: selectedContact.email,
+                            },
+                          });
+                          if (socketRef.current?.connected) {
+                            socketRef.current.emit("typing:status", {
+                              conversationId: selectedContact.id,
+                              isTyping: false,
+                              senderEmail: currentUserEmail,
+                              receiverEmail: selectedContact.email,
+                            });
+                          }
+                        } catch {}
+                      }, 1800);
                     }
                   }}
                   placeholder={`Message ${selectedContact.name}...`}

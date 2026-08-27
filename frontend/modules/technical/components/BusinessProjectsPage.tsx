@@ -40,6 +40,7 @@ interface Project {
   title: string;
   description: string;
   submissionStatus: string;
+  status?: string;
   paymentStatus: string;
   adminBudget?: number;
   price?: number;
@@ -369,12 +370,31 @@ export default function BusinessProjectsPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <ProjectDeadlineCountdown
-                        projectId={project.projectId || String(project.id)}
-                        endDate={(project as any).endDate}
-                        createdAt={project.createdAt}
-                        assignedAt={(project as any).assignedAt}
-                      />
+                      {(() => {
+                        const isDone =
+                          project.submissionStatus === "completed" ||
+                          project.submissionStatus === "accepted" ||
+                          project.status === "completed" ||
+                          project.status === "accepted" ||
+                          (() => {
+                            const terms = (project.paymentTerms || "").toLowerCase();
+                            const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+                            const ms = (project as any).milestones;
+                            return Array.isArray(ms) && ms.length >= mCount && mCount > 0 && ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
+                          })();
+
+                        return (
+                          <ProjectDeadlineCountdown
+                            projectId={project.projectId || String(project.id)}
+                            endDate={(project as any).endDate}
+                            createdAt={project.createdAt}
+                            assignedAt={(project as any).assignedAt}
+                            completedAt={(project as any).completedAt || (project as any).acceptedAt || (project as any).updatedAt}
+                            isCompleted={isDone}
+                            status={project.submissionStatus}
+                          />
+                        );
+                      })()}
                       <span className="rounded-lg bg-muted border border-border/50 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
                         {project.category || "Software Development"}
                       </span>

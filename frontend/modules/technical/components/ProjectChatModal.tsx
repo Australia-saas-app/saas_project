@@ -32,6 +32,7 @@ import {
   findExistingThreadForProject,
   getOrCreateApplicationThread,
   sendThreadMessage,
+  cleanFormattedName,
 } from "@/src/shared/lib/messages-store";
 
 interface MessageItem {
@@ -91,14 +92,15 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
   const isClient = project.clientId === currentUserId || !project.assignedBusinessId;
   const providerFullName = project.assignedBusinessFullName || "";
   const providerBsnName = project.assignedBusinessName || "";
-  const providerFormattedName =
+  const rawProviderFormatted =
     providerFullName && providerBsnName && providerFullName !== providerBsnName
       ? `${providerFullName} | ${providerBsnName}`
       : providerFullName || providerBsnName || "Business Partner";
+  const providerFormattedName = cleanFormattedName(rawProviderFormatted, "Business Partner");
 
   const otherPartyName = isClient
     ? providerFormattedName
-    : project.clientName || "Project Client";
+    : cleanFormattedName(project.clientName || "Project Client", "Project Client");
 
   const rawOtherEmail = isClient
     ? project.assignedBusinessEmail || "business@saas.com"
@@ -335,7 +337,44 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       }
     });
 
+    // 3. Platform Email / Inbox sync listener
+    const handlePlatformEmail = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail;
+      if (!detail || !detail.body) return;
+      const cleanPrjId = project.projectId.replace(/^PRJ-/, "");
+      const isMatchingProject =
+        (detail.threadId && (detail.threadId === `TH-${project.projectId}` || detail.threadId.includes(cleanPrjId))) ||
+        (detail.projectId && (detail.projectId === project.projectId || detail.projectId === cleanPrjId)) ||
+        (detail.project && detail.project === project.title);
+
+      if (isMatchingProject) {
+        setMessages((prev) => {
+          const exists = prev.some(
+            (m) =>
+              m.content.trim() === detail.body.trim() &&
+              Math.abs(new Date(m.createdAt).getTime() - new Date(detail.sentAt || Date.now()).getTime()) < 5000
+          );
+          if (exists) return prev;
+          return [
+            ...prev,
+            {
+              id: `email_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              projectId: project.projectId,
+              senderId: detail.senderEmail || "other",
+              senderName: detail.senderName || otherPartyName,
+              messageType: "general",
+              content: detail.body,
+              createdAt: detail.sentAt || new Date().toISOString(),
+              status: "delivered",
+            },
+          ];
+        });
+      }
+    };
+    window.addEventListener("platform_new_email", handlePlatformEmail);
+
     return () => {
+      window.removeEventListener("platform_new_email", handlePlatformEmail);
       socket.emit("leave:conversation", { conversationId: conversationRoom });
       socket.disconnect();
       if (broadcastChannelRef.current) {
@@ -346,7 +385,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
         }
       }
     };
-  }, [contactId, conversationRoom, currentUserId, isClient, normalizedEmail, otherPartyName, project.projectId]);
+  }, [contactId, conversationRoom, currentUserId, isClient, normalizedEmail, otherPartyName, project.projectId, project.title]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
@@ -416,11 +455,14 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
       );
 
       const targetApplicantId = project.assignedBusinessUserId || project.assignedBusinessId || "";
-      resolvedThreadId = existingThread?.id || `TH-${project.projectId}${targetApplicantId ? "-" + targetApplicantId : ""}`;
+      resolvedThreadId = existingThread?.id || `TH-${project.projectId}`;
 
-      recName = isClient
-        ? existingThread?.recipientName || providerFormattedName || otherPartyName || "Business Partner"
-        : existingThread?.senderName || project.clientName || "Client";
+      recName = cleanFormattedName(
+        isClient
+          ? existingThread?.recipientName || providerFormattedName || otherPartyName || "Business Partner"
+          : existingThread?.senderName || project.clientName || "Client",
+        "Business Partner"
+      );
 
       recEmail = (
         existingThread?.recipientEmail ||

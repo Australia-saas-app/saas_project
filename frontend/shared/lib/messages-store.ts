@@ -196,6 +196,18 @@ export function markMessagesAsDeletedForUser(messageIds: string[], userEmail?: s
   } catch {}
 }
 
+export function cleanFormattedName(name?: string, fallback?: string): string {
+  if (!name) return fallback || "User";
+  const parts = name.split("|").map((p) => p.trim()).filter(Boolean);
+  const unique: string[] = [];
+  parts.forEach((p) => {
+    if (!unique.some((u) => u.toLowerCase() === p.toLowerCase())) {
+      unique.push(p);
+    }
+  });
+  return unique.length > 0 ? unique.join(" | ") : fallback || "User";
+}
+
 export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string): MessageThread[] {
   const local = readAll();
   const global = readGlobalEmails();
@@ -261,6 +273,9 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
 
       combinedMap.set(t.id, {
         ...t,
+        participant: cleanFormattedName(t.participant),
+        recipientName: cleanFormattedName(t.recipientName),
+        senderName: cleanFormattedName(t.senderName),
         messages: userVisibleMessages,
         role,
         folder: folderForMe,
@@ -269,6 +284,70 @@ export function getThreadsForRole(role: DashboardRole, currentUserEmail?: string
       });
     }
   });
+
+  // Consolidate duplicate threads for the same project to ensure single unified chat
+  const projectThreadMap = new Map<string, MessageThread>();
+  const duplicateIdsToRemove = new Set<string>();
+  let needsStoreCleanup = false;
+
+  Array.from(combinedMap.values()).forEach((thread) => {
+    const rawPrjId = thread.projectId || (thread.id.startsWith("TH-") ? thread.id.replace(/^TH-/, "").split("-")[0] : "");
+    const cleanPrjId = rawPrjId ? rawPrjId.replace(/^PRJ-/, "").trim() : "";
+
+    if (cleanPrjId) {
+      const pKey = `prj_${cleanPrjId}`;
+      const existingPrjThread = projectThreadMap.get(pKey);
+
+      if (existingPrjThread) {
+        // Merge messages without duplicates
+        const mergedMsgs = [...existingPrjThread.messages];
+        (thread.messages || []).forEach((m) => {
+          const exists = mergedMsgs.some(
+            (em) => em.id === m.id || (em.body.trim() === m.body.trim() && Math.abs(new Date(em.sentAt).getTime() - new Date(m.sentAt).getTime()) < 60000)
+          );
+          if (!exists) {
+            mergedMsgs.push(m);
+          }
+        });
+        mergedMsgs.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
+
+        const mostRecentUpdated =
+          new Date(thread.updatedAt).getTime() > new Date(existingPrjThread.updatedAt).getTime()
+            ? thread.updatedAt
+            : existingPrjThread.updatedAt;
+
+        const canonical: MessageThread = {
+          ...existingPrjThread,
+          participant: cleanFormattedName(existingPrjThread.participant || thread.participant),
+          recipientName: cleanFormattedName(existingPrjThread.recipientName || thread.recipientName),
+          recipientBusiness: existingPrjThread.recipientBusiness || thread.recipientBusiness,
+          recipientEmail: existingPrjThread.recipientEmail || thread.recipientEmail,
+          recipientUserId: existingPrjThread.recipientUserId || thread.recipientUserId,
+          messages: mergedMsgs,
+          updatedAt: mostRecentUpdated,
+          unread: existingPrjThread.unread || thread.unread,
+          unreadCount: Math.max(existingPrjThread.unreadCount || 0, thread.unreadCount || 0),
+        };
+
+        projectThreadMap.set(pKey, canonical);
+        combinedMap.set(existingPrjThread.id, canonical);
+        combinedMap.delete(thread.id);
+        duplicateIdsToRemove.add(thread.id);
+        needsStoreCleanup = true;
+      } else {
+        projectThreadMap.set(pKey, thread);
+      }
+    }
+  });
+
+  if (needsStoreCleanup && duplicateIdsToRemove.size > 0 && typeof window !== "undefined") {
+    try {
+      const freshLocal = readAll().filter((t) => !duplicateIdsToRemove.has(t.id));
+      const freshGlobal = readGlobalEmails().filter((t) => !duplicateIdsToRemove.has(t.id));
+      writeAll(freshLocal);
+      writeGlobalEmails(freshGlobal);
+    } catch {}
+  }
 
   return Array.from(combinedMap.values()).sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -285,34 +364,47 @@ export function findExistingThreadForProject(
   const all = [...local, ...global];
   const pEmail = (participantEmail || "").trim().toLowerCase();
   const pId = (projectId || "").trim();
+  const cleanId = pId.replace(/^PRJ-/, "");
 
   if (!pId && !pEmail) return undefined;
 
-  // 1. Direct match by projectId AND participant email/userId
-  const match1 = all.find((t) => {
-    const tPrj = (t.projectId || "").trim();
-    if (tPrj && (tPrj === pId || `PRJ-${tPrj}` === pId || tPrj.replace(/^PRJ-/, "") === pId.replace(/^PRJ-/, ""))) {
-      if (pEmail && (t.recipientEmail?.toLowerCase() === pEmail || t.senderEmail?.toLowerCase() === pEmail)) return true;
-      if (participantUserId && (t.recipientUserId === participantUserId || t.senderUserId === participantUserId)) return true;
-      return true;
-    }
-    return false;
-  });
-  if (match1) return match1;
+  // 1. Direct match by clean projectId
+  if (cleanId) {
+    const matchPrj = all.find((t) => {
+      const tPrj = (t.projectId || "").replace(/^PRJ-/, "").trim();
+      if (tPrj && tPrj === cleanId) return true;
+      if (
+        t.id === `TH-${pId}` ||
+        t.id === `TH-${cleanId}` ||
+        t.id === `TH-PRJ-${cleanId}` ||
+        t.id.startsWith(`TH-${cleanId}-`) ||
+        t.id.startsWith(`TH-PRJ-${cleanId}-`)
+      )
+        return true;
+      if (t.subject && (t.subject.includes(pId) || t.subject.includes(cleanId))) return true;
+      return false;
+    });
+    if (matchPrj) return matchPrj;
+  }
 
-  // 2. Match by thread ID pattern
-  const match2 = all.find((t) =>
-    (t.projectId || "").trim() === pId ||
-    t.id === `TH-${pId}` ||
-    t.id.startsWith(`TH-${pId}-`) ||
-    t.id.startsWith(`TH-${pId.replace(/^PRJ-/, "")}-`)
-  );
-  if (match2) return match2;
-
-  // 3. Match by participant email if project thread
+  // 2. Match by participant email if project thread
   if (pEmail) {
-    const match3 = all.find((t) => (t.recipientEmail?.toLowerCase() === pEmail || t.senderEmail?.toLowerCase() === pEmail) && t.projectId);
-    if (match3) return match3;
+    const matchEmail = all.find(
+      (t) =>
+        (t.recipientEmail?.toLowerCase() === pEmail || t.senderEmail?.toLowerCase() === pEmail) &&
+        (t.projectId || t.id.startsWith("TH-"))
+    );
+    if (matchEmail) return matchEmail;
+  }
+
+  // 3. Match by participant userId if project thread
+  if (participantUserId) {
+    const matchUser = all.find(
+      (t) =>
+        (t.recipientUserId === participantUserId || t.senderUserId === participantUserId) &&
+        (t.projectId || t.id.startsWith("TH-"))
+    );
+    if (matchUser) return matchUser;
   }
 
   return undefined;
@@ -337,17 +429,19 @@ export function getOrCreateApplicationThread(input: {
 }): MessageThread {
   const local = readAll();
   const global = readGlobalEmails();
-  let existing = local.find((t) => t.id === input.threadId) || global.find((t) => t.id === input.threadId);
+  let existing =
+    findExistingThreadForProject(input.projectId, input.applicantEmail, input.applicantUserId) ||
+    local.find((t) => t.id === input.threadId) ||
+    global.find((t) => t.id === input.threadId);
 
-  if (!existing) {
-    existing = findExistingThreadForProject(input.projectId, input.applicantEmail, input.applicantUserId);
-  }
+  const cleanApplicantName = cleanFormattedName(input.applicantName, "Business Partner");
+  const cleanClientName = cleanFormattedName(input.clientName, "Client");
 
   if (existing) {
     let changed = false;
-    if (input.applicantName && existing.recipientName !== input.applicantName) {
-      existing.recipientName = input.applicantName;
-      existing.participant = input.applicantName;
+    if (cleanApplicantName && existing.recipientName !== cleanApplicantName) {
+      existing.recipientName = cleanApplicantName;
+      existing.participant = cleanApplicantName;
       changed = true;
     }
     if (input.applicantBusiness && existing.recipientBusiness !== input.applicantBusiness) {
@@ -358,8 +452,8 @@ export function getOrCreateApplicationThread(input: {
       existing.recipientEmail = input.applicantEmail;
       changed = true;
     }
-    if (input.clientName && existing.senderName !== input.clientName) {
-      existing.senderName = input.clientName;
+    if (cleanClientName && existing.senderName !== cleanClientName) {
+      existing.senderName = cleanClientName;
       changed = true;
     }
     if (input.clientEmail && existing.senderEmail !== input.clientEmail) {
