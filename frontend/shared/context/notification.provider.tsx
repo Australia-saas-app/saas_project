@@ -11,11 +11,26 @@ import {
 } from "react";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
-import { type NotificationItem, formatNotificationTime } from "@/src/constants/notifications";
+import {
+  type NotificationItem,
+  formatNotificationTime,
+  ADMIN_NOTIFICATIONS,
+  USER_NOTIFICATIONS,
+  AFFILIATE_NOTIFICATIONS,
+  BUSINESS_NOTIFICATIONS,
+} from "@/src/constants/notifications";
 import { useUser } from "@/src/context/user.provider";
 import { io, Socket } from "socket.io-client";
 import axiosInstance from "@/src/lib/axiosInstance";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+
+function getDefaultNotifications(role?: string): NotificationItem[] {
+  const r = (role || "").toLowerCase();
+  if (r === "business" || r === "seller" || r === "company") return BUSINESS_NOTIFICATIONS;
+  if (r === "affiliate") return AFFILIATE_NOTIFICATIONS;
+  if (r === "admin" || r === "superadmin") return ADMIN_NOTIFICATIONS;
+  return USER_NOTIFICATIONS;
+}
 
 interface INotificationContext {
   notifications: NotificationItem[];
@@ -42,12 +57,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const userId = user && ("userId" in user || "id" in user) ? ((user as any).userId || (user as any).id) : undefined;
   const userEmail = user?.email ? String(user.email).trim().toLowerCase() : "";
 
-  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [items, setItems] = useState<NotificationItem[]>(() => getDefaultNotifications(role));
 
   const knownIdsRef = useMemo(() => new Set<string>(), []);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Load from cache on first render (by userId and by userEmail)
+  // Load from cache on first render (by userId, userEmail, and role defaults)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -56,9 +71,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       
       const userNotifs: NotificationItem[] = userCached ? JSON.parse(userCached) : [];
       const emailNotifs: NotificationItem[] = emailCached ? JSON.parse(emailCached) : [];
+      const defaults = getDefaultNotifications(role);
 
       const combinedMap = new Map<string, NotificationItem>();
-      [...emailNotifs, ...userNotifs].forEach((n) => {
+      [...emailNotifs, ...userNotifs, ...defaults].forEach((n) => {
         if (n && n.id) {
           knownIdsRef.add(String(n.id));
           combinedMap.set(n.id, {
@@ -72,7 +88,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setItems(Array.from(combinedMap.values()).slice(0, 50));
       }
     } catch {}
-  }, [userId, userEmail, knownIdsRef]);
+  }, [userId, userEmail, role, knownIdsRef]);
 
   const notify = useCallback(
     (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }, suppressToast = false) => {
@@ -124,18 +140,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     [userId, userEmail, knownIdsRef]
   );
 
-  // Fetch notifications from DB and periodically poll every 4s for instant arrival
+  // Fetch notifications from DB safely with fallback and resilient polling
   useEffect(() => {
-    if (!userId && !userEmail) {
-      setItems([]);
-      return;
-    }
-
     let isMounted = true;
 
     const fetchNotifications = async (triggerToast = false) => {
       try {
-        const res = await axiosInstance.get("/notifications", { timeout: 8000, silent: true } as any).catch(() => null);
+        const res = await axiosInstance.get("/notifications", { timeout: 5000, silent: true } as any).catch(() => null);
         if (!isMounted || !res?.data) return;
         const resData = res.data;
         if (resData.success && Array.isArray(resData.data?.notifications)) {
@@ -147,6 +158,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             time: formatNotificationTime(n.createdAt),
             read: Boolean(n.isRead || n.read),
             href: n.data?.href || n.href,
+            type: n.data?.type || n.type,
           }));
 
           let hasNewUnread = false;
@@ -179,15 +191,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
           if (!hasInitialized) setHasInitialized(true);
         }
-      } catch {}
+      } catch {
+        // Keep existing notifications safely on error
+      }
     };
 
     fetchNotifications(false);
 
-    // 4-second background poll
+    // Resilient background poll
     const pollInterval = setInterval(() => {
       fetchNotifications(true);
-    }, 4000);
+    }, 12000);
 
     const handleFocus = () => fetchNotifications(true);
     window.addEventListener("focus", handleFocus);

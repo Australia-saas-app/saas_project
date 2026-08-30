@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { readPersistentData, writePersistentData } from "../persistent-storage";
 
 export const dynamic = "force-dynamic";
 
-const DATA_FILE = path.join(process.cwd(), "data", "live-chat-presence.json");
+const FILE_NAME = "live-chat-presence.json";
 
 export interface UserPresence {
   isOnline: boolean;
@@ -13,27 +12,11 @@ export interface UserPresence {
 }
 
 function readDbPresence(): Record<string, UserPresence> {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      return {};
-    }
-    const raw = fs.readFileSync(DATA_FILE, "utf-8");
-    return JSON.parse(raw) || {};
-  } catch {
-    return {};
-  }
+  return readPersistentData<Record<string, UserPresence>>(FILE_NAME, {});
 }
 
 function writeDbPresence(data: Record<string, UserPresence>): void {
-  try {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
-  } catch {
-    // ignore
-  }
+  writePersistentData<Record<string, UserPresence>>(FILE_NAME, data);
 }
 
 export async function GET(req: Request) {

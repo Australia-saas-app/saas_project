@@ -1,32 +1,17 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { readPersistentData, writePersistentData } from "../persistent-storage";
 
 export const dynamic = "force-dynamic";
 
-const DELETED_FILE = path.join(process.cwd(), "data", "live-chat-deleted.json");
-const MESSAGES_FILE = path.join(process.cwd(), "data", "live-chat-messages.json");
+const DELETED_FILE_NAME = "live-chat-deleted.json";
+const MESSAGES_FILE_NAME = "live-chat-messages.json";
 
 function readDeleted(): Record<string, string[]> {
-  try {
-    if (!fs.existsSync(DELETED_FILE)) return {};
-    const raw = fs.readFileSync(DELETED_FILE, "utf-8");
-    return JSON.parse(raw) || {};
-  } catch {
-    return {};
-  }
+  return readPersistentData<Record<string, string[]>>(DELETED_FILE_NAME, {});
 }
 
 function writeDeleted(data: Record<string, string[]>): void {
-  try {
-    const dir = path.dirname(DELETED_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DELETED_FILE, JSON.stringify(data, null, 2), "utf-8");
-  } catch {
-    // ignore
-  }
+  writePersistentData<Record<string, string[]>>(DELETED_FILE_NAME, data);
 }
 
 export async function GET(req: Request) {

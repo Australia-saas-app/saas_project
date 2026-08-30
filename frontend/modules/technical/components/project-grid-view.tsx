@@ -319,22 +319,6 @@ export function ProjectGridView({ projects, onViewProject }: ProjectGridViewProp
 
               {/* Bottom Actions Footer with Separator */}
               <div className="mt-4 pt-3 border-t border-border flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  title="View Project Details"
-                  disabled={isNotChosen}
-                  onClick={() => {
-                    if (isAssignedToMe) {
-                      setFullDetailProject(project);
-                    } else {
-                      onViewProject?.(project);
-                    }
-                  }}
-                  className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-
                 {isAssignedToMe ? (
                   <>
                     <button

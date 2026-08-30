@@ -19,7 +19,11 @@ import { withdrawDetailFields } from "@/src/modules/dashboard/shared/utils/withd
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { getWithdrawalsForUser } from "@/src/shared/lib/wallet-store";
-import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
+import {
+  fetchWalletBalance,
+  fetchBusinessTransactions,
+  type BusinessTransactionRecord,
+} from "@/src/modules/technical/services/technical.services";
 import { EMPTY_BUSINESS_STATS } from "@/src/shared/lib/dashboard-empty-stats";
 import { BUSINESS_STATS } from "../data/business-demo-data";
 import { useUser } from "@/src/context/user.provider";
@@ -86,7 +90,24 @@ export default function BusinessWalletLayout() {
     setWithdrawRows([...stored, ...demoRows.filter((r) => !ids.has(r.id))]);
   }, [isReady, userId, isDemo]);
 
-  const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
+  const realTransactions = useMemo(() => {
+    return fetchBusinessTransactions(user).filter(
+      (tx: BusinessTransactionRecord) => tx.type === "milestone_release" || tx.type === "project_release" || tx.type === "deposit"
+    );
+  }, [user, financialStats]);
+
+  const earningRows = useMemo(() => {
+    if (realTransactions.length > 0) {
+      return realTransactions.map((tx: BusinessTransactionRecord) => ({
+        id: tx.id,
+        category: "Technical Services",
+        subcategory: tx.milestoneInfo || tx.title,
+        commission: tx.amount,
+        status: (tx.status === "Released" ? "Complete" : tx.status) as any,
+      }));
+    }
+    return demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
+  }, [realTransactions, demoOrEmpty]);
 
   const displayBalance =
     financialStats.balance > 0
@@ -127,7 +148,7 @@ export default function BusinessWalletLayout() {
     if (!earningSearch.trim()) return earningRows;
     const q = earningSearch.toLowerCase();
     return earningRows.filter(
-      (r) =>
+      (r: any) =>
         r.id.toLowerCase().includes(q) ||
         r.subcategory.toLowerCase().includes(q) ||
         r.commission.toLowerCase().includes(q)
@@ -306,7 +327,7 @@ export default function BusinessWalletLayout() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {earningData.map((row, i) => (
+                  {earningData.map((row: any, i: number) => (
                     <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50">
                       <td className="p-2.5 font-semibold">{row.id}</td>
                       <td className="p-2.5 text-gray-500">{row.subcategory}</td>

@@ -129,6 +129,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
 
   const selectedContactIdRef = useRef<string>("");
   const selectedContactRef = useRef<LiveChatContact | null>(null);
+  const initialConnectedRef = useRef(false);
 
   // 3. Load Contacts, Requests, and Messages from Store & DB
   const reloadContacts = useCallback(() => {
@@ -138,11 +139,14 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     setContacts(loadedContacts);
     setMessagesStore(loadedMessages);
 
-    // Keep selectedContactId if it still exists in loadedContacts, but DO NOT auto-select anything by default!
-    if (selectedContactId && !loadedContacts.some((c) => c.id === selectedContactId)) {
-      setSelectedContactId("");
-    }
-  }, [currentUserEmail, selectedContactId]);
+    // Keep selectedContactId if it still exists in loadedContacts, without changing reloadContacts identity
+    setSelectedContactId((currentId) => {
+      if (currentId && !loadedContacts.some((c) => c.id === currentId)) {
+        return "";
+      }
+      return currentId;
+    });
+  }, [currentUserEmail]);
 
   const reloadRequests = useCallback(() => {
     const reqs = getPendingIncomingRequests(currentUserEmail);
@@ -155,11 +159,15 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     selectedContactRef.current = contacts.find((c) => c.id === selectedContactId) || null;
   }, [selectedContactId, contacts]);
 
-  // 1. Initial Connection Animation & Full DB Sync Preload
+  // 1. Initial Connection Animation & Full DB Sync Preload (runs once on mount)
   useEffect(() => {
     let isMounted = true;
-    setIsConnecting(true);
-    setIsConnected(false);
+    
+    // Only show connecting once on initial mount
+    if (!initialConnectedRef.current) {
+      setIsConnecting(true);
+      setIsConnected(false);
+    }
 
     // Pre-populate with local cache immediately
     reloadContacts();
@@ -171,7 +179,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
         await Promise.all([
           syncLiveChatFromDb(currentUserEmail).catch(() => null),
           fetchRegisteredContactsFromDB().catch(() => null),
-          new Promise((r) => setTimeout(r, 600)),
+          !initialConnectedRef.current ? new Promise((r) => setTimeout(r, 600)) : Promise.resolve(),
         ]);
       } catch {
         // fallback safely
@@ -179,6 +187,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
         if (isMounted) {
           reloadContacts();
           reloadRequests();
+          initialConnectedRef.current = true;
           setIsConnecting(false);
           setIsConnected(true);
         }

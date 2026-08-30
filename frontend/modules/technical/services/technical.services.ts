@@ -206,7 +206,52 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
         uName = String(u.name || u.fullName || u.businessName || "").toLowerCase().trim();
       }
 
-      const projects = readLocalProjects();
+      // Gather all projects from local store, business services, and applied records
+      const projectMap = new Map<string, any>();
+      readLocalProjects().forEach((p: any) => {
+        const pId = String(p.projectId || p.id || "").trim();
+        if (pId) projectMap.set(pId, p);
+      });
+
+      try {
+        const rawScoped = localStorage.getItem("business_service_rows") || localStorage.getItem("business_service_rows_default");
+        if (rawScoped) {
+          const parsed = JSON.parse(rawScoped);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((s: any) => {
+              const rawP = s.rawProject;
+              if (rawP) {
+                const pId = String(rawP.projectId || rawP.id || s.id || "").trim();
+                if (pId) {
+                  const existing = projectMap.get(pId) || {};
+                  projectMap.set(pId, { ...existing, ...rawP, ...s });
+                }
+              }
+            });
+          }
+        }
+      } catch {}
+
+      try {
+        if (uid) {
+          const appliedKey = `business_applied_projects_${uid}`;
+          const rawApplied = localStorage.getItem(appliedKey);
+          if (rawApplied) {
+            const parsed = JSON.parse(rawApplied);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((item: any) => {
+                const pId = String(item.projectId || item.id || "").trim();
+                if (pId) {
+                  const existing = projectMap.get(pId) || {};
+                  projectMap.set(pId, { ...existing, ...item });
+                }
+              });
+            }
+          }
+        }
+      } catch {}
+
+      const projects = Array.from(projectMap.values());
       let earnedFromProjects = 0;
       let pendingEscrow = 0;
 
@@ -238,34 +283,33 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
             Array.isArray(p.participants) && p.participants.some((part: any) =>
               part.userId === uid || (part.userEmail && uEmail && part.userEmail.toLowerCase().trim() === uEmail)
             )
-          );
+          ) ||
+          Boolean(p.isAssigned);
 
         if (!isAssignedToMe) return;
 
         const totalBudget = Number(p.adminBudget || p.price || p.budgetAmount || 0);
         if (totalBudget <= 0) return;
 
-        const commPct = Number(p.commissionPercent ?? 10);
-        const netBudget = totalBudget * (1 - commPct / 100);
-
         const terms = (p.paymentTerms || "").toLowerCase();
         const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
-        const perMilestoneNet = netBudget / mCount;
+        const perMilestone = totalBudget / mCount;
 
         const isFullDone =
+          isProjectCompleted(p) ||
           p.submissionStatus === "accepted" ||
           p.status === "accepted" ||
           p.paymentStatus === "released" ||
           (Array.isArray(p.milestones) && mCount > 0 && p.milestones.slice(0, mCount).every((m: any) => m?.status === "accepted"));
 
         if (isFullDone) {
-          earnedFromProjects += netBudget;
+          earnedFromProjects += totalBudget;
         } else if (Array.isArray(p.milestones) && p.milestones.length > 0) {
           const acceptedCount = p.milestones.slice(0, mCount).filter((m: any) => m?.status === "accepted").length;
-          earnedFromProjects += acceptedCount * perMilestoneNet;
-          pendingEscrow += (mCount - acceptedCount) * perMilestoneNet;
+          earnedFromProjects += acceptedCount * perMilestone;
+          pendingEscrow += (mCount - acceptedCount) * perMilestone;
         } else {
-          pendingEscrow += netBudget;
+          pendingEscrow += totalBudget;
         }
       });
 
@@ -341,7 +385,32 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
       uName = String(u.name || u.fullName || u.businessName || "").toLowerCase().trim();
     }
 
-    const projects = readLocalProjects();
+    const projectMap = new Map<string, any>();
+    readLocalProjects().forEach((p: any) => {
+      const pId = String(p.projectId || p.id || "").trim();
+      if (pId) projectMap.set(pId, p);
+    });
+
+    try {
+      const rawScoped = localStorage.getItem("business_service_rows") || localStorage.getItem("business_service_rows_default");
+      if (rawScoped) {
+        const parsed = JSON.parse(rawScoped);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((s: any) => {
+            const rawP = s.rawProject;
+            if (rawP) {
+              const pId = String(rawP.projectId || rawP.id || s.id || "").trim();
+              if (pId) {
+                const existing = projectMap.get(pId) || {};
+                projectMap.set(pId, { ...existing, ...rawP, ...s });
+              }
+            }
+          });
+        }
+      }
+    } catch {}
+
+    const projects = Array.from(projectMap.values());
 
     projects.forEach((p: any) => {
       const isAssignedToMe =
@@ -371,19 +440,17 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
           Array.isArray(p.participants) && p.participants.some((part: any) =>
             part.userId === uid || (part.userEmail && uEmail && part.userEmail.toLowerCase().trim() === uEmail)
           )
-        );
+        ) ||
+        Boolean(p.isAssigned);
 
       if (!isAssignedToMe) return;
 
       const totalBudget = Number(p.adminBudget || p.price || p.budgetAmount || 0);
       if (totalBudget <= 0) return;
 
-      const commPct = Number(p.commissionPercent ?? 10);
-      const netBudget = totalBudget * (1 - commPct / 100);
-
       const terms = (p.paymentTerms || "").toLowerCase();
       const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
-      const perMilestoneNet = netBudget / mCount;
+      const perMilestone = totalBudget / mCount;
       const dateStr = formatProjectDate(p.completedAt || p.acceptedAt || p.updatedAt || p.createdAt) || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
       const pId = p.projectId || `PRJ-${p.id}`;
 
@@ -396,8 +463,8 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
             projectId: pId,
             title: p.title || "Technical Service Delivery",
             method: "Escrow Full Release",
-            amount: `+$${netBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
-            rawAmount: netBudget,
+            amount: `+$${totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
+            rawAmount: totalBudget,
             date: dateStr,
             status: "Released",
             type: "project_release",
@@ -416,8 +483,8 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
               projectId: pId,
               title: `${p.title} (Milestone ${i + 1}/${mCount})`,
               method: `Escrow Milestone Payout (${i + 1}/${mCount})`,
-              amount: `+$${perMilestoneNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
-              rawAmount: perMilestoneNet,
+              amount: `+$${perMilestone.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
+              rawAmount: perMilestone,
               date: formatProjectDate(m?.acceptedAt || p.completedAt || p.updatedAt) || dateStr,
               status: "Released",
               type: "milestone_release",

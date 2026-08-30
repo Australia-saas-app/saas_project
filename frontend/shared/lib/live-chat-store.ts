@@ -239,12 +239,58 @@ export async function syncLiveChatFromDb(currentUserEmail?: string) {
   try {
     const emailParam = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : "";
     
-    // 1. Sync Requests from DB
+    // 1. Sync Requests from DB (Merged safely so local requests are never lost)
+    const localReqs = readLiveChatRequests();
     const reqRes = await fetch(`/api/live-chat/requests${emailParam}`).catch(() => null);
     if (reqRes?.ok) {
       const data = await reqRes.json();
       if (Array.isArray(data?.data)) {
-        writeLiveChatRequests(data.data);
+        const mergedMap = new Map<string, LiveChatRequest>();
+        
+        // Add existing local requests
+        localReqs.forEach((r) => {
+          if (r && r.id) mergedMap.set(r.id, r);
+        });
+
+        // Merge incoming server requests
+        data.data.forEach((r: LiveChatRequest) => {
+          if (r && r.id) {
+            const existing = mergedMap.get(r.id);
+            if (existing && existing.status === "accepted" && r.status === "pending") {
+              mergedMap.set(r.id, existing);
+            } else {
+              mergedMap.set(r.id, r);
+            }
+          }
+        });
+
+        const mergedRequests = Array.from(mergedMap.values());
+        writeLiveChatRequests(mergedRequests);
+
+        // If local had requests that server didn't have, sync them back to server
+        const serverIds = new Set(data.data.map((r: any) => r.id));
+        localReqs.forEach((localR) => {
+          if (localR && localR.id && !serverIds.has(localR.id)) {
+            fetch("/api/live-chat/requests", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sender: {
+                  email: localR.senderEmail,
+                  name: localR.senderName,
+                  role: localR.senderRole,
+                  avatar: localR.senderAvatar,
+                },
+                receiver: {
+                  email: localR.receiverEmail,
+                  name: localR.receiverName,
+                  role: localR.receiverRole,
+                  avatar: localR.receiverAvatar,
+                },
+              }),
+            }).catch(() => null);
+          }
+        });
       }
     }
 
@@ -256,16 +302,26 @@ export async function syncLiveChatFromDb(currentUserEmail?: string) {
         const local = readLiveChatMessages();
         const merged: Record<string, LiveChatMessage[]> = { ...local, ...data.data };
 
-        // Ensure cross-indexing for all conversations
+        // Ensure cross-indexing and merging without dropping existing messages
         Object.keys(data.data).forEach((key) => {
-          const msgs: LiveChatMessage[] = data.data[key] || [];
-          msgs.forEach((m) => {
+          const serverMsgs: LiveChatMessage[] = data.data[key] || [];
+          const existingMsgs: LiveChatMessage[] = local[key] || [];
+          const msgMap = new Map<string, LiveChatMessage>();
+
+          existingMsgs.forEach((m) => msgMap.set(m.id, m));
+          serverMsgs.forEach((m) => msgMap.set(m.id, m));
+
+          const combinedMsgs = Array.from(msgMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          merged[key] = combinedMsgs;
+
+          combinedMsgs.forEach((m) => {
             const sEmail = (m.senderEmail || "").toLowerCase().trim();
             if (sEmail) {
               const sKey = `contact-${sEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
               if (!merged[sKey]) merged[sKey] = [];
               if (!merged[sKey].some((existing) => existing.id === m.id)) {
                 merged[sKey].push(m);
+                merged[sKey].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
               }
             }
           });
@@ -695,7 +751,53 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
     }
   });
 
-  // 3. Attach latest live chat messages & unread counts
+  // 3. ALSO automatically preserve ANY contact that has conversation messages in messagesStore!
+  Object.keys(messagesStore).forEach((key) => {
+    if (key === "support-team" || deletedIds.has(key)) return;
+    const msgs = messagesStore[key] || [];
+    if (msgs.length === 0) return;
+
+    let otherEmail = "";
+    if (key.startsWith("contact-")) {
+      const foundMsg = msgs.find((m) => m.senderEmail && m.senderEmail.toLowerCase() !== myEmail);
+      if (foundMsg?.senderEmail) {
+        otherEmail = foundMsg.senderEmail.toLowerCase();
+      } else {
+        const anyMsgWithEmail = msgs.find((m) => m.senderEmail);
+        if (anyMsgWithEmail?.senderEmail) {
+          otherEmail = anyMsgWithEmail.senderEmail.toLowerCase();
+        }
+      }
+    } else if (key.includes("@")) {
+      otherEmail = key.toLowerCase();
+    }
+
+    if (otherEmail && otherEmail !== myEmail) {
+      const contactId = `contact-${otherEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      if (!deletedIds.has(contactId) && !contactsMap.has(contactId)) {
+        const reg = registered.find((r) => r.email.toLowerCase() === otherEmail);
+        const userPresence = presenceMap[otherEmail];
+        const isOnline = Boolean(userPresence?.isOnline);
+        const lastSeenRaw = userPresence?.lastSeen;
+        const lastSeenText = formatLastSeen(lastSeenRaw, isOnline);
+        const sampleMsg = msgs.find((m) => m.senderEmail?.toLowerCase() === otherEmail);
+
+        contactsMap.set(contactId, {
+          id: contactId,
+          name: sampleMsg?.senderName || reg?.name || resolveContactFullName(otherEmail),
+          email: otherEmail,
+          role: reg?.role || "User",
+          avatar: reg?.avatar,
+          status: isOnline ? "online" : "offline",
+          lastSeen: isOnline ? "Active now" : lastSeenText,
+          lastSeenTimestamp: userPresence?.lastSeen,
+          unreadCount: 0,
+        });
+      }
+    }
+  });
+
+  // 4. Attach latest live chat messages & unread counts
   const result: LiveChatContact[] = [];
 
   contactsMap.forEach((contact, contactId) => {

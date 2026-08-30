@@ -501,12 +501,9 @@ export default function BusinessServicesLayout() {
       const totalBudget = Number(p.adminBudget || p.price || (p as any).budgetAmount || 0);
       if (totalBudget <= 0) return;
 
-      const commPct = Number(p.commissionPercent ?? 10);
-      const netBudget = totalBudget * (1 - commPct / 100);
-
       const terms = (p.paymentTerms || "").toLowerCase();
       const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
-      const perMilestone = netBudget / mCount;
+      const perMilestone = totalBudget / mCount;
 
       const isCompleted =
         isProjectCompleted(p) ||
@@ -516,7 +513,7 @@ export default function BusinessServicesLayout() {
         p.status === "accepted";
 
       if (isCompleted) {
-        sum += netBudget;
+        sum += totalBudget;
       } else if (Array.isArray(p.milestones)) {
         const acceptedCount = p.milestones.slice(0, mCount).filter((m: any) => m?.status === "accepted").length;
         sum += acceptedCount * perMilestone;

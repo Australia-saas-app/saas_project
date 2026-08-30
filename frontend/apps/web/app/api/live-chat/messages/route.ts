@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { readPersistentData, writePersistentData } from "../persistent-storage";
 
 export const dynamic = "force-dynamic";
 
-const DATA_FILE = path.join(process.cwd(), "data", "live-chat-messages.json");
+const FILE_NAME = "live-chat-messages.json";
 
 const INITIAL_SUPPORT_MESSAGES = [
   {
@@ -20,33 +19,16 @@ const INITIAL_SUPPORT_MESSAGES = [
 ];
 
 function readDbMessages(): Record<string, any[]> {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      const init = { "support-team": INITIAL_SUPPORT_MESSAGES };
-      fs.writeFileSync(DATA_FILE, JSON.stringify(init, null, 2), "utf-8");
-      return init;
-    }
-    const raw = fs.readFileSync(DATA_FILE, "utf-8");
-    const parsed = JSON.parse(raw) || {};
-    if (!parsed["support-team"]) {
-      parsed["support-team"] = INITIAL_SUPPORT_MESSAGES;
-    }
-    return parsed;
-  } catch {
-    return { "support-team": INITIAL_SUPPORT_MESSAGES };
+  const init = { "support-team": INITIAL_SUPPORT_MESSAGES };
+  const parsed = readPersistentData<Record<string, any[]>>(FILE_NAME, init);
+  if (!parsed["support-team"]) {
+    parsed["support-team"] = INITIAL_SUPPORT_MESSAGES;
   }
+  return parsed;
 }
 
 function writeDbMessages(data: Record<string, any[]>): void {
-  try {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
-  } catch {
-    // ignore
-  }
+  writePersistentData<Record<string, any[]>>(FILE_NAME, data);
 }
 
 export async function GET(req: Request) {
