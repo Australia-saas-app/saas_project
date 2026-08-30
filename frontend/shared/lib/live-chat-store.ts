@@ -239,58 +239,14 @@ export async function syncLiveChatFromDb(currentUserEmail?: string) {
   try {
     const emailParam = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : "";
     
-    // 1. Sync Requests from DB (Merged safely so local requests are never lost)
+    // 1. Sync Requests from DB (Merged safely & deduplicated)
     const localReqs = readLiveChatRequests();
     const reqRes = await fetch(`/api/live-chat/requests${emailParam}`).catch(() => null);
     if (reqRes?.ok) {
       const data = await reqRes.json();
       if (Array.isArray(data?.data)) {
-        const mergedMap = new Map<string, LiveChatRequest>();
-        
-        // Add existing local requests
-        localReqs.forEach((r) => {
-          if (r && r.id) mergedMap.set(r.id, r);
-        });
-
-        // Merge incoming server requests
-        data.data.forEach((r: LiveChatRequest) => {
-          if (r && r.id) {
-            const existing = mergedMap.get(r.id);
-            if (existing && existing.status === "accepted" && r.status === "pending") {
-              mergedMap.set(r.id, existing);
-            } else {
-              mergedMap.set(r.id, r);
-            }
-          }
-        });
-
-        const mergedRequests = Array.from(mergedMap.values());
-        writeLiveChatRequests(mergedRequests);
-
-        // If local had requests that server didn't have, sync them back to server
-        const serverIds = new Set(data.data.map((r: any) => r.id));
-        localReqs.forEach((localR) => {
-          if (localR && localR.id && !serverIds.has(localR.id)) {
-            fetch("/api/live-chat/requests", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                sender: {
-                  email: localR.senderEmail,
-                  name: localR.senderName,
-                  role: localR.senderRole,
-                  avatar: localR.senderAvatar,
-                },
-                receiver: {
-                  email: localR.receiverEmail,
-                  name: localR.receiverName,
-                  role: localR.receiverRole,
-                  avatar: localR.receiverAvatar,
-                },
-              }),
-            }).catch(() => null);
-          }
-        });
+        const mergedList = deduplicateRequests([...data.data, ...localReqs]);
+        writeLiveChatRequests(mergedList);
       }
     }
 
@@ -381,12 +337,25 @@ export function writeLiveChatMessages(messages: Record<string, LiveChatMessage[]
   }
 }
 
+export function deduplicateRequests(requests: LiveChatRequest[]): LiveChatRequest[] {
+  const map = new Map<string, LiveChatRequest>();
+  const sorted = [...requests].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  sorted.forEach((r) => {
+    if (r && r.senderEmail && r.receiverEmail) {
+      const pairKey = `${r.senderEmail.toLowerCase().trim()}::${r.receiverEmail.toLowerCase().trim()}`;
+      map.set(pairKey, r);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
 export function readLiveChatRequests(): LiveChatRequest[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(LIVE_CHAT_REQUESTS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? deduplicateRequests(parsed) : [];
   } catch {
     return [];
   }
@@ -395,7 +364,8 @@ export function readLiveChatRequests(): LiveChatRequest[] {
 export function writeLiveChatRequests(requests: LiveChatRequest[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(LIVE_CHAT_REQUESTS_KEY, JSON.stringify(requests));
+    const clean = deduplicateRequests(requests);
+    localStorage.setItem(LIVE_CHAT_REQUESTS_KEY, JSON.stringify(clean));
   } catch {
     // ignore
   }
@@ -571,9 +541,19 @@ export function rejectLiveChatRequest(requestId: string, currentUserEmail: strin
 export function getPendingIncomingRequests(currentUserEmail: string): LiveChatRequest[] {
   const requests = readLiveChatRequests();
   const myEmail = currentUserEmail.trim().toLowerCase();
-  return requests
+  const uniqueSendersMap = new Map<string, LiveChatRequest>();
+
+  requests
     .filter((r) => r.receiverEmail.toLowerCase() === myEmail && r.status === "pending")
-    .sort((a, b) => b.createdAt - a.createdAt);
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .forEach((r) => {
+      const sEmail = r.senderEmail.toLowerCase().trim();
+      if (!uniqueSendersMap.has(sEmail)) {
+        uniqueSendersMap.set(sEmail, r);
+      }
+    });
+
+  return Array.from(uniqueSendersMap.values());
 }
 
 export function getOutgoingRequestStatus(
@@ -753,7 +733,14 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
 
   // 3. ALSO automatically preserve ANY contact that has conversation messages in messagesStore!
   Object.keys(messagesStore).forEach((key) => {
-    if (key === "support-team" || deletedIds.has(key)) return;
+    if (
+      key === "support-team" ||
+      key === "support@saas.com" ||
+      key === "contact-support_saas_com" ||
+      deletedIds.has(key)
+    ) {
+      return;
+    }
     const msgs = messagesStore[key] || [];
     if (msgs.length === 0) return;
 
@@ -772,7 +759,13 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
       otherEmail = key.toLowerCase();
     }
 
-    if (otherEmail && otherEmail !== myEmail) {
+    // Skip if it's support or current user or already exists
+    if (
+      otherEmail &&
+      otherEmail !== myEmail &&
+      otherEmail !== "support@saas.com" &&
+      !Array.from(contactsMap.values()).some((c) => c.email.toLowerCase() === otherEmail.toLowerCase())
+    ) {
       const contactId = `contact-${otherEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
       if (!deletedIds.has(contactId) && !contactsMap.has(contactId)) {
         const reg = registered.find((r) => r.email.toLowerCase() === otherEmail);

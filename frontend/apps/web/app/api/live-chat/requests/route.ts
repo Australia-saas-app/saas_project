@@ -5,12 +5,26 @@ export const dynamic = "force-dynamic";
 
 const FILE_NAME = "live-chat-requests.json";
 
+function deduplicateRequests(requests: any[]): any[] {
+  const map = new Map<string, any>();
+  const sorted = [...requests].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  sorted.forEach((r) => {
+    if (r && r.senderEmail && r.receiverEmail) {
+      const pairKey = `${r.senderEmail.toLowerCase().trim()}::${r.receiverEmail.toLowerCase().trim()}`;
+      map.set(pairKey, r);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
 function readDbRequests(): any[] {
-  return readPersistentData<any[]>(FILE_NAME, []);
+  const raw = readPersistentData<any[]>(FILE_NAME, []);
+  return deduplicateRequests(raw);
 }
 
 function writeDbRequests(data: any[]): void {
-  writePersistentData<any[]>(FILE_NAME, data);
+  const clean = deduplicateRequests(data);
+  writePersistentData<any[]>(FILE_NAME, clean);
 }
 
 export async function GET(req: Request) {

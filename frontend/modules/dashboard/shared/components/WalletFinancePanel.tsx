@@ -32,6 +32,7 @@ import {
   fetchWalletTransactions,
   fetchWalletCards,
   saveWalletCard,
+  fetchBusinessTransactions,
 } from "@/src/modules/technical/services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import SelectDropdown from "@/src/shared/components/SelectDropdown";
@@ -144,63 +145,100 @@ export default function WalletFinancePanel() {
   }, [depositOpen, user]);
 
   const refresh = async () => {
-    if (!userId) {
-      setLoadingRecords(false);
-      return;
-    }
     setLoadingRecords(true);
+    let dbRows: WalletLedgerRecord[] = [];
     try {
-      const res = await fetchWalletTransactions();
-      const rawList = Array.isArray(res)
-        ? res
-        : Array.isArray((res as any)?.data)
-        ? (res as any).data
-        : [];
+      if (userId) {
+        const res = await fetchWalletTransactions();
+        const rawList = Array.isArray(res)
+          ? res
+          : Array.isArray((res as any)?.data)
+          ? (res as any).data
+          : [];
 
-      if (rawList && rawList.length > 0) {
-        const dbRows: WalletLedgerRecord[] = rawList.map((tx: any) => ({
-          id: tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`,
-          userId: tx.userId || userId,
-          userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Account"),
-          amount: `$${Number(tx.amount || 0).toFixed(2)}`,
-          kind:
-            tx.type?.toLowerCase() === "deposit"
-              ? "deposit"
-              : tx.type?.toLowerCase() === "refund"
-              ? "refund"
-              : tx.type?.toLowerCase() === "withdrawal" || tx.type?.toLowerCase() === "withdraw_hold"
-              ? "withdraw_hold"
-              : "deposit",
-          method: tx.description || (tx.paymentMethod ? `Deposit via ${tx.paymentMethod}` : "Wallet Transaction"),
-          date: new Date(tx.createdAt || Date.now()).toLocaleDateString(),
-          status: tx.status === "completed" || tx.status === "COMPLETED" ? "Complete" : "Pending",
-        }));
-        setRows(dbRows);
-        return;
+        if (rawList && rawList.length > 0) {
+          dbRows = rawList.map((tx: any) => ({
+            id: tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`,
+            userId: tx.userId || userId,
+            userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Account"),
+            amount: `$${Number(tx.amount || 0).toFixed(2)}`,
+            kind:
+              tx.type?.toLowerCase() === "deposit"
+                ? "deposit"
+                : tx.type?.toLowerCase() === "refund"
+                ? "refund"
+                : tx.type?.toLowerCase() === "withdrawal" || tx.type?.toLowerCase() === "withdraw_hold"
+                ? "withdraw_hold"
+                : "deposit",
+            method: tx.description || (tx.paymentMethod ? `Deposit via ${tx.paymentMethod}` : "Wallet Transaction"),
+            date: new Date(tx.createdAt || Date.now()).toLocaleDateString(),
+            status: tx.status === "completed" || tx.status === "COMPLETED" ? "Complete" : "Pending",
+          }));
+        }
       }
     } catch {
       // fallback to stored/demo
-    } finally {
-      setLoadingRecords(false);
     }
 
-    const stored = getLedgerForUser(userId);
-    const demo = isDemo
+    const resolvedUserId = String(userId || (user as any)?.id || (user as any)?.userId || "business");
+
+    // Include all released project & milestone transactions for business account
+    const bizTxs = fetchBusinessTransactions(user);
+    const bizLedgerRows: WalletLedgerRecord[] = bizTxs.map((tx) => ({
+      id: tx.id,
+      userId: resolvedUserId,
+      userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Business Account"),
+      amount: tx.amount,
+      kind: "deposit",
+      method: `${tx.title} (${tx.milestoneInfo || "Project Release"})`,
+      date: tx.date || new Date().toLocaleDateString(),
+      status: "Complete",
+    }));
+
+    const stored = userId ? getLedgerForUser(userId) : [];
+    const demo: WalletLedgerRecord[] = isDemo
       ? DEMO_LEDGER_SEED.map((r) => ({
           ...r,
-          userId: userId,
+          userId: resolvedUserId,
           userName: "Demo",
         }))
       : [];
-    const ids = new Set(stored.map((r) => r.id));
-    setRows([...stored, ...demo.filter((r) => !ids.has(r.id))]);
+
+    const combined = [...dbRows, ...bizLedgerRows, ...stored];
+    const seenIds = new Set<string>();
+    const uniqueRows: WalletLedgerRecord[] = [];
+    combined.forEach((r) => {
+      if (r && r.id && !seenIds.has(r.id)) {
+        seenIds.add(r.id);
+        uniqueRows.push({
+          ...r,
+          userId: r.userId || resolvedUserId,
+        });
+      }
+    });
+
+    if (uniqueRows.length === 0 && demo.length > 0) {
+      setRows(demo);
+    } else {
+      setRows(uniqueRows);
+    }
     setLoadingRecords(false);
   };
 
   useEffect(() => {
-    if (!isReady) return;
     refresh();
-  }, [isReady, userId, isDemo]);
+    const handleUpdate = () => refresh();
+    window.addEventListener("wallet_updated", handleUpdate);
+    window.addEventListener("platform_projects_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    window.addEventListener("focus", handleUpdate);
+    return () => {
+      window.removeEventListener("wallet_updated", handleUpdate);
+      window.removeEventListener("platform_projects_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("focus", handleUpdate);
+    };
+  }, [userId, user, isDemo]);
 
   const filtered = useMemo(() => {
     if (tab === "overview") return rows;

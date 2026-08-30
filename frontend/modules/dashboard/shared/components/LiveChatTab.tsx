@@ -1523,13 +1523,17 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
                           <span className="h-1 w-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.3s]" />
                         </span>
                       </div>
+                    ) : selectedContact.id === "support-team" ? (
+                      <span className="text-emerald-500 font-medium flex items-center gap-1.5">
+                        <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500 animate-pulse" /> 24/7 Live Support
+                      </span>
                     ) : selectedContact.status === "online" ? (
                       <span className="text-emerald-500 font-medium flex items-center gap-1.5">
                         <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500 animate-pulse" /> Online
                       </span>
                     ) : (
                       <span className="text-muted-foreground/80 font-normal flex items-center gap-1.5">
-                        <Circle className="h-2 w-2 fill-slate-400 text-slate-400" /> Offline • {selectedContact.lastSeen || "Last seen recently"}
+                        <Circle className="h-2 w-2 fill-slate-400 text-slate-400" /> {selectedContact.lastSeen && selectedContact.lastSeen.toLowerCase() !== "offline" ? selectedContact.lastSeen : "Offline"}
                       </span>
                     )}
                   </div>

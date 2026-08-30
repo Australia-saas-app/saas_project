@@ -206,6 +206,9 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
         uName = String(u.name || u.fullName || u.businessName || "").toLowerCase().trim();
       }
 
+      const roleStr = String((userParam as any)?.role || (userParam as any)?.accountType || "").toLowerCase().trim();
+      const isBusinessRole = roleStr === "business" || roleStr === "seller" || roleStr === "company" || !roleStr;
+
       // Gather all projects from local store, business services, and applied records
       const projectMap = new Map<string, any>();
       readLocalProjects().forEach((p: any) => {
@@ -213,41 +216,72 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
         if (pId) projectMap.set(pId, p);
       });
 
-      try {
-        const rawScoped = localStorage.getItem("business_service_rows") || localStorage.getItem("business_service_rows_default");
-        if (rawScoped) {
-          const parsed = JSON.parse(rawScoped);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((s: any) => {
-              const rawP = s.rawProject;
-              if (rawP) {
-                const pId = String(rawP.projectId || rawP.id || s.id || "").trim();
-                if (pId) {
-                  const existing = projectMap.get(pId) || {};
-                  projectMap.set(pId, { ...existing, ...rawP, ...s });
-                }
-              }
-            });
-          }
-        }
-      } catch {}
+      const storageKeys = [
+        "business_service_rows",
+        "business_service_rows_default",
+        "business_applied_projects",
+        "platform_projects_v2",
+        "technical_projects_cache",
+      ];
 
-      try {
-        if (uid) {
-          const appliedKey = `business_applied_projects_${uid}`;
-          const rawApplied = localStorage.getItem(appliedKey);
-          if (rawApplied) {
-            const parsed = JSON.parse(rawApplied);
+      if (uid) {
+        storageKeys.push(`business_applied_projects_${uid}`);
+      }
+      if (uEmail) {
+        storageKeys.push(`business_applied_projects_${uEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      }
+
+      storageKeys.forEach((key) => {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
               parsed.forEach((item: any) => {
-                const pId = String(item.projectId || item.id || "").trim();
+                const rawP = item.rawProject || item;
+                const pId = String(rawP.projectId || rawP.id || item.id || "").trim();
                 if (pId) {
                   const existing = projectMap.get(pId) || {};
-                  projectMap.set(pId, { ...existing, ...item });
+                  projectMap.set(pId, { ...existing, ...rawP, ...item });
                 }
               });
             }
           }
+        } catch {}
+      });
+
+      // Also pull directly from backend PostgreSQL database via Kong
+      try {
+        const [assignedRes, servicesRes] = await Promise.all([
+          axiosInstance.get('/technology/projects/assigned').catch(() => null),
+          axiosInstance.get('/technology/services').catch(() => null),
+        ]);
+        const assignedList =
+          assignedRes?.data?.data?.projects ||
+          assignedRes?.data?.projects ||
+          assignedRes?.data?.data ||
+          (Array.isArray(assignedRes?.data) ? assignedRes?.data : []);
+        if (Array.isArray(assignedList)) {
+          assignedList.forEach((p: any) => {
+            const pId = String(p.projectId || p.id || "").trim();
+            if (pId) {
+              const existing = projectMap.get(pId) || {};
+              projectMap.set(pId, { ...existing, ...p });
+            }
+          });
+        }
+        const servicesList =
+          servicesRes?.data?.data ||
+          servicesRes?.data?.services ||
+          (Array.isArray(servicesRes?.data) ? servicesRes?.data : []);
+        if (Array.isArray(servicesList)) {
+          servicesList.forEach((p: any) => {
+            const pId = String(p.projectId || p.id || "").trim();
+            if (pId) {
+              const existing = projectMap.get(pId) || {};
+              projectMap.set(pId, { ...existing, ...p });
+            }
+          });
         }
       } catch {}
 
@@ -284,7 +318,15 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
               part.userId === uid || (part.userEmail && uEmail && part.userEmail.toLowerCase().trim() === uEmail)
             )
           ) ||
-          Boolean(p.isAssigned);
+          Boolean(p.isAssigned) ||
+          Boolean(p.isApplied) ||
+          (isBusinessRole && (
+            p.submissionStatus === "accepted" ||
+            p.submissionStatus === "completed" ||
+            p.status === "accepted" ||
+            p.status === "completed" ||
+            p.paymentStatus === "released"
+          ));
 
         if (!isAssignedToMe) return;
 
@@ -298,7 +340,9 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
         const isFullDone =
           isProjectCompleted(p) ||
           p.submissionStatus === "accepted" ||
+          p.submissionStatus === "completed" ||
           p.status === "accepted" ||
+          p.status === "completed" ||
           p.paymentStatus === "released" ||
           (Array.isArray(p.milestones) && mCount > 0 && p.milestones.slice(0, mCount).every((m: any) => m?.status === "accepted"));
 
@@ -385,30 +429,48 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
       uName = String(u.name || u.fullName || u.businessName || "").toLowerCase().trim();
     }
 
+    const roleStr = String((userParam as any)?.role || (userParam as any)?.accountType || "").toLowerCase().trim();
+    const isBusinessRole = roleStr === "business" || roleStr === "seller" || roleStr === "company" || !roleStr;
+
     const projectMap = new Map<string, any>();
     readLocalProjects().forEach((p: any) => {
       const pId = String(p.projectId || p.id || "").trim();
       if (pId) projectMap.set(pId, p);
     });
 
-    try {
-      const rawScoped = localStorage.getItem("business_service_rows") || localStorage.getItem("business_service_rows_default");
-      if (rawScoped) {
-        const parsed = JSON.parse(rawScoped);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((s: any) => {
-            const rawP = s.rawProject;
-            if (rawP) {
-              const pId = String(rawP.projectId || rawP.id || s.id || "").trim();
+    const storageKeys = [
+      "business_service_rows",
+      "business_service_rows_default",
+      "business_applied_projects",
+      "platform_projects_v2",
+      "technical_projects_cache",
+    ];
+
+    if (uid) {
+      storageKeys.push(`business_applied_projects_${uid}`);
+    }
+    if (uEmail) {
+      storageKeys.push(`business_applied_projects_${uEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+    }
+
+    storageKeys.forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item: any) => {
+              const rawP = item.rawProject || item;
+              const pId = String(rawP.projectId || rawP.id || item.id || "").trim();
               if (pId) {
                 const existing = projectMap.get(pId) || {};
-                projectMap.set(pId, { ...existing, ...rawP, ...s });
+                projectMap.set(pId, { ...existing, ...rawP, ...item });
               }
-            }
-          });
+            });
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    });
 
     const projects = Array.from(projectMap.values());
 
@@ -441,7 +503,15 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
             part.userId === uid || (part.userEmail && uEmail && part.userEmail.toLowerCase().trim() === uEmail)
           )
         ) ||
-        Boolean(p.isAssigned);
+        Boolean(p.isAssigned) ||
+        Boolean(p.isApplied) ||
+        (isBusinessRole && (
+          p.submissionStatus === "accepted" ||
+          p.submissionStatus === "completed" ||
+          p.status === "accepted" ||
+          p.status === "completed" ||
+          p.paymentStatus === "released"
+        ));
 
       if (!isAssignedToMe) return;
 
