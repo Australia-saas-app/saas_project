@@ -135,8 +135,8 @@ export const ChatBoxManage = ({
   };
 
   useEffect(() => {
-    if (!stickToBottom.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!stickToBottom.current || !listRef.current) return;
+    listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [chats, isTyping, messageLoad]);
 
   useEffect(() => {

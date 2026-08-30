@@ -1,11 +1,21 @@
 import type { TMessage } from "@/src/modules/chat-bot/types"
 
 export function getChatSocketUrl(): string {
+  if (typeof window !== "undefined") {
+    const raw = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "";
+    if (raw && !raw.includes("kong:") && !raw.startsWith("http://kong") && !raw.startsWith("ws://kong") && !raw.includes("//kong")) {
+      return raw;
+    }
+    const proto = window.location.protocol === "https:" ? "https" : "http";
+    const hostname = window.location.hostname;
+    const port = process.env.NEXT_PUBLIC_GATEWAY_PORT || "8000";
+    return `${proto}://${hostname}:${port}`;
+  }
   return (
     process.env.NEXT_PUBLIC_SOCKET_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     ""
-  )
+  );
 }
 
 export function isChatApiAvailable(): boolean {

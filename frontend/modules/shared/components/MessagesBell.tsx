@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
-import { MessageSquare, Mail, Trash2, CheckCheck, User, Loader2 } from "lucide-react";
+import { MessageSquare, Mail, Trash2, CheckCheck, User, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/src/context/user.provider";
 import {
@@ -16,6 +16,7 @@ import {
   type MessageThread,
 } from "@/src/shared/lib/messages-store";
 import { fetchUserThreads, deleteUserThread, markUserThreadRead } from "@/src/modules/technical/services/technical.services";
+import { getAllLiveChatContacts, type LiveChatContact } from "@/src/shared/lib/live-chat-store";
 
 function useIsDarkMode() {
   const [isDark, setIsDark] = useState(false);
@@ -132,10 +133,21 @@ export function MessagesBell({
       : "/dashboard/user/messages");
 
   const [threads, setThreads] = useState<MessageThread[]>([]);
+  const [liveChatContacts, setLiveChatContacts] = useState<LiveChatContact[]>([]);
+
+  const loadLiveChat = () => {
+    if (!currentUserEmail) return;
+    try {
+      const all = getAllLiveChatContacts(currentUserEmail);
+      const unread = all.filter((c) => (c.unreadCount || 0) > 0);
+      setLiveChatContacts(unread);
+    } catch {}
+  };
 
   const loadThreads = () => {
     const data = getThreadsForRole(userRole, currentUserEmail);
     setThreads(data.filter((t) => t.folder !== "deleted"));
+    loadLiveChat();
   };
 
   useEffect(() => {
@@ -241,11 +253,17 @@ export function MessagesBell({
     window.addEventListener("storage", handleStorage);
     window.addEventListener("messages_updated", handleStorage);
     window.addEventListener("platform_new_email", handleIncomingEmail);
+    window.addEventListener("platform_live_chat_unread_changed", handleStorage);
+    window.addEventListener("platform_live_chat_rooms", handleStorage);
+    window.addEventListener("user_presence_updated", handleStorage);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("messages_updated", handleStorage);
       window.removeEventListener("platform_new_email", handleIncomingEmail);
+      window.removeEventListener("platform_live_chat_unread_changed", handleStorage);
+      window.removeEventListener("platform_live_chat_rooms", handleStorage);
+      window.removeEventListener("user_presence_updated", handleStorage);
       if (bc) bc.close();
     };
   }, [userRole, currentUserEmail, defaultHref]);
@@ -272,8 +290,9 @@ export function MessagesBell({
   }, [threads]);
 
   const unreadCount = useMemo(() => {
-    return unreadThreads.length;
-  }, [unreadThreads]);
+    const liveChatTotal = liveChatContacts.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    return unreadThreads.length + liveChatTotal;
+  }, [unreadThreads, liveChatContacts]);
 
   const handleMarkAllRead = async () => {
     unreadThreads.forEach((t) => {
@@ -338,22 +357,28 @@ export function MessagesBell({
         <MessageSquare className={iconClassName} />
         {unreadCount > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white ring-2 ring-background animate-pulse">
-            {unreadCount > 9 ? "9+" : unreadCount}
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div
-          style={{
-            zIndex: 999999,
-            backgroundColor: isDark ? "#0f172a" : "#ffffff",
-            borderColor: isDark ? "#1e293b" : "#e2e8f0",
-            color: isDark ? "#f8fafc" : "#0f172a",
-          }}
-          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),380px)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md"
-          role="menu"
-        >
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 z-[999990] bg-black/25 sm:hidden backdrop-blur-xs"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            style={{
+              zIndex: 999999,
+              backgroundColor: isDark ? "#0f172a" : "#ffffff",
+              borderColor: isDark ? "#1e293b" : "#e2e8f0",
+              color: isDark ? "#f8fafc" : "#0f172a",
+            }}
+            className="fixed inset-x-3 top-16 sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-[380px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            role="menu"
+          >
           {/* Header */}
           <div
             style={{
@@ -402,7 +427,7 @@ export function MessagesBell({
             style={{ backgroundColor: isDark ? "#0f172a" : "#ffffff" }}
             className="max-h-80 overflow-y-auto divide-y divide-border"
           >
-            {unreadThreads.length === 0 ? (
+            {unreadThreads.length === 0 && liveChatContacts.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
                 <div
                   style={{
@@ -427,98 +452,158 @@ export function MessagesBell({
                 </p>
               </li>
             ) : (
-              unreadThreads.map((t) => {
-                const isSenderMe = userRole === "user";
-                const displayName = isSenderMe
-                  ? t.recipientName || t.participant || "Business Partner"
-                  : t.senderName || t.participant || "Client";
-                const secondaryTag = isSenderMe
-                  ? t.recipientBusiness || ""
-                  : "Client";
-
-                const latestThemMsg =
-                  t.messages && t.messages.length > 0
-                    ? [...t.messages].reverse().find((m) => m.from === "them" || (m.fromEmail && m.fromEmail.toLowerCase() !== currentUserEmail))?.body || t.messages[t.messages.length - 1]?.body
-                    : t.draftBody || t.subject || "New message";
-
-                const targetLink = `${defaultHref}?thread=${t.id}`;
-
-                return (
-                  <li key={t.id} className="relative group">
-                    <Link
-                      href={targetLink}
-                      onClick={() => {
-                        markThreadRead(t.id, currentUserEmail);
-                        markUserThreadRead(t.id);
-                        if (currentUserEmail) {
-                          markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
-                        }
-                        setOpen(false);
-                      }}
-                      style={{
-                        backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0f9ff",
-                        borderLeft: isDark ? "3px solid #3b82f6" : "3px solid #2563eb",
-                      }}
-                      className="block px-4 py-3 pr-10 transition-colors hover:opacity-90 cursor-pointer"
-                    >
-                      <div className="flex items-start gap-3">
-                        {/* Avatar */}
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 font-bold text-xs border border-blue-500/20 mt-0.5">
-                          {getInitials(displayName)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
+              <>
+                {/* Live Chat Unread Messages */}
+                {liveChatContacts.map((c) => {
+                  const targetLiveChatLink = `${defaultHref}?tab=live_chat&contact=${c.id}`;
+                  return (
+                    <li key={`live-chat-${c.id}`} className="relative group">
+                      <Link
+                        href={targetLiveChatLink}
+                        onClick={() => {
+                          setOpen(false);
+                        }}
+                        style={{
+                          backgroundColor: isDark ? "rgba(37, 99, 235, 0.12)" : "#eff6ff",
+                          borderLeft: isDark ? "3px solid #38bdf8" : "3px solid #0284c7",
+                        }}
+                        className="block px-4 py-3 pr-10 transition-colors hover:opacity-90 cursor-pointer"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-600 font-bold text-xs border border-sky-500/20 mt-0.5">
+                            {c.id === "support-team" || c.name?.toLowerCase().includes("support") ? (
+                              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              getInitials(c.name)
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p
+                                style={{
+                                  color: isDark ? "#ffffff" : "#0f172a",
+                                  fontWeight: 700,
+                                }}
+                                className="truncate text-xs flex items-center gap-1.5"
+                              >
+                                {c.name}
+                                <span className="rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-semibold px-1.5 py-0.2 text-[9px]">
+                                  Live Chat
+                                </span>
+                              </p>
+                              <span className="text-[10px] font-medium text-muted-foreground shrink-0">
+                                {c.lastMessageTime || "Active"}
+                              </span>
+                            </div>
                             <p
                               style={{
-                                color: isDark ? "#ffffff" : "#0f172a",
-                                fontWeight: 700,
+                                color: isDark ? "#e2e8f0" : "#334155",
                               }}
-                              className="truncate text-xs"
+                              className="mt-0.5 line-clamp-1 text-xs leading-relaxed"
                             >
-                              {displayName}
-                              {secondaryTag && (
-                                <span className="text-muted-foreground font-normal ml-1">
-                                  | {secondaryTag}
-                                </span>
-                              )}
+                              {c.lastMessage || "New live message"}
                             </p>
-                            <span className="text-[10px] font-medium text-muted-foreground shrink-0">
-                              {formatMessageTime(t.updatedAt)}
-                            </span>
                           </div>
-                          <p
-                            style={{
-                              color: isDark ? "#e2e8f0" : "#334155",
-                            }}
-                            className="mt-0.5 line-clamp-1 text-xs leading-relaxed"
-                          >
-                            {latestThemMsg}
-                          </p>
                         </div>
-                      </div>
-                    </Link>
+                      </Link>
+                    </li>
+                  );
+                })}
 
-                    <button
-                      type="button"
-                      disabled={deletingId === t.id}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDeleteSingle(t.id);
-                      }}
-                      style={{ color: isDark ? "#94a3b8" : "#64748b" }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer disabled:cursor-not-allowed"
-                      title="Delete message notification"
-                    >
-                      {deletingId === t.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
-                  </li>
-                );
-              })
+                {/* Email / Discussion Threads */}
+                {unreadThreads.map((t) => {
+                  const isSenderMe = userRole === "user";
+                  const displayName = isSenderMe
+                    ? t.recipientName || t.participant || "Business Partner"
+                    : t.senderName || t.participant || "Client";
+                  const secondaryTag = isSenderMe
+                    ? t.recipientBusiness || ""
+                    : "Client";
+
+                  const latestThemMsg =
+                    t.messages && t.messages.length > 0
+                      ? [...t.messages].reverse().find((m) => m.from === "them" || (m.fromEmail && m.fromEmail.toLowerCase() !== currentUserEmail))?.body || t.messages[t.messages.length - 1]?.body
+                      : t.draftBody || t.subject || "New message";
+
+                  const targetLink = `${defaultHref}?thread=${t.id}`;
+
+                  return (
+                    <li key={t.id} className="relative group">
+                      <Link
+                        href={targetLink}
+                        onClick={() => {
+                          markThreadRead(t.id, currentUserEmail);
+                          markUserThreadRead(t.id);
+                          if (currentUserEmail) {
+                            markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
+                          }
+                          setOpen(false);
+                        }}
+                        style={{
+                          backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0f9ff",
+                          borderLeft: isDark ? "3px solid #3b82f6" : "3px solid #2563eb",
+                        }}
+                        className="block px-4 py-3 pr-10 transition-colors hover:opacity-90 cursor-pointer"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Avatar */}
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 font-bold text-xs border border-blue-500/20 mt-0.5">
+                            {getInitials(displayName)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p
+                                style={{
+                                  color: isDark ? "#ffffff" : "#0f172a",
+                                  fontWeight: 700,
+                                }}
+                                className="truncate text-xs"
+                              >
+                                {displayName}
+                                {secondaryTag && (
+                                  <span className="text-muted-foreground font-normal ml-1">
+                                    | {secondaryTag}
+                                  </span>
+                                )}
+                              </p>
+                              <span className="text-[10px] font-medium text-muted-foreground shrink-0">
+                                {formatMessageTime(t.updatedAt)}
+                              </span>
+                            </div>
+                            <p
+                              style={{
+                                color: isDark ? "#e2e8f0" : "#334155",
+                              }}
+                              className="mt-0.5 line-clamp-1 text-xs leading-relaxed"
+                            >
+                              {latestThemMsg}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+
+                      <button
+                        type="button"
+                        disabled={deletingId === t.id}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteSingle(t.id);
+                        }}
+                        style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer disabled:cursor-not-allowed"
+                        title="Delete message notification"
+                      >
+                        {deletingId === t.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </>
             )}
           </ul>
 
@@ -552,7 +637,8 @@ export function MessagesBell({
             </Link>
           </div>
         </div>
-      )}
+      </>
+    )}
     </div>
   );
 }

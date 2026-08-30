@@ -239,6 +239,7 @@ export default function DashboardMessagesLayout({
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const messagesStreamContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (tabParam === "live" || tabParam === "live_chat" || tabParam === "liveChat") {
@@ -671,8 +672,9 @@ export default function DashboardMessagesLayout({
   const selected = selectedId ? threads.find((t) => t.id === selectedId) ?? null : null;
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (messagesStreamContainerRef.current) {
+      const el = messagesStreamContainerRef.current;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }
   }, [selectedId, selected?.messages?.length]);
 
@@ -1535,7 +1537,7 @@ export default function DashboardMessagesLayout({
                 </div>
 
                 {/* Messages Stream */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div ref={messagesStreamContainerRef} className="flex-1 overflow-y-auto p-5 space-y-4 overscroll-contain">
                   {selected.messages.map((m) => {
                     const currentEmail = (currentUserEmail || "").trim().toLowerCase();
                     const mEmail = (m.fromEmail || "").trim().toLowerCase();
@@ -1568,7 +1570,6 @@ export default function DashboardMessagesLayout({
                       </div>
                     );
                   })}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Reply Form */}

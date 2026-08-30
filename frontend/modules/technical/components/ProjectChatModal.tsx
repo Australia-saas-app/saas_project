@@ -118,11 +118,14 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const conversationRoom = `project_${project.projectId}`;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (smooth = true) => {
+    if (messagesContainerRef.current) {
+      const el = messagesContainerRef.current;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    }
   };
 
   // Helper to sync a message into local live-chat-store for the Messages Page (strictly per-project and per-contact)
@@ -640,7 +643,7 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
         </div>
 
         {/* Chat Thread */}
-        <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-gradient-to-b from-muted/20 via-background to-muted/10 text-xs">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-gradient-to-b from-muted/20 via-background to-muted/10 text-xs overscroll-contain">
           {loading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -694,7 +697,6 @@ export function ProjectChatModal({ project, onClose }: ProjectChatProps) {
                   </div>
                 );
               })}
-              <div ref={messagesEndRef} />
             </>
           )}
         </div>

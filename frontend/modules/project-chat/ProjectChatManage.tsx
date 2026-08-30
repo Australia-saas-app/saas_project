@@ -115,8 +115,13 @@ export const ProjectChatManage = (props: Props) => {
     };
   }, [authStore?.id, isChatModalOpen, selectedOrder]);
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesContainerRef.current) {
+      const el = messagesContainerRef.current;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [chats]);
 
   const sendMyMessage = async () => {
@@ -236,7 +241,7 @@ export const ProjectChatManage = (props: Props) => {
                 <div>Loading...</div>
               </div>
             ) : (
-              <div className="max-h-[600px] grow overflow-y-auto p-4 text-sm scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 flex flex-col gap-3">
+              <div ref={messagesContainerRef} className="max-h-[600px] grow overflow-y-auto p-4 text-sm scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 flex flex-col gap-3 overscroll-contain">
                 {chats.map((chatMessage, index) => {
                   const isOwn = chatMessage.senderId === authStore?.id;
                   return (
@@ -268,7 +273,6 @@ export const ProjectChatManage = (props: Props) => {
                     </div>
                   );
                 })}
-                <div ref={messagesEndRef} />
               </div>
             )}
             <MessageInput message={message} setMessage={setMessage} onSend={sendMyMessage} />

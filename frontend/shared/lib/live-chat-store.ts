@@ -1,5 +1,5 @@
 import { getAllRegisteredContacts, resolveContactFullName, type RegisteredContact } from "@/src/shared/lib/contacts-store";
-import axiosInstance from "@/src/lib/axiosInstance";
+import axiosInstance from "@/src/shared/lib/axiosInstance";
 
 export async function dispatchLiveChatNotification(params: {
   recipientEmail: string;
@@ -19,6 +19,7 @@ export async function dispatchLiveChatNotification(params: {
 
   const notifId = `notif-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
+  const targetEmail = params.recipientEmail.toLowerCase().trim();
 
   const item = {
     id: notifId,
@@ -29,8 +30,8 @@ export async function dispatchLiveChatNotification(params: {
     time: "Just now",
     read: false,
     href,
-    data: { href, type: params.type },
-    recipientEmail: params.recipientEmail.toLowerCase().trim(),
+    data: { href, type: params.type, recipientEmail: targetEmail },
+    recipientEmail: targetEmail,
   };
 
   // 1. Post to backend DB notifications endpoint
@@ -39,27 +40,40 @@ export async function dispatchLiveChatNotification(params: {
       title: params.title,
       message: params.message,
       type: params.type,
-      recipientEmail: params.recipientEmail,
+      recipientEmail: targetEmail,
       priority: "high",
       href,
-      data: { href, type: params.type },
+      data: { href, type: params.type, recipientEmail: targetEmail },
     }).catch(() => null);
   } catch {}
 
   // 2. Write to recipient's local notification cache and broadcast sync
   if (typeof window !== "undefined") {
     try {
-      const targetKey = `app_notifs_${params.recipientEmail.toLowerCase().trim()}`;
-      const existingRaw = localStorage.getItem(targetKey);
-      const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      const updated = [item, ...existing.filter((n: any) => n.id !== notifId)].slice(0, 50);
-      localStorage.setItem(targetKey, JSON.stringify(updated));
+      const keys = [
+        `app_notifs_${targetEmail}`,
+        `app_notifs_${targetEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
+        "platform_live_chat_notifications",
+        "app_notifs_all",
+      ];
+      if (roleSlug) {
+        keys.push(`app_notifs_${roleSlug}`);
+      }
+
+      keys.forEach((key) => {
+        try {
+          const existingRaw = localStorage.getItem(key);
+          const existing = existingRaw ? JSON.parse(existingRaw) : [];
+          const updated = [item, ...existing.filter((n: any) => n.id !== notifId)].slice(0, 100);
+          localStorage.setItem(key, JSON.stringify(updated));
+        } catch {}
+      });
 
       // 3. Broadcast sync event across tabs and listeners
       localStorage.setItem(
         "vero_notif_sync",
         JSON.stringify({
-          targetEmail: params.recipientEmail.toLowerCase().trim(),
+          targetEmail,
           item,
           timestamp: Date.now(),
         })
@@ -70,13 +84,15 @@ export async function dispatchLiveChatNotification(params: {
         bc.postMessage({
           type: "vero:new_notification",
           payload: item,
-          targetEmail: params.recipientEmail.toLowerCase().trim(),
+          targetEmail,
         });
         bc.close();
       }
 
       window.dispatchEvent(new CustomEvent("new_notification", { detail: item }));
+      window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: item }));
       window.dispatchEvent(new Event("notifications_updated"));
+      window.dispatchEvent(new Event("storage"));
     } catch {}
   }
 }

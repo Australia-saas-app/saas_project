@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import {
   Search,
@@ -121,7 +122,10 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
 
   const [messagesStore, setMessagesStore] = useState<Record<string, LiveChatMessage[]>>({});
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef<number>(0);
+  const prevContactIdRef = useRef<string>("");
+  const isUserScrolledUpRef = useRef<boolean>(false);
   const replyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -153,11 +157,29 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     setIncomingRequests(reqs);
   }, [currentUserEmail]);
 
+  const searchParams = useSearchParams();
+  const contactParam = searchParams?.get("contact") || searchParams?.get("contactId");
+
   // Keep refs in sync for event listeners and timeouts
   useEffect(() => {
     selectedContactIdRef.current = selectedContactId;
     selectedContactRef.current = contacts.find((c) => c.id === selectedContactId) || null;
   }, [selectedContactId, contacts]);
+
+  // Auto-select contact when directed from Messages Bell or URL query
+  useEffect(() => {
+    if (contactParam && contacts.length > 0) {
+      const match = contacts.find(
+        (c) =>
+          c.id === contactParam ||
+          (c.email && c.email.toLowerCase() === contactParam.toLowerCase()) ||
+          c.id.includes(contactParam)
+      );
+      if (match) {
+        setSelectedContactId(match.id);
+      }
+    }
+  }, [contactParam, contacts]);
 
   // 1. Initial Connection Animation & Full DB Sync Preload (runs once on mount)
   useEffect(() => {
@@ -258,19 +280,23 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
                 return prev;
               });
             }
-          } else if (type === "MESSAGES_SEEN") {
+          } else if (type === "MESSAGES_SEEN" || type === "CHAT_READ") {
             const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
-            const readerClean = (payload?.readerEmail || "").toLowerCase().trim();
-            const myClean = (currentUserEmail || "").toLowerCase().trim();
+            const readerClean = (payload?.readerEmail || payload?.userEmail || "").toLowerCase().trim();
+            const contactId = payload?.contactId;
+            const msgId = payload?.messageId;
 
-            if ((senderClean && senderClean === myClean) || (readerClean && readerClean !== myClean)) {
-              const contactId = payload?.contactId;
-              const msgId = payload?.messageId;
-              setMessagesStore((prev) => {
-                const next = { ...prev };
-                let modified = false;
-                Object.keys(next).forEach((key) => {
-                  if (contactId && key !== contactId && !key.includes(readerClean)) return;
+            setMessagesStore((prev) => {
+              const next = { ...prev };
+              let modified = false;
+              Object.keys(next).forEach((key) => {
+                const keyLower = key.toLowerCase();
+                const isRelevantKey =
+                  (contactId && (key === contactId || keyLower.includes(contactId.toLowerCase()))) ||
+                  (readerClean && (keyLower.includes(readerClean) || keyLower.includes(readerClean.replace(/[^a-zA-Z0-9]/g, "_")))) ||
+                  (senderClean && (keyLower.includes(senderClean) || keyLower.includes(senderClean.replace(/[^a-zA-Z0-9]/g, "_"))));
+
+                if (isRelevantKey) {
                   next[key] = next[key].map((m) => {
                     if ((!msgId || m.id === msgId) && m.status !== "seen") {
                       modified = true;
@@ -278,12 +304,35 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
                     }
                     return m;
                   });
-                });
-                if (modified) {
-                  writeLiveChatMessages(next);
-                  return next;
                 }
-                return prev;
+              });
+              if (modified) {
+                writeLiveChatMessages(next);
+                return next;
+              }
+              return prev;
+            });
+            syncLiveChatFromDb(currentUserEmail).then(reloadContacts);
+          } else if (type === "CHAT_DELETED") {
+            reloadContacts();
+          } else if (type === "TYPING_STATUS") {
+            const senderEmail = (payload?.senderEmail || "").toLowerCase().trim();
+            const receiverEmail = (payload?.receiverEmail || "").toLowerCase().trim();
+            const myClean = (currentUserEmail || "").toLowerCase().trim();
+            const isTyping = Boolean(payload?.isTyping);
+            const contactId = payload?.contactId;
+
+            if (!receiverEmail || receiverEmail === myClean || (senderEmail && senderEmail !== myClean)) {
+              setTypingContacts((prev) => {
+                const updated = { ...prev };
+                if (senderEmail) {
+                  updated[senderEmail] = isTyping;
+                  updated[`contact-${senderEmail.replace(/[^a-zA-Z0-9]/g, "_")}`] = isTyping;
+                }
+                if (contactId) {
+                  updated[contactId] = isTyping;
+                }
+                return updated;
               });
             }
           } else if (type === "NEW_REQUEST") {
@@ -387,6 +436,43 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
             },
           });
         });
+
+        const handleSocketSeen = (data: any) => {
+          const readerClean = (data?.readerEmail || data?.userEmail || "").toLowerCase().trim();
+          const senderClean = (data?.senderEmail || "").toLowerCase().trim();
+          const convId = data?.conversationId || data?.contactId;
+
+          setMessagesStore((prev) => {
+            const next = { ...prev };
+            let modified = false;
+            Object.keys(next).forEach((key) => {
+              const keyLower = key.toLowerCase();
+              const isRelevantKey =
+                (convId && (key === convId || keyLower.includes(convId.toLowerCase()))) ||
+                (readerClean && (keyLower.includes(readerClean) || keyLower.includes(readerClean.replace(/[^a-zA-Z0-9]/g, "_")))) ||
+                (senderClean && (keyLower.includes(senderClean) || keyLower.includes(senderClean.replace(/[^a-zA-Z0-9]/g, "_"))));
+
+              if (isRelevantKey) {
+                next[key] = next[key].map((m) => {
+                  if (m.status !== "seen") {
+                    modified = true;
+                    return { ...m, status: "seen" as const };
+                  }
+                  return m;
+                });
+              }
+            });
+            if (modified) {
+              writeLiveChatMessages(next);
+              return next;
+            }
+            return prev;
+          });
+        };
+
+        socket.on("messages:seen", handleSocketSeen);
+        socket.on("message:read", handleSocketSeen);
+        socket.on("messages:read", handleSocketSeen);
 
         socket.on("typing:status", (data: any) => {
           if (data?.conversationId) {
@@ -682,12 +768,34 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
         typingContacts[`contact-${selectedContact.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`])
   );
 
-  // Auto-scroll on new messages or typing
-  useEffect(() => {
-    if (selectedContact) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (messagesContainerRef.current) {
+      const el = messagesContainerRef.current;
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: smooth ? "smooth" : "auto",
+      });
     }
-  }, [activeMessages, isOtherTyping, selectedContactId, selectedContact]);
+  }, []);
+
+  // Auto-scroll strictly inside the message container only when contact changes or new messages arrive
+  useEffect(() => {
+    if (!selectedContact) return;
+
+    const contactChanged = prevContactIdRef.current !== selectedContactId;
+    const msgCountChanged = activeMessages.length !== prevMsgCountRef.current;
+    prevContactIdRef.current = selectedContactId;
+    prevMsgCountRef.current = activeMessages.length;
+
+    if (contactChanged) {
+      isUserScrolledUpRef.current = false;
+      setTimeout(() => scrollToBottom(false), 50);
+    } else if (msgCountChanged) {
+      if (!isUserScrolledUpRef.current) {
+        scrollToBottom(true);
+      }
+    }
+  }, [activeMessages.length, selectedContactId, selectedContact, scrollToBottom]);
 
   // Selecting a contact marks messages as read & clears unread count
   const handleSelectContact = (contactId: string) => {
@@ -722,14 +830,18 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
       fetch("/api/live-chat/messages", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId }),
+        body: JSON.stringify({
+          contactId,
+          readerEmail: currentUserEmail,
+          senderEmail: targetContact?.email || "",
+        }),
       }).catch(() => null);
 
       window.dispatchEvent(new CustomEvent("platform_live_chat_unread_changed"));
       try {
         broadcastChannelRef.current?.postMessage({
           type: "CHAT_READ",
-          payload: { contactId, userEmail: currentUserEmail },
+          payload: { contactId, userEmail: currentUserEmail, readerEmail: currentUserEmail, senderEmail: targetContact?.email || "" },
         });
         if (targetContact?.email) {
           broadcastChannelRef.current?.postMessage({
@@ -748,6 +860,12 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
       socketRef.current.emit("message:read", {
         conversationId: contactId,
         userId: currentUserId,
+        readerEmail: currentUserEmail,
+      });
+      socketRef.current.emit("messages:seen", {
+        conversationId: contactId,
+        readerEmail: currentUserEmail,
+        senderEmail: targetContact?.email || "",
       });
     }
   };
@@ -934,6 +1052,8 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     );
 
     setInputText("");
+    isUserScrolledUpRef.current = false;
+    setTimeout(() => scrollToBottom(true), 50);
 
     // Only Customer Support & Escrow provides automated instant system acknowledgment
     if (currentContact.id === "support-team") {
@@ -1569,7 +1689,15 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
             </div>
 
             {/* Chat Messages Stream with visible scrollbar when overflowing */}
-            <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3 bg-muted/10 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all">
+            <div
+              ref={messagesContainerRef}
+              onScroll={() => {
+                if (!messagesContainerRef.current) return;
+                const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+                isUserScrolledUpRef.current = scrollHeight - (scrollTop + clientHeight) > 120;
+              }}
+              className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3 bg-muted/10 overscroll-contain [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 dark:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 dark:hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 transition-all"
+            >
               {activeMessages.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center p-8 text-muted-foreground">
                   <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
@@ -1648,8 +1776,6 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
                   </div>
                 </div>
               )}
-
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Message Input Bar */}

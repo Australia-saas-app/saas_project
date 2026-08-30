@@ -62,30 +62,68 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const knownIdsRef = useMemo(() => new Set<string>(), []);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Load from cache on first render (by userId, userEmail, and role defaults)
+  // Load from cache on first render (by userId, userEmail, role defaults, and live chat notifications)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const userCached = userId ? localStorage.getItem(`app_notifs_${userId}`) : null;
-      const emailCached = userEmail ? localStorage.getItem(`app_notifs_${userEmail}`) : null;
-      
-      const userNotifs: NotificationItem[] = userCached ? JSON.parse(userCached) : [];
-      const emailNotifs: NotificationItem[] = emailCached ? JSON.parse(emailCached) : [];
-      const defaults = getDefaultNotifications(role);
+      const storageKeys = [
+        "platform_live_chat_notifications",
+        "app_notifs_all",
+      ];
+      if (userId) storageKeys.push(`app_notifs_${userId}`);
+      if (userEmail) {
+        storageKeys.push(`app_notifs_${userEmail}`);
+        storageKeys.push(`app_notifs_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      }
+      if (role) {
+        storageKeys.push(`app_notifs_${role.toLowerCase()}`);
+      }
 
       const combinedMap = new Map<string, NotificationItem>();
-      [...emailNotifs, ...userNotifs, ...defaults].forEach((n) => {
-        if (n && n.id) {
+
+      // Load from all cached storage keys
+      storageKeys.forEach((key) => {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((n: any) => {
+                if (n && n.id) {
+                  const targetE = (n.recipientEmail || n.targetEmail || "").trim().toLowerCase();
+                  if (!targetE || !userEmail || targetE === userEmail) {
+                    knownIdsRef.add(String(n.id));
+                    combinedMap.set(String(n.id), {
+                      ...n,
+                      id: String(n.id),
+                      time: formatNotificationTime(n.createdAt || n.time),
+                    });
+                  }
+                }
+              });
+            }
+          }
+        } catch {}
+      });
+
+      // Also merge role defaults (e.g. project acceptance / milestone defaults)
+      const defaults = getDefaultNotifications(role);
+      defaults.forEach((n) => {
+        if (n && n.id && !combinedMap.has(String(n.id))) {
           knownIdsRef.add(String(n.id));
-          combinedMap.set(n.id, {
+          combinedMap.set(String(n.id), {
             ...n,
+            id: String(n.id),
             time: formatNotificationTime(n.createdAt || n.time),
           });
         }
       });
 
       if (combinedMap.size > 0) {
-        setItems(Array.from(combinedMap.values()).slice(0, 50));
+        const sorted = Array.from(combinedMap.values()).sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+        setItems(sorted.slice(0, 100));
       }
     } catch {}
   }, [userId, userEmail, role, knownIdsRef]);
@@ -105,7 +143,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       };
 
       setItems((prev) => {
-        const next = [entry, ...prev.filter((i) => i.id !== entry.id)].slice(0, 50);
+        const next = [entry, ...prev.filter((i) => i.id !== entry.id)].slice(0, 100);
         if (userId) {
           try {
             localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
@@ -177,7 +215,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 });
               }
             });
-            const merged = Array.from(map.values()).slice(0, 50);
+            const merged = Array.from(map.values()).slice(0, 100);
             try {
               if (userId) localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
               if (userEmail) localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(merged));

@@ -107,22 +107,28 @@ export function NotificationBell({
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-background">
-            {unreadCount > 9 ? "9+" : unreadCount}
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div
-          style={{
-            zIndex: 999999,
-            backgroundColor: isDark ? "#0f172a" : "#ffffff",
-            borderColor: isDark ? "#1e293b" : "#e2e8f0",
-            color: isDark ? "#f8fafc" : "#0f172a",
-          }}
-          className="absolute right-0 top-full mt-2 w-[min(calc(100vw-2rem),380px)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md"
-          role="menu"
-        >
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 z-[999990] bg-black/25 sm:hidden backdrop-blur-xs"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            style={{
+              zIndex: 999999,
+              backgroundColor: isDark ? "#0f172a" : "#ffffff",
+              borderColor: isDark ? "#1e293b" : "#e2e8f0",
+              color: isDark ? "#f8fafc" : "#0f172a",
+            }}
+            className="fixed inset-x-3 top-16 sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-[380px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            role="menu"
+          >
           {/* Header */}
           <div
             style={{
@@ -160,7 +166,7 @@ export function NotificationBell({
           {/* List */}
           <ul
             style={{ backgroundColor: isDark ? "#0f172a" : "#ffffff" }}
-            className="max-h-80 overflow-y-auto divide-y divide-border"
+            className="max-h-[420px] overflow-y-auto divide-y divide-border [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full"
           >
             {notifications.length === 0 ? (
               <li className="flex flex-col items-center justify-center px-4 py-12 text-center">
@@ -248,9 +254,10 @@ export function NotificationBell({
             </div>
           )}
         </div>
-      )}
-    </div>
-  );
+      </>
+    )}
+  </div>
+);
 }
 
 function NotificationRow({ item, isDark }: { item: NotificationItem; isDark: boolean }) {
