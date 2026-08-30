@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, CheckCircle2, AlertCircle } from "lucide-react";
-import { readLocalProjects } from "../services/technical.services";
+import { readLocalProjects, findLocalProject, isProjectCompleted } from "../services/technical.services";
 
 interface ProjectDeadlineCountdownProps {
   projectId?: string;
@@ -51,31 +51,17 @@ export function ProjectDeadlineCountdown({
     return () => window.removeEventListener("project_deadline_updated", handleUpdate);
   }, [projectId]);
 
-  const localProject =
-    typeof window !== "undefined" && projectId
-      ? readLocalProjects().find(
-          (lp: any) =>
-            lp.projectId === projectId ||
-            String(lp.id) === String(projectId) ||
-            `PRJ-${lp.id}` === projectId ||
-            lp.projectId === `PRJ-${projectId}`
-        )
-      : null;
+  const localProject = findLocalProject(projectId);
+  const mergedProject = {
+    ...(localProject || {}),
+    status: status || localProject?.status,
+    submissionStatus: status || localProject?.submissionStatus,
+  };
 
   const isProjectDone =
-    isCompleted ||
-    status === "completed" ||
-    status === "accepted" ||
-    localProject?.submissionStatus === "completed" ||
-    localProject?.submissionStatus === "accepted" ||
-    localProject?.status === "completed" ||
-    localProject?.status === "accepted" ||
-    (() => {
-      const ms = (localProject as any)?.milestones;
-      const terms = ((localProject as any)?.paymentTerms || "").toLowerCase();
-      const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
-      return Array.isArray(ms) && ms.length >= mCount && mCount > 0 && ms.slice(0, mCount).every((m: any) => m?.status === "accepted");
-    })();
+    Boolean(isCompleted) ||
+    isProjectCompleted(mergedProject) ||
+    isProjectCompleted(localProject);
 
   useEffect(() => {
     let target = 0;

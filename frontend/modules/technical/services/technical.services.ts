@@ -19,6 +19,49 @@ export function readLocalProjects(): any[] {
   }
 }
 
+export function findLocalProject(projectId: string | number | undefined | null): any {
+  if (!projectId || typeof window === "undefined") return null;
+  const targetId = String(projectId).trim();
+  const cleanTarget = targetId.replace(/^PRJ-/i, "").toLowerCase();
+  const localList = readLocalProjects();
+  return (
+    localList.find((lp: any) => {
+      const lpId = String(lp.projectId || lp.id || "").trim();
+      const cleanLp = lpId.replace(/^PRJ-/i, "").toLowerCase();
+      const rawLpId = String(lp.id || "").trim().toLowerCase();
+      return (
+        lpId.toLowerCase() === targetId.toLowerCase() ||
+        cleanLp === cleanTarget ||
+        rawLpId === cleanTarget ||
+        `prj-${rawLpId}` === targetId.toLowerCase()
+      );
+    }) || null
+  );
+}
+
+export function isProjectCompleted(p: any): boolean {
+  if (!p) return false;
+  const subStatus = String(p.submissionStatus || "").toLowerCase().trim();
+  const st = String(p.status || "").toLowerCase().trim();
+  if (
+    subStatus === "accepted" ||
+    subStatus === "completed" ||
+    subStatus === "paid" ||
+    st === "completed" ||
+    st === "accepted" ||
+    st === "paid"
+  ) {
+    return true;
+  }
+  const terms = String(p.paymentTerms || "").toLowerCase();
+  const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+  const ms = p.milestones;
+  if (Array.isArray(ms) && ms.length >= mCount && mCount > 0) {
+    return ms.slice(0, mCount).every((m: any) => String(m?.status || "").toLowerCase() === "accepted");
+  }
+  return false;
+}
+
 export function writeLocalProjects(projects: any[]) {
   if (typeof window === "undefined") return;
   try {
@@ -126,43 +169,295 @@ export async function dispatchAdminNotification(notif: {
   } catch {}
 }
 
-export const fetchWalletBalance = async (_token?: string): Promise<{ balance: number }> => {
+export const fetchWalletBalance = async (userParam?: any): Promise<{
+  balance: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  pendingEscrow: number;
+}> => {
+  // 1. Try server API
   try {
     const ssoRes = await axiosInstance.get('/sso/wallet/balance');
-    if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null) {
-      return { balance: Number(ssoRes.data.balance) };
+    if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null && Number(ssoRes.data.balance) > 0) {
+      return {
+        balance: Number(ssoRes.data.balance),
+        totalEarned: Number(ssoRes.data.totalEarned || ssoRes.data.balance),
+        totalWithdrawn: Number(ssoRes.data.totalWithdrawn || 0),
+        pendingEscrow: Number(ssoRes.data.pendingEscrow || 0),
+      };
     }
   } catch {}
 
-  // Calculate accurately from persistent storage ledger if offline or mocked
+  // 2. Calculate accurately from persistent storage and assigned projects
   if (typeof window !== "undefined") {
     try {
-      const rawLedger = localStorage.getItem("platform_wallet_ledger");
       const rawUser = localStorage.getItem("auth_user") || localStorage.getItem("user");
       let uid = "";
-      if (rawUser) {
+      let uEmail = "";
+      let uName = "";
+      if (userParam) {
+        uid = String(userParam.id || userParam.userId || userParam.sub || "");
+        uEmail = String(userParam.email || "").toLowerCase().trim();
+        uName = String(userParam.name || userParam.fullName || userParam.businessName || "").toLowerCase().trim();
+      } else if (rawUser) {
         const u = JSON.parse(rawUser);
-        uid = u.id || u.userId || u.email;
+        uid = String(u.id || u.userId || u.sub || "");
+        uEmail = String(u.email || "").toLowerCase().trim();
+        uName = String(u.name || u.fullName || u.businessName || "").toLowerCase().trim();
       }
+
+      const projects = readLocalProjects();
+      let earnedFromProjects = 0;
+      let pendingEscrow = 0;
+
+      projects.forEach((p: any) => {
+        const isAssignedToMe =
+          Boolean(
+            p.assignedBusinessId && (
+              p.assignedBusinessId === uid ||
+              p.assignedBusinessId === "business" ||
+              p.assignedBusinessId === (userParam as any)?.userId ||
+              p.assignedBusinessId === (userParam as any)?.id
+            )
+          ) ||
+          Boolean(
+            p.assignedBusinessUserId && (
+              p.assignedBusinessUserId === uid ||
+              p.assignedBusinessUserId === "business" ||
+              p.assignedBusinessUserId === (userParam as any)?.userId ||
+              p.assignedBusinessUserId === (userParam as any)?.id
+            )
+          ) ||
+          Boolean(
+            p.assignedBusinessEmail && uEmail && p.assignedBusinessEmail.toLowerCase().trim() === uEmail
+          ) ||
+          Boolean(
+            p.assignedBusinessName && uName && p.assignedBusinessName.toLowerCase().trim() === uName
+          ) ||
+          Boolean(
+            Array.isArray(p.participants) && p.participants.some((part: any) =>
+              part.userId === uid || (part.userEmail && uEmail && part.userEmail.toLowerCase().trim() === uEmail)
+            )
+          );
+
+        if (!isAssignedToMe) return;
+
+        const totalBudget = Number(p.adminBudget || p.price || p.budgetAmount || 0);
+        if (totalBudget <= 0) return;
+
+        const commPct = Number(p.commissionPercent ?? 10);
+        const netBudget = totalBudget * (1 - commPct / 100);
+
+        const terms = (p.paymentTerms || "").toLowerCase();
+        const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+        const perMilestoneNet = netBudget / mCount;
+
+        const isFullDone =
+          p.submissionStatus === "accepted" ||
+          p.status === "accepted" ||
+          p.paymentStatus === "released" ||
+          (Array.isArray(p.milestones) && mCount > 0 && p.milestones.slice(0, mCount).every((m: any) => m?.status === "accepted"));
+
+        if (isFullDone) {
+          earnedFromProjects += netBudget;
+        } else if (Array.isArray(p.milestones) && p.milestones.length > 0) {
+          const acceptedCount = p.milestones.slice(0, mCount).filter((m: any) => m?.status === "accepted").length;
+          earnedFromProjects += acceptedCount * perMilestoneNet;
+          pendingEscrow += (mCount - acceptedCount) * perMilestoneNet;
+        } else {
+          pendingEscrow += netBudget;
+        }
+      });
+
+      // Also check platform_wallet_ledger for any manual deposits or withdrawals
+      const rawLedger = localStorage.getItem("platform_wallet_ledger");
+      let manualEarned = 0;
+      let totalWithdrawn = 0;
+
       if (rawLedger) {
         const parsed: any[] = JSON.parse(rawLedger);
         if (Array.isArray(parsed)) {
-          const userDeposits = parsed
-            .filter((r) => (!uid || r.userId === uid) && (r.kind === "deposit" || r.kind === "earning" || r.type?.toLowerCase() === "deposit" || r.type?.toLowerCase() === "earning") && (r.status === "Complete" || r.status === "Completed" || r.status === "Pending"))
-            .reduce((acc, r) => acc + (parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0), 0);
-          
-          const userPayments = parsed
-            .filter((r) => (!uid || r.userId === uid) && (r.kind === "payment" || r.type?.toLowerCase() === "payment" || r.kind === "withdraw_hold"))
-            .reduce((acc, r) => acc + (parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0), 0);
+          parsed.forEach((r) => {
+            const rUid = String(r.userId || "");
+            const isMatch = !uid || rUid === uid || rUid === "business" || rUid === uEmail;
+            if (!isMatch) return;
 
-          const available = Math.max(0, userDeposits - userPayments);
-          return { balance: available };
+            const amt = parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0;
+            if (r.kind === "deposit" || (r.kind === "earning" && !r.id?.startsWith("TX-PAYOUT-"))) {
+              manualEarned += amt;
+            } else if (r.kind === "withdrawal" || r.kind === "withdraw_hold" || r.type?.toLowerCase() === "withdrawal") {
+              totalWithdrawn += amt;
+            }
+          });
         }
       }
+
+      const totalEarned = earnedFromProjects + manualEarned;
+      const availableBalance = Math.max(0, totalEarned - totalWithdrawn);
+
+      return {
+        balance: availableBalance,
+        totalEarned,
+        totalWithdrawn,
+        pendingEscrow,
+      };
     } catch {}
   }
 
-  return { balance: 0 };
+  return { balance: 0, totalEarned: 0, totalWithdrawn: 0, pendingEscrow: 0 };
+};
+
+export interface BusinessTransactionRecord {
+  id: string;
+  projectId?: string;
+  title: string;
+  method: string;
+  amount: string;
+  rawAmount: number;
+  date: string;
+  status: "Released" | "Completed" | "Pending" | "Failed";
+  type: "milestone_release" | "project_release" | "deposit" | "withdrawal";
+  clientName?: string;
+  milestoneInfo?: string;
+}
+
+export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionRecord[] => {
+  if (typeof window === "undefined") return [];
+  const records: BusinessTransactionRecord[] = [];
+
+  try {
+    const rawUser = localStorage.getItem("auth_user") || localStorage.getItem("user");
+    let uid = "";
+    let uEmail = "";
+    let uName = "";
+    if (userParam) {
+      uid = String(userParam.id || userParam.userId || userParam.sub || "");
+      uEmail = String(userParam.email || "").toLowerCase().trim();
+      uName = String(userParam.name || userParam.fullName || userParam.businessName || "").toLowerCase().trim();
+    } else if (rawUser) {
+      const u = JSON.parse(rawUser);
+      uid = String(u.id || u.userId || u.sub || "");
+      uEmail = String(u.email || "").toLowerCase().trim();
+      uName = String(u.name || u.fullName || u.businessName || "").toLowerCase().trim();
+    }
+
+    const projects = readLocalProjects();
+
+    projects.forEach((p: any) => {
+      const isAssignedToMe =
+        Boolean(
+          p.assignedBusinessId && (
+            p.assignedBusinessId === uid ||
+            p.assignedBusinessId === "business" ||
+            p.assignedBusinessId === (userParam as any)?.userId ||
+            p.assignedBusinessId === (userParam as any)?.id
+          )
+        ) ||
+        Boolean(
+          p.assignedBusinessUserId && (
+            p.assignedBusinessUserId === uid ||
+            p.assignedBusinessUserId === "business" ||
+            p.assignedBusinessUserId === (userParam as any)?.userId ||
+            p.assignedBusinessUserId === (userParam as any)?.id
+          )
+        ) ||
+        Boolean(
+          p.assignedBusinessEmail && uEmail && p.assignedBusinessEmail.toLowerCase().trim() === uEmail
+        ) ||
+        Boolean(
+          p.assignedBusinessName && uName && p.assignedBusinessName.toLowerCase().trim() === uName
+        ) ||
+        Boolean(
+          Array.isArray(p.participants) && p.participants.some((part: any) =>
+            part.userId === uid || (part.userEmail && uEmail && part.userEmail.toLowerCase().trim() === uEmail)
+          )
+        );
+
+      if (!isAssignedToMe) return;
+
+      const totalBudget = Number(p.adminBudget || p.price || p.budgetAmount || 0);
+      if (totalBudget <= 0) return;
+
+      const commPct = Number(p.commissionPercent ?? 10);
+      const netBudget = totalBudget * (1 - commPct / 100);
+
+      const terms = (p.paymentTerms || "").toLowerCase();
+      const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
+      const perMilestoneNet = netBudget / mCount;
+      const dateStr = formatProjectDate(p.completedAt || p.acceptedAt || p.updatedAt || p.createdAt) || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const pId = p.projectId || `PRJ-${p.id}`;
+
+      if (mCount <= 1 || terms.includes("one")) {
+        // One-time payment
+        const isDone = isProjectCompleted(p) || p.paymentStatus === "released" || p.submissionStatus === "accepted";
+        if (isDone) {
+          records.push({
+            id: `TX-${pId.replace(/^PRJ-/i, "")}-FULL`,
+            projectId: pId,
+            title: p.title || "Technical Service Delivery",
+            method: "Escrow Full Release",
+            amount: `+$${netBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
+            rawAmount: netBudget,
+            date: dateStr,
+            status: "Released",
+            type: "project_release",
+            clientName: p.clientName || "Client",
+            milestoneInfo: "Full 100% Escrow Release",
+          });
+        }
+      } else {
+        // Milestones
+        const ms = Array.isArray(p.milestones) ? p.milestones : [];
+        for (let i = 0; i < mCount; i++) {
+          const m = ms[i];
+          if (m?.status === "accepted" || isProjectCompleted(p) || p.paymentStatus === "released") {
+            records.push({
+              id: `TX-${pId.replace(/^PRJ-/i, "")}-M${i + 1}`,
+              projectId: pId,
+              title: `${p.title} (Milestone ${i + 1}/${mCount})`,
+              method: `Escrow Milestone Payout (${i + 1}/${mCount})`,
+              amount: `+$${perMilestoneNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
+              rawAmount: perMilestoneNet,
+              date: formatProjectDate(m?.acceptedAt || p.completedAt || p.updatedAt) || dateStr,
+              status: "Released",
+              type: "milestone_release",
+              clientName: p.clientName || "Client",
+              milestoneInfo: `Milestone ${i + 1} of ${mCount} Accepted`,
+            });
+          }
+        }
+      }
+    });
+
+    // Check platform_wallet_ledger
+    const rawLedger = localStorage.getItem("platform_wallet_ledger");
+    if (rawLedger) {
+      const parsed: any[] = JSON.parse(rawLedger);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((r) => {
+          if (r.id && records.some((rec) => rec.id === r.id)) return;
+          const rUid = String(r.userId || "");
+          const isMatch = !uid || rUid === uid || rUid === "business" || rUid === uEmail;
+          if (!isMatch) return;
+
+          const amtNum = parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0;
+          records.push({
+            id: r.id || `TX-${Date.now()}`,
+            title: r.method || r.description || "Wallet Transaction",
+            method: r.method || "Direct Payout",
+            amount: r.amount?.startsWith("+") || r.amount?.startsWith("-") ? r.amount : `+$${amtNum.toFixed(2)} USD`,
+            rawAmount: amtNum,
+            date: formatProjectDate(r.date || r.timestamp) || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            status: r.status === "Complete" || r.status === "Completed" ? "Completed" : "Pending",
+            type: r.kind === "withdrawal" ? "withdrawal" : "deposit",
+            clientName: r.userName || "Platform Escrow",
+          });
+        });
+      }
+    }
+  } catch {}
+
+  return records;
 };
 
 export const depositToWallet = async (
@@ -1052,16 +1347,25 @@ export const reviewMilestone = async (
 
 export function formatProjectDate(d?: string | Date | null): string {
   if (!d) return "";
+  const str = String(d).trim();
+  if (str.includes("→")) {
+    const parts = str.split("→").map((s) => s.trim());
+    return parts.map((part) => formatProjectDate(part)).join(" → ");
+  }
+  if (str.includes(" - ") && !str.startsWith("-")) {
+    const parts = str.split(" - ").map((s) => s.trim());
+    return parts.map((part) => formatProjectDate(part)).join(" → ");
+  }
   try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return String(d);
+    const dt = new Date(str);
+    if (isNaN(dt.getTime())) return str;
     return dt.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
   } catch {
-    return String(d);
+    return str;
   }
 }
 

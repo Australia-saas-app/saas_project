@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import {
   Search,
@@ -56,6 +56,7 @@ import {
   getAllRegisteredContacts,
   resolveContactFullName,
   searchRegisteredContacts,
+  fetchRegisteredContactsFromDB,
   type RegisteredContact,
 } from "@/src/shared/lib/contacts-store";
 import { type DashboardRole } from "@/src/shared/lib/messages-store";
@@ -126,15 +127,65 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
   const socketRef = useRef<Socket | null>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
-  // 1. Initial Connection Animation & WebSocket Room Setup
+  const selectedContactIdRef = useRef<string>("");
+  const selectedContactRef = useRef<LiveChatContact | null>(null);
+
+  // 3. Load Contacts, Requests, and Messages from Store & DB
+  const reloadContacts = useCallback(() => {
+    const loadedContacts = getAllLiveChatContacts(currentUserEmail);
+    const loadedMessages = readLiveChatMessages();
+
+    setContacts(loadedContacts);
+    setMessagesStore(loadedMessages);
+
+    // Keep selectedContactId if it still exists in loadedContacts, but DO NOT auto-select anything by default!
+    if (selectedContactId && !loadedContacts.some((c) => c.id === selectedContactId)) {
+      setSelectedContactId("");
+    }
+  }, [currentUserEmail, selectedContactId]);
+
+  const reloadRequests = useCallback(() => {
+    const reqs = getPendingIncomingRequests(currentUserEmail);
+    setIncomingRequests(reqs);
+  }, [currentUserEmail]);
+
+  // Keep refs in sync for event listeners and timeouts
   useEffect(() => {
+    selectedContactIdRef.current = selectedContactId;
+    selectedContactRef.current = contacts.find((c) => c.id === selectedContactId) || null;
+  }, [selectedContactId, contacts]);
+
+  // 1. Initial Connection Animation & Full DB Sync Preload
+  useEffect(() => {
+    let isMounted = true;
     setIsConnecting(true);
     setIsConnected(false);
 
-    const timer = setTimeout(() => {
-      setIsConnecting(false);
-      setIsConnected(true);
-    }, 750);
+    // Pre-populate with local cache immediately
+    reloadContacts();
+    reloadRequests();
+
+    const connectAndFetch = async () => {
+      try {
+        // Wait until all conversations, messages, requests, and contacts are fully fetched from DB
+        await Promise.all([
+          syncLiveChatFromDb(currentUserEmail).catch(() => null),
+          fetchRegisteredContactsFromDB().catch(() => null),
+          new Promise((r) => setTimeout(r, 600)),
+        ]);
+      } catch {
+        // fallback safely
+      } finally {
+        if (isMounted) {
+          reloadContacts();
+          reloadRequests();
+          setIsConnecting(false);
+          setIsConnected(true);
+        }
+      }
+    };
+
+    connectAndFetch();
 
     // Initialize cross-tab BroadcastChannel for instant local room sync
     if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -149,8 +200,13 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
           } else if (type === "TYPING_STATUS") {
             const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
             const myClean = (currentUserEmail || "").toLowerCase().trim();
+            const receiverClean = (payload?.receiverEmail || "").toLowerCase().trim();
 
             if (senderClean && myClean && senderClean === myClean) {
+              return;
+            }
+
+            if (receiverClean && myClean && receiverClean !== myClean) {
               return;
             }
 
@@ -159,25 +215,25 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
               ? `contact-${senderClean.replace(/[^a-zA-Z0-9]/g, "_")}`
               : payload?.contactId;
 
-            if (targetContactId) {
-              setTypingContacts((prev) => ({
-                ...prev,
-                [targetContactId]: isTyping,
-                [payload?.contactId]: isTyping,
-                ...(senderClean ? { [senderClean]: isTyping } : {}),
-              }));
-            }
+            setTypingContacts((prev) => ({
+              ...prev,
+              ...(targetContactId ? { [targetContactId]: isTyping } : {}),
+              ...(payload?.contactId ? { [payload.contactId]: isTyping } : {}),
+              ...(senderClean ? { [senderClean]: isTyping } : {}),
+            }));
           } else if (type === "MESSAGES_DELIVERED") {
             const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
+            const receiverClean = (payload?.receiverEmail || "").toLowerCase().trim();
             const myClean = (currentUserEmail || "").toLowerCase().trim();
-            if (senderClean && myClean && senderClean === myClean) {
+
+            if ((senderClean && senderClean === myClean) || (receiverClean && receiverClean !== myClean)) {
               const contactId = payload?.contactId;
               const msgId = payload?.messageId;
               setMessagesStore((prev) => {
                 const next = { ...prev };
                 let modified = false;
                 Object.keys(next).forEach((key) => {
-                  if (contactId && key !== contactId && !key.includes(senderClean)) return;
+                  if (contactId && key !== contactId && !key.includes(receiverClean)) return;
                   next[key] = next[key].map((m) => {
                     if ((!msgId || m.id === msgId) && m.status === "sent") {
                       modified = true;
@@ -195,14 +251,17 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
             }
           } else if (type === "MESSAGES_SEEN") {
             const senderClean = (payload?.senderEmail || "").toLowerCase().trim();
+            const readerClean = (payload?.readerEmail || "").toLowerCase().trim();
             const myClean = (currentUserEmail || "").toLowerCase().trim();
-            if (senderClean && myClean && senderClean === myClean) {
+
+            if ((senderClean && senderClean === myClean) || (readerClean && readerClean !== myClean)) {
               const contactId = payload?.contactId;
               const msgId = payload?.messageId;
               setMessagesStore((prev) => {
                 const next = { ...prev };
                 let modified = false;
                 Object.keys(next).forEach((key) => {
+                  if (contactId && key !== contactId && !key.includes(readerClean)) return;
                   next[key] = next[key].map((m) => {
                     if ((!msgId || m.id === msgId) && m.status !== "seen") {
                       modified = true;
@@ -249,6 +308,33 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
               setRequestVersion((v) => v + 1);
             });
           } else if (type === "USER_PRESENCE") {
+            const presenceEmail = (payload?.email || "").toLowerCase().trim();
+            const isOnline = Boolean(payload?.isOnline);
+
+            if (isOnline && presenceEmail && presenceEmail !== (currentUserEmail || "").toLowerCase()) {
+              // Recipient came online! Upgrade all "sent" messages to "delivered"
+              setMessagesStore((prev) => {
+                const next = { ...prev };
+                let modified = false;
+                Object.keys(next).forEach((key) => {
+                  if (key.includes(presenceEmail) || key === `contact-${presenceEmail.replace(/[^a-zA-Z0-9]/g, "_")}`) {
+                    next[key] = next[key].map((m) => {
+                      if (m.status === "sent" && m.senderEmail?.toLowerCase() === (currentUserEmail || "").toLowerCase()) {
+                        modified = true;
+                        return { ...m, status: "delivered" as const };
+                      }
+                      return m;
+                    });
+                  }
+                });
+                if (modified) {
+                  writeLiveChatMessages(next);
+                  return next;
+                }
+                return prev;
+              });
+            }
+
             syncLiveChatFromDb(currentUserEmail).then(reloadContacts);
           } else if (type === "CHAT_DELETED") {
             reloadContacts();
@@ -309,11 +395,10 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     }
 
     return () => {
-      clearTimeout(timer);
       broadcastChannelRef.current?.close();
       socketRef.current?.disconnect();
     };
-  }, []);
+  }, [currentUserEmail, reloadContacts, reloadRequests]);
 
   // 2. Room Join when selected contact changes
   useEffect(() => {
@@ -363,11 +448,16 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
       unDeleteLiveChatContact(contactId, myClean);
     }
 
-    // Determine if User B currently has User A's chat open
-    const isCurrentlyOpen =
-      selectedContactId === contactId ||
-      selectedContactId === targetContactId ||
-      (selectedContact && selectedContact.email.toLowerCase() === senderClean);
+    // Determine if User B currently has User A's chat open using refs
+    const currentOpenId = selectedContactIdRef.current;
+    const currentOpenContact = selectedContactRef.current;
+    const isCurrentlyOpen = Boolean(
+      currentOpenId &&
+        (currentOpenId === contactId ||
+          currentOpenId === targetContactId ||
+          (currentOpenContact && currentOpenContact.email.toLowerCase() === senderClean) ||
+          (senderClean && currentOpenId.toLowerCase().includes(senderClean)))
+    );
 
     const finalStatus: "seen" | "delivered" = isCurrentlyOpen ? "seen" : "delivered";
     const msgToSave: LiveChatMessage = {
@@ -391,7 +481,9 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
 
     // In-app toast notification if chat is not currently open
     if (!isCurrentlyOpen && senderClean && myClean && senderClean !== myClean) {
-      toast.info(`New message from ${message.senderName || "Contact"}: "${message.content.length > 30 ? message.content.slice(0, 30) + '...' : message.content}"`);
+      toast.info(
+        `New message from ${message.senderName || "Contact"}: "${message.content.length > 30 ? message.content.slice(0, 30) + '...' : message.content}"`
+      );
     }
 
     // Notify sender back immediately with delivery / seen receipt
@@ -406,6 +498,17 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
             messageId: message.id,
           },
         });
+
+        // Persist seen status to DB
+        fetch("/api/live-chat/messages", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId: targetContactId,
+            senderEmail: senderClean,
+            readerEmail: currentUserEmail,
+          }),
+        }).catch(() => null);
       } else {
         broadcastChannelRef.current?.postMessage({
           type: "MESSAGES_DELIVERED",
@@ -421,12 +524,21 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
 
     // Update contacts list in sidebar
     setContacts((prev) => {
-      const exists = prev.some((c) => c.id === targetContactId || c.id === contactId || (senderClean && c.email.toLowerCase() === senderClean));
+      const exists = prev.some(
+        (c) =>
+          c.id === targetContactId ||
+          c.id === contactId ||
+          (senderClean && c.email.toLowerCase() === senderClean)
+      );
       if (!exists) {
         return getAllLiveChatContacts(currentUserEmail);
       }
       return prev.map((c) => {
-        if (c.id === targetContactId || c.id === contactId || (senderClean && c.email.toLowerCase() === senderClean)) {
+        if (
+          c.id === targetContactId ||
+          c.id === contactId ||
+          (senderClean && c.email.toLowerCase() === senderClean)
+        ) {
           return {
             ...c,
             lastMessage: message.content,
@@ -437,25 +549,6 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
         return c;
       });
     });
-  };
-
-  // 3. Load Contacts, Requests, and Messages from Store & DB
-  const reloadContacts = () => {
-    const loadedContacts = getAllLiveChatContacts(currentUserEmail);
-    const loadedMessages = readLiveChatMessages();
-
-    setContacts(loadedContacts);
-    setMessagesStore(loadedMessages);
-
-    // Keep selectedContactId if it still exists in loadedContacts, but DO NOT auto-select anything by default!
-    if (selectedContactId && !loadedContacts.some((c) => c.id === selectedContactId)) {
-      setSelectedContactId("");
-    }
-  };
-
-  const reloadRequests = () => {
-    const reqs = getPendingIncomingRequests(currentUserEmail);
-    setIncomingRequests(reqs);
   };
 
   // Live presence listener & periodic real-time sync timer
@@ -573,7 +666,12 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     return allMsgs.filter((m) => (m.timestamp || 0) > clearedAt);
   }, [messagesStore, selectedContact, currentUserEmail]);
 
-  const isOtherTyping = Boolean(selectedContactId && typingContacts[selectedContactId]);
+  const isOtherTyping = Boolean(
+    (selectedContactId && typingContacts[selectedContactId]) ||
+      (selectedContact?.email && typingContacts[selectedContact.email.toLowerCase()]) ||
+      (selectedContact?.email &&
+        typingContacts[`contact-${selectedContact.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`])
+  );
 
   // Auto-scroll on new messages or typing
   useEffect(() => {
@@ -1245,7 +1343,12 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
               const isSelected = selectedContact ? selectedContact.id === contact.id : false;
               const hasUnread = (contact.unreadCount || 0) > 0;
               const isSupport = contact.id === "support-team";
-              const isThisContactTyping = Boolean(typingContacts[contact.id]);
+              const isThisContactTyping = Boolean(
+                typingContacts[contact.id] ||
+                  (contact.email && typingContacts[contact.email.toLowerCase()]) ||
+                  (contact.email &&
+                    typingContacts[`contact-${contact.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`])
+              );
 
               return (
                 <button
@@ -1413,7 +1516,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
                       </div>
                     ) : selectedContact.status === "online" ? (
                       <span className="text-emerald-500 font-medium flex items-center gap-1.5">
-                        <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500 animate-pulse" /> Online • Active now
+                        <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500 animate-pulse" /> Online
                       </span>
                     ) : (
                       <span className="text-muted-foreground/80 font-normal flex items-center gap-1.5">
@@ -1502,7 +1605,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
                               }
                             >
                               {msg.status === "seen" ? (
-                                <CheckCheck className="h-3.5 w-3.5 text-sky-300 dark:text-sky-300 stroke-[2.5]" />
+                                <CheckCheck className="h-3.5 w-3.5 text-[#38bdf8] dark:text-[#38bdf8] stroke-[2.8] drop-shadow-xs" />
                               ) : msg.status === "delivered" ? (
                                 <CheckCheck className="h-3.5 w-3.5 text-white/70 dark:text-white/70 stroke-[2]" />
                               ) : (

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, Trash2 } from "lucide-react";
 import { type NotificationItem, formatNotificationTime } from "@/src/constants/notifications";
 import { useNotifications } from "@/src/shared/context/notification.provider";
+import { useUser } from "@/src/context/user.provider";
 
 function useIsDarkMode() {
   const [isDark, setIsDark] = useState(false);
@@ -38,6 +40,8 @@ export function NotificationBell({
   viewAllHref,
   emptyLabel = "You're all caught up",
 }: NotificationBellProps) {
+  const router = useRouter();
+  const { user } = useUser();
   const [open, setOpen] = useState(false);
   const isDark = useIsDarkMode();
   const { notifications, unreadCount, markRead, markAllRead, deleteNotification, deleteAllNotifications } = useNotifications();
@@ -51,6 +55,44 @@ export function NotificationBell({
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
+
+  const handleNotificationClick = (item: NotificationItem, e?: React.MouseEvent) => {
+    markRead(item.id);
+    setOpen(false);
+
+    const isLiveChat =
+      item.type === "chat_request" ||
+      item.type === "chat_accepted" ||
+      item.type === "live_chat" ||
+      (item.title && item.title.toLowerCase().includes("live chat")) ||
+      (item.message && item.message.toLowerCase().includes("live chat")) ||
+      (item.href && item.href.includes("live_chat"));
+
+    if (isLiveChat) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const rawRole = String((user as any)?.role || (user as any)?.accountType || "").toLowerCase().trim();
+      const baseChatPath =
+        rawRole === "business" || rawRole === "seller" || rawRole === "company"
+          ? "/dashboard/business/messages?tab=live_chat"
+          : rawRole === "affiliate"
+          ? "/dashboard/affiliate/messages?tab=live_chat"
+          : "/dashboard/user/messages?tab=live_chat";
+
+      try {
+        window.dispatchEvent(new CustomEvent("open_live_chat", { detail: item }));
+      } catch {}
+
+      router.push(baseChatPath);
+      return;
+    }
+
+    if (item.href) {
+      router.push(item.href);
+    }
+  };
 
   return (
     <div ref={rootRef} className="relative z-50">
@@ -147,50 +189,25 @@ export function NotificationBell({
             ) : (
               notifications.map((item) => (
                 <li key={item.id} className="relative group">
-                  {item.href ? (
-                    <Link
-                      href={item.href}
-                      onClick={() => {
-                        markRead(item.id);
-                        setOpen(false);
-                      }}
-                      style={{
-                        backgroundColor: !item.read
-                          ? isDark
-                            ? "rgba(255, 255, 255, 0.05)"
-                            : "#f0f9ff"
-                          : "transparent",
-                        borderLeft: !item.read
-                          ? isDark
-                            ? "3px solid #3b82f6"
-                            : "3px solid #2563eb"
-                          : "3px solid transparent",
-                      }}
-                      className="block px-4 py-3 pr-10 transition-colors hover:opacity-90"
-                    >
-                      <NotificationRow item={item} isDark={isDark} />
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => markRead(item.id)}
-                      style={{
-                        backgroundColor: !item.read
-                          ? isDark
-                            ? "rgba(255, 255, 255, 0.05)"
-                            : "#f0f9ff"
-                          : "transparent",
-                        borderLeft: !item.read
-                          ? isDark
-                            ? "3px solid #3b82f6"
-                            : "3px solid #2563eb"
-                          : "3px solid transparent",
-                      }}
-                      className="block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer hover:opacity-90"
-                    >
-                      <NotificationRow item={item} isDark={isDark} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => handleNotificationClick(item, e)}
+                    style={{
+                      backgroundColor: !item.read
+                        ? isDark
+                          ? "rgba(255, 255, 255, 0.05)"
+                          : "#f0f9ff"
+                        : "transparent",
+                      borderLeft: !item.read
+                        ? isDark
+                          ? "3px solid #3b82f6"
+                          : "3px solid #2563eb"
+                        : "3px solid transparent",
+                    }}
+                    className="block w-full px-4 py-3 pr-10 text-left transition-colors cursor-pointer hover:opacity-90"
+                  >
+                    <NotificationRow item={item} isDark={isDark} />
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {

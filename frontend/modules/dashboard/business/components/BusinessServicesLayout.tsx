@@ -37,7 +37,7 @@ import {
   type ServiceStatus,
 } from "../data/business-demo-data";
 import { useUser } from "@/src/context/user.provider";
-import { fetchPublicProjects, fetchAssignedProjects, fetchMyApplications, applyForProject, recordActivityLog } from "@/src/modules/technical/services/technical.services";
+import { fetchPublicProjects, fetchAssignedProjects, fetchMyApplications, applyForProject, recordActivityLog, isProjectCompleted, findLocalProject } from "@/src/modules/technical/services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { PublicDetailModal } from "@/src/modules/shared/components/public/PublicDetailModal";
 import { PublicApplyModal } from "@/src/modules/shared/components/public/PublicApplyModal";
@@ -469,8 +469,10 @@ export default function BusinessServicesLayout() {
     const uEmail = (user as any)?.email;
 
     services.forEach((s: any) => {
-      const p = s.rawProject;
-      if (!p) return;
+      const rawP = s.rawProject;
+      if (!rawP) return;
+      const local = findLocalProject(rawP.projectId || rawP.id);
+      const p = { ...rawP, ...(local || {}) };
 
       const isAssigned =
         s.isAssigned ||
@@ -478,11 +480,20 @@ export default function BusinessServicesLayout() {
           p.assignedBusinessId && uId && (
             p.assignedBusinessId === uId ||
             p.assignedBusinessId === (user as any)?.userId ||
-            p.assignedBusinessId === (user as any)?.id
+            p.assignedBusinessId === (user as any)?.id ||
+            p.assignedBusinessId === "business"
           )
         ) ||
         Boolean(
-          p.assignedBusinessEmail && uEmail && p.assignedBusinessEmail === uEmail
+          p.assignedBusinessUserId && uId && (
+            p.assignedBusinessUserId === uId ||
+            p.assignedBusinessUserId === (user as any)?.userId ||
+            p.assignedBusinessUserId === (user as any)?.id ||
+            p.assignedBusinessUserId === "business"
+          )
+        ) ||
+        Boolean(
+          p.assignedBusinessEmail && uEmail && p.assignedBusinessEmail.toLowerCase().trim() === uEmail.toLowerCase().trim()
         );
 
       if (!isAssigned) return;
@@ -490,14 +501,24 @@ export default function BusinessServicesLayout() {
       const totalBudget = Number(p.adminBudget || p.price || (p as any).budgetAmount || 0);
       if (totalBudget <= 0) return;
 
+      const commPct = Number(p.commissionPercent ?? 10);
+      const netBudget = totalBudget * (1 - commPct / 100);
+
       const terms = (p.paymentTerms || "").toLowerCase();
       const mCount = terms.includes("three") || terms === "3" ? 3 : terms.includes("two") || terms === "2" ? 2 : 1;
-      const perMilestone = totalBudget / mCount;
+      const perMilestone = netBudget / mCount;
 
-      if (p.submissionStatus === "accepted" || p.paymentStatus === "released") {
-        sum += totalBudget;
+      const isCompleted =
+        isProjectCompleted(p) ||
+        p.submissionStatus === "accepted" ||
+        p.paymentStatus === "released" ||
+        p.status === "completed" ||
+        p.status === "accepted";
+
+      if (isCompleted) {
+        sum += netBudget;
       } else if (Array.isArray(p.milestones)) {
-        const acceptedCount = p.milestones.filter((m: any) => m?.status === "accepted").length;
+        const acceptedCount = p.milestones.slice(0, mCount).filter((m: any) => m?.status === "accepted").length;
         sum += acceptedCount * perMilestone;
       }
     });

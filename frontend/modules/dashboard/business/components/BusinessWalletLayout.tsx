@@ -22,11 +22,13 @@ import { getWithdrawalsForUser } from "@/src/shared/lib/wallet-store";
 import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { EMPTY_BUSINESS_STATS } from "@/src/shared/lib/dashboard-empty-stats";
 import { BUSINESS_STATS } from "../data/business-demo-data";
+import { useUser } from "@/src/context/user.provider";
 
 const PAGE_SIZE = 5;
 
 export default function BusinessWalletLayout() {
   const { t } = useLocale();
+  const { user } = useUser();
   const { userId, isDemo, isReady, demoOrEmpty } = useIsDemoAccount();
   const w = t.businessPages.wallet;
   const stats = demoOrEmpty(BUSINESS_STATS, EMPTY_BUSINESS_STATS);
@@ -38,13 +40,18 @@ export default function BusinessWalletLayout() {
   const [earningSearch, setEarningSearch] = useState("");
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
-  const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [financialStats, setFinancialStats] = useState({
+    balance: 0,
+    totalEarned: 0,
+    totalWithdrawn: 0,
+    pendingEscrow: 0,
+  });
 
   const loadRealBalance = async () => {
     try {
-      const res = await fetchWalletBalance();
-      if (res?.balance !== undefined && res.balance !== null) {
-        setRealBalance(res.balance);
+      const res = await fetchWalletBalance(user);
+      if (res) {
+        setFinancialStats(res);
       }
     } catch {}
   };
@@ -53,8 +60,16 @@ export default function BusinessWalletLayout() {
     loadRealBalance();
     const onWalletUpdated = () => loadRealBalance();
     window.addEventListener("wallet_updated", onWalletUpdated);
-    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
-  }, []);
+    window.addEventListener("storage", onWalletUpdated);
+    window.addEventListener("focus", onWalletUpdated);
+    window.addEventListener("platform_projects_updated", onWalletUpdated);
+    return () => {
+      window.removeEventListener("wallet_updated", onWalletUpdated);
+      window.removeEventListener("storage", onWalletUpdated);
+      window.removeEventListener("focus", onWalletUpdated);
+      window.removeEventListener("platform_projects_updated", onWalletUpdated);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!isReady || !userId) return;
@@ -73,12 +88,27 @@ export default function BusinessWalletLayout() {
 
   const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
 
-  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
+  const displayBalance =
+    financialStats.balance > 0
+      ? `$${financialStats.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : stats.currentBalance;
+
+  const displayCommission =
+    financialStats.totalEarned > 0
+      ? `$${financialStats.totalEarned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : stats.totalCommission;
+
+  const displayPending =
+    financialStats.pendingEscrow > 0
+      ? `$${financialStats.pendingEscrow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? "$640"
+      : "$0";
 
   const walletStats = [
-    { label: w.totalCommission, value: stats.totalCommission },
+    { label: w.totalCommission, value: displayCommission },
     { label: w.totalWithdrawn, value: stats.totalWithdrawn },
-    { label: w.pendingPayout, value: isDemo ? "$640" : "$0" },
+    { label: w.pendingPayout, value: displayPending },
     { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 

@@ -1,4 +1,85 @@
 import { getAllRegisteredContacts, resolveContactFullName, type RegisteredContact } from "@/src/shared/lib/contacts-store";
+import axiosInstance from "@/src/lib/axiosInstance";
+
+export async function dispatchLiveChatNotification(params: {
+  recipientEmail: string;
+  recipientName?: string;
+  recipientRole?: string;
+  title: string;
+  message: string;
+  type: "chat_request" | "chat_accepted" | "live_chat";
+}) {
+  const roleSlug = (params.recipientRole || "").toLowerCase();
+  const href =
+    roleSlug === "business" || roleSlug === "seller" || roleSlug === "company"
+      ? "/dashboard/business/messages?tab=live_chat"
+      : roleSlug === "affiliate"
+      ? "/dashboard/affiliate/messages?tab=live_chat"
+      : "/dashboard/user/messages?tab=live_chat";
+
+  const notifId = `notif-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const now = new Date().toISOString();
+
+  const item = {
+    id: notifId,
+    title: params.title,
+    message: params.message,
+    type: params.type,
+    createdAt: now,
+    time: "Just now",
+    read: false,
+    href,
+    data: { href, type: params.type },
+    recipientEmail: params.recipientEmail.toLowerCase().trim(),
+  };
+
+  // 1. Post to backend DB notifications endpoint
+  try {
+    axiosInstance.post("/notifications", {
+      title: params.title,
+      message: params.message,
+      type: params.type,
+      recipientEmail: params.recipientEmail,
+      priority: "high",
+      href,
+      data: { href, type: params.type },
+    }).catch(() => null);
+  } catch {}
+
+  // 2. Write to recipient's local notification cache and broadcast sync
+  if (typeof window !== "undefined") {
+    try {
+      const targetKey = `app_notifs_${params.recipientEmail.toLowerCase().trim()}`;
+      const existingRaw = localStorage.getItem(targetKey);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      const updated = [item, ...existing.filter((n: any) => n.id !== notifId)].slice(0, 50);
+      localStorage.setItem(targetKey, JSON.stringify(updated));
+
+      // 3. Broadcast sync event across tabs and listeners
+      localStorage.setItem(
+        "vero_notif_sync",
+        JSON.stringify({
+          targetEmail: params.recipientEmail.toLowerCase().trim(),
+          item,
+          timestamp: Date.now(),
+        })
+      );
+
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({
+          type: "vero:new_notification",
+          payload: item,
+          targetEmail: params.recipientEmail.toLowerCase().trim(),
+        });
+        bc.close();
+      }
+
+      window.dispatchEvent(new CustomEvent("new_notification", { detail: item }));
+      window.dispatchEvent(new Event("notifications_updated"));
+    } catch {}
+  }
+}
 
 export interface LiveChatMessage {
   id: string;
@@ -308,6 +389,16 @@ export function sendLiveChatRequest(
 
   writeLiveChatRequests([newRequest, ...filtered]);
 
+  // Dispatch Notification Bell item to receiver
+  dispatchLiveChatNotification({
+    recipientEmail: rEmail,
+    recipientName: receiver.name,
+    recipientRole: receiver.role,
+    title: "New Live Chat Request",
+    message: `${sender.name || "A user"} sent you a live chat request.`,
+    type: "chat_request",
+  });
+
   // Persist to Database API
   if (typeof window !== "undefined") {
     fetch("/api/live-chat/requests", {
@@ -377,6 +468,16 @@ export function acceptLiveChatRequest(requestId: string, currentUserEmail: strin
       };
       writeLiveChatPresence(presenceMap);
     }
+
+    // Dispatch Notification Bell item to requester
+    dispatchLiveChatNotification({
+      recipientEmail: r.senderEmail,
+      recipientName: r.senderName,
+      recipientRole: r.senderRole,
+      title: "Live Chat Request Accepted",
+      message: `${r.receiverName || "User"} accepted your live chat request. You can now chat live.`,
+      type: "chat_accepted",
+    });
 
     // Persist to Database API
     if (typeof window !== "undefined") {

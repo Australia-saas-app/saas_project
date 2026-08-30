@@ -215,25 +215,44 @@ export default function DashboardMessagesLayout({
   technicalHref,
 }: DashboardMessagesLayoutProps) {
   const { user } = useUser();
-  const { notify } = useNotifications();
   const searchParams = useSearchParams();
-  const threadParam = searchParams.get("thread");
-  const toNameParam = searchParams.get("toName");
-  const toBsnParam = searchParams.get("toBsn");
-  const toEmailParam = searchParams.get("toEmail");
-  const toUserIdParam = searchParams.get("toUserId");
-  const projectIdParam = searchParams.get("projectId");
-  const projectTitleParam = searchParams.get("projectTitle");
+  const tabParam = searchParams?.get("tab");
+  const threadParam = searchParams?.get("thread");
+  const toNameParam = searchParams?.get("toName");
+  const toBsnParam = searchParams?.get("toBsn");
+  const toEmailParam = searchParams?.get("toEmail");
+  const toUserIdParam = searchParams?.get("toUserId");
+  const projectIdParam = searchParams?.get("projectId");
+  const projectTitleParam = searchParams?.get("projectTitle");
 
   const currentUserEmail = user?.email || "";
   const socketRef = useRef<Socket | null>(null);
 
   const [threads, setThreads] = useState<MessageThread[]>([]);
-  const [folder, setFolder] = useState<MessageFolder>("inbox");
+  const [folder, setFolder] = useState<MessageFolder>(() => {
+    if (tabParam === "live" || tabParam === "live_chat" || tabParam === "liveChat") {
+      return "live";
+    }
+    return "inbox";
+  });
   const [search, setSearch] = useState("");
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (tabParam === "live" || tabParam === "live_chat" || tabParam === "liveChat") {
+      setFolder("live");
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
+    const handleOpenLiveChat = () => {
+      setFolder("live");
+    };
+    window.addEventListener("open_live_chat", handleOpenLiveChat);
+    return () => window.removeEventListener("open_live_chat", handleOpenLiveChat);
+  }, []);
   
   // Gmail Compose States
   const [composeOpen, setComposeOpen] = useState(false);
@@ -1036,7 +1055,7 @@ export default function DashboardMessagesLayout({
 
   if (folder === "live") {
     return (
-      <div className="w-full h-[calc(100vh-5.5rem)] max-h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden">
+      <div className="w-full h-[calc(100vh-120px)] md:h-[calc(100vh-135px)] max-h-[calc(100vh-120px)] md:max-h-[calc(100vh-135px)] flex flex-col overflow-hidden">
         <LiveChatTab role={role} onExitLiveChat={() => setFolder("inbox")} />
       </div>
     );

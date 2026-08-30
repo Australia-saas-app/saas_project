@@ -6,19 +6,25 @@ import { BUSINESS_STATS } from "../data/business-demo-data";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { EMPTY_BUSINESS_STATS } from "@/src/shared/lib/dashboard-empty-stats";
 import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
+import { useUser } from "@/src/context/user.provider";
 
 export function BusinessStatsRow() {
   const { t } = useLocale();
+  const { user } = useUser();
   const { demoOrEmpty, isDemo } = useIsDemoAccount();
   const d = t.business.dashboard;
   const stats = demoOrEmpty(BUSINESS_STATS, EMPTY_BUSINESS_STATS);
-  const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [financialStats, setFinancialStats] = useState({
+    balance: 0,
+    totalEarned: 0,
+    totalWithdrawn: 0,
+  });
 
   const loadBalance = async () => {
     try {
-      const res = await fetchWalletBalance();
-      if (res?.balance !== undefined && res.balance !== null) {
-        setRealBalance(res.balance);
+      const res = await fetchWalletBalance(user);
+      if (res) {
+        setFinancialStats(res);
       }
     } catch {}
   };
@@ -27,16 +33,36 @@ export function BusinessStatsRow() {
     loadBalance();
     const onWalletUpdated = () => loadBalance();
     window.addEventListener("wallet_updated", onWalletUpdated);
-    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
-  }, []);
+    window.addEventListener("storage", onWalletUpdated);
+    window.addEventListener("focus", onWalletUpdated);
+    window.addEventListener("platform_projects_updated", onWalletUpdated);
+    return () => {
+      window.removeEventListener("wallet_updated", onWalletUpdated);
+      window.removeEventListener("storage", onWalletUpdated);
+      window.removeEventListener("focus", onWalletUpdated);
+      window.removeEventListener("platform_projects_updated", onWalletUpdated);
+    };
+  }, [user]);
 
-  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : (isDemo ? stats.currentBalance : "$0.00");
+  const displayBalance =
+    financialStats.balance > 0
+      ? `$${financialStats.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? stats.currentBalance
+      : "$0.00";
+
+  const displayCommission =
+    financialStats.totalEarned > 0
+      ? `$${financialStats.totalEarned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? stats.totalCommission
+      : "$0.00";
 
   const items = [
     { label: d.totalProject, value: String(stats.totalProjects) },
     { label: d.pendingProject, value: String(stats.pendingProjects) },
     { label: d.successfulProjects, value: String(stats.successfulProjects) },
-    { label: d.totalCommission, value: stats.totalCommission },
+    { label: d.totalCommission, value: displayCommission },
     { label: d.totalWithdrawn, value: stats.totalWithdrawn },
     { label: d.currentBalance, value: displayBalance, highlight: true },
   ];

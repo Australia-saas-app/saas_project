@@ -6,6 +6,9 @@ export type NotificationItem = {
   createdAt?: string | Date
   read: boolean
   href?: string
+  type?: string
+  data?: any
+  recipientEmail?: string
 }
 
 export function formatNotificationTime(input?: string | number | Date | null): string {

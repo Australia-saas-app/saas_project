@@ -14,7 +14,8 @@ import RecordDetailDrawer from "../../shared/components/RecordDetailDrawer";
 import { sortByMoney } from "../../shared/utils/sort-rows";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
-import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
+import { fetchWalletBalance, fetchBusinessTransactions } from "@/src/modules/technical/services/technical.services";
+import { useUser } from "@/src/context/user.provider";
 
 const PAGE_SIZE = 8;
 const TABS = ["all", "deposits", "withdrawals", "invoices"] as const;
@@ -50,8 +51,9 @@ function renderType(type: TransactionType) {
 
 export default function BusinessTransactionLayout() {
   const { t } = useLocale();
+  const { user } = useUser();
   const { demoOrEmpty, isDemo } = useIsDemoAccount();
-  const transactions = demoOrEmpty(
+  const demoTransactions = demoOrEmpty(
     BUSINESS_TRANSACTION_ROWS,
     [] as typeof BUSINESS_TRANSACTION_ROWS
   );
@@ -61,23 +63,58 @@ export default function BusinessTransactionLayout() {
   const [search, setSearch] = useState("");
   const [sortDir, setSortDir] = useState<"Up" | "Down">("Down");
   const [page, setPage] = useState(1);
-  const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [financialStats, setFinancialStats] = useState({
+    balance: 0,
+    totalEarned: 0,
+    totalWithdrawn: 0,
+    pendingEscrow: 0,
+  });
+  const [realTransactions, setRealTransactions] = useState<BusinessTransactionRow[]>([]);
 
-  const loadBalance = async () => {
+  const loadData = async () => {
     try {
-      const res = await fetchWalletBalance();
-      if (res?.balance !== undefined && res.balance !== null) {
-        setRealBalance(res.balance);
+      const res = await fetchWalletBalance(user);
+      if (res) {
+        setFinancialStats(res);
       }
+      const rawTxs = fetchBusinessTransactions(user);
+      const mapped: BusinessTransactionRow[] = rawTxs.map((tx) => ({
+        id: tx.id,
+        type: tx.type === "withdrawal" ? "Withdrawal" : tx.type === "deposit" ? "Deposit" : "Invoice",
+        description: tx.title,
+        amount: tx.amount,
+        method: tx.method,
+        date: tx.date,
+        status: tx.status === "Released" || tx.status === "Completed" ? "Complete" : tx.status === "Pending" ? "Pending" : "Failed",
+      }));
+      setRealTransactions(mapped);
     } catch {}
   };
 
   useEffect(() => {
-    loadBalance();
-    const onWalletUpdated = () => loadBalance();
+    loadData();
+    const onWalletUpdated = () => loadData();
     window.addEventListener("wallet_updated", onWalletUpdated);
-    return () => window.removeEventListener("wallet_updated", onWalletUpdated);
-  }, []);
+    window.addEventListener("storage", onWalletUpdated);
+    window.addEventListener("focus", onWalletUpdated);
+    window.addEventListener("platform_projects_updated", onWalletUpdated);
+    return () => {
+      window.removeEventListener("wallet_updated", onWalletUpdated);
+      window.removeEventListener("storage", onWalletUpdated);
+      window.removeEventListener("focus", onWalletUpdated);
+      window.removeEventListener("platform_projects_updated", onWalletUpdated);
+    };
+  }, [user]);
+
+  const transactions = useMemo(() => {
+    const combined = [...realTransactions, ...demoTransactions];
+    const seen = new Set<string>();
+    return combined.filter((r) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+  }, [realTransactions, demoTransactions]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -99,12 +136,31 @@ export default function BusinessTransactionLayout() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : (isDemo ? "$2,920" : "$0.00");
+  const displayBalance =
+    financialStats.balance > 0
+      ? `$${financialStats.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? "$2,920"
+      : "$0.00";
+
+  const displayInflow =
+    financialStats.totalEarned > 0
+      ? `$${financialStats.totalEarned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? "$12,480"
+      : "$0.00";
+
+  const displayPending =
+    financialStats.pendingEscrow > 0
+      ? `$${financialStats.pendingEscrow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? "$640"
+      : "$0.00";
 
   const transactionStats = [
-    { label: t.business.transactions.totalInflow, value: "$12,480" },
-    { label: t.business.transactions.totalOutflow, value: "$8,920" },
-    { label: t.business.transactions.pending, value: "$640" },
+    { label: t.business.transactions.totalInflow, value: displayInflow },
+    { label: t.business.transactions.totalOutflow, value: `$${financialStats.totalWithdrawn.toFixed(2)}` },
+    { label: t.business.transactions.pending, value: displayPending },
     { label: t.business.transactions.availableBalance, value: displayBalance, highlight: true },
   ];
 
