@@ -98,7 +98,10 @@ export function NotificationBell({
     <div ref={rootRef} className="relative z-50">
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((value) => !value);
+        }}
         className="relative rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
         aria-expanded={open}
@@ -107,7 +110,7 @@ export function NotificationBell({
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-background">
-            {unreadCount > 99 ? "99+" : unreadCount}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
@@ -126,7 +129,7 @@ export function NotificationBell({
               borderColor: isDark ? "#1e293b" : "#e2e8f0",
               color: isDark ? "#f8fafc" : "#0f172a",
             }}
-            className="fixed inset-x-3 top-16 sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-[380px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-[380px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
             role="menu"
           >
           {/* Header */}

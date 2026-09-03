@@ -178,44 +178,89 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     [userId, userEmail, knownIdsRef]
   );
 
-  // Fetch notifications from DB safely with fallback and resilient polling
+  // Fetch notifications from DB & persistent store safely with fallback and resilient polling
   useEffect(() => {
     let isMounted = true;
 
     const fetchNotifications = async (triggerToast = false) => {
       try {
-        const res = await axiosInstance.get("/notifications", { timeout: 5000, silent: true } as any).catch(() => null);
-        if (!isMounted || !res?.data) return;
-        const resData = res.data;
-        if (resData.success && Array.isArray(resData.data?.notifications)) {
-          const mapped: NotificationItem[] = resData.data.notifications.map((n: any) => ({
-            id: String(n.id || n.notificationId),
-            title: n.title,
-            message: n.message,
-            createdAt: n.createdAt,
-            time: formatNotificationTime(n.createdAt),
-            read: Boolean(n.isRead || n.read),
-            href: n.data?.href || n.href,
-            type: n.data?.type || n.type,
-          }));
+        const fetchedItems: NotificationItem[] = [];
 
+        // 1. Fetch from persistent local API
+        try {
+          const localUrl = userEmail
+            ? `/api/live-chat/notifications?email=${encodeURIComponent(userEmail)}`
+            : `/api/live-chat/notifications`;
+          const localRes = await fetch(localUrl, { cache: "no-store" }).catch(() => null);
+          if (localRes?.ok) {
+            const localData = await localRes.json().catch(() => null);
+            if (localData?.success && Array.isArray(localData.data)) {
+              localData.data.forEach((n: any) => {
+                if (n && n.id) {
+                  fetchedItems.push({
+                    id: String(n.id),
+                    title: n.title,
+                    message: n.message,
+                    createdAt: n.createdAt,
+                    time: formatNotificationTime(n.createdAt || n.time),
+                    read: Boolean(n.read || n.isRead),
+                    href: n.data?.href || n.href,
+                    type: n.data?.type || n.type,
+                  });
+                }
+              });
+            }
+          }
+        } catch {}
+
+        // 2. Fetch from backend DB API if authenticated
+        if (userId || userEmail) {
+          try {
+            const res = await axiosInstance
+              .get("/notifications", { timeout: 4000, silent: true } as any)
+              .catch(() => null);
+            if (res?.data?.success && Array.isArray(res.data?.data?.notifications)) {
+              res.data.data.notifications.forEach((n: any) => {
+                if (n && (n.id || n.notificationId)) {
+                  fetchedItems.push({
+                    id: String(n.id || n.notificationId),
+                    title: n.title,
+                    message: n.message,
+                    createdAt: n.createdAt,
+                    time: formatNotificationTime(n.createdAt),
+                    read: Boolean(n.isRead || n.read),
+                    href: n.data?.href || n.href,
+                    type: n.data?.type || n.type,
+                  });
+                }
+              });
+            }
+          } catch {}
+        }
+
+        if (!isMounted) return;
+
+        if (fetchedItems.length > 0) {
           let hasNewUnread = false;
 
           setItems((prev) => {
             const map = new Map<string, NotificationItem>();
-            [...mapped, ...prev].forEach((item) => {
+            [...fetchedItems, ...prev].forEach((item) => {
               if (item && item.id) {
                 if (triggerToast && !knownIdsRef.has(String(item.id)) && !item.read) {
                   hasNewUnread = true;
                 }
                 knownIdsRef.add(String(item.id));
-                map.set(item.id, {
+                map.set(String(item.id), {
                   ...item,
                   time: formatNotificationTime(item.createdAt || item.time),
                 });
               }
             });
-            const merged = Array.from(map.values()).slice(0, 100);
+            const merged = Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            ).slice(0, 100);
+
             try {
               if (userId) localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
               if (userEmail) localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(merged));
@@ -320,11 +365,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
           } catch {}
         }
+        if (userEmail) {
+          try {
+            localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(next));
+          } catch {}
+        }
         return next;
       });
+
+      if (typeof window !== "undefined") {
+        fetch("/api/live-chat/notifications", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        }).catch(() => {});
+      }
+
       axiosInstance.put(`/notifications/${id}/read`).catch(() => {});
     },
-    [userId]
+    [userId, userEmail]
   );
 
   const markAllRead = useCallback(() => {
@@ -335,10 +394,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
         } catch {}
       }
+      if (userEmail) {
+        try {
+          localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(next));
+        } catch {}
+      }
       return next;
     });
+
+    if (typeof window !== "undefined") {
+      fetch("/api/live-chat/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readAll: true, email: userEmail }),
+      }).catch(() => {});
+    }
+
     axiosInstance.put("/notifications/read-all").catch(() => {});
-  }, [userId]);
+  }, [userId, userEmail]);
 
   const deleteNotification = useCallback(
     (id: string) => {
@@ -349,12 +422,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
           } catch {}
         }
+        if (userEmail) {
+          try {
+            localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(next));
+          } catch {}
+        }
         return next;
       });
+
+      if (typeof window !== "undefined") {
+        fetch(`/api/live-chat/notifications?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      }
+
       axiosInstance.delete(`/notifications/${id}`).catch(() => {});
       toast.success("Notification deleted successfully");
     },
-    [userId]
+    [userId, userEmail]
   );
 
   const deleteAllNotifications = useCallback(() => {
@@ -364,6 +449,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(`app_notifs_${userId}`);
       } catch {}
     }
+    if (userEmail) {
+      try {
+        localStorage.removeItem(`app_notifs_${userEmail}`);
+      } catch {}
+    }
+
+    if (typeof window !== "undefined") {
+      fetch(`/api/live-chat/notifications?all=true&email=${encodeURIComponent(userEmail)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
+
     axiosInstance.delete("/notifications/all").catch(() => {});
     toast.success("All notifications deleted successfully");
 

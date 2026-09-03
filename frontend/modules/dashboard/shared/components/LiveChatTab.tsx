@@ -43,6 +43,7 @@ import {
   cancelLiveChatRequest,
   acceptLiveChatRequest,
   rejectLiveChatRequest,
+  dispatchLiveChatNotification,
   getPendingIncomingRequests,
   getOutgoingRequestStatus,
   syncLiveChatFromDb,
@@ -930,6 +931,16 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     if (accepted) {
       const newContactId = `contact-${req.senderEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
       setSelectedContactId(newContactId);
+
+      // Notify the requester that their request was accepted
+      dispatchLiveChatNotification({
+        recipientEmail: req.senderEmail,
+        recipientName: req.senderName,
+        recipientRole: req.senderRole,
+        title: "Live Chat Request Accepted",
+        message: `${currentUserName} accepted your live chat request. You can now chat in real-time.`,
+        type: "chat_accepted",
+      });
     }
 
     try {

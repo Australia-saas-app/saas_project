@@ -34,7 +34,15 @@ export async function dispatchLiveChatNotification(params: {
     recipientEmail: targetEmail,
   };
 
-  // 1. Post to backend DB notifications endpoint
+  // 1. Post to persistent API and backend DB notifications endpoint
+  if (typeof window !== "undefined") {
+    fetch("/api/live-chat/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notification: item }),
+    }).catch(() => null);
+  }
+
   try {
     axiosInstance.post("/notifications", {
       title: params.title,
