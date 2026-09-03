@@ -1,0 +1,14 @@
+{
+  "support-team": [
+    {
+      "id": "support-msg-1",
+      "senderId": "support-team",
+      "senderName": "Customer Support & Escrow",
+      "senderEmail": "support@saas.com",
+      "content": "Welcome to Live Support! Feel free to ask any question regarding project escrows, dispute resolution, or milestones.",
+      "sentAt": "10:00 AM",
+      "timestamp": 1783940000000,
+      "status": "seen"
+    }
+  ]
+}

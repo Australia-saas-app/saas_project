@@ -670,6 +670,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     };
 
     window.addEventListener("user_presence_updated", handlePresenceEvent);
+    window.addEventListener("platform_contacts_updated", handlePresenceEvent);
     window.addEventListener("storage", handlePresenceEvent);
 
     // Periodic fast sync timer (3 seconds) to ensure real-time cross-browser and cross-device sync
@@ -682,10 +683,11 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
 
     return () => {
       window.removeEventListener("user_presence_updated", handlePresenceEvent);
+      window.removeEventListener("platform_contacts_updated", handlePresenceEvent);
       window.removeEventListener("storage", handlePresenceEvent);
       clearInterval(livePollTimer);
     };
-  }, [currentUserEmail, requestVersion]);
+  }, [currentUserEmail, requestVersion, reloadContacts, reloadRequests]);
 
   // Delete a conversation for this user only (one-sided delete)
   const handleDeleteChat = (contactId: string, contactName: string) => {

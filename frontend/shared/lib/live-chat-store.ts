@@ -271,6 +271,32 @@ export async function syncLiveChatFromDb(currentUserEmail?: string) {
       if (Array.isArray(data?.data)) {
         const mergedList = deduplicateRequests([...data.data, ...localReqs]);
         writeLiveChatRequests(mergedList);
+
+        // If local had requests missing on the server, sync them back to server DB
+        if (localReqs.length > 0 && mergedList.length > data.data.length) {
+          const serverIds = new Set(data.data.map((r: any) => r.id));
+          const missingOnServer = localReqs.filter((r) => !serverIds.has(r.id));
+          missingOnServer.forEach((r) => {
+            fetch("/api/live-chat/requests", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sender: { email: r.senderEmail, name: r.senderName, role: r.senderRole, avatar: r.senderAvatar },
+                receiver: { email: r.receiverEmail, name: r.receiverName, role: r.receiverRole, avatar: r.receiverAvatar },
+              }),
+            })
+              .then(() => {
+                if (r.status === "accepted") {
+                  fetch("/api/live-chat/requests/accept", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ requestId: r.id, userEmail: r.receiverEmail }),
+                  }).catch(() => null);
+                }
+              })
+              .catch(() => null);
+          });
+        }
       }
     }
 
@@ -308,6 +334,26 @@ export async function syncLiveChatFromDb(currentUserEmail?: string) {
         });
 
         writeLiveChatMessages(merged);
+
+        // If local had messages missing from server DB, restore them
+        Object.keys(local).forEach((key) => {
+          const localKeyMsgs = local[key] || [];
+          const serverKeyMsgs: LiveChatMessage[] = data.data[key] || [];
+          const serverMsgIds = new Set(serverKeyMsgs.map((m) => m.id));
+          const missingMsgs = localKeyMsgs.filter((m) => !serverMsgIds.has(m.id));
+
+          missingMsgs.forEach((msg) => {
+            fetch("/api/live-chat/messages", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId: key,
+                message: msg,
+                senderEmail: msg.senderEmail,
+              }),
+            }).catch(() => null);
+          });
+        });
       }
     }
 
@@ -700,7 +746,17 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
   const messagesStore = readLiveChatMessages();
   const presenceMap = readLiveChatPresence();
 
-  const myEmail = currentUserEmail?.trim().toLowerCase() || "";
+  let myEmail = currentUserEmail?.trim().toLowerCase() || "";
+  if (!myEmail && typeof window !== "undefined") {
+    try {
+      const userRaw = localStorage.getItem("user") || localStorage.getItem("auth_user");
+      if (userRaw) {
+        const u = JSON.parse(userRaw);
+        myEmail = (u?.email || u?.contact || "").toLowerCase().trim();
+      }
+    } catch {}
+  }
+
   const deletedIds = new Set(readDeletedLiveChatContacts(myEmail));
   const contactsMap = new Map<string, LiveChatContact>();
 
@@ -724,12 +780,12 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
     const sEmail = req.senderEmail.toLowerCase();
     const rEmail = req.receiverEmail.toLowerCase();
 
-    if (sEmail !== myEmail && rEmail !== myEmail) return;
+    if (myEmail && sEmail !== myEmail && rEmail !== myEmail) return;
 
-    const otherEmail = sEmail === myEmail ? rEmail : sEmail;
-    const otherName = sEmail === myEmail ? req.receiverName : req.senderName;
-    const otherRole = sEmail === myEmail ? req.receiverRole : req.senderRole;
-    const otherAvatar = sEmail === myEmail ? req.receiverAvatar : req.senderAvatar;
+    const otherEmail = myEmail ? (sEmail === myEmail ? rEmail : sEmail) : (sEmail || rEmail);
+    const otherName = myEmail ? (sEmail === myEmail ? req.receiverName : req.senderName) : (req.senderName || req.receiverName);
+    const otherRole = myEmail ? (sEmail === myEmail ? req.receiverRole : req.senderRole) : (req.senderRole || req.receiverRole);
+    const otherAvatar = myEmail ? (sEmail === myEmail ? req.receiverAvatar : req.senderAvatar) : (req.senderAvatar || req.receiverAvatar);
 
     const contactId = `contact-${otherEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
     if (deletedIds.has(contactId)) return;
@@ -774,9 +830,22 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
       if (foundMsg?.senderEmail) {
         otherEmail = foundMsg.senderEmail.toLowerCase();
       } else {
-        const anyMsgWithEmail = msgs.find((m) => m.senderEmail);
-        if (anyMsgWithEmail?.senderEmail) {
-          otherEmail = anyMsgWithEmail.senderEmail.toLowerCase();
+        const matchedReg = registered.find(
+          (r) => `contact-${r.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}` === key.toLowerCase()
+        );
+        if (matchedReg) {
+          otherEmail = matchedReg.email.toLowerCase();
+        } else {
+          const matchedReq = requests.find((r) => {
+            const sKey = `contact-${r.senderEmail.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`;
+            const rKey = `contact-${r.receiverEmail.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`;
+            return sKey === key.toLowerCase() || rKey === key.toLowerCase();
+          });
+          if (matchedReq) {
+            otherEmail = myEmail && matchedReq.senderEmail.toLowerCase() === myEmail
+              ? matchedReq.receiverEmail.toLowerCase()
+              : matchedReq.senderEmail.toLowerCase();
+          }
         }
       }
     } else if (key.includes("@")) {
@@ -786,13 +855,20 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
     // Skip if it's support or current user or already exists
     if (
       otherEmail &&
-      otherEmail !== myEmail &&
+      (myEmail ? otherEmail !== myEmail : true) &&
       otherEmail !== "support@saas.com" &&
       !Array.from(contactsMap.values()).some((c) => c.email.toLowerCase() === otherEmail.toLowerCase())
     ) {
       const contactId = `contact-${otherEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
       if (!deletedIds.has(contactId) && !contactsMap.has(contactId)) {
         const reg = registered.find((r) => r.email.toLowerCase() === otherEmail);
+        const req = requests.find(
+          (r) => r.senderEmail.toLowerCase() === otherEmail || r.receiverEmail.toLowerCase() === otherEmail
+        );
+        const reqName = req?.senderEmail.toLowerCase() === otherEmail ? req?.senderName : req?.receiverName;
+        const reqRole = req?.senderEmail.toLowerCase() === otherEmail ? req?.senderRole : req?.receiverRole;
+        const reqAvatar = req?.senderEmail.toLowerCase() === otherEmail ? req?.senderAvatar : req?.receiverAvatar;
+
         const userPresence = presenceMap[otherEmail];
         const isOnline = Boolean(userPresence?.isOnline);
         const lastSeenRaw = userPresence?.lastSeen;
@@ -801,10 +877,10 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
 
         contactsMap.set(contactId, {
           id: contactId,
-          name: sampleMsg?.senderName || reg?.name || resolveContactFullName(otherEmail),
+          name: sampleMsg?.senderName || reqName || reg?.name || resolveContactFullName(otherEmail),
           email: otherEmail,
-          role: reg?.role || "User",
-          avatar: reg?.avatar,
+          role: reqRole || reg?.role || "User",
+          avatar: reqAvatar || reg?.avatar,
           status: isOnline ? "online" : "offline",
           lastSeen: isOnline ? "Active now" : lastSeenText,
           lastSeenTimestamp: userPresence?.lastSeen,

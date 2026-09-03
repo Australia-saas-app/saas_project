@@ -104,9 +104,31 @@ export async function fetchRegisteredContactsFromDB(search?: string): Promise<Re
         } catch {
           try {
             res = await axiosInstance.get(`/sso/auth/admin/users${qParam}`);
-          } catch {}
+          } catch {
+            if (typeof window !== "undefined") {
+              try {
+                const localApiRes = await fetch(`/api/live-chat/users${qParam}`);
+                if (localApiRes.ok) {
+                  res = await localApiRes.json();
+                }
+              } catch {}
+            }
+          }
         }
       }
+    }
+
+    // Also merge from /api/live-chat/users if available
+    if (typeof window !== "undefined" && (!res || !res.data)) {
+      try {
+        const localApiRes = await fetch(`/api/live-chat/users${qParam}`);
+        if (localApiRes.ok) {
+          const localData = await localApiRes.json();
+          if (localData?.data) {
+            res = localData;
+          }
+        }
+      } catch {}
     }
 
     const data = res?.data?.data || res?.data || res;
