@@ -43,13 +43,14 @@ import {
   cancelLiveChatRequest,
   acceptLiveChatRequest,
   rejectLiveChatRequest,
-  dispatchLiveChatNotification,
   getPendingIncomingRequests,
   getOutgoingRequestStatus,
   syncLiveChatFromDb,
   setUserOnlineStatus,
+  isUserActuallyOnline,
   formatLastSeen,
   readLiveChatPresence,
+  markLiveChatConversationAsSeen,
   type LiveChatContact,
   type LiveChatMessage,
   type LiveChatRequest,
@@ -496,9 +497,23 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     };
   }, [currentUserEmail, reloadContacts, reloadRequests]);
 
-  // 2. Room Join when selected contact changes
+  // 2. Room Join & mark seen when selected contact changes
   useEffect(() => {
-    if (!selectedContactId) return;
+    if (!selectedContactId || !currentUserEmail) return;
+
+    const targetContactEmail = contacts.find((c) => c.id === selectedContactId)?.email;
+
+    markLiveChatConversationAsSeen(
+      selectedContactId,
+      currentUserEmail,
+      targetContactEmail
+    );
+
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === selectedContactId ? { ...c, unreadCount: 0 } : c
+      )
+    );
 
     if (socketRef.current?.connected) {
       socketRef.current.emit("join:conversation", {
@@ -513,7 +528,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
         });
       }
     };
-  }, [selectedContactId]);
+  }, [selectedContactId, currentUserEmail, contacts]);
 
   // Handle incoming message from websocket / broadcast channel
   const handleReceiveLiveMessage = (payload: {
@@ -651,13 +666,21 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
   useEffect(() => {
     if (currentUserEmail) {
       setUserOnlineStatus(currentUserEmail, true);
-      try {
-        broadcastChannelRef.current?.postMessage({
-          type: "USER_PRESENCE",
-          payload: { email: currentUserEmail, isOnline: true },
-        });
-      } catch {}
     }
+
+    // Heartbeat every 20 seconds to keep presence actively fresh
+    const heartbeatTimer = setInterval(() => {
+      if (currentUserEmail) {
+        setUserOnlineStatus(currentUserEmail, true);
+      }
+    }, 20000);
+
+    const handleBeforeUnload = () => {
+      if (currentUserEmail) {
+        setUserOnlineStatus(currentUserEmail, false);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     syncLiveChatFromDb(currentUserEmail).then(() => {
       reloadContacts();
@@ -682,6 +705,8 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     }, 3000);
 
     return () => {
+      clearInterval(heartbeatTimer);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("user_presence_updated", handlePresenceEvent);
       window.removeEventListener("platform_contacts_updated", handlePresenceEvent);
       window.removeEventListener("storage", handlePresenceEvent);
@@ -933,16 +958,6 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
     if (accepted) {
       const newContactId = `contact-${req.senderEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
       setSelectedContactId(newContactId);
-
-      // Notify the requester that their request was accepted
-      dispatchLiveChatNotification({
-        recipientEmail: req.senderEmail,
-        recipientName: req.senderName,
-        recipientRole: req.senderRole,
-        title: "Live Chat Request Accepted",
-        message: `${currentUserName} accepted your live chat request. You can now chat in real-time.`,
-        type: "chat_accepted",
-      });
     }
 
     try {
@@ -986,7 +1001,7 @@ export function LiveChatTab({ role, onExitLiveChat }: LiveChatTabProps = {}) {
 
     const targetEmail = (currentContact.email || "").toLowerCase().trim();
     const presenceMap = readLiveChatPresence();
-    const isRecipientOnline = Boolean(presenceMap[targetEmail]?.isOnline || currentContact.status === "online");
+    const isRecipientOnline = currentContact.id === "support-team" ? true : isUserActuallyOnline(presenceMap[targetEmail]);
 
     const initialStatus: "sent" | "delivered" = isRecipientOnline ? "delivered" : "sent";
 

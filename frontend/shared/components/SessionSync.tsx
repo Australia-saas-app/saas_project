@@ -18,13 +18,31 @@ export function SessionSync() {
     const bc = new BroadcastChannel("session-sync");
 
     const userEmail = user?.email;
+    let heartbeatTimer: NodeJS.Timeout | null = null;
     if (userEmail) {
       import("@/src/shared/lib/live-chat-store").then(({ setUserOnlineStatus }) => {
         setUserOnlineStatus(userEmail, true);
+        heartbeatTimer = setInterval(() => {
+          setUserOnlineStatus(userEmail, true);
+        }, 20000);
       }).catch(() => null);
     }
 
+    const handleBeforeUnload = () => {
+      if (userEmail) {
+        import("@/src/shared/lib/live-chat-store").then(({ setUserOnlineStatus }) => {
+          setUserOnlineStatus(userEmail, false);
+        }).catch(() => null);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
     const handleLock = async (reason: "session_superseded" | "inactivity" = "session_superseded") => {
+      if (userEmail) {
+        import("@/src/shared/lib/live-chat-store").then(({ setUserOnlineStatus }) => {
+          setUserOnlineStatus(userEmail, false);
+        }).catch(() => null);
+      }
       try {
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
         await recordRealActivity(
@@ -52,7 +70,7 @@ export function SessionSync() {
       }
 
       const targetPath = isAdminApp ? `/account/admin/login?reason=${reason}` : `/account/${rolePath}/login?reason=${reason}`;
-      window.location.href = targetPath;
+      window.location.replace(targetPath);
     };
 
     // Listen for LOGIN events from other tabs — means our session was superseded
@@ -63,8 +81,6 @@ export function SessionSync() {
     };
 
     // Poll session validity every 8s on ALL pages.
-    // This is the only way to detect cross-device logins (different browsers/devices).
-    // BroadcastChannel only works within the same browser instance.
     const checkSession = async () => {
       try {
         const currentUser = await getCurrentUser();
@@ -78,6 +94,8 @@ export function SessionSync() {
     const pollInterval = setInterval(checkSession, 8000);
 
     return () => {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       bc.close();
       clearInterval(pollInterval);
     };

@@ -16,7 +16,11 @@ import {
   type MessageThread,
 } from "@/src/shared/lib/messages-store";
 import { fetchUserThreads, deleteUserThread, markUserThreadRead } from "@/src/modules/technical/services/technical.services";
-import { getAllLiveChatContacts, type LiveChatContact } from "@/src/shared/lib/live-chat-store";
+import {
+  getAllLiveChatContacts,
+  markLiveChatConversationAsSeen,
+  type LiveChatContact,
+} from "@/src/shared/lib/live-chat-store";
 
 function useIsDarkMode() {
   const [isDark, setIsDark] = useState(false);
@@ -302,7 +306,12 @@ export function MessagesBell({
         markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
       }
     });
-    loadThreads();
+    liveChatContacts.forEach((c) => {
+      markLiveChatConversationAsSeen(c.id, currentUserEmail, c.email);
+    });
+    setThreads((prev) => prev.map((t) => ({ ...t, unread: false })));
+    setLiveChatContacts([]);
+    toast.success("All messages marked as read");
   };
 
   const handleDeleteAll = async () => {
@@ -312,6 +321,10 @@ export function MessagesBell({
       targets.forEach((t) => {
         archiveThread(t.id, currentUserEmail);
       });
+      liveChatContacts.forEach((c) => {
+        markLiveChatConversationAsSeen(c.id, currentUserEmail, c.email);
+      });
+      setLiveChatContacts([]);
       await Promise.all(targets.map((t) => deleteUserThread(t.id)));
       loadThreads();
       toast.success("All message notifications deleted");
@@ -330,6 +343,7 @@ export function MessagesBell({
         const target = threads.find((t) => t.id === id);
         if (target) markMessagesAsRead(target.messages.map((m) => m.id), currentUserEmail);
       }
+      setThreads((prev) => prev.filter((t) => t.id !== id));
       await deleteUserThread(id);
       loadThreads();
       toast.success("Message notification deleted");
@@ -338,6 +352,12 @@ export function MessagesBell({
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const handleDeleteLiveChatSingle = (contactId: string, contactEmail?: string) => {
+    markLiveChatConversationAsSeen(contactId, currentUserEmail, contactEmail);
+    setLiveChatContacts((prev) => prev.filter((c) => c.id !== contactId));
+    toast.success("Live chat notification cleared");
   };
 
   return (
@@ -404,7 +424,7 @@ export function MessagesBell({
                 {unreadCount > 0 ? `${unreadCount} unread message${unreadCount === 1 ? "" : "s"}` : emptyLabel}
               </p>
             </div>
-            {unreadThreads.length > 0 && (
+            {(unreadThreads.length > 0 || liveChatContacts.length > 0) && (
               <button
                 type="button"
                 disabled={isDeletingAll}
@@ -464,6 +484,8 @@ export function MessagesBell({
                       <Link
                         href={targetLiveChatLink}
                         onClick={() => {
+                          markLiveChatConversationAsSeen(c.id, currentUserEmail, c.email);
+                          setLiveChatContacts((prev) => prev.filter((item) => item.id !== c.id));
                           setOpen(false);
                         }}
                         style={{
@@ -490,7 +512,7 @@ export function MessagesBell({
                                 className="truncate text-xs flex items-center gap-1.5"
                               >
                                 {c.name}
-                                <span className="rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-semibold px-1.5 py-0.2 text-[9px]">
+                                <span className="rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-semibold px-1.5 py-0.5 text-[9px] border border-sky-500/30">
                                   Live Chat
                                 </span>
                               </p>
@@ -509,6 +531,19 @@ export function MessagesBell({
                           </div>
                         </div>
                       </Link>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteLiveChatSingle(c.id, c.email);
+                        }}
+                        style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer"
+                        title="Dismiss notification"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </li>
                   );
                 })}
@@ -540,17 +575,18 @@ export function MessagesBell({
                           if (currentUserEmail) {
                             markMessagesAsRead(t.messages.map((m) => m.id), currentUserEmail);
                           }
+                          setThreads((prev) => prev.map((item) => item.id === t.id ? { ...item, unread: false } : item));
                           setOpen(false);
                         }}
                         style={{
                           backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#f0f9ff",
-                          borderLeft: isDark ? "3px solid #3b82f6" : "3px solid #2563eb",
+                          borderLeft: isDark ? "3px solid #6366f1" : "3px solid #4f46e5",
                         }}
                         className="block px-4 py-3 pr-10 transition-colors hover:opacity-90 cursor-pointer"
                       >
                         <div className="flex items-start gap-3">
                           {/* Avatar */}
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 font-bold text-xs border border-blue-500/20 mt-0.5">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 font-bold text-xs border border-indigo-500/20 mt-0.5">
                             {getInitials(displayName)}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -560,11 +596,14 @@ export function MessagesBell({
                                   color: isDark ? "#ffffff" : "#0f172a",
                                   fontWeight: 700,
                                 }}
-                                className="truncate text-xs"
+                                className="truncate text-xs flex items-center gap-1.5"
                               >
                                 {displayName}
+                                <span className="rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold px-1.5 py-0.5 text-[9px] border border-indigo-500/30">
+                                  Inbox
+                                </span>
                                 {secondaryTag && (
-                                  <span className="text-muted-foreground font-normal ml-1">
+                                  <span className="text-muted-foreground font-normal ml-0.5">
                                     | {secondaryTag}
                                   </span>
                                 )}

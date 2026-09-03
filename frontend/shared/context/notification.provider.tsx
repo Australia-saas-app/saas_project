@@ -24,12 +24,144 @@ import { io, Socket } from "socket.io-client";
 import axiosInstance from "@/src/lib/axiosInstance";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
-function getDefaultNotifications(role?: string): NotificationItem[] {
-  const r = (role || "").toLowerCase();
-  if (r === "business" || r === "seller" || r === "company") return BUSINESS_NOTIFICATIONS;
-  if (r === "affiliate") return AFFILIATE_NOTIFICATIONS;
-  if (r === "admin" || r === "superadmin") return ADMIN_NOTIFICATIONS;
-  return USER_NOTIFICATIONS;
+function getDefaultNotifications(): NotificationItem[] {
+  return [];
+}
+
+const DUMMY_IDS = new Set(["u1", "u2", "u3", "n1", "n2", "n3", "a1", "a2", "a3", "b1", "b2", "b3"]);
+
+function getDeletedIds(userEmail?: string): Set<string> {
+  const set = new Set<string>(DUMMY_IDS);
+  if (typeof window === "undefined") return set;
+
+  try {
+    const rawGlobal = localStorage.getItem("deleted_notification_ids_global");
+    if (rawGlobal) {
+      const arr = JSON.parse(rawGlobal);
+      if (Array.isArray(arr)) arr.forEach((id) => set.add(String(id)));
+    }
+  } catch {}
+
+  if (userEmail) {
+    try {
+      const rawUser = localStorage.getItem(`deleted_notification_ids_${userEmail.trim().toLowerCase()}`);
+      if (rawUser) {
+        const arr = JSON.parse(rawUser);
+        if (Array.isArray(arr)) arr.forEach((id) => set.add(String(id)));
+      }
+    } catch {}
+  }
+
+  return set;
+}
+
+function addDeletedId(id: string, userEmail?: string) {
+  if (typeof window === "undefined" || !id) return;
+  try {
+    const existingGlobalRaw = localStorage.getItem("deleted_notification_ids_global");
+    const existingGlobal = existingGlobalRaw ? JSON.parse(existingGlobalRaw) : [];
+    if (!existingGlobal.includes(id)) {
+      localStorage.setItem("deleted_notification_ids_global", JSON.stringify([...existingGlobal, id].slice(-500)));
+    }
+  } catch {}
+
+  if (userEmail) {
+    try {
+      const key = `deleted_notification_ids_${userEmail.trim().toLowerCase()}`;
+      const existingRaw = localStorage.getItem(key);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      if (!existing.includes(id)) {
+        localStorage.setItem(key, JSON.stringify([...existing, id].slice(-500)));
+      }
+    } catch {}
+  }
+}
+
+function getClearedTimestamp(userEmail?: string): number {
+  if (typeof window === "undefined") return 0;
+  let ts = 0;
+  try {
+    const globalTs = localStorage.getItem("notifications_cleared_timestamp_global");
+    if (globalTs) ts = Math.max(ts, parseInt(globalTs, 10) || 0);
+  } catch {}
+  if (userEmail) {
+    try {
+      const userTs = localStorage.getItem(`notifications_cleared_timestamp_${userEmail.trim().toLowerCase()}`);
+      if (userTs) ts = Math.max(ts, parseInt(userTs, 10) || 0);
+    } catch {}
+  }
+  return ts;
+}
+
+function removeNotificationFromAllCaches(id: string, userEmail?: string, userId?: string) {
+  if (typeof window === "undefined") return;
+  const keys = [
+    "platform_live_chat_notifications",
+    "app_notifs_all",
+    "app_notifs_user",
+    "app_notifs_business",
+    "app_notifs_affiliate",
+    "app_notifs_admin",
+  ];
+  if (userId) keys.push(`app_notifs_${userId}`);
+  if (userEmail) {
+    keys.push(`app_notifs_${userEmail}`);
+    keys.push(`app_notifs_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+  }
+
+  keys.forEach((key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(
+            (n: any) => n && n.id !== id && !DUMMY_IDS.has(String(n.id))
+          );
+          localStorage.setItem(key, JSON.stringify(filtered));
+        }
+      }
+    } catch {}
+  });
+}
+
+function clearAllNotificationCaches(userEmail?: string, userId?: string) {
+  if (typeof window === "undefined") return;
+  const keys = [
+    "platform_live_chat_notifications",
+    "app_notifs_all",
+    "app_notifs_user",
+    "app_notifs_business",
+    "app_notifs_affiliate",
+    "app_notifs_admin",
+  ];
+  if (userId) keys.push(`app_notifs_${userId}`);
+  if (userEmail) {
+    keys.push(`app_notifs_${userEmail}`);
+    keys.push(`app_notifs_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+  }
+
+  keys.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+  });
+}
+
+function deduplicateNotifications(notifications: NotificationItem[]): NotificationItem[] {
+  const map = new Map<string, NotificationItem>();
+  const seenContent = new Set<string>();
+
+  notifications.forEach((item) => {
+    if (!item || !item.id || DUMMY_IDS.has(String(item.id))) return;
+    const contentKey = `${item.title?.trim().toLowerCase()}::${item.message?.trim().toLowerCase()}`;
+    if (!map.has(String(item.id)) && !seenContent.has(contentKey)) {
+      seenContent.add(contentKey);
+      map.set(String(item.id), item);
+    }
+  });
+
+  return Array.from(map.values());
 }
 
 interface INotificationContext {
@@ -44,25 +176,17 @@ interface INotificationContext {
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
 
-const getWsUrl = (): string => {
-  if (typeof window === "undefined") return "http://localhost:8000";
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const hostname = window.location.hostname;
-  return `${proto}://${hostname}:8000`;
-};
-
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const role = user && "role" in user ? String(user.role ?? "") : undefined;
   const userId = user && ("userId" in user || "id" in user) ? ((user as any).userId || (user as any).id) : undefined;
   const userEmail = user?.email ? String(user.email).trim().toLowerCase() : "";
 
-  const [items, setItems] = useState<NotificationItem[]>(() => getDefaultNotifications(role));
-
+  const [items, setItems] = useState<NotificationItem[]>([]);
   const knownIdsRef = useMemo(() => new Set<string>(), []);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Load from cache on first render (by userId, userEmail, role defaults, and live chat notifications)
+  // Load from cache on first render (filtering out deleted items and dummy fallbacks)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -79,9 +203,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         storageKeys.push(`app_notifs_${role.toLowerCase()}`);
       }
 
+      const deletedIds = getDeletedIds(userEmail);
+      const clearedTs = getClearedTimestamp(userEmail);
       const combinedMap = new Map<string, NotificationItem>();
 
-      // Load from all cached storage keys
       storageKeys.forEach((key) => {
         try {
           const raw = localStorage.getItem(key);
@@ -89,7 +214,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
               parsed.forEach((n: any) => {
-                if (n && n.id) {
+                if (n && n.id && !deletedIds.has(String(n.id))) {
+                  const itemTime = new Date(n.createdAt || n.time || 0).getTime();
+                  if (clearedTs && itemTime && itemTime <= clearedTs) return;
+
                   const targetE = (n.recipientEmail || n.targetEmail || "").trim().toLowerCase();
                   if (!targetE || !userEmail || targetE === userEmail) {
                     knownIdsRef.add(String(n.id));
@@ -106,24 +234,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         } catch {}
       });
 
-      // Also merge role defaults (e.g. project acceptance / milestone defaults)
-      const defaults = getDefaultNotifications(role);
-      defaults.forEach((n) => {
-        if (n && n.id && !combinedMap.has(String(n.id))) {
-          knownIdsRef.add(String(n.id));
-          combinedMap.set(String(n.id), {
-            ...n,
-            id: String(n.id),
-            time: formatNotificationTime(n.createdAt || n.time),
-          });
-        }
-      });
-
       if (combinedMap.size > 0) {
-        const sorted = Array.from(combinedMap.values()).sort(
+        const unique = deduplicateNotifications(Array.from(combinedMap.values()));
+        const sorted = unique.sort(
           (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
         );
         setItems(sorted.slice(0, 100));
+      } else {
+        setItems([]);
       }
     } catch {}
   }, [userId, userEmail, role, knownIdsRef]);
@@ -132,6 +250,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     (item: Omit<NotificationItem, "id" | "time" | "read"> & { id?: string }, suppressToast = false) => {
       const now = new Date().toISOString();
       const entryId = item.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const deletedIds = getDeletedIds(userEmail);
+      if (deletedIds.has(String(entryId))) return;
+
       knownIdsRef.add(String(entryId));
 
       const entry: NotificationItem = {
@@ -143,7 +264,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       };
 
       setItems((prev) => {
-        const next = [entry, ...prev.filter((i) => i.id !== entry.id)].slice(0, 100);
+        const filtered = prev.filter((i) => i.id !== entry.id && !deletedIds.has(String(i.id)));
+        const next = deduplicateNotifications([entry, ...filtered]).slice(0, 100);
         if (userId) {
           try {
             localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
@@ -184,6 +306,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const fetchNotifications = async (triggerToast = false) => {
       try {
+        const deletedIds = getDeletedIds(userEmail);
+        const clearedTs = getClearedTimestamp(userEmail);
         const fetchedItems: NotificationItem[] = [];
 
         // 1. Fetch from persistent local API
@@ -196,7 +320,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             const localData = await localRes.json().catch(() => null);
             if (localData?.success && Array.isArray(localData.data)) {
               localData.data.forEach((n: any) => {
-                if (n && n.id) {
+                if (n && n.id && !deletedIds.has(String(n.id))) {
+                  const itemTime = new Date(n.createdAt || n.time || 0).getTime();
+                  if (clearedTs && itemTime && itemTime <= clearedTs) return;
+
                   fetchedItems.push({
                     id: String(n.id),
                     title: n.title,
@@ -221,9 +348,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               .catch(() => null);
             if (res?.data?.success && Array.isArray(res.data?.data?.notifications)) {
               res.data.data.notifications.forEach((n: any) => {
-                if (n && (n.id || n.notificationId)) {
+                const nid = String(n.id || n.notificationId);
+                if (nid && !deletedIds.has(nid)) {
+                  const itemTime = new Date(n.createdAt || 0).getTime();
+                  if (clearedTs && itemTime && itemTime <= clearedTs) return;
+
                   fetchedItems.push({
-                    id: String(n.id || n.notificationId),
+                    id: nid,
                     title: n.title,
                     message: n.message,
                     createdAt: n.createdAt,
@@ -240,40 +371,42 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         if (!isMounted) return;
 
-        if (fetchedItems.length > 0) {
-          let hasNewUnread = false;
+        let hasNewUnread = false;
 
-          setItems((prev) => {
-            const map = new Map<string, NotificationItem>();
-            [...fetchedItems, ...prev].forEach((item) => {
-              if (item && item.id) {
-                if (triggerToast && !knownIdsRef.has(String(item.id)) && !item.read) {
-                  hasNewUnread = true;
-                }
-                knownIdsRef.add(String(item.id));
-                map.set(String(item.id), {
-                  ...item,
-                  time: formatNotificationTime(item.createdAt || item.time),
-                });
+        setItems((prev) => {
+          const map = new Map<string, NotificationItem>();
+          [...fetchedItems, ...prev].forEach((item) => {
+            if (item && item.id && !deletedIds.has(String(item.id))) {
+              const itemTime = new Date(item.createdAt || item.time || 0).getTime();
+              if (clearedTs && itemTime && itemTime <= clearedTs) return;
+
+              if (triggerToast && !knownIdsRef.has(String(item.id)) && !item.read) {
+                hasNewUnread = true;
               }
-            });
-            const merged = Array.from(map.values()).sort(
-              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            ).slice(0, 100);
-
-            try {
-              if (userId) localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
-              if (userEmail) localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(merged));
-            } catch {}
-            return merged;
+              knownIdsRef.add(String(item.id));
+              map.set(String(item.id), {
+                ...item,
+                time: formatNotificationTime(item.createdAt || item.time),
+              });
+            }
           });
+          const unique = deduplicateNotifications(Array.from(map.values()));
+          const merged = unique.sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          ).slice(0, 100);
 
-          if (hasNewUnread) {
-            toast.info("You have received a new notification", { duration: 5000 });
-          }
+          try {
+            if (userId) localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(merged));
+            if (userEmail) localStorage.setItem(`app_notifs_${userEmail}`, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
 
-          if (!hasInitialized) setHasInitialized(true);
+        if (hasNewUnread) {
+          toast.info("You have received a new notification", { duration: 5000 });
         }
+
+        if (!hasInitialized) setHasInitialized(true);
       } catch {
         // Keep existing notifications safely on error
       }
@@ -310,9 +443,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             const p = event.data.payload;
             const targetE = (event.data.targetEmail || p.recipientEmail || "").trim().toLowerCase();
             if (targetE && userEmail && targetE !== userEmail) return;
-            if (!knownIdsRef.has(String(p.id))) {
+            const deletedIds = getDeletedIds(userEmail);
+            if (!deletedIds.has(String(p.id)) && !knownIdsRef.has(String(p.id))) {
               notify(p, false);
             }
+          } else if (event.data?.type === "vero:notification_deleted" && event.data.id) {
+            deleteNotification(event.data.id);
+          } else if (event.data?.type === "vero:notifications_cleared") {
+            setItems([]);
           }
         };
       }
@@ -324,7 +462,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const parsed = JSON.parse(e.newValue);
           const targetE = (parsed.targetEmail || parsed.item?.recipientEmail || "").trim().toLowerCase();
           if (targetE && userEmail && targetE !== userEmail) return;
-          if (parsed.item && !knownIdsRef.has(String(parsed.item.id))) {
+          const deletedIds = getDeletedIds(userEmail);
+          if (parsed.item && !deletedIds.has(String(parsed.item.id)) && !knownIdsRef.has(String(parsed.item.id))) {
             notify(parsed.item, false);
           }
         } catch {}
@@ -336,7 +475,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (detail) {
         const targetE = (detail.targetEmail || detail.recipientEmail || "").trim().toLowerCase();
         if (targetE && userEmail && targetE !== userEmail) return;
-        notify(detail, false);
+        const deletedIds = getDeletedIds(userEmail);
+        if (!deletedIds.has(String(detail.id))) {
+          notify(detail, false);
+        }
       }
     };
 
@@ -351,10 +493,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (bc) bc.close();
     };
   }, [notify, knownIdsRef, userEmail]);
-
-  useEffect(() => {
-    if (!userId || typeof window === "undefined") return;
-  }, [userId, role, notify]);
 
   const markRead = useCallback(
     (id: string) => {
@@ -415,6 +553,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const deleteNotification = useCallback(
     (id: string) => {
+      if (!id) return;
+      addDeletedId(id, userEmail);
+      removeNotificationFromAllCaches(id, userEmail, userId);
+
       setItems((prev) => {
         const next = prev.filter((item) => item.id !== id);
         if (userId) {
@@ -431,9 +573,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       });
 
       if (typeof window !== "undefined") {
-        fetch(`/api/live-chat/notifications?id=${encodeURIComponent(id)}`, {
+        fetch(`/api/live-chat/notifications?id=${encodeURIComponent(id)}&email=${encodeURIComponent(userEmail)}`, {
           method: "DELETE",
         }).catch(() => {});
+
+        try {
+          if ("BroadcastChannel" in window) {
+            const bc = new BroadcastChannel("vero_channel");
+            bc.postMessage({ type: "vero:notification_deleted", id });
+            bc.close();
+          }
+        } catch {}
       }
 
       axiosInstance.delete(`/notifications/${id}`).catch(() => {});
@@ -443,22 +593,38 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 
   const deleteAllNotifications = useCallback(() => {
+    const now = Date.now();
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("notifications_cleared_timestamp_global", String(now));
+        if (userEmail) {
+          localStorage.setItem(`notifications_cleared_timestamp_${userEmail.trim().toLowerCase()}`, String(now));
+        }
+      } catch {}
+    }
+
+    // Add all current IDs to deleted list
+    items.forEach((item) => {
+      if (item && item.id) {
+        addDeletedId(item.id, userEmail);
+      }
+    });
+
+    clearAllNotificationCaches(userEmail, userId);
     setItems([]);
-    if (userId) {
-      try {
-        localStorage.removeItem(`app_notifs_${userId}`);
-      } catch {}
-    }
-    if (userEmail) {
-      try {
-        localStorage.removeItem(`app_notifs_${userEmail}`);
-      } catch {}
-    }
 
     if (typeof window !== "undefined") {
       fetch(`/api/live-chat/notifications?all=true&email=${encodeURIComponent(userEmail)}`, {
         method: "DELETE",
       }).catch(() => {});
+
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:notifications_cleared" });
+          bc.close();
+        }
+      } catch {}
     }
 
     axiosInstance.delete("/notifications/all").catch(() => {});
@@ -484,7 +650,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
       );
     } catch {}
-  }, [userId, user, role, userEmail]);
+  }, [items, userId, user, role, userEmail]);
 
   const value = useMemo<INotificationContext>(
     () => ({

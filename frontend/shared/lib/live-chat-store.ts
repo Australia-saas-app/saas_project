@@ -1,6 +1,8 @@
 import { getAllRegisteredContacts, resolveContactFullName, type RegisteredContact } from "@/src/shared/lib/contacts-store";
 import axiosInstance from "@/src/shared/lib/axiosInstance";
 
+const recentDispatchedNotifs = new Map<string, number>();
+
 export async function dispatchLiveChatNotification(params: {
   recipientEmail: string;
   recipientName?: string;
@@ -9,6 +11,14 @@ export async function dispatchLiveChatNotification(params: {
   message: string;
   type: "chat_request" | "chat_accepted" | "live_chat";
 }) {
+  const targetEmail = params.recipientEmail.toLowerCase().trim();
+  const dedupeKey = `${targetEmail}_${params.type}_${params.title}_${params.message}`;
+  const lastTime = recentDispatchedNotifs.get(dedupeKey) || 0;
+  if (Date.now() - lastTime < 8000) {
+    return; // Skip duplicate dispatch within 8s
+  }
+  recentDispatchedNotifs.set(dedupeKey, Date.now());
+
   const roleSlug = (params.recipientRole || "").toLowerCase();
   const href =
     roleSlug === "business" || roleSlug === "seller" || roleSlug === "company"
@@ -19,7 +29,6 @@ export async function dispatchLiveChatNotification(params: {
 
   const notifId = `notif-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
-  const targetEmail = params.recipientEmail.toLowerCase().trim();
 
   const item = {
     id: notifId,
@@ -169,14 +178,22 @@ const INITIAL_SUPPORT_MESSAGES: LiveChatMessage[] = [
   },
 ];
 
-export function formatLastSeen(lastSeen?: number | string | Date, isOnline?: boolean): string {
-  if (isOnline) return "Active now";
-  if (!lastSeen) return "Offline";
-
-  const ts = typeof lastSeen === "number" ? lastSeen : new Date(lastSeen).getTime();
-  if (isNaN(ts) || ts <= 0) return "Offline";
-
+export function isUserActuallyOnline(presence?: UserPresence): boolean {
+  if (!presence) return false;
+  if (!presence.isOnline) return false;
   const now = Date.now();
+  const diff = now - (presence.lastSeen || 0);
+  return diff < 45000;
+}
+
+export function formatLastSeen(lastSeen?: number | string | Date, isOnline?: boolean): string {
+  const ts = typeof lastSeen === "number" ? lastSeen : lastSeen ? new Date(lastSeen).getTime() : 0;
+  const now = Date.now();
+  const isFresh = ts > 0 && now - ts < 45000;
+
+  if (isOnline && isFresh) return "Active now";
+  if (!ts || isNaN(ts) || ts <= 0) return "Offline";
+
   const diffMs = Math.max(0, now - ts);
   const diffMins = Math.floor(diffMs / 60000);
 
@@ -793,7 +810,7 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
     if (!contactsMap.has(contactId)) {
       const reg = registered.find((r) => r.email.toLowerCase() === otherEmail);
       const userPresence = presenceMap[otherEmail];
-      const isOnline = Boolean(userPresence?.isOnline);
+      const isOnline = isUserActuallyOnline(userPresence);
       const lastSeenRaw = userPresence?.lastSeen;
       const lastSeenText = formatLastSeen(lastSeenRaw, isOnline);
 
@@ -870,7 +887,7 @@ export function getAllLiveChatContacts(currentUserEmail?: string): LiveChatConta
         const reqAvatar = req?.senderEmail.toLowerCase() === otherEmail ? req?.senderAvatar : req?.receiverAvatar;
 
         const userPresence = presenceMap[otherEmail];
-        const isOnline = Boolean(userPresence?.isOnline);
+        const isOnline = isUserActuallyOnline(userPresence);
         const lastSeenRaw = userPresence?.lastSeen;
         const lastSeenText = formatLastSeen(lastSeenRaw, isOnline);
         const sampleMsg = msgs.find((m) => m.senderEmail?.toLowerCase() === otherEmail);
@@ -973,3 +990,71 @@ export function addContactToLiveChat(contact: {
     }
   }
 }
+
+export function markLiveChatConversationAsSeen(
+  contactId: string,
+  currentUserEmail: string,
+  contactEmail?: string
+) {
+  if (!contactId && !contactEmail) return;
+  const myEmail = (currentUserEmail || "").toLowerCase().trim();
+  const cEmail = (contactEmail || "").toLowerCase().trim();
+  const messagesStore = readLiveChatMessages();
+
+  let modified = false;
+  const keysToUpdate = [
+    contactId,
+    cEmail,
+    cEmail ? `contact-${cEmail.replace(/[^a-zA-Z0-9]/g, "_")}` : "",
+  ].filter(Boolean);
+
+  keysToUpdate.forEach((k) => {
+    if (messagesStore[k]) {
+      messagesStore[k] = messagesStore[k].map((m) => {
+        const sender = (m.senderEmail || "").toLowerCase().trim();
+        const isFromOther = sender ? sender !== myEmail : m.senderName !== "You";
+        if (isFromOther && m.status !== "seen") {
+          modified = true;
+          return { ...m, status: "seen" as const };
+        }
+        return m;
+      });
+    }
+  });
+
+  if (modified) {
+    writeLiveChatMessages(messagesStore);
+    if (typeof window !== "undefined") {
+      try {
+        const bc = new BroadcastChannel("platform_live_chat_rooms");
+        bc.postMessage({
+          type: "MESSAGES_SEEN",
+          payload: {
+            contactId,
+            readerEmail: myEmail,
+            senderEmail: cEmail,
+          },
+        });
+        bc.close();
+      } catch {}
+      window.dispatchEvent(
+        new CustomEvent("platform_live_chat_unread_changed", {
+          detail: { contactId, email: cEmail },
+        })
+      );
+      window.dispatchEvent(new Event("storage"));
+
+      // Persist to DB
+      fetch("/api/live-chat/messages", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId,
+          readerEmail: myEmail,
+          senderEmail: cEmail,
+        }),
+      }).catch(() => null);
+    }
+  }
+}
+

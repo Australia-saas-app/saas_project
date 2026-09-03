@@ -28,67 +28,55 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
   const handleLogout = async () => {
     setIsLoggingOut(true);
     let accountType = "user";
+    const userEmail = (user as any)?.email;
+
+    // 1. Immediately mark offline in live chat store and broadcast
+    if (userEmail) {
+      try {
+        const { setUserOnlineStatus } = await import("@/src/shared/lib/live-chat-store");
+        setUserOnlineStatus(userEmail, false);
+      } catch {}
+    }
+
     try {
       if (user) {
         accountType = ((user as any)?.accountType || (user as any)?.role || "user").toLowerCase();
-        const userEmail = (user as any)?.email;
-        if (userEmail) {
-          try {
-            const { setUserOnlineStatus } = await import("@/src/shared/lib/live-chat-store");
-            setUserOnlineStatus(userEmail, false);
-            if ("BroadcastChannel" in window) {
-              const bc = new BroadcastChannel("platform_live_chat_rooms");
-              bc.postMessage({
-                type: "USER_PRESENCE",
-                payload: { email: userEmail, isOnline: false },
-              });
-              bc.close();
-            }
-          } catch {}
-        }
         const { recordRealActivity } = await import("@/src/shared/lib/real-activity-logger");
         await recordRealActivity(
           "USER_LOGOUT",
           "User logged out successfully",
-          { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
+          { userId: (user as any)?.userId || (user as any)?.id || "user", email: userEmail, name: (user as any)?.fullName }
         ).catch(() => undefined);
       }
+
+      // 2. Call server API logout to clear httpOnly cookies in response headers
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail }),
+      }).catch(() => null);
+
+      // 3. Call server action logout
       await logout().catch(() => undefined);
       setUser(null);
     } catch (error) {
       console.error("Logout error:", error);
     }
 
-    // ── Security: wipe ALL client-side cookies and storage on logout ──────────────────
-    const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user", "next-auth.session-token"];
-    cookieNames.forEach(deleteCookie);
+    // 4. Wipe ALL client-side cookies and storage completely
+    const { clearAllCookies } = await import("@/src/utils/cookie-utils");
+    clearAllCookies();
 
     if (typeof window !== "undefined") {
       try {
         const deviceId = localStorage.getItem("vero_device_id");
-        
-        // Clear every localStorage entry
         localStorage.clear();
         sessionStorage.clear();
         sessionStorage.setItem("manual_logout", "true");
-        
         if (deviceId) {
           localStorage.setItem("vero_device_id", deviceId);
         }
-      } catch {
-        const knownKeys = [
-          "accessToken",
-          "token",
-          "user_profile_overrides_v2",
-          "user_profile_documents_v2",
-          "user_storage_scope",
-          "profile_complete",
-          "profile_account_type",
-        ];
-        knownKeys.forEach(k => {
-          try { localStorage.removeItem(k); } catch { /* ignore */ }
-        });
-      }
+      } catch {}
 
       // Broadcast logout to all other open tabs
       try {
@@ -105,7 +93,7 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
       const pathname = window.location.pathname;
       const isLandingPage = pathname === "/" || pathname === "";
       if (isLandingPage) {
-        window.location.href = "/";
+        window.location.replace("/");
         return;
       }
 
@@ -123,7 +111,7 @@ export function LogoutConfirmModal({ open, onClose, targetPath = "/" }: LogoutCo
       } else if (accountType === "business" || pathname.includes("/business")) {
         cleanPath = "/account/business/login";
       }
-      window.location.href = cleanPath;
+      window.location.replace(cleanPath);
     }
   };
 

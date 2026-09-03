@@ -244,8 +244,13 @@ export default function DashboardMessagesLayout({
   useEffect(() => {
     if (tabParam === "live" || tabParam === "live_chat" || tabParam === "liveChat") {
       setFolder("live");
+    } else if (tabParam === "inbox" || threadParam) {
+      setFolder("inbox");
+      if (threadParam) {
+        setSelectedId(threadParam);
+      }
     }
-  }, [tabParam]);
+  }, [tabParam, threadParam]);
 
   useEffect(() => {
     const handleOpenLiveChat = () => {

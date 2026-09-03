@@ -210,21 +210,33 @@ export const useLogout = () => {
     return useMutation<{ success: boolean; message?: string } | void, Error>({
         mutationKey: ["USER_LOGOUT"],
         mutationFn: async () => {
+            const userEmail = (user as any)?.email;
+            if (userEmail) {
+              try {
+                const { setUserOnlineStatus } = await import("@/src/shared/lib/live-chat-store");
+                setUserOnlineStatus(userEmail, false);
+              } catch {}
+            }
             if (user) {
               await recordRealActivity(
                 "USER_LOGOUT",
                 "User logged out successfully",
-                { userId: (user as any)?.userId || (user as any)?.id || "user", email: (user as any)?.email, name: (user as any)?.fullName }
+                { userId: (user as any)?.userId || (user as any)?.id || "user", email: userEmail, name: (user as any)?.fullName }
               ).catch(() => undefined);
             }
+            await fetch("/api/auth/logout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: userEmail }),
+            }).catch(() => null);
             return await apiLogout();
         },
-        onSuccess: () => {
+        onSuccess: async () => {
             setUser(null);
             toast.success('Logged out');
             if (typeof window !== "undefined") {
-              const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user", "next-auth.session-token"];
-              cookieNames.forEach(deleteCookie);
+              const { clearAllCookies } = await import("@/src/utils/cookie-utils");
+              clearAllCookies();
 
               try {
                 const deviceId = localStorage.getItem("vero_device_id");
@@ -245,7 +257,7 @@ export const useLogout = () => {
               const pathname = window.location.pathname;
               const isLandingPage = pathname === "/" || pathname === "";
               if (isLandingPage) {
-                window.location.href = "/";
+                window.location.replace("/");
                 return;
               }
 
@@ -264,14 +276,14 @@ export const useLogout = () => {
                 targetPath = "/account/business/login";
               }
 
-              window.location.href = targetPath;
+              window.location.replace(targetPath);
             }
         },
-        onError: (error) => {
+        onError: async (error) => {
             setUser(null);
             if (typeof window !== "undefined") {
-                const cookieNames = ["accessToken", "client_access_token", "refreshToken", "user", "next-auth.session-token"];
-                cookieNames.forEach(deleteCookie);
+                const { clearAllCookies } = await import("@/src/utils/cookie-utils");
+                clearAllCookies();
 
                 try {
                   const deviceId = localStorage.getItem("vero_device_id");
@@ -292,7 +304,7 @@ export const useLogout = () => {
                 const pathname = window.location.pathname;
                 const isLandingPage = pathname === "/" || pathname === "";
                 if (isLandingPage) {
-                  window.location.href = "/";
+                  window.location.replace("/");
                   return;
                 }
 
@@ -311,7 +323,7 @@ export const useLogout = () => {
                   targetPath = "/account/business/login";
                 }
 
-                window.location.href = targetPath;
+                window.location.replace(targetPath);
             }
         }
     })

@@ -41,3 +41,35 @@ export const deleteCookie = (name: string) => {
     }
   } catch {}
 };
+
+/**
+ * Deletes all cookies across all path and domain variations.
+ */
+export const clearAllCookies = () => {
+  if (typeof window === "undefined") return;
+  const knownCookies = [
+    "accessToken",
+    "client_access_token",
+    "refreshToken",
+    "user",
+    "next-auth.session-token",
+    "next-auth.csrf-token",
+    "session",
+    "auth_token",
+  ];
+  knownCookies.forEach(deleteCookie);
+
+  try {
+    const rawCookies = document.cookie.split(";");
+    for (let i = 0; i < rawCookies.length; i++) {
+      const cookie = rawCookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
+      if (name) {
+        deleteCookie(name);
+      }
+    }
+  } catch {}
+};
+
+

@@ -157,7 +157,11 @@ export function NotificationBell({
             {notifications.length > 0 && (
               <button
                 type="button"
-                onClick={deleteAllNotifications}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  deleteAllNotifications();
+                }}
                 style={{ color: "#ef4444" }}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold hover:bg-rose-500/10 cursor-pointer transition-colors"
               >
@@ -219,13 +223,14 @@ export function NotificationBell({
                   </button>
                   <button
                     type="button"
+                    aria-label="Delete notification"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       deleteNotification(item.id);
                     }}
                     style={{ color: isDark ? "#94a3b8" : "#64748b" }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:text-rose-500 cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-80 sm:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer z-10"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
