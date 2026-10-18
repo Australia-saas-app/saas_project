@@ -494,6 +494,61 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [notify, knownIdsRef, userEmail]);
 
+  // Connect to Notification WebSocket for live instant notifications
+  useEffect(() => {
+    if (typeof window === "undefined" || (!userId && !userEmail)) return;
+
+    let socket: Socket | null = null;
+    try {
+      const wsUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000";
+      socket = io(`${wsUrl}/notifications`, {
+        transports: ["websocket", "polling"],
+        query: {
+          userId: userId || userEmail,
+          role: role || "USER",
+        },
+        reconnection: true,
+        reconnectionAttempts: 5,
+        timeout: 10000,
+      });
+
+      socket.on("connect", () => {
+        if (userId) {
+          socket?.emit("join_user", { userId });
+        }
+        if (role) {
+          socket?.emit("join_role", { role });
+        }
+      });
+
+      socket.on("new_notification", (payload: any) => {
+        if (payload) {
+          const entryId = payload.id || `live-${Date.now()}`;
+          const deletedIds = getDeletedIds(userEmail);
+          if (!deletedIds.has(String(entryId)) && !knownIdsRef.has(String(entryId))) {
+            notify(
+              {
+                id: entryId,
+                title: payload.title || "New Notification",
+                message: payload.message || payload.content || "",
+                createdAt: payload.createdAt || new Date().toISOString(),
+                href: payload.href || payload.data?.href,
+                type: payload.type || payload.data?.type,
+              },
+              false
+            );
+          }
+        }
+      });
+    } catch {}
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [userId, userEmail, role, notify, knownIdsRef]);
+
   const markRead = useCallback(
     (id: string) => {
       setItems((prev) => {

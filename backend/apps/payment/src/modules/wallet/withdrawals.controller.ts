@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Post,
   Request,
+  Param,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -34,6 +35,26 @@ export class WithdrawalsController {
       throw new ForbiddenException('Invalid authentication payload');
     }
     return this.walletService.getMyWithdrawals(req.user.userId, req.user.accountType);
+  }
+
+  @Get('admin/requests')
+  @HttpCode(HttpStatus.OK)
+  async getAllWithdrawalRequests() {
+    return this.walletService.getAllWithdrawalRequests();
+  }
+
+  @Post('admin/:id/pay')
+  @HttpCode(HttpStatus.OK)
+  async payWithdrawal(@Param('id') id: string, @Request() req: any, @Body() body: { note?: string }) {
+    const adminId = req.user?.userId || req.user?.id || 'admin';
+    return this.walletService.payWithdrawalRequest(id, adminId, body?.note);
+  }
+
+  @Post('admin/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  async rejectWithdrawal(@Param('id') id: string, @Request() req: any, @Body() body: { reason?: string }) {
+    const adminId = req.user?.userId || req.user?.id || 'admin';
+    return this.walletService.rejectWithdrawalRequest(id, adminId, body?.reason);
   }
 }
 

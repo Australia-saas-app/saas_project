@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Shield, Zap, Globe2, BadgeCheck, Play, Sparkles } from "lucide-react";
+import UniversalSearch from "@/src/modules/shared/components/search/UniversalSearch";
 
 const FEATURES = [
   { label: "Secure", icon: Shield },
@@ -19,10 +20,10 @@ const TRUST_AVATARS = [
 export default function Hero() {
   return (
     <section className="bg-background">
-      <div className="mx-auto grid max-w-7xl gap-4 px-4 py-4 md:gap-5 md:px-6 md:py-5 lg:h-[400px] lg:grid-cols-2 lg:items-stretch lg:gap-6 lg:py-5 xl:h-[440px]">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:gap-8 md:px-6 md:py-8 lg:min-h-[480px] lg:grid-cols-2 lg:items-center lg:gap-8">
         {/* Left — stretched across the same height as the image */}
-        <div className="reveal flex h-full flex-col justify-between gap-4 lg:min-h-0 lg:py-1">
-          <div className="space-y-2.5">
+        <div className="reveal flex h-full flex-col justify-between gap-5 lg:py-2">
+          <div className="space-y-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8F1FF] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#1E3A8A] dark:bg-blue-950/50 dark:text-blue-200">
               <Sparkles className="h-3 w-3 text-[#7C3AED]" fill="currentColor" />
               Global Multi-Service Platform
@@ -39,6 +40,11 @@ export default function Hero() {
             <p className="max-w-md text-sm font-medium leading-snug text-muted-foreground md:text-[15px]">
               Connect as a User, Earn as an Affiliate, Grow as a Business — All in One Platform.
             </p>
+          </div>
+
+          {/* Landing Page Global Search Bar */}
+          <div className="w-full max-w-lg z-20">
+            <UniversalSearch variant="hero" className="shadow-sm hover:shadow-md transition-shadow" />
           </div>
 
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">

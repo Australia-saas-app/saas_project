@@ -20,7 +20,10 @@ export interface PlatformItem {
     updatedAt: string
 }
 
-const GATEWAY_URL = "http://35.162.205.9:3006"
+const GATEWAY_URL =
+    process.env.NEXT_PUBLIC_PLATFORM_GATEWAY_URL ||
+    envConfig.platformBaseUrl ||
+    "http://localhost:3006"
 
 interface ServiceOptions {
     overrideAdminUrl?: string

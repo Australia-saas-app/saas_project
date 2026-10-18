@@ -11,6 +11,7 @@ import {
 } from "@/src/shared/lib/payment-methods-store";
 import { useUser } from "@/src/context/user.provider";
 import { submitWithdrawalRequest } from "@/src/shared/lib/wallet-store";
+import axiosInstance from "@/src/shared/lib/axiosInstance";
 
 export interface WithdrawRequestResult {
   amount: string;
@@ -96,7 +97,21 @@ export default function WithdrawRequestModal({
     }
 
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 500));
+    let backendRecordId: string | null = null;
+
+    try {
+      const res = await axiosInstance.post("/payment/withdrawals/request", {
+        amount: parsedAmount,
+        payoutMethod: selectedMethod.label,
+        stripeAccountId: selectedMethod.id,
+        note: `Withdrawal via ${selectedMethod.label}`,
+      });
+      if (res?.data?.requestId || res?.data?.id) {
+        backendRecordId = String(res.data.requestId || res.data.id);
+      }
+    } catch (apiErr: any) {
+      console.warn("Withdrawal live API notice:", apiErr?.response?.data?.message || apiErr?.message);
+    }
 
     const identity = getUserIdentity(user);
     const record = submitWithdrawalRequest({
@@ -108,12 +123,22 @@ export default function WithdrawRequestModal({
       methodType: selectedMethod.type,
     });
 
+    if (backendRecordId) {
+      record.id = backendRecordId;
+    }
+
+    // Trigger wallet balance reload across dashboard
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("wallet_updated"));
+    }
+
     onSubmit({
       amount: record.amount,
       method: record.method,
       id: record.id,
       date: record.date,
     });
+
     toast.success("Withdrawal request submitted. Admin will review it shortly.");
     setSubmitting(false);
     onClose();

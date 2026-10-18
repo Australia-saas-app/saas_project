@@ -123,9 +123,10 @@ export default function UniversalSearch({
         ) : (
           <button
             type="submit"
-            className="hidden shrink-0 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110 sm:inline-flex"
+            className="shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs md:text-sm font-semibold text-white transition hover:brightness-110 flex items-center gap-1.5 cursor-pointer shadow-sm"
           >
-            Search
+            <Search className="h-4 w-4" />
+            <span className="hidden xs:inline">Search</span>
           </button>
         )}
       </form>

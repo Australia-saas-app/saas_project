@@ -27,6 +27,7 @@ import { SendOtpDto } from './dto/send-otp.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { SocialLoginDto } from './dto/social-login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AccessTokenGuard, AuthContext } from '../../common/guards/access-token.guard';
 import { CurrentAuth } from '../../common/decorators/current-user.decorator';
@@ -73,6 +74,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() loginDto: LoginDto, @Request() req: any) {
     return this.authService.login(loginDto, req);
+  }
+
+  @Post('social-login')
+  @HttpCode(HttpStatus.OK)
+  socialLogin(@Body() socialDto: SocialLoginDto, @Request() req: any) {
+    return this.authService.socialLogin(socialDto, req);
   }
 
   @Post('user/forgot-password')

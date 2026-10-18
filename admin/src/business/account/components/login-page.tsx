@@ -37,7 +37,7 @@ export function LoginPage({ onForgotPassword, onSuccess }: LoginPageProps) {
   const dispatch = useAppDispatch()
   const { loading, error, isAuthenticated, token } = useAppSelector((state) => state.auth)
   const router = useRouter()
-  
+
   const [statusModal, setStatusModal] = useState<{ isOpen: boolean; status: string; description: string }>({
     isOpen: false,
     status: "",
@@ -64,7 +64,7 @@ export function LoginPage({ onForgotPassword, onSuccess }: LoginPageProps) {
         else if (upperError === 'DORMANT') description = "Your account is inactive due to long periods of no activity."
         else if (upperError === 'CLOSED') description = "Your account has been closed."
         else if (upperError === 'BLOCK') description = "Your account has been permanently blocked. Contact support."
-        
+
         setStatusModal({ isOpen: true, status: upperError, description })
       } else {
         toast.error(error)
@@ -171,13 +171,13 @@ export function LoginPage({ onForgotPassword, onSuccess }: LoginPageProps) {
             <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
               <AlertOctagon className="w-8 h-8" />
             </div>
-            
+
             <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">Account {statusModal.status}</h3>
             <p className="text-sm text-blue-700/80 dark:text-blue-300 mb-6 leading-relaxed">
               {statusModal.description}
             </p>
-            
-            <button 
+
+            <button
               onClick={() => setStatusModal({ ...statusModal, isOpen: false })}
               className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-all active:scale-95"
             >

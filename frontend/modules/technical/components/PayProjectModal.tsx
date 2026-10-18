@@ -404,6 +404,13 @@ export function PayProjectModal({ project, onClose, onSuccess }: Props) {
                   </strong>
                 </div>
 
+                <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span>Tax / GST (10% standard incl.):</span>
+                  <strong>
+                    {currency} {((paymentAmount * 0.1) / 1.1).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+
                 <div className="pt-2 border-t border-border flex items-baseline justify-between">
                   <span className="font-bold text-foreground text-xs uppercase tracking-wider">Total Escrow Payable:</span>
                   <span className="text-xl font-extrabold text-primary">

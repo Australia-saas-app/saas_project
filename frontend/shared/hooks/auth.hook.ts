@@ -1,4 +1,4 @@
-import { loginUser, registerUser, requestPasswordReset, confirmPasswordReset, logout as apiLogout, sendRegistrationOtp, verifyRegistrationOtp } from "@/src/server/AuthService"
+import { loginUser, registerUser, requestPasswordReset, confirmPasswordReset, logout as apiLogout, sendRegistrationOtp, verifyRegistrationOtp, socialLoginUser } from "@/src/server/AuthService"
 import { parseApiError, getLoginErrorMessage } from "@/src/lib/api-error"
 import { recordRealActivity } from "@/src/lib/real-activity-logger"
 import { resolvePostLoginRedirect } from "@/src/lib/auth-redirect"
@@ -173,6 +173,81 @@ export const useUserLogin = (redirectUrl?: string | null) => {
         }
     })
 }
+
+export const useSocialLogin = (redirectUrl?: string | null) => {
+    const router = useRouter();
+    const { refreshUser } = useUser();
+
+    return useMutation<AuthResponse, Error, {
+        provider: "google" | "apple" | "linkedin" | "github";
+        email: string;
+        fullName?: string;
+        avatarUrl?: string;
+        accountType?: string;
+        deviceId?: string;
+        idToken?: string;
+    }>({
+        mutationKey: ["SOCIAL_LOGIN", redirectUrl ?? ""],
+        mutationFn: async (socialData) => {
+            const result = await socialLoginUser(socialData);
+            if (!result || !result.success) {
+                throw new Error(result?.message || `${socialData.provider} login failed`);
+            }
+            return result as AuthResponse;
+        },
+        onSuccess: async (data) => {
+            const dataAny = (data?.data || data) as any;
+            const userObj = dataAny?.user;
+            const tokenStr = dataAny?.access_token || dataAny?.accessToken || dataAny?.token;
+            const decoded = tokenStr ? decodeJwt(tokenStr) : null;
+            const role = userObj?.role || userObj?.accountType || decoded?.role || "user";
+            const userId = userObj?.id || userObj?.userId || decoded?.id;
+            const redirectTo = resolvePostLoginRedirect(redirectUrl, getDashboardRedirect(role, userId));
+
+            if (typeof window !== "undefined") {
+                if (tokenStr) {
+                    localStorage.setItem("accessToken", tokenStr);
+                    localStorage.setItem("token", tokenStr);
+                    setCookie("accessToken", tokenStr);
+                    setCookie("client_access_token", tokenStr);
+                }
+                sessionStorage.setItem("show_login_success_toast", "true");
+                const bc = new BroadcastChannel('session-sync');
+                bc.postMessage({ type: 'LOGIN', role });
+                bc.close();
+            }
+
+            const email = userObj?.email || decoded?.email;
+            const name = userObj?.fullName || userObj?.firstName || userObj?.name;
+
+            await recordRealActivity(
+              "USER_LOGIN",
+              `Logged in via ${dataAny?.provider || 'social'} SSO (${role})`,
+              { userId: userObj?.userId || userId || "user", email, name }
+            ).catch(() => undefined);
+            refreshUser().catch(() => undefined);
+
+            if (typeof window !== "undefined") {
+                window.location.assign(redirectTo);
+            } else {
+                router.refresh();
+                router.push(redirectTo);
+            }
+        },
+        onError: (error) => {
+            try {
+                const parsed = JSON.parse(error.message);
+                if (parsed.type === "STATUS_ERROR") {
+                    const statusStr = String(parsed.status);
+                    const formattedStatus = statusStr.charAt(0).toUpperCase() + statusStr.slice(1);
+                    toast.error(`Account is ${formattedStatus}`);
+                    return;
+                }
+            } catch {}
+            toast.error(getLoginErrorMessage(error));
+        }
+    });
+};
 
 
 export const useForgotPassword = () => {

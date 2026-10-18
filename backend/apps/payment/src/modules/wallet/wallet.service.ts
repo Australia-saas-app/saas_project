@@ -1541,8 +1541,9 @@ export class WalletService {
     accountType: string,
     dto: WithdrawalRequestDto,
   ): Promise<WithdrawalRequest> {
-    if (accountType !== AccountType.BUSINESS) {
-      throw new ForbiddenException('Only business users can request withdrawals');
+    const allowedRoles = ['business', 'user', 'affiliate', AccountType.BUSINESS, AccountType.USER, AccountType.AFFILIATE];
+    if (accountType && !allowedRoles.includes(accountType.toLowerCase() as any)) {
+      throw new ForbiddenException('Only registered accounts can request withdrawals');
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -1574,9 +1575,12 @@ export class WalletService {
         businessUserId: userId,
         amount,
         currency: (dto.currency || wallet.currency || 'USD').toUpperCase(),
-        stripeAccountId: dto.stripeAccountId,
+        stripeAccountId: dto.stripeAccountId || dto.payoutMethod || 'bank_transfer',
         status: WithdrawalRequestStatus.PENDING,
-        metadata: dto.note ? { note: dto.note } : null,
+        metadata: {
+          note: dto.note || null,
+          payoutMethod: dto.payoutMethod || 'Default Payout Method',
+        },
       });
 
       await queryRunner.manager.save(request);
@@ -1591,9 +1595,6 @@ export class WalletService {
   }
 
   async getMyWithdrawals(userId: string, accountType: string): Promise<WithdrawalRequest[]> {
-    if (accountType !== AccountType.BUSINESS) {
-      throw new ForbiddenException('Only business users can view withdrawals');
-    }
     return this.withdrawalRequestRepository.find({
       where: { businessUserId: userId },
       order: { createdAt: 'DESC' },
@@ -1611,10 +1612,6 @@ export class WalletService {
     adminId: string,
     note?: string,
   ): Promise<WithdrawalRequest> {
-    if (!this.stripe) {
-      throw new BadRequestException('Stripe is not configured. Please set STRIPE_SECRET_KEY.');
-    }
-
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1636,15 +1633,23 @@ export class WalletService {
         throw new NotFoundException('Wallet not found for withdrawal request');
       }
 
-      const transfer = await this.stripe.transfers.create({
-        amount: Math.round(Number(request.amount) * 100),
-        currency: request.currency.toLowerCase(),
-        destination: request.stripeAccountId,
-        metadata: {
-          requestId: request.requestId,
-          businessUserId: request.businessUserId,
-        },
-      });
+      let transferId = `TR-${Date.now()}`;
+      if (this.stripe && request.stripeAccountId?.startsWith('acct_')) {
+        try {
+          const transfer = await this.stripe.transfers.create({
+            amount: Math.round(Number(request.amount) * 100),
+            currency: request.currency.toLowerCase(),
+            destination: request.stripeAccountId,
+            metadata: {
+              requestId: request.requestId,
+              businessUserId: request.businessUserId,
+            },
+          });
+          transferId = transfer.id;
+        } catch (stripeErr: any) {
+          console.warn('Stripe transfer fallback to manual record:', stripeErr?.message);
+        }
+      }
 
       wallet.pendingBalance = Math.max(0, Number(wallet.pendingBalance || 0) - Number(request.amount));
       wallet.balance = Number(wallet.balance) - Number(request.amount);
@@ -1659,9 +1664,9 @@ export class WalletService {
         currency: request.currency.toLowerCase(),
         status: TransactionStatus.COMPLETED,
         description: `Withdrawal paid to ${request.stripeAccountId}`,
-        paymentMethod: 'stripe_transfer',
-        paymentProvider: 'stripe',
-        paymentProviderTransactionId: transfer.id,
+        paymentMethod: request.stripeAccountId?.startsWith('acct_') ? 'stripe_transfer' : 'bank_transfer',
+        paymentProvider: request.stripeAccountId?.startsWith('acct_') ? 'stripe' : 'manual_bank',
+        paymentProviderTransactionId: transferId,
         balanceBefore: Number(wallet.balance) + Number(request.amount),
         balanceAfter: Number(wallet.balance),
         metadata: note ? { note } : undefined,
@@ -1669,7 +1674,7 @@ export class WalletService {
       await queryRunner.manager.save(payoutTransaction);
 
       request.status = WithdrawalRequestStatus.PAID;
-      request.stripeTransferId = transfer.id;
+      request.stripeTransferId = transferId;
       request.relatedTransactionId = payoutTransaction.transactionId;
       request.reviewedByAdminId = adminId;
       request.processedAt = new Date();

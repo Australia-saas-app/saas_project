@@ -40,7 +40,13 @@ import { KycApplication } from './entities/kyc-application.entity';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '../backend/.env'].filter(Boolean),
+      envFilePath: [
+        '.env',
+        '../.env',
+        '../../.env',
+        '../../../.env',
+        '../backend/.env',
+      ].filter(Boolean),
     }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],

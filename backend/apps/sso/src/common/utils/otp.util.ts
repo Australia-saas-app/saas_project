@@ -2,11 +2,15 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { RedisClientType } from "redis";
 import * as nodemailer from "nodemailer";
+import twilio from "twilio";
 
 @Injectable()
 export class OtpUtil {
   private readonly ttlSeconds: number;
   private readonly transporter: nodemailer.Transporter;
+  private readonly twilioClient?: twilio.Twilio;
+  private readonly twilioPhoneNumber?: string;
+  private readonly twilioMessagingServiceSid?: string;
 
   constructor(private readonly configService: ConfigService) {
     this.ttlSeconds = parseInt(
@@ -14,24 +18,63 @@ export class OtpUtil {
       10,
     );
 
-    // Initialize Nodemailer with generic SMTP
+    // Initialize Twilio SMS Client
+    const twilioAccountSid = this.configService.get<string>("TWILIO_ACCOUNT_SID");
+    const twilioAuthToken = this.configService.get<string>("TWILIO_AUTH_TOKEN");
+    this.twilioPhoneNumber = this.configService.get<string>("TWILIO_PHONE_NUMBER");
+    this.twilioMessagingServiceSid = this.configService.get<string>("TWILIO_MESSAGING_SERVICE_SID");
+
+    if (twilioAccountSid && twilioAuthToken) {
+      try {
+        this.twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+        Logger.log("Twilio SMS client initialized successfully", "OtpUtil");
+      } catch (err) {
+        Logger.warn(`Failed to initialize Twilio client: ${err.message}`, "OtpUtil");
+      }
+    } else {
+      Logger.log("Twilio SMS credentials not set; OTPs will be logged to console", "OtpUtil");
+    }
+
+    // Initialize Nodemailer with generic SMTP or SES fallback
+    const smtpHost =
+      this.configService.get("SMTP_HOST") ||
+      this.configService.get("SES_SMTP_HOST", "smtp.gmail.com");
+    const smtpPort = parseInt(
+      this.configService.get("SMTP_PORT") ||
+      this.configService.get("SES_SMTP_PORT", "587"),
+      10,
+    );
+    const smtpSecureVal = this.configService.get("SMTP_SECURE");
+    const isSecure =
+      smtpSecureVal !== undefined && smtpSecureVal !== null
+        ? String(smtpSecureVal).toLowerCase() === "true"
+        : smtpPort === 465;
+
+    const smtpUser =
+      this.configService.get("SMTP_USER") ||
+      this.configService.get("SES_SMTP_USER");
+    const smtpPassword =
+      this.configService.get("SMTP_PASSWORD") ||
+      this.configService.get("SES_SMTP_PASSWORD");
+
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get(
-        "SMTP_HOST",
-        "smtp.gmail.com",
-      ),
-      port: parseInt(this.configService.get("SMTP_PORT", "587")),
-      secure: false, // true for 465, false for other ports
+      host: smtpHost,
+      port: smtpPort,
+      secure: isSecure,
       auth: {
-        user: this.configService.get("SMTP_USER"),
-        pass: this.configService.get("SMTP_PASSWORD"),
+        user: smtpUser,
+        pass: smtpPassword,
       },
     });
   }
 
   generateOTP(length = 6, emailOrPhone?: string): string {
-    if (emailOrPhone === 'superadmin@systemdb.com') {
-      return '123456';
+    const superAdminEmail = this.configService.get(
+      "SUPERADMIN_EMAIL",
+      "superadmin@systemdb.com",
+    );
+    if (emailOrPhone === superAdminEmail) {
+      return this.configService.get("SUPERADMIN_DEFAULT_OTP", "123456");
     }
     const digits = "0123456789";
     let otp = "";
@@ -46,8 +89,18 @@ export class OtpUtil {
   }
 
   async verifyOTP(redisClient: RedisClientType, key: string, otp: string, deleteKey: boolean = true) {
-    // Hardcoded bypass for testing roles
-    if (["123456", "234567", "345678", "456789"].includes(otp)) {
+    // Configurable bypass codes for testing roles
+    const testOtps = (
+      this.configService.get(
+        "TEST_OTP_CODES",
+        "123456,234567,345678,456789",
+      ) || ""
+    )
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+
+    if (testOtps.includes(otp)) {
       if (deleteKey) await redisClient.del(key);
       return true;
     }
@@ -61,7 +114,11 @@ export class OtpUtil {
   }
 
   async sendOTPEmail(email: string, otp: string, type: string = 'verification', context?: { ipAddress?: string }) {
-    if (email === 'superadmin@systemdb.com') {
+    const superAdminEmail = this.configService.get(
+      "SUPERADMIN_EMAIL",
+      "superadmin@systemdb.com",
+    );
+    if (email === superAdminEmail) {
       Logger.log(`OTP for ${email}: ${otp} (Bypassed real email for superadmin)`, "OtpUtil");
       return { success: true, messageId: 'mock-superadmin-id' };
     }
@@ -81,10 +138,18 @@ export class OtpUtil {
     }
 
     try {
-      const fromEmail = this.configService.get(
-        "SMTP_FROM_EMAIL",
-        "noreply@systemdb.com",
-      );
+      const fromEmail =
+        this.configService.get("SMTP_FROM_EMAIL") ||
+        this.configService.get("SES_FROM_EMAIL") ||
+        this.configService.get("SMTP_USER") ||
+        process.env.SMTP_FROM_EMAIL ||
+        process.env.SMTP_USER ||
+        "noreply@systemdb.com";
+
+      const fromName =
+        this.configService.get("SMTP_FROM_NAME") ||
+        this.configService.get("SES_FROM_NAME") ||
+        "Vero Platform";
       const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -155,7 +220,7 @@ export class OtpUtil {
       `;
 
       const mailOptions = {
-        from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
+        from: `"${fromName}" <${fromEmail}>`,
         to: email,
         subject: subjectText,
         text: textContent,
@@ -200,9 +265,63 @@ export class OtpUtil {
     }
   }
 
-  async sendOTPSMS(phone: string, otp: string) {
-    Logger.log(`OTP for ${phone}: ${otp}`, "OtpUtil");
-    // TODO: Integrate SMS provider (Twilio)
+  async sendOTPSMS(phone: string, otp: string, type: string = 'verification') {
+    const cleanPhone = phone ? phone.trim() : '';
+    const formattedPhone = cleanPhone.startsWith("+") ? cleanPhone : `+${cleanPhone}`;
+    const messageBody = `Vero Platform: Your verification security code is ${otp}. It will expire in ${Math.floor(this.ttlSeconds / 60)} minutes. Do not share this code.`;
+
+    if (this.twilioClient && (this.twilioPhoneNumber || this.twilioMessagingServiceSid)) {
+      try {
+        const messageOptions: any = {
+          to: formattedPhone,
+          body: messageBody,
+        };
+
+        if (this.twilioMessagingServiceSid) {
+          messageOptions.messagingServiceSid = this.twilioMessagingServiceSid;
+        } else if (this.twilioPhoneNumber) {
+          messageOptions.from = this.twilioPhoneNumber;
+        }
+
+        const result = await this.twilioClient.messages.create(messageOptions);
+        Logger.log(
+          `Twilio SMS OTP sent successfully to ${formattedPhone}. Message SID: ${result.sid}`,
+          "OtpUtil",
+        );
+        return {
+          success: true,
+          sid: result.sid,
+        };
+      } catch (error) {
+        Logger.error(
+          `Failed to send Twilio SMS to ${formattedPhone}: ${error.message}`,
+          error.stack,
+          "OtpUtil",
+        );
+
+        // Fallback to logging for development
+        Logger.log(
+          `SMS OTP for ${formattedPhone}: ${otp} (Twilio failed, fallback logged)`,
+          "OtpUtil",
+        );
+
+        return {
+          success: false,
+          error: error.message,
+          fallback: true,
+        };
+      }
+    } else {
+      // Graceful development mode fallback when Twilio is not yet configured
+      Logger.log(
+        `[SMS OTP - DEV SIMULATED] To: ${formattedPhone} | Code: ${otp} | Text: "${messageBody}"`,
+        "OtpUtil",
+      );
+      return {
+        success: true,
+        simulated: true,
+      };
+    }
   }
 }
 

@@ -64,6 +64,28 @@ export class TokenService {
     }
   }
 
+  async issueTokensForUser(
+    user: User,
+    context: {
+      ipAddress?: string;
+      userAgent?: string;
+      deviceId?: string;
+      deviceName?: string;
+      loginRole?: string;
+    },
+  ) {
+    const client = await this.ensureClient();
+    const session = await this.createSessionForUser(user, client, context);
+    return this.issueTokens({
+      user,
+      client,
+      scope: this.defaultScope,
+      session,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    });
+  }
+
   private async handlePasswordGrant(dto: TokenRequestDto, req: Request) {
     const scope = dto.scope ?? this.defaultScope;
     const client = await this.ensureClient(dto.client_id, dto.client_secret);

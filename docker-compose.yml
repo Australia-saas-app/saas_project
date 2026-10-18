@@ -90,17 +90,29 @@ services:
       - PORT=3001
       - DB_HOST=saas-postgres
       - DB_PORT=5432
-      - DB_USERNAME=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=saas_db
-      - REDIS_HOST=saas-redis
-      - REDIS_PORT=6379
-      - REDIS_URL=redis://saas-redis:6379
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
+      - REDIS_HOST=${REDIS_HOST:-saas-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_URL=${REDIS_URL:-redis://saas-redis:6379}
       - SSO_SYNCHRONIZE=false
-      - SMTP_USER=abdulrafiumahesar@gmail.com
-      - SMTP_PASSWORD=kkzdajqzqvwkybgq
-      - SMTP_FROM_EMAIL=abdulrafiumahesar@gmail.com
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Vero Platform}
+      - OTP_TTL_SECONDS=${OTP_TTL_SECONDS:-600}
+      - SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL:-superadmin@systemdb.com}
+      - SUPERADMIN_DEFAULT_OTP=${SUPERADMIN_DEFAULT_OTP:-123456}
+      - TEST_OTP_CODES=${TEST_OTP_CODES:-123456,234567,345678,456789}
       - NOTIFICATION_SERVICE_URL=http://saas-backend-notification:3014/notification-service/internal/notifications
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+      - TWILIO_MESSAGING_SERVICE_SID=${TWILIO_MESSAGING_SERVICE_SID:-}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
@@ -120,9 +132,9 @@ services:
       - PORT=3002
       - DB_HOST=saas-postgres
       - DB_PORT=5432
-      - DB_USERNAME=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=saas_db
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
@@ -142,9 +154,9 @@ services:
       - PORT=3006
       - DB_HOST=saas-postgres
       - DB_PORT=5432
-      - DB_USERNAME=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=saas_db
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
@@ -164,11 +176,11 @@ services:
       - PORT=3010
       - DB_HOST=saas-postgres
       - DB_PORT=5432
-      - DB_USERNAME=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=saas_db
-      - MONGODB_URI=mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin
-      - MONGODB_DB_NAME=saas_db
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-saas_db}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
@@ -191,11 +203,11 @@ services:
       - PORT=3005
       - DB_HOST=saas-postgres
       - DB_PORT=5432
-      - DB_USERNAME=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=saas_db
-      - MONGODB_URI=mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin
-      - MONGODB_DB_NAME=saas_db
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://admin:adminpassword@saas_mongodb:27017/saas_db?authSource=admin}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-saas_db}
       - SSO_URL=http://saas-backend-sso:3001
       - SSO_ISSUER=http://saas-backend-sso:3001/sso
     depends_on:
@@ -216,16 +228,70 @@ services:
       - PORT=3014
       - DB_HOST=saas-postgres
       - DB_PORT=5432
-      - DB_USERNAME=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=saas_db
-      - REDIS_HOST=saas-redis
-      - REDIS_PORT=6379
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
+      - REDIS_HOST=${REDIS_HOST:-saas-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
       - saas-postgres
       - saas-redis
+      - saas-backend-sso
+    restart: always
+    networks:
+      - saas_network
+
+  saas-backend-payment:
+    build:
+      context: ./backend/apps/payment
+      dockerfile: Dockerfile
+    container_name: saas-backend-payment
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
+      - PAYPAL_MODE=${PAYPAL_MODE:-sandbox}
+      - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - WALLET_DEFAULT_CURRENCY=${WALLET_DEFAULT_CURRENCY:-USD}
+    env_file:
+      - ./backend/config/sso-keys.conf
+    depends_on:
+      - saas-postgres
+      - saas-backend-sso
+    restart: always
+    networks:
+      - saas_network
+
+  saas-backend-investment:
+    build:
+      context: ./backend/apps/investment
+      dockerfile: Dockerfile
+    container_name: saas-backend-investment
+    environment:
+      - NODE_ENV=production
+      - PORT=3012
+      - DB_HOST=saas-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=${POSTGRES_USER:-admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-adminpassword}
+      - DB_NAME=${POSTGRES_DB:-saas_db}
+      - WALLET_SERVICE_URL=http://saas-backend-wallet:3015/wallet-service
+      - NOTIFICATION_SERVICE_URL=http://saas-backend-notification:3014/notification-service
+    env_file:
+      - ./backend/config/sso-keys.conf
+    depends_on:
+      - saas-postgres
       - saas-backend-sso
     restart: always
     networks:
@@ -238,9 +304,9 @@ services:
     image: postgres:15-alpine
     container_name: saas-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: adminpassword
-      POSTGRES_DB: saas_db
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adminpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-saas_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -251,8 +317,8 @@ services:
     image: mongo:7
     container_name: saas_mongodb
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: adminpassword
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-adminpassword}
     volumes:
       - mongodb_data:/data/db
     restart: always

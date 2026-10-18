@@ -38,6 +38,8 @@ import { REDIS_CLIENT } from '../../redis/redis.module';
 import { TokenService } from '../token/token.service';
 import { TokenRequestDto } from '../token/dto/token-request.dto';
 import { JwtService } from '../../common/services/jwt.service';
+import { SocialLoginDto } from './dto/social-login.dto';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -537,6 +539,99 @@ export class AuthService {
         message: 'Invalid credentials',
       });
     }
+  }
+
+  async socialLogin(dto: SocialLoginDto, req: Request) {
+    const normalizedEmail = this.normalizeEmail(dto.email);
+    if (!normalizedEmail) {
+      throw new BadRequestException('A valid email address is required for social login');
+    }
+
+    // Try to find existing user by email
+    let user = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    const targetAccountType = (dto.accountType?.toLowerCase() as AccountType) || AccountType.USER;
+
+    if (user) {
+      // Check if account status allows login
+      if ([UserStatus.SUSPENDED, UserStatus.BLOCKED, UserStatus.CLOSED].includes(user.status)) {
+        throw new ForbiddenException({
+          success: false,
+          error: user.status,
+          message: `Your account is ${user.status}. Please contact support.`,
+        });
+      }
+
+      // Check accountType match if explicitly requested
+      if (dto.accountType && user.accountType && user.accountType.toLowerCase() !== dto.accountType.toLowerCase()) {
+        throw new ForbiddenException({
+          success: false,
+          error: 'ACCOUNT_TYPE_MISMATCH',
+          message: `Account not found for the selected ${dto.accountType} role. This email is registered as ${user.accountType}.`,
+        });
+      }
+
+      // If name or avatar was missing, update from social provider
+      let updated = false;
+      if (!user.fullName && dto.fullName) {
+        user.fullName = dto.fullName;
+        updated = true;
+      }
+      if (!user.profilePhoto && dto.avatarUrl) {
+        user.profilePhoto = dto.avatarUrl;
+        updated = true;
+      }
+      if (!user.emailVerified) {
+        user.emailVerified = true;
+        updated = true;
+      }
+      if (updated) {
+        await this.userRepository.save(user);
+      }
+    } else {
+      // Create new user through social registration
+      const randomPassword = await bcrypt.hash(randomUUID(), 10);
+      user = this.userRepository.create({
+        email: normalizedEmail,
+        fullName: dto.fullName || normalizedEmail.split('@')[0],
+        accountType: targetAccountType,
+        password: randomPassword,
+        emailVerified: true,
+        status: UserStatus.ACTIVE,
+        profilePhoto: dto.avatarUrl || undefined,
+        currency: 'USD',
+      });
+      user = await this.userRepository.save(user);
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || 'Unknown IP';
+    const actualIp = clientIp.split(',')[0].trim();
+    const deviceIdentifier = dto.deviceId || 'web-browser';
+
+    const tokenResponse = await this.tokenService.issueTokensForUser(user, {
+      ipAddress: actualIp,
+      userAgent: req.headers['user-agent'] as string | undefined,
+      deviceId: deviceIdentifier,
+      deviceName: dto.deviceName || 'Web Browser',
+      loginRole: user.accountType,
+    });
+
+    return {
+      success: true,
+      message: `${dto.provider.charAt(0).toUpperCase() + dto.provider.slice(1)} login successful`,
+      data: {
+        token: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token,
+        expiresIn: tokenResponse.expires_in,
+        tokenType: tokenResponse.token_type,
+        scope: tokenResponse.scope,
+        idToken: tokenResponse.id_token,
+        session: tokenResponse.session,
+        user: tokenResponse.user,
+      },
+    };
   }
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
@@ -1367,7 +1462,11 @@ export class AuthService {
     }
 
     if (user.kycStatus === kycStatus) {
-      throw new BadRequestException(`User KYC is already in ${kycStatus} status`);
+      return {
+        success: true,
+        message: `User KYC is already in ${kycStatus} status`,
+        user: { userId: user.userId, kycStatus: user.kycStatus, status: user.status },
+      };
     }
 
     user.kycStatus = kycStatus as KycStatus;

@@ -363,6 +363,48 @@ export const loginUser = async (userData: FieldValues) => {
   }
 };
 
+export const socialLoginUser = async (socialData: {
+  provider: "google" | "apple" | "linkedin" | "github";
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+  accountType?: string;
+  deviceId?: string;
+  deviceName?: string;
+  idToken?: string;
+  accessToken?: string;
+}) => {
+  try {
+    const { data } = await axiosInstance.post("/sso/auth/social-login", socialData, {
+      timeout: AUTH_REQUEST_TIMEOUT,
+    });
+
+    if (data?.success) {
+      await persistSessionTokens(data?.data, true);
+      return data;
+    }
+
+    return {
+      success: false,
+      message: data?.message || "Social login failed",
+    };
+  } catch (error: unknown) {
+    const axiosError = error as any;
+    if (axiosError?.response?.status === 403) {
+      const errCode = axiosError.response.data?.error;
+      if (["pending", "suspended", "dormant", "blocked", "closed"].includes(errCode)) {
+        return { success: false, message: JSON.stringify({ type: "STATUS_ERROR", status: errCode }) };
+      }
+      if (errCode === "ACCOUNT_TYPE_MISMATCH") {
+        return { success: false, message: axiosError.response.data?.message || "Account role mismatch" };
+      }
+    }
+    const message = getLoginErrorMessage(error);
+    logger.warn("Social login failed", { reason: message });
+    return { success: false, message };
+  }
+};
+
 export const logout = async () => {
   const cookieStore = await cookies();
   try {

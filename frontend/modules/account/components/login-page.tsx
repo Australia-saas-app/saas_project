@@ -25,6 +25,7 @@ import { OtpInput } from "./OtpInput";
 import { getSecuritySettings, saveSecuritySettings } from "@/src/shared/lib/security-settings-store";
 import { verifyAccountPassword, sendRegistrationOtp, verifyRegistrationOtp } from "@/src/server/AuthService";
 import { SessionExpiredLandingModal } from "@/src/shared/components/SessionExpiredLandingModal";
+import { SocialAuthButtons } from "./social-auth-buttons";
 
 const loginSchema = z.object({
   email: z
@@ -402,7 +403,13 @@ export function LoginPage({
                 isSubmitting={isSubmitting}
               />
 
-              <p className="text-center text-sm text-muted-foreground">
+              <SocialAuthButtons
+                accountType={accountType}
+                redirectUrl={redirect}
+                mode="login"
+              />
+
+              <p className="text-center text-sm text-muted-foreground pt-1">
                 Don&apos;t have an account?{" "}
                 <button
                   type="button"

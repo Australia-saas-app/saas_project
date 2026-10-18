@@ -434,7 +434,30 @@ export function universalSearch(query: string, limitPerCategory = 5): UniversalS
     return { query: "", groups: {}, flat: [], aiAnswer: null, total: 0 }
   }
 
-  const scored = UNIVERSAL_SEARCH_INDEX.map((item) => ({
+  // Include dynamic technical projects when available in browser
+  let currentIndex = UNIVERSAL_SEARCH_INDEX;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem("platform_user_technical_projects");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const dynamicItems: SearchResultItem[] = parsed.map((p: any) => ({
+            id: `prj-${p.projectId || p.id}`,
+            title: p.title || "Technical Project",
+            description: p.requirements || p.description || "Active technical project listing",
+            href: "/technology/user/projects",
+            category: "services" as SearchCategory,
+            keywords: ["technology", "project", "code", "development", ...(p.title || "").toLowerCase().split(/\s+/)],
+            badge: "Live Project",
+          }));
+          currentIndex = [...dynamicItems, ...UNIVERSAL_SEARCH_INDEX];
+        }
+      }
+    } catch {}
+  }
+
+  const scored = currentIndex.map((item) => ({
     item,
     score: scoreItem(item, q),
   }))

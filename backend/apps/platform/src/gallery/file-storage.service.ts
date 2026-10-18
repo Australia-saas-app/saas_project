@@ -30,7 +30,7 @@ export class FileStorageService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.baseUrl = this.configService.get<string>("FILE_STORAGE_URL", "http://35.162.205.9:3007/api/files");
+    this.baseUrl = this.configService.get<string>("FILE_STORAGE_URL", "http://localhost:3007/api/files");
   }
 
   private getAdminToken(): string {

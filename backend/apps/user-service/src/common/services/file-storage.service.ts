@@ -14,7 +14,7 @@ export class FileStorageService {
   constructor(private readonly configService: ConfigService) {
     this.baseUrl = this.configService.get<string>(
       'FILE_STORAGE_URL',
-      'http://35.162.205.9:3007',
+      'http://localhost:3007',
     );
   }
 

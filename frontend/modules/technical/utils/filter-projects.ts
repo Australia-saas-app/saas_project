@@ -5,16 +5,18 @@ function parsePrice(priceRange: string): number {
   return Number(priceRange.replace(/[^0-9.]/g, "")) || 0
 }
 
-function skillMatches(projectSkills: string[], selected: string[]): boolean {
-  if (selected.length === 0) return true
+function skillMatches(projectSkills: string[] | undefined, selected: string[] = []): boolean {
+  if (!selected || selected.length === 0) return true
+  if (!projectSkills || projectSkills.length === 0) return false
   const normalized = projectSkills.map((s) => s.toLowerCase())
   return selected.every((skill) =>
     normalized.some((projectSkill) => projectSkill.includes(skill.toLowerCase()))
   )
 }
 
-function languageMatches(projectLanguages: string[], selected: string[]): boolean {
-  if (selected.length === 0) return true
+function languageMatches(projectLanguages: string[] | undefined, selected: string[] = []): boolean {
+  if (!selected || selected.length === 0) return true
+  if (!projectLanguages || projectLanguages.length === 0) return false
   return selected.some((lang) => projectLanguages.includes(lang))
 }
 

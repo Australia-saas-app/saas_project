@@ -505,24 +505,40 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 px-8 py-4 bg-background border-t border-border mt-auto">
-            {(kycStatus === 'pending' || kycStatus === 'submitted') && (
+            {(kycStatus === 'pending' || kycStatus === 'submitted') ? (
               <>
                 <button
                   onClick={() => handleUpdateStatus('rejected')}
                   disabled={isAnyLoading}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[100px] flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[110px] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
+                  {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject Application"}
                 </button>
 
                 <button
                   onClick={() => handleUpdateStatus('approved')}
                   disabled={isAnyLoading}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 min-w-[120px] flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[130px] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+                  {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve Application"}
                 </button>
               </>
+            ) : kycStatus === 'rejected' ? (
+              <button
+                onClick={() => handleUpdateStatus('approved')}
+                disabled={isAnyLoading}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Re-evaluate & Approve"}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleUpdateStatus('rejected')}
+                disabled={isAnyLoading}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Revoke & Reject"}
+              </button>
             )}
           </div>
       </div>

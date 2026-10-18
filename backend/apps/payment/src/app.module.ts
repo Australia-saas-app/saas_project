@@ -10,6 +10,9 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { SecurityDepositModule } from './modules/security-deposit/security-deposit.module';
 import { AffiliateIncomeModule } from './modules/affiliate-income/affiliate-income.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { TaxModule } from './modules/tax/tax.module';
+import { PenaltyModule } from './modules/penalty/penalty.module';
+import { PenaltyRecord } from './modules/penalty/entities/penalty-record.entity';
 import { Wallet } from './entities/wallet.entity';
 import { User } from './entities/user.entity';
 import { PaymentCard } from './entities/payment-card.entity';
@@ -84,6 +87,7 @@ import { WithdrawalRequest } from './entities/withdrawal-request.entity';
           SecurityDeposit,
           AffiliateIncome,
           WithdrawalRequest,
+          PenaltyRecord,
         ],
         synchronize: true, // Auto-create tables (set to false in production after initial setup)
         logging: configService.get('NODE_ENV') === 'development',
@@ -95,6 +99,8 @@ import { WithdrawalRequest } from './entities/withdrawal-request.entity';
     SecurityDepositModule,
     AffiliateIncomeModule,
     AdminModule,
+    TaxModule,
+    PenaltyModule,
   ],
   providers: [
     {

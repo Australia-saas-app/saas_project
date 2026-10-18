@@ -75,6 +75,16 @@ services:
           - /api/v1/wallet
         strip_path: true
 
+  - name: payment-service
+    url: http://saas-backend-payment:3004/api/payment
+    routes:
+      - name: payment-route
+        paths:
+          - /api/v1/payment
+          - /api/payment
+          - /payment
+        strip_path: true
+
   - name: notification-service
     url: http://saas-backend-notification:3014/notification-service/notifications
     routes:
@@ -91,6 +101,16 @@ services:
           - /notifications
           - /socket.io
         strip_path: false
+
+  - name: investment-service
+    url: http://saas-backend-investment:3012
+    routes:
+      - name: investment-route
+        paths:
+          - /api/v1/investment
+          - /api/investment
+          - /investment
+        strip_path: true
 
 plugins:
   - name: cors

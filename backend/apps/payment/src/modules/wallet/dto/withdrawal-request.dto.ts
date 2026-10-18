@@ -8,8 +8,12 @@ export class WithdrawalRequestDto {
   amount: number;
 
   @IsString()
-  @IsNotEmpty()
-  stripeAccountId: string;
+  @IsOptional()
+  stripeAccountId?: string;
+
+  @IsString()
+  @IsOptional()
+  payoutMethod?: string;
 
   @IsString()
   @IsOptional()
