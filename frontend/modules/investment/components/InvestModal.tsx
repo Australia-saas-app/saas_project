@@ -21,30 +21,31 @@ export const InvestModal: React.FC<InvestModalProps> = ({
 }) => {
   if (!isOpen || !campaign) return null;
 
-  const [amount, setAmount] = useState<number>(campaign.minInvestment || 500);
+  const minInv = Number(campaign?.minInvestment ?? 500);
+  const [amount, setAmount] = useState<number>(minInv);
   const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "STRIPE">("WALLET");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userWalletBalance] = useState<number>(12500); // Connected wallet balance
 
-  const expectedAnnualReturn = Math.round(amount * (campaign.expectedRoiPercent / 100));
+  const expectedAnnualReturn = Math.round(amount * (Number(campaign?.expectedRoiPercent ?? 0) / 100));
   const projectedTotalReturn = Math.round(
-    amount + (expectedAnnualReturn * (campaign.termMonths / 12))
+    amount + (expectedAnnualReturn * (Number(campaign?.termMonths ?? 12) / 12))
   );
   const calculatedEquityShare = Number(
-    ((amount / campaign.targetAmount) * campaign.equityPercent).toFixed(3)
+    ((amount / Math.max(1, Number(campaign?.targetAmount ?? 1))) * Number(campaign?.equityPercent ?? 0)).toFixed(3)
   );
 
   const presets = [
-    campaign.minInvestment,
-    Math.max(campaign.minInvestment * 2, 1000),
-    Math.max(campaign.minInvestment * 5, 2500),
-    Math.max(campaign.minInvestment * 10, 5000),
+    minInv,
+    Math.max(minInv * 2, 1000),
+    Math.max(minInv * 5, 2500),
+    Math.max(minInv * 10, 5000),
   ];
 
   const handlePledge = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (amount < campaign.minInvestment) {
-      toast.error(`Minimum investment amount is $${campaign.minInvestment.toLocaleString()}`);
+    if (amount < minInv) {
+      toast.error(`Minimum investment amount is $${minInv.toLocaleString()}`);
       return;
     }
 
@@ -127,14 +128,14 @@ export const InvestModal: React.FC<InvestModalProps> = ({
             <div className="flex items-center justify-between text-xs">
               <label className="font-semibold text-foreground">Investment Amount (USD)</label>
               <span className="text-muted-foreground">
-                Min: ${campaign.minInvestment.toLocaleString()}
+                Min: ${minInv.toLocaleString()}
               </span>
             </div>
             <div className="relative mt-1.5">
               <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <input
                 type="number"
-                min={campaign.minInvestment}
+                min={minInv}
                 step={50}
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
@@ -156,7 +157,7 @@ export const InvestModal: React.FC<InvestModalProps> = ({
                       : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  ${val.toLocaleString()}
+                  ${Number(val ?? 0).toLocaleString()}
                 </button>
               ))}
             </div>
@@ -169,7 +170,7 @@ export const InvestModal: React.FC<InvestModalProps> = ({
                 <TrendingUp className="h-4 w-4 text-emerald-500" /> Expected Annual Yield
               </span>
               <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                +${expectedAnnualReturn.toLocaleString()} / year ({campaign.expectedRoiPercent}%)
+                +${Number(expectedAnnualReturn ?? 0).toLocaleString()} / year ({campaign.expectedRoiPercent}%)
               </span>
             </div>
             <div className="flex items-center justify-between text-xs border-b border-primary/10 pb-2">
@@ -183,7 +184,7 @@ export const InvestModal: React.FC<InvestModalProps> = ({
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Est. Total Capital + Yield Return</span>
               <span className="text-sm font-extrabold text-foreground">
-                ${projectedTotalReturn.toLocaleString()}{" "}
+                ${Number(projectedTotalReturn ?? 0).toLocaleString()}{" "}
                 <span className="text-[11px] font-normal text-muted-foreground">
                   ({campaign.termMonths} mo term)
                 </span>
@@ -207,7 +208,7 @@ export const InvestModal: React.FC<InvestModalProps> = ({
                 <div className="min-w-0">
                   <p className="text-xs font-bold truncate">Vero Wallet</p>
                   <p className="text-[10px] text-muted-foreground">
-                    Bal: ${userWalletBalance.toLocaleString()}
+                    Bal: ${Number(userWalletBalance ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>

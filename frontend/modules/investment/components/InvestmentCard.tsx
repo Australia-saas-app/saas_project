@@ -17,10 +17,9 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({
   onInvest,
   onSelect,
 }) => {
-  const percentFunded = Math.min(
-    100,
-    Math.round((campaign.raisedAmount / campaign.targetAmount) * 100)
-  );
+  const raised = Number(campaign?.raisedAmount ?? 0);
+  const target = Math.max(1, Number(campaign?.targetAmount ?? 1));
+  const percentFunded = Math.min(100, Math.round((raised / target) * 100));
 
   const getRiskBadge = (risk: string) => {
     switch (risk) {
@@ -53,9 +52,9 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({
       <div>
         {/* Thumbnail Banner */}
         <div className="relative h-48 w-full overflow-hidden bg-muted">
-          {campaign.imageUrl ? (
+          {campaign.imageUrl || (campaign as any).bannerUrl ? (
             <img
-              src={campaign.imageUrl}
+              src={campaign.imageUrl || (campaign as any).bannerUrl}
               alt={campaign.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
@@ -129,7 +128,7 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({
                 <DollarSign className="h-3 w-3" /> Min Entry
               </span>
               <p className="mt-0.5 text-xs font-bold text-foreground">
-                ${campaign.minInvestment.toLocaleString()}
+                ${Number(campaign?.minInvestment ?? 0).toLocaleString()}
               </p>
             </div>
           </div>
@@ -138,9 +137,9 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({
           <div className="mt-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-foreground">
-                ${campaign.raisedAmount.toLocaleString()}{" "}
+                ${Number(campaign?.raisedAmount ?? 0).toLocaleString()}{" "}
                 <span className="font-normal text-muted-foreground">
-                  of ${campaign.targetAmount.toLocaleString()}
+                  of ${Number(campaign?.targetAmount ?? 0).toLocaleString()}
                 </span>
               </span>
               <span className="font-bold text-primary">{percentFunded}%</span>

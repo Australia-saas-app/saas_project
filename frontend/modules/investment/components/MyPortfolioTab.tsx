@@ -24,7 +24,7 @@ export const MyPortfolioTab: React.FC<MyPortfolioTabProps> = ({ pledges }) => {
 
   const handleClaim = (pledgeId: string, amount: number) => {
     setClaimedDividends((prev) => ({ ...prev, [pledgeId]: true }));
-    toast.success(`Claimed dividend payment of $${amount.toLocaleString()} credited to Vero Wallet!`);
+    toast.success(`Claimed dividend payment of $${Number(amount ?? 0).toLocaleString()} credited to Vero Wallet!`);
   };
 
   if (pledges.length === 0) {
@@ -50,7 +50,7 @@ export const MyPortfolioTab: React.FC<MyPortfolioTabProps> = ({ pledges }) => {
             <DollarSign className="h-4 w-4 text-primary" /> Total Capital Invested
           </span>
           <p className="mt-2 text-2xl font-extrabold text-foreground">
-            ${totalInvested.toLocaleString()}
+            ${Number(totalInvested ?? 0).toLocaleString()}
           </p>
           <span className="text-[11px] text-muted-foreground">Across {pledges.length} campaign stakes</span>
         </div>
@@ -60,7 +60,7 @@ export const MyPortfolioTab: React.FC<MyPortfolioTabProps> = ({ pledges }) => {
             <TrendingUp className="h-4 w-4 text-emerald-500" /> Projected Annual Yield
           </span>
           <p className="mt-2 text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-            +${totalAnnualDividends.toLocaleString()}
+            +${Number(totalAnnualDividends ?? 0).toLocaleString()}
           </p>
           <span className="text-[11px] text-muted-foreground">Quarterly dividend disbursements</span>
         </div>
@@ -123,13 +123,13 @@ export const MyPortfolioTab: React.FC<MyPortfolioTabProps> = ({ pledges }) => {
                       </div>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-sm">
-                      ${p.amount.toLocaleString()} {p.currency}
+                      ${Number(p.amount ?? 0).toLocaleString()} {p.currency}
                     </td>
                     <td className="py-3.5 px-4 font-medium">
                       {p.equitySharePercent}%
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-emerald-600 dark:text-emerald-400">
-                      +${(p.expectedAnnualReturn || Math.round(p.amount * 0.15)).toLocaleString()} / yr
+                      +${Number(p.expectedAnnualReturn || Math.round(Number(p.amount ?? 0) * 0.15)).toLocaleString()} / yr
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">

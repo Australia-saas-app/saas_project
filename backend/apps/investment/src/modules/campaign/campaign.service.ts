@@ -181,6 +181,10 @@ export class CampaignService implements OnModuleInit {
     activeCount: number;
     avgRoi: number;
     totalInvestors: number;
+    totalCapitalDeployed: number;
+    activeCampaignsCount: number;
+    averageRoiPercent: number;
+    totalInvestorsCount: number;
   }> {
     const campaigns = await this.campaignRepository.find();
     const list = campaigns.length > 0 ? campaigns : (DEFAULT_CAMPAIGNS as InvestmentCampaign[]);
@@ -197,6 +201,10 @@ export class CampaignService implements OnModuleInit {
       activeCount,
       avgRoi: Number(avgRoi.toFixed(1)),
       totalInvestors,
+      totalCapitalDeployed: totalRaised,
+      activeCampaignsCount: activeCount,
+      averageRoiPercent: Number(avgRoi.toFixed(1)),
+      totalInvestorsCount: totalInvestors,
     };
   }
 }

@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react'
 import ServiceLayout from './ServiceLayout'
 import ServiceMainSection from './ServiceMainSection'

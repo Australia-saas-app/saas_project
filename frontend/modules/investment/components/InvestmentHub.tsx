@@ -92,13 +92,66 @@ export const InvestmentHub: React.FC = () => {
         if (cRes && cRes.ok) {
           const cData = await cRes.json();
           if (Array.isArray(cData) && cData.length > 0) {
-            setCampaigns(cData);
+            const normalized: Campaign[] = cData.map((c: any) => ({
+              ...c,
+              id: c.id || c.campaignId || `camp-${Math.random()}`,
+              title: c.title || "Investment Campaign",
+              slug: c.slug || c.campaignId || c.id || "campaign",
+              description: c.description || c.tagline || "",
+              category: c.category || "Renewable Energy",
+              businessName: c.businessName || "Verified Issuer",
+              targetAmount: Number(c.targetAmount || 0),
+              raisedAmount: Number(c.raisedAmount || 0),
+              minInvestment: Number(c.minInvestment || 100),
+              currency: c.currency || "USD",
+              expectedRoiPercent: Number(c.expectedRoiPercent || 0),
+              equityPercent: Number(c.equityPercent || 0),
+              termMonths: Number(c.termMonths || 12),
+              riskLevel: (
+                String(c.riskLevel || "").toUpperCase() === "LOW"
+                  ? "LOW"
+                  : String(c.riskLevel || "").toUpperCase().includes("HIGH")
+                  ? "HIGH_GROWTH"
+                  : "MODERATE"
+              ) as RiskLevel,
+              investorCount: Number(c.investorCount || 0),
+              status: (c.status || "ACTIVE") as any,
+              imageUrl:
+                c.imageUrl ||
+                c.bannerUrl ||
+                "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80",
+              highlights:
+                Array.isArray(c.highlights) && c.highlights.length > 0
+                  ? c.highlights
+                  : [
+                      "Vetted and asset-backed syndicated investment",
+                      "Quarterly automated distribution schedule",
+                      "Transparent equity & legal documentation",
+                    ],
+              createdAt: c.createdAt || new Date().toISOString(),
+            }));
+            setCampaigns(normalized);
           }
         }
 
         if (sRes && sRes.ok) {
           const sData = await sRes.json();
-          if (sData) setStats(sData);
+          if (sData) {
+            setStats({
+              totalCapitalDeployed: Number(
+                sData.totalCapitalDeployed ?? sData.totalRaised ?? 18695000
+              ),
+              activeCampaignsCount: Number(
+                sData.activeCampaignsCount ?? sData.activeCount ?? 6
+              ),
+              averageRoiPercent: Number(
+                sData.averageRoiPercent ?? sData.avgRoi ?? 17.8
+              ),
+              totalInvestorsCount: Number(
+                sData.totalInvestorsCount ?? sData.totalInvestors ?? 1242
+              ),
+            });
+          }
         }
       } catch (err) {
         // Mock fallback remains active
@@ -190,7 +243,7 @@ export const InvestmentHub: React.FC = () => {
               <DollarSign className="h-4 w-4 text-primary" /> Total Capital Deployed
             </span>
             <p className="mt-2 text-2xl font-extrabold text-foreground">
-              ${stats.totalCapitalDeployed.toLocaleString()}
+              ${Number(stats?.totalCapitalDeployed ?? 0).toLocaleString()}
             </p>
             <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
               +28% YoY growth
@@ -212,7 +265,7 @@ export const InvestmentHub: React.FC = () => {
               <TrendingUp className="h-4 w-4 text-purple-500" /> Average Expected ROI
             </span>
             <p className="mt-2 text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-              {stats.averageRoiPercent}% <span className="text-xs font-normal text-muted-foreground">/ yr</span>
+              {stats?.averageRoiPercent ?? 15}% <span className="text-xs font-normal text-muted-foreground">/ yr</span>
             </p>
             <span className="text-[11px] text-muted-foreground">Annualized cash yield</span>
           </div>
@@ -222,7 +275,7 @@ export const InvestmentHub: React.FC = () => {
               <Users className="h-4 w-4 text-amber-500" /> Global Investors
             </span>
             <p className="mt-2 text-2xl font-extrabold text-foreground">
-              {stats.totalInvestorsCount.toLocaleString()}
+              {Number(stats?.totalInvestorsCount ?? 0).toLocaleString()}
             </p>
             <span className="text-[11px] text-muted-foreground">In 42 jurisdictions</span>
           </div>
@@ -443,7 +496,7 @@ export const InvestmentHub: React.FC = () => {
                 <div>
                   <span className="text-muted-foreground">Minimum Ticket</span>
                   <p className="font-semibold text-foreground">
-                    ${detailCampaign.minInvestment.toLocaleString()}
+                    ${Number(detailCampaign?.minInvestment ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>
