@@ -166,9 +166,6 @@ export class WalletController {
     if (!req.user?.userId) {
       throw new ForbiddenException('Invalid authentication payload');
     }
-    if (req.user.accountType !== 'business') {
-      throw new ForbiddenException('Only business users can view wallet transactions');
-    }
     return this.walletService.getTransactionHistory(req.user.userId, query);
   }
 

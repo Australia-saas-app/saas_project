@@ -144,27 +144,32 @@ export default function WalletFinancePanel() {
     }
   }, [depositOpen, user]);
 
-  const refresh = async () => {
-    setLoadingRecords(true);
+  const refresh = async (showSpinner = false) => {
+    if (showSpinner) {
+      setLoadingRecords(true);
+    }
     let dbRows: WalletLedgerRecord[] = [];
     try {
-      if (userId) {
-        const res = await fetchWalletTransactions();
-        const rawList = Array.isArray(res)
-          ? res
-          : Array.isArray((res as any)?.data)
-          ? (res as any).data
-          : [];
+      const res = await fetchWalletTransactions();
+      const rawList = Array.isArray(res)
+        ? res
+        : Array.isArray((res as any)?.transactions)
+        ? (res as any).transactions
+        : Array.isArray((res as any)?.data)
+        ? (res as any).data
+        : [];
 
         if (rawList && rawList.length > 0) {
           dbRows = rawList.map((tx: any) => ({
-            id: tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`,
-            userId: tx.userId || userId,
+            id: tx.transactionId || (tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`),
+            userId: tx.userId || userId || "user",
             userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Account"),
             amount: `$${Number(tx.amount || 0).toFixed(2)}`,
             kind:
               tx.type?.toLowerCase() === "deposit"
                 ? "deposit"
+                : tx.type?.toLowerCase() === "security_deposit"
+                ? "security_deposit"
                 : tx.type?.toLowerCase() === "refund"
                 ? "refund"
                 : tx.type?.toLowerCase() === "withdrawal" || tx.type?.toLowerCase() === "withdraw_hold"
@@ -175,27 +180,51 @@ export default function WalletFinancePanel() {
             status: tx.status === "completed" || tx.status === "COMPLETED" ? "Complete" : "Pending",
           }));
         }
-      }
     } catch {
       // fallback to stored/demo
     }
 
-    const resolvedUserId = String(userId || (user as any)?.id || (user as any)?.userId || "business");
+    const resolvedUserId = String(userId || (user as any)?.id || (user as any)?.userId || "user");
 
-    // Include all released project & milestone transactions for business account
+    // Clean up stale mock deposits from platform_wallet_ledger if real DB transactions exist
+    if (typeof window !== "undefined" && dbRows.length > 0) {
+      try {
+        const rawLedger = localStorage.getItem("platform_wallet_ledger");
+        if (rawLedger) {
+          const parsed = JSON.parse(rawLedger);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.filter(
+              (r: any) => !String(r.id || "").startsWith("DP-") && r.kind !== "deposit"
+            );
+            if (cleaned.length !== parsed.length) {
+              localStorage.setItem("platform_wallet_ledger", JSON.stringify(cleaned));
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Include only actual released project & milestone transactions for business account
     const bizTxs = fetchBusinessTransactions(user);
-    const bizLedgerRows: WalletLedgerRecord[] = bizTxs.map((tx) => ({
-      id: tx.id,
-      userId: resolvedUserId,
-      userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Business Account"),
-      amount: tx.amount,
-      kind: "deposit",
-      method: `${tx.title} (${tx.milestoneInfo || "Project Release"})`,
-      date: tx.date || new Date().toLocaleDateString(),
-      status: "Complete",
-    }));
+    const bizLedgerRows: WalletLedgerRecord[] = bizTxs
+      .filter((tx) => tx.type === "project_release" || tx.type === "milestone_release")
+      .map((tx) => ({
+        id: tx.id,
+        userId: resolvedUserId,
+        userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Business Account"),
+        amount: tx.amount,
+        kind: "deposit",
+        method: `${tx.title} (${tx.milestoneInfo || "Project Release"})`,
+        date: tx.date || new Date().toLocaleDateString(),
+        status: "Complete",
+      }));
 
-    const stored = userId ? getLedgerForUser(userId) : [];
+    // If real backend transactions exist, do not merge mock deposit records
+    const rawStored = userId ? getLedgerForUser(userId) : [];
+    const stored = dbRows.length > 0
+      ? rawStored.filter((r) => r.kind !== "deposit" && !r.id.startsWith("DP-"))
+      : rawStored;
+
     const demo: WalletLedgerRecord[] = isDemo
       ? DEMO_LEDGER_SEED.map((r) => ({
           ...r,
@@ -226,19 +255,28 @@ export default function WalletFinancePanel() {
   };
 
   useEffect(() => {
-    refresh();
-    const handleUpdate = () => refresh();
+    // Initial load shows spinner until completed
+    refresh(true);
+
+    // Event listener for wallet updates (silent refresh, does not flicker spinner)
+    const handleUpdate = () => {
+      refresh(false);
+    };
+
     window.addEventListener("wallet_updated", handleUpdate);
     window.addEventListener("platform_projects_updated", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-    window.addEventListener("focus", handleUpdate);
+
+    // Silent background poll to fetch newly added backend records every 12 seconds
+    const interval = setInterval(() => {
+      refresh(false);
+    }, 12000);
+
     return () => {
       window.removeEventListener("wallet_updated", handleUpdate);
       window.removeEventListener("platform_projects_updated", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
-      window.removeEventListener("focus", handleUpdate);
+      clearInterval(interval);
     };
-  }, [userId, user, isDemo]);
+  }, [userId, isDemo]);
 
   const filtered = useMemo(() => {
     if (tab === "overview") return rows;
@@ -314,7 +352,7 @@ export default function WalletFinancePanel() {
             : `Deposit via Card #${selectedCardId}`
           : `Deposit via ${method}`;
 
-      await depositToWallet(value, depositDesc, {
+      const depositRes = await depositToWallet(value, depositDesc, {
         cardData: cardDataPayload,
         paymentCardId: paymentCardIdPayload,
         method: method,
@@ -327,7 +365,18 @@ export default function WalletFinancePanel() {
         ("firstName" in user && user.firstName ? `${user.firstName} ${(user as any).lastName || ""}`.trim() : "") ||
         name;
 
-      const record = submitDeposit({ userId: id, userName: fullName, amount: value, method });
+      const realTxId =
+        depositRes?.transactionId ||
+        depositRes?.data?.transactionId ||
+        (depositRes?.id ? `TX-${depositRes.id}` : undefined);
+
+      let recordId = realTxId;
+
+      // Only fallback to local mock store if backend returned nothing
+      if (!depositRes || (!depositRes.transactionId && !depositRes.id && !depositRes.success)) {
+        const record = submitDeposit({ userId: id, userName: fullName, amount: value, method });
+        recordId = record.id;
+      }
 
       // Real activity logging with Full Name
       try {
@@ -339,11 +388,14 @@ export default function WalletFinancePanel() {
       } catch {}
 
       // Prepare Bank Slip data
-      const currentBal = (stats.deposits + stats.refunds - stats.holds);
-      const newCalculatedBalance = Number((currentBal + value).toFixed(2));
+      const slipTxId = recordId || `TX-${Date.now().toString().slice(-6)}`;
+      const newCalculatedBalance = Number(
+        depositRes?.wallet?.balance ??
+        (Number(depositRes?.balance) || (stats.deposits + value))
+      );
       const slip: DepositReceiptData = {
         slipNumber: `SLIP-${Math.floor(100000 + Math.random() * 900000)}`,
-        transactionId: record.id || `TX-${Date.now().toString().slice(-6)}`,
+        transactionId: slipTxId,
         accountName: fullName,
         accountId: id ? `ACC-${id.slice(0, 8).toUpperCase()}` : "ACC-VERO2",
         amount: value,

@@ -573,6 +573,8 @@ export const fetchBusinessTransactions = (userParam?: any): BusinessTransactionR
       if (Array.isArray(parsed)) {
         parsed.forEach((r) => {
           if (r.id && records.some((rec) => rec.id === r.id)) return;
+          // Do not treat personal wallet deposits (DP-*) as business project earnings
+          if (r.kind === "deposit" || String(r.id || "").startsWith("DP-")) return;
           const rUid = String(r.userId || "");
           const isMatch = !uid || rUid === uid || rUid === "business" || rUid === uEmail;
           if (!isMatch) return;
@@ -660,7 +662,9 @@ export const saveWalletCard = async (cardData: {
 export const fetchWalletTransactions = async (_token?: string) => {
   try {
     const res = await axiosInstance.get('/sso/wallet/transactions');
-    const items = Array.isArray(res?.data?.data)
+    const items = Array.isArray(res?.data?.transactions)
+      ? res.data.transactions
+      : Array.isArray(res?.data?.data)
       ? res.data.data
       : Array.isArray(res?.data)
       ? res.data
