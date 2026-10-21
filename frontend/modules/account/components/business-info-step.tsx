@@ -206,7 +206,7 @@ export function BusinessInfoStep({ onNext, onBack, initialData = {} }: BusinessI
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Business Phone</label>
-                <FormTextInput control={form.control} name="businessPhone" placeholder="Phone number" />
+                <FormTextInput control={form.control} name="businessPhone" placeholder="e.g. +18055525963" />
               </div>
               <div>
                 <label className="text-sm font-medium">Business Email</label>

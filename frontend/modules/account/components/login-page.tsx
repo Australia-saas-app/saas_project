@@ -125,7 +125,9 @@ export function LoginPage({
     setIsSendingOtp(true);
     setTimeLeft(179);
     try {
-      const res = await sendRegistrationOtp({ email: userEmail, type: otpType });
+      const isPhone = !userEmail.includes("@");
+      const payload = isPhone ? { phone: userEmail, type: otpType } : { email: userEmail, type: otpType };
+      const res = await sendRegistrationOtp(payload);
       if (res && res.success !== false) {
         toast.success(`Verification code sent to ${userEmail}`);
       } else {
@@ -373,7 +375,7 @@ export function LoginPage({
                 <label className="mb-1.5 block text-sm font-medium text-foreground">
                   Email or phone
                 </label>
-                <FormTextInput control={form.control} name="email" placeholder="you@company.com" />
+                <FormTextInput control={form.control} name="email" placeholder="you@company.com or phone (e.g. +18055525963)" />
               </div>
 
               <div>

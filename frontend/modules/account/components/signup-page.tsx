@@ -158,9 +158,8 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
       setStep(2);
       setTimeLeft(179);
       if (!isEmail) {
-        // Override the default success toast for phone with dummy OTP message
         toast.dismiss();
-        toast.success("Use code 234567 to verify (SMS not implemented yet)");
+        toast.success("Verification code sent to your phone via SMS.");
       }
     } catch (err: any) {
       // Error toast is already shown by useSendRegistrationOtp.onError,
@@ -218,7 +217,7 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
       if (isEmail) {
         toast.success("OTP sent successfully");
       } else {
-        toast.success("Dummy OTP sent successfully");
+        toast.success("Verification code sent to your phone via SMS.");
       }
       setTimeLeft(179);
     } catch (err) {
@@ -350,7 +349,7 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
                   )}
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-foreground">Email or phone</label>
-                    <FormTextInput control={form.control} name="email" placeholder="you@company.com or phone" />
+                    <FormTextInput control={form.control} name="email" placeholder="you@company.com or phone (e.g. +18055525963)" />
                   </div>
                   <Button type="button" onClick={handleContinueToOtp} disabled={isSendingOtp} className="w-full bg-primary hover:bg-primary/90 mt-6" size="lg">
                     {isSendingOtp ? "Sending OTP..." : "Continue"}
@@ -377,9 +376,6 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
                     </p>
                   </div>
 
-                  {!form.getValues("email")?.toString().includes("@") && (
-                    <p className="text-xs text-muted-foreground mb-3 text-center sm:text-left text-orange-500/80">Use OTP 234567 right now, real Message OTP is not implemented</p>
-                  )}
                   <div className="relative">
                     <OtpInput value={otp} onChange={(val) => { setOtp(val); if (val.length === 6) handleVerifyOtp(val); }} length={6} disabled={isVerifyingOtp || otpVerified || step > 2} />
                     {otpVerified && (

@@ -182,7 +182,8 @@ export default function Header() {
               />
             </NavLink>
 
-            <div className="hidden min-w-0 max-w-[160px] flex-1 md:block lg:max-w-[200px] xl:max-w-[260px]">
+            {/* Global System Universal Search */}
+            <div className="hidden min-w-0 max-w-[200px] flex-1 md:block lg:max-w-[260px] xl:max-w-[320px]">
               <UniversalSearch variant="header" />
             </div>
             <Link

@@ -93,7 +93,7 @@ export default function UniversalSearch({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder={isHeader ? "Search" : "Ask anything or search products, jobs, services..."}
+          placeholder={isHeader ? "Search anything..." : "Ask anything or search products, jobs, services..."}
           className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
           aria-autocomplete="list"
           aria-controls={listId}

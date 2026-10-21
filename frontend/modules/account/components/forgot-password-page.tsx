@@ -39,14 +39,14 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
   });
 
   const [view, setView] = useState<'options' | 'email' | 'phone' | 'backup'>('email');
-  
+
   // State for flow
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Input, 2: OTP/Verify, 3: Reset
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
-  
+
   // Recovery key user data
   const [userData, setUserData] = useState<{ fullName: string; email?: string; phone?: string; accountType?: string } | null>(null);
 
@@ -60,7 +60,7 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
     { label: "1 uppercase", met: /[A-Z]/.test(passwordValue) },
     { label: "1 special", met: /[^A-Za-z0-9]/.test(passwordValue) },
   ];
-  
+
   const allReqsMet = passwordRequirements.every(r => r.met);
   const confirmPasswordValue = (form.watch("confirmPassword") as string) || "";
   const passwordsMatch = passwordValue && confirmPasswordValue && passwordValue === confirmPasswordValue;
@@ -70,23 +70,23 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
     const val = inputValue.trim();
     const isPhone = /^[0-9+\-\s()]+$/.test(val);
     const isEmail = val.includes("@");
-    
+
     if (!isEmail && !isPhone) {
       toast.error("email format is not correct");
       setIsSubmitting(false);
       return;
     }
-    
+
     const payload = isEmail ? { email: val, type: "forgot-password" } : { phone: val, type: "forgot-password" };
     const res = await sendRegistrationOtp(payload);
-    
+
     setIsSubmitting(false);
-    
+
     if (res?.success) {
       if (isEmail) {
         toast.success("OTP sent successfully");
       } else {
-        toast.success("Dummy OTP sent successfully");
+        toast.success("Verification code sent to your phone via SMS.");
       }
       setStep(2);
       setTimeLeft(179);
@@ -99,13 +99,13 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
     setIsSubmitting(true);
     const emailVal = form.getValues("inputValue").trim();
     const isEmail = emailVal.includes("@");
-    const payload = isEmail 
+    const payload = isEmail
       ? { email: emailVal, otp: code, type: "forgot-password" }
       : { phone: emailVal, otp: code, type: "forgot-password" };
-      
+
     const res = await verifyRegistrationOtp(payload);
     setIsSubmitting(false);
-    
+
     if (res?.success) {
       toast.success("OTP Verified");
       setOtpVerified(true);
@@ -120,7 +120,7 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
     const key = form.getValues("inputValue");
     const res = await verifyRecoveryKey(key);
     setIsSubmitting(false);
-    
+
     if (res?.success && res.data) {
       toast.success("Recovery Key Verified");
       setUserData(res.data);
@@ -134,7 +134,7 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
     if (!allReqsMet || !passwordsMatch) return;
     setIsSubmitting(true);
     const payload: any = { newPassword: passwordValue };
-    
+
     if (view === 'backup') {
       payload.recoveryKey = form.getValues("inputValue");
     } else {
@@ -146,14 +146,14 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
       }
       payload.otp = otp;
     }
-    
+
     if (accountType) {
       payload.accountType = accountType;
     }
-    
+
     const res = await resetUserPassword(payload);
     setIsSubmitting(false);
-    
+
     if (res?.success) {
       toast.success("Password Reset Successfully");
       setTimeout(() => {
@@ -195,7 +195,7 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
               <p className="mt-0.5 text-sm text-muted-foreground">Receive a verification code at your registered email address.</p>
             </div>
           </button>
-          
+
           <button onClick={() => { setView('phone'); setStep(1); form.reset(); }} className="flex w-full items-start gap-4 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:bg-muted/50 hover:shadow-md">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Smartphone className="h-5 w-5" />
@@ -227,13 +227,13 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
   }
 
   let label = "Email";
-  let placeholder = "you@company.com";
+  let placeholder = "you@company.com or phone (e.g. +18055525963)";
   let title = "Account recovery";
-  let subtitle = "Enter your registered email to receive a reset code.";
+  let subtitle = "Enter your registered email or phone to receive a reset code.";
 
   if (view === 'phone') {
     label = "Phone No";
-    placeholder = "+61 400 000 000";
+    placeholder = "e.g. +18055525963";
     subtitle = "Enter your registered phone to receive a reset code.";
   } else if (view === 'backup') {
     label = "Enter backup code";
@@ -260,7 +260,7 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          
+
           {step === 1 && (
             <div className="animate-in fade-in zoom-in-95 duration-300">
               <label className="mb-1.5 block text-sm font-medium text-foreground">{label}</label>
@@ -286,14 +286,11 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
                 </p>
               </div>
 
-              {!form.getValues("inputValue")?.includes("@") && (
-                <p className="text-xs text-muted-foreground mb-3 text-center sm:text-left text-orange-500/80">Use OTP 234567 right now, real Message OTP is not implemented</p>
-              )}
-              <OtpInput 
-                value={otp} 
-                onChange={(val: string) => { setOtp(val); if (val.length === 6) handleVerifyOtp(val); }} 
-                length={6} 
-                disabled={isSubmitting || otpVerified} 
+              <OtpInput
+                value={otp}
+                onChange={(val: string) => { setOtp(val); if (val.length === 6) handleVerifyOtp(val); }}
+                length={6}
+                disabled={isSubmitting || otpVerified}
               />
               <div className="mt-3 text-center">
                 <button type="button" disabled={timeLeft > 0 || isSubmitting} onClick={() => handleSendOtp(form.getValues("inputValue"))} className="text-sm font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground transition-colors">
@@ -305,7 +302,7 @@ export function ForgotPasswordPage({ onBackToLogin, accountType }: ForgotPasswor
 
           {step === 3 && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4">
-              
+
               {userData && view === 'backup' && (
                 <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 mb-4">
                   <p className="text-sm text-muted-foreground mb-1">Account Found</p>

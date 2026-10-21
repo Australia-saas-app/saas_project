@@ -279,8 +279,20 @@ export class OtpUtil {
   }
 
   async sendOTPSMS(phone: string, otp: string, type: string = 'verification') {
-    const cleanPhone = phone ? phone.trim() : '';
-    const formattedPhone = cleanPhone.startsWith("+") ? cleanPhone : `+${cleanPhone}`;
+    const cleanPhone = phone ? phone.replace(/[\s\-\(\)]/g, '').trim() : '';
+    let formattedPhone = cleanPhone;
+    if (cleanPhone.startsWith('+')) {
+      formattedPhone = cleanPhone;
+    } else if (cleanPhone.startsWith('00')) {
+      formattedPhone = `+${cleanPhone.slice(2)}`;
+    } else if (/^03\d{9}$/.test(cleanPhone)) {
+      // Pakistani 11-digit national mobile e.g. 03120391998 -> +923120391998
+      formattedPhone = `+92${cleanPhone.slice(1)}`;
+    } else if (/^92\d{10}$/.test(cleanPhone)) {
+      formattedPhone = `+${cleanPhone}`;
+    } else {
+      formattedPhone = `+${cleanPhone}`;
+    }
     const messageBody = `Vero Platform: Your verification security code is ${otp}. It will expire in ${Math.floor(this.ttlSeconds / 60)} minutes. Do not share this code.`;
 
     if (this.twilioClient && (this.twilioPhoneNumber || this.twilioMessagingServiceSid)) {
