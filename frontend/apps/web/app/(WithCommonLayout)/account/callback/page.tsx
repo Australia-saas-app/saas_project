@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { useUser } from "@/src/context/user.provider";
 import { getDashboardRedirect } from "@/src/shared/hooks/auth.hook";
 import { resolvePostLoginRedirect } from "@/src/lib/auth-redirect";
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshUser } = useUser();
@@ -110,5 +110,32 @@ export default function AuthCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 shadow-xl">
+            <div className="space-y-4">
+              <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary animate-pulse">
+                <ShieldCheck className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-foreground">Completing Sign In</h3>
+              <p className="text-sm text-muted-foreground">
+                Verifying your credentials and redirecting to your dashboard...
+              </p>
+              <div className="pt-2 flex justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
   );
 }
