@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
   Inject,
   HttpStatus,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, DeepPartial, DataSource, In } from 'typeorm';
@@ -42,7 +43,7 @@ import { SocialLoginDto } from './dto/social-login.dto';
 import { randomUUID } from 'crypto';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -58,6 +59,25 @@ export class AuthService {
     private readonly redisClient: RedisClientType,
     private readonly dataSource: DataSource,
   ) { }
+
+  async onModuleInit() {
+    try {
+      const email = this.configService.get<string>('SUPERADMIN_EMAIL', 'superadmin@systemdb.com');
+      let admin = await this.adminRepository.findOne({ where: { email } });
+      if (!admin) {
+        const hashedPassword = await bcrypt.hash('Superadmin@123', 10);
+        admin = this.adminRepository.create({
+          email,
+          password: hashedPassword,
+          role: 'super_admin' as any,
+          fullName: 'Super Admin',
+        });
+        await this.adminRepository.save(admin);
+      }
+    } catch {
+      // Ignore during initial DB sync
+    }
+  }
 
   private normalizeEmail(email?: string) {
     return email ? email.trim().toLowerCase() : undefined;

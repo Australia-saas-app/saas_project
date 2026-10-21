@@ -120,7 +120,7 @@ import { KycApplication } from './entities/kyc-application.entity';
           KycApplication,
         ],
         synchronize:
-          String(configService.get('SSO_SYNCHRONIZE', 'false')).toLowerCase() === 'true',
+          String(configService.get('SSO_SYNCHRONIZE', 'true')).toLowerCase() === 'true',
       }),
       inject: [ConfigService],
     }),

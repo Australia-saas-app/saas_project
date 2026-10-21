@@ -96,7 +96,7 @@ services:
       - REDIS_HOST=${REDIS_HOST:-saas-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_URL=${REDIS_URL:-redis://saas-redis:6379}
-      - SSO_SYNCHRONIZE=false
+      - SSO_SYNCHRONIZE=true
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_SECURE=${SMTP_SECURE:-false}

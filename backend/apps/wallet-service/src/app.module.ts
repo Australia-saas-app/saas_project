@@ -67,9 +67,7 @@ import { User } from './entities/user.entity';
           Wallet,
           Transaction,
         ],
-        synchronize:
-          configService.get<boolean>('WALLET_SYNCHRONIZE') ??
-          configService.get('NODE_ENV') !== 'production',
+        synchronize: true,
         logging: configService.get('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],

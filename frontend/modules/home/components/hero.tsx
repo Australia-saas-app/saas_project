@@ -20,7 +20,7 @@ const TRUST_AVATARS = [
 export default function Hero() {
   return (
     <section className="bg-background">
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:gap-8 md:px-6 md:py-8 lg:min-h-[480px] lg:grid-cols-2 lg:items-center lg:gap-8">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:gap-8 md:px-6 md:py-8 lg:min-h-[480px] lg:grid-cols-2 lg:items-stretch lg:gap-8">
         {/* Left — stretched across the same height as the image */}
         <div className="reveal flex h-full flex-col justify-between gap-5 lg:py-2">
           <div className="space-y-3">
@@ -101,7 +101,7 @@ export default function Hero() {
         </div>
 
         {/* Right — same height, flush with the text column */}
-        <div className="reveal reveal-delay-2 relative h-[260px] w-full overflow-hidden rounded-2xl border border-border shadow-md sm:h-[320px] lg:h-auto lg:min-h-0">
+        <div className="reveal reveal-delay-2 relative h-[280px] w-full overflow-hidden rounded-2xl border border-border shadow-md sm:h-[340px] lg:h-full lg:min-h-[460px]">
           <Image
             src="/image/banner.png"
             alt="Global technology and engineering teams at work"

@@ -85,7 +85,13 @@ export class OtpUtil {
   }
 
   async storeOTP(redisClient: RedisClientType, key: string, otp: string) {
-    await redisClient.set(key, otp, { EX: this.ttlSeconds });
+    try {
+      if (redisClient && typeof redisClient.set === 'function') {
+        await redisClient.set(key, otp, { EX: this.ttlSeconds });
+      }
+    } catch (err: any) {
+      Logger.warn(`Failed to store OTP in Redis: ${err?.message}`, 'OtpUtil');
+    }
   }
 
   async verifyOTP(redisClient: RedisClientType, key: string, otp: string, deleteKey: boolean = true) {
@@ -101,16 +107,23 @@ export class OtpUtil {
       .filter(Boolean);
 
     if (testOtps.includes(otp)) {
-      if (deleteKey) await redisClient.del(key);
+      if (deleteKey) {
+        try { await redisClient?.del(key); } catch {}
+      }
       return true;
     }
 
-    const stored = await redisClient.get(key);
-    if (!stored || stored !== otp) {
+    try {
+      const stored = await redisClient.get(key);
+      if (!stored || stored !== otp) {
+        return false;
+      }
+      if (deleteKey) await redisClient.del(key);
+      return true;
+    } catch (err: any) {
+      Logger.warn(`Failed to verify OTP from Redis: ${err?.message}`, 'OtpUtil');
       return false;
     }
-    if (deleteKey) await redisClient.del(key);
-    return true;
   }
 
   async sendOTPEmail(email: string, otp: string, type: string = 'verification', context?: { ipAddress?: string }) {

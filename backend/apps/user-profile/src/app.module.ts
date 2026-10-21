@@ -75,7 +75,7 @@ import { UserPreference } from './preferences/entities/user-preference.entity';
         password: configService.get('DB_PASSWORD', ''),
         database: configService.get('DB_NAME', 'vero2'),
         entities: [UserProfile, UserContact, UserPreference],
-        synchronize: configService.get('NODE_ENV') === 'development',
+        synchronize: true,
         logging: configService.get('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],

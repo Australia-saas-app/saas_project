@@ -69,7 +69,7 @@ import { CommercialIndustrialCategory } from './commercial-industrial/entities/c
         password: configService.get('DB_PASSWORD', ''),
         database: configService.get('DB_NAME', 'vero2'),
         entities: [CommercialIndustrialService, CommercialIndustrialCategory],
-        synchronize: configService.get('NODE_ENV') === 'development',
+        synchronize: true,
         logging: configService.get('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],
