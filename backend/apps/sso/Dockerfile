@@ -1,5 +1,6 @@
 FROM node:18-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache python3 make g++ gcc
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -13,6 +14,7 @@ RUN npm run build
 
 FROM node:18-alpine AS prod-deps
 WORKDIR /app
+RUN apk add --no-cache python3 make g++ gcc
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
