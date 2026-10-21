@@ -385,13 +385,14 @@ export function useProfileDisplay() {
       { label: "Full Name", value: fullName },
       { label: "Nationality", value: nationality || "—" },
       { label: "Date of Birth", value: dateOfBirth || "—" },
+      { label: "Gender", value: gender && gender !== "Select" ? (gender.charAt(0).toUpperCase() + gender.slice(1)) : "—" },
       { label: "Government ID", value: nationalIdentity ? `${governmentIdType}: ${nationalIdentity}` : "—" },
       { label: "Phone Number", value: phone ? `${countryCode} ${phone}` : "—" },
       { label: "Secondary Email", value: secondaryEmail || "—" },
       { label: "Email Address", value: email || "—" },
       { label: "Preferred Currency", value: currency },
     ],
-    [fullName, nationality, dateOfBirth, nationalIdentity, governmentIdType, phone, countryCode, secondaryEmail, email, currency]
+    [fullName, nationality, dateOfBirth, gender, nationalIdentity, governmentIdType, phone, countryCode, secondaryEmail, email, currency]
   )
 
   const updateProfile = async (patch: ProfileDataPatch) => {

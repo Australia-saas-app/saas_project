@@ -26,6 +26,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     countryCode: initialCountryCode,
     nationality: initialNationality,
     dateOfBirth: initialDateOfBirth,
+    gender: initialGender,
     nationalIdentity: initialNationalIdentity,
     governmentIdType: initialGovernmentIdType,
     permanentAddress: initialPermanentAddress,
@@ -41,6 +42,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   // Form states initialized with user / profile display data
   const [nationality, setNationality] = useState(initialNationality || "");
   const [dateOfBirth, setDateOfBirth] = useState(initialDateOfBirth || "");
+  const [gender, setGender] = useState(initialGender || "Select");
   const [nationalIdentity, setNationalIdentity] = useState(initialNationalIdentity || "");
   const [governmentIdType, setGovernmentIdType] = useState(initialGovernmentIdType || "");
   
@@ -117,6 +119,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   const isFormValid = Boolean(
     nationality?.trim() &&
     dateOfBirth?.trim() &&
+    gender && gender !== "Select" &&
     nationalIdentity?.trim() &&
     governmentIdType?.trim() &&
     phone?.trim() &&
@@ -137,6 +140,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
     if (initialNationality) setNationality((prev: string) => prev || initialNationality);
     if (initialDateOfBirth) setDateOfBirth((prev: string) => prev || initialDateOfBirth);
+    if (initialGender) setGender((prev: string) => (prev === "Select" || !prev ? initialGender : prev));
     if (initialNationalIdentity) setNationalIdentity((prev: string) => prev || initialNationalIdentity);
     if (initialGovernmentIdType) setGovernmentIdType((prev: string) => prev || initialGovernmentIdType);
     if (initialPhone) setPhone((prev: string) => prev || stripCountryCode(initialPhone, initialCountryCode || countryCode));
@@ -144,7 +148,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
     if (initialCurrency) setCurrency((prev: string) => (prev === "USD" ? initialCurrency : prev));
     if (initialDocumentUrl) setDocumentUrl((prev: string) => prev || initialDocumentUrl);
   }, [
-    initialNationality, initialDateOfBirth, initialNationalIdentity, initialGovernmentIdType,
+    initialNationality, initialDateOfBirth, initialGender, initialNationalIdentity, initialGovernmentIdType,
     initialPermanentAddress, initialCountryCode, initialPhone, initialSecondaryEmail,
     initialCurrency, initialDocumentUrl
   ]);
@@ -172,6 +176,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
 
     const missingFields: string[] = [];
     if (!nationality?.trim()) missingFields.push("Nationality");
+    if (!gender || gender === "Select") missingFields.push("Gender");
     if (!dateOfBirth?.trim()) missingFields.push("Date of Birth");
     if (!nationalIdentity?.trim()) missingFields.push("Government ID");
     if (!phone?.trim()) missingFields.push("Phone Number");
@@ -205,6 +210,7 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
       const patchData: Record<string, any> = { resubmitted: true };
 
       if (nationality !== (initialNationality || "")) patchData.nationality = nationality;
+      if (gender !== (initialGender || "Select") && gender !== "Select") patchData.gender = gender;
       if (dateOfBirth !== (initialDateOfBirth || "")) patchData.dateOfBirth = dateOfBirth;
       if (nationalIdentity !== (initialNationalIdentity || "")) patchData.nationalIdentity = nationalIdentity;
       if (governmentIdType !== (initialGovernmentIdType || "")) patchData.governmentIdType = governmentIdType;
@@ -354,6 +360,26 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
               required
               options={ALL_NATIONALITIES.map((nat: string) => ({ label: nat, value: nat }))}
             />
+          </div>
+
+          {/* Gender (Mandatory Dropdown matching Business profile) */}
+          <div className="flex flex-col gap-2 min-w-0">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <span>Gender</span>
+              <span className="text-red-500 font-bold">*</span>
+            </label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              required
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer"
+            >
+              <option value="Select" disabled>Select</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+              <option value="">Prefer not to say</option>
+            </select>
           </div>
 
           {/* 3. Date of Birth (Mandatory Date Picker) */}

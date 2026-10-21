@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import { ThrottlerModule, ThrottlerGuard, ThrottlerModuleOptions } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -140,6 +141,29 @@ import { KycApplication } from './entities/kyc-application.entity';
     },
   ],
 })
-export class AppModule { }
+export class AppModule implements OnModuleInit {
+  private readonly autoMigrateLogger = new Logger('DatabaseAutoMigration');
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onModuleInit() {
+    try {
+      await this.dataSource.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "trustedIps" JSONB DEFAULT '[]'::jsonb;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "recoveryKey" VARCHAR(100);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "kycStatus" VARCHAR(50) DEFAULT 'none';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "agencyInfo" JSONB;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "businessInfo" JSONB;
+      `);
+      this.autoMigrateLogger.log('Users table schema verified and auto-migrated successfully.');
+    } catch (e: any) {
+      this.autoMigrateLogger.warn(`Database auto-migration note: ${e?.message || e}`);
+    }
+  }
+}
 
 

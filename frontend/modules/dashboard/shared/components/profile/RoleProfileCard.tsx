@@ -55,6 +55,7 @@ export default function RoleProfileCard({
     const missingFields: string[] = [];
     if (!fullName) missingFields.push("Full Name");
     if (!phone && !email) missingFields.push("Phone or Email");
+    if (!gender || gender === "Select") missingFields.push("Gender");
     if (!dateOfBirth) missingFields.push("Date of Birth");
     if (!nationality) missingFields.push("Nationality");
     if (!nationalIdentity) missingFields.push("National Identity");
