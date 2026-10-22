@@ -36,6 +36,7 @@ import {
 } from "@/src/modules/technical/services/technical.services";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import SelectDropdown from "@/src/shared/components/SelectDropdown";
+import { checkDepositPermission } from "@/src/shared/lib/verification-access";
 
 type TabId = "overview" | "deposit" | "security" | "holds" | "refunds";
 
@@ -302,6 +303,12 @@ export default function WalletFinancePanel() {
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return toast.error("Sign in required");
+
+    const depositPerm = checkDepositPermission(user);
+    if (!depositPerm.allowed) {
+      return toast.error(depositPerm.message || "Deposit not allowed for your account status.");
+    }
+
     const value = parseFloat(amount);
     if (!value || value <= 0) return toast.error("Enter a valid deposit amount");
 

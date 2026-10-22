@@ -74,10 +74,12 @@ const UsersToolbar: React.FC<Props> = ({
             <SelectItem value="All Statuses" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Statuses</SelectItem>
             <SelectItem value="ACTIVE" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Active</SelectItem>
             <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Pending</SelectItem>
-            <SelectItem value="SUSPEND" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Suspended</SelectItem>
+            <SelectItem value="UNDER_REVIEW" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Under Review</SelectItem>
+            <SelectItem value="SUSPENDED" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Suspended</SelectItem>
+            <SelectItem value="BLOCKED" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Blocked</SelectItem>
             <SelectItem value="DORMANT" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Dormant</SelectItem>
+            <SelectItem value="DEACTIVATED" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Deactivated</SelectItem>
             <SelectItem value="CLOSED" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Closed</SelectItem>
-            <SelectItem value="BLOCK" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">Blocked</SelectItem>
           </SelectContent>
         </Select>
       </div>

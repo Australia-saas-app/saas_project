@@ -1414,63 +1414,166 @@ export class AuthService implements OnModuleInit {
     };
   }
 
-  async updateUserStatus(userId: string, status: string, reason: string, adminEmail: string | undefined, ipAddress: string = '127.0.0.1') {
-    status = status.toLowerCase();
-    if (status === 'suspend') status = 'suspended';
-    if (status === 'block') status = 'blocked';
-    if (status === 'verify' || status === 'activate' || status === 'approved') status = 'active';
-    if (status === 'unverify' || status === 'deactivate' || status === 'rejected') status = 'pending';
+  private normalizeStatus(status: string): UserStatus {
+    const raw = String(status || '').toLowerCase().trim().replace(/[\s-]+/g, '_');
+    if (raw === 'active' || raw === 'verify' || raw === 'activate' || raw === 'approved') return UserStatus.ACTIVE;
+    if (raw === 'pending' || raw === 'unverify' || raw === 'rejected') return UserStatus.PENDING;
+    if (raw === 'under_review' || raw === 'underreview' || raw === 'review') return UserStatus.UNDER_REVIEW;
+    if (raw === 'suspended' || raw === 'suspend') return UserStatus.SUSPENDED;
+    if (raw === 'blocked' || raw === 'block') return UserStatus.BLOCKED;
+    if (raw === 'dormant') return UserStatus.DORMANT;
+    if (raw === 'deactivated' || raw === 'deactivate') return UserStatus.DEACTIVATED;
+    if (raw === 'closed' || raw === 'close') return UserStatus.CLOSED;
+    if (raw === 'inactive') return UserStatus.INACTIVE;
+    throw new BadRequestException(`Unrecognized user status: '${status}'`);
+  }
+
+  // Exact Account Status Transition Rules (Image 2)
+  private readonly allowedStatusTransitions: Record<UserStatus, UserStatus[]> = {
+    [UserStatus.PENDING]: [
+      UserStatus.ACTIVE,
+      UserStatus.UNDER_REVIEW,
+    ],
+    [UserStatus.ACTIVE]: [
+      UserStatus.UNDER_REVIEW,
+      UserStatus.SUSPENDED,
+      UserStatus.BLOCKED,
+      UserStatus.DORMANT,
+      UserStatus.DEACTIVATED,
+    ],
+    [UserStatus.UNDER_REVIEW]: [
+      UserStatus.ACTIVE,
+      UserStatus.SUSPENDED,
+      UserStatus.BLOCKED,
+    ],
+    [UserStatus.SUSPENDED]: [
+      UserStatus.ACTIVE,
+      UserStatus.BLOCKED,
+    ],
+    [UserStatus.BLOCKED]: [
+      UserStatus.ACTIVE, // Through successful appeal & authorized approval
+    ],
+    [UserStatus.DORMANT]: [
+      UserStatus.ACTIVE, // When required recovery & security checks completed
+    ],
+    [UserStatus.DEACTIVATED]: [
+      UserStatus.ACTIVE, // When restored within 60-day recovery period
+      UserStatus.CLOSED, // When 60-day recovery period expires
+    ],
+    [UserStatus.CLOSED]: [], // Closed is terminal state prior to data retention check & deletion
+    [UserStatus.INACTIVE]: [
+      UserStatus.ACTIVE,
+      UserStatus.PENDING,
+      UserStatus.DORMANT,
+    ],
+  };
+
+  async updateUserStatus(
+    userId: string,
+    rawStatus: string,
+    reason: string,
+    adminEmail: string | undefined,
+    ipAddress: string = '127.0.0.1',
+    isAdminOverride = false,
+  ) {
+    const targetStatus = this.normalizeStatus(rawStatus);
     const user = await this.findUserByAnyId(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    if (user.status === status) {
-      throw new BadRequestException(`User is already in ${status} status`);
+    const currentStatus = user.status || UserStatus.PENDING;
+
+    if (currentStatus === targetStatus) {
+      throw new BadRequestException(`User is already in '${targetStatus}' status`);
     }
 
-    const historyEntry = {
-      status: status as UserStatus,
-      reason: reason || 'Status changed',
-      changedBy: adminEmail,
-      changedAt: new Date().toISOString(),
+    // Validate Transition Rules strictly matching Image 2
+    const allowedTargets = this.allowedStatusTransitions[currentStatus] || [];
+    const isTransitionAllowed = allowedTargets.includes(targetStatus);
+
+    if (!isTransitionAllowed) {
+      if (!isAdminOverride) {
+        const allowedStr = allowedTargets.length > 0 ? allowedTargets.join(', ') : 'None (Terminal status)';
+        throw new BadRequestException(
+          `Status transition rule violation: Cannot change status from '${currentStatus}' to '${targetStatus}'. Allowed transitions from '${currentStatus}': [${allowedStr}]. An authorized administrative override is required for exceptions.`,
+        );
+      }
+      // Image 3: Security Exclusions & Admin Override mandatory reason check
+      if (!reason || reason.trim().length < 5) {
+        throw new BadRequestException(
+          `Administrative override requires a mandatory justification/reason of at least 5 characters.`,
+        );
+      }
+    }
+
+    const now = new Date();
+    const historyEntry: NonNullable<User['statusHistory']>[number] = {
+      fromStatus: currentStatus,
+      status: targetStatus,
+      reason: reason || (isAdminOverride ? 'Authorized Administrator Override' : 'Standard Status Transition'),
+      changedBy: adminEmail || 'Administrator',
+      changedAt: now.toISOString(),
+      ipAddress,
+      isOverride: Boolean(isAdminOverride && !isTransitionAllowed),
     };
 
-    const history = Array.isArray(user.statusHistory)
+    // Policy Requirements (Image 3): Handle 60-day Deactivation recovery and restoration
+    if (targetStatus === UserStatus.DEACTIVATED) {
+      user.deactivatedAt = now;
+      historyEntry.recoveryExpiresAt = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (targetStatus === UserStatus.ACTIVE && currentStatus === UserStatus.DEACTIVATED) {
+      user.deactivatedAt = null as unknown as Date;
+      historyEntry.restoredAt = now.toISOString();
+    }
+
+    const history: NonNullable<User['statusHistory']> = Array.isArray(user.statusHistory)
       ? [...user.statusHistory, historyEntry]
       : [historyEntry];
 
     user.statusHistory = history;
-    user.status = status as UserStatus;
+    user.status = targetStatus;
+    user.lastActiveAt = now;
 
     await this.userRepository.save(user);
 
+    // Audit Event Logging (Image 3)
     try {
       const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
       fetch(`${userProfileUrl}/activity/internal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'ACCOUNT_STATUS_CHANGED',
-          resource: `Account status updated to ${status} by administrator`,
-          details: { userId: user.userId, email: user.email, name: user.fullName, newStatus: status, changedBy: adminEmail },
+          action: 'ACCOUNT_STATUS_TRANSITION',
+          resource: `Account transitioned from ${currentStatus} to ${targetStatus}${isAdminOverride && !isTransitionAllowed ? ' (Admin Override)' : ''}`,
+          details: {
+            userId: user.userId,
+            email: user.email,
+            name: user.fullName,
+            fromStatus: currentStatus,
+            newStatus: targetStatus,
+            reason: historyEntry.reason,
+            changedBy: adminEmail,
+            isOverride: historyEntry.isOverride,
+          },
           userAgent: 'Admin Backend',
-          ipAddress
-        })
+          ipAddress,
+        }),
       }).catch(() => undefined);
     } catch { }
 
     return {
       success: true,
-      message: `User status updated to ${status} successfully`,
+      message: `User status transitioned from '${currentStatus}' to '${targetStatus}' successfully`,
       data: {
         userId: user.userId,
-        previousStatus: user.status,
-        newStatus: status,
-        reason,
+        previousStatus: currentStatus,
+        newStatus: targetStatus,
+        reason: historyEntry.reason,
         changedBy: adminEmail,
         changedAt: historyEntry.changedAt,
         statusHistory: history,
+        isOverride: historyEntry.isOverride,
       },
     };
   }

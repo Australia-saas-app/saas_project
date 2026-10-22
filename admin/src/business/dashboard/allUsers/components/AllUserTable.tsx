@@ -69,19 +69,29 @@ type BackendUser = {
 
 
 const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
+    const raw = String(status || '').toLowerCase().trim().replace(/[\s-]+/g, '_');
+    switch (raw) {
         case 'active':
             return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
         case 'pending':
             return 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+        case 'under_review':
+        case 'underreview':
+        case 'review':
+            return 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20'
+        case 'suspended':
         case 'suspend':
-            return 'bg-red-500/10 text-red-600 border-red-500/20'
-        case 'dormant':
-            return 'bg-slate-500/10 text-slate-600 border-slate-500/20'
-        case 'closed':
-            return 'bg-zinc-800/10 text-zinc-600 border-zinc-800/20'
+            return 'bg-orange-500/10 text-orange-600 border-orange-500/20'
+        case 'blocked':
         case 'block':
             return 'bg-rose-600/10 text-rose-600 border-rose-600/20'
+        case 'dormant':
+            return 'bg-slate-500/10 text-slate-600 border-slate-500/20'
+        case 'deactivated':
+        case 'deactivate':
+            return 'bg-zinc-700/10 text-zinc-600 border-zinc-700/20'
+        case 'closed':
+            return 'bg-zinc-800/10 text-zinc-600 border-zinc-800/20'
         default:
             return 'bg-gray-500/10 text-gray-600 border-gray-500/20'
     }
@@ -164,7 +174,14 @@ const AllUserTable: React.FC = () => {
             )
         }
         if (status && status !== "All Statuses") {
-            filtered = filtered.filter(u => u.status?.toLowerCase() === status.toLowerCase())
+            const filterNorm = status.toLowerCase().replace(/[\s-]+/g, '_');
+            filtered = filtered.filter(u => {
+                const uNorm = (u.status || '').toLowerCase().replace(/[\s-]+/g, '_');
+                if (filterNorm === 'suspended' && (uNorm === 'suspend' || uNorm === 'suspended')) return true;
+                if (filterNorm === 'blocked' && (uNorm === 'block' || uNorm === 'blocked')) return true;
+                if (filterNorm === 'deactivated' && (uNorm === 'deactivate' || uNorm === 'deactivated')) return true;
+                return uNorm === filterNorm;
+            });
         }
         if (currency && currency !== "All Currencies") {
             filtered = filtered.filter(u => u.currency === currency)
@@ -181,8 +198,21 @@ const AllUserTable: React.FC = () => {
         setIsModalOpen(true)
     }
 
-    const handleStatusUpdate = async (userId: string, newStatus: string) => {
+    const handleStatusUpdate = async (userId: string, newStatus: string, reason?: string, isAdminOverride?: boolean) => {
         try {
+            const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: newStatus, reason, isAdminOverride })
+            });
+            const resData = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(resData.message || resData.error || "Failed to update status");
+            }
+
             // Optimistically update React Query cache in-memory immediately (NO table refetch spinner!)
             queryClient.setQueriesData({ queryKey: ["admin-users"] }, (oldData: any) => {
                 if (!oldData) return oldData;
@@ -196,19 +226,6 @@ const AllUserTable: React.FC = () => {
             });
 
             setSelectedUser(prev => prev?.userId === userId ? { ...prev, status: newStatus } : prev);
-
-            const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
-                method: 'PATCH',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ status: newStatus })
-            });
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.message || "Failed to update");
-            }
 
             // Real-time broadcast to user profile and all web tabs
             const lowerStatus = newStatus.toLowerCase();

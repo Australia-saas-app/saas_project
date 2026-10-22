@@ -43,11 +43,13 @@ export enum AccountType {
 export enum UserStatus {
   ACTIVE = 'active',
   PENDING = 'pending',
-  INACTIVE = 'inactive',
+  UNDER_REVIEW = 'under_review',
   SUSPENDED = 'suspended',
   BLOCKED = 'blocked',
   DORMANT = 'dormant',
+  DEACTIVATED = 'deactivated',
   CLOSED = 'closed',
+  INACTIVE = 'inactive',
 }
 
 export enum BusinessType {

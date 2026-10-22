@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserStatusDto {
   @IsString()
@@ -7,4 +7,8 @@ export class UpdateUserStatusDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isAdminOverride?: boolean;
 }

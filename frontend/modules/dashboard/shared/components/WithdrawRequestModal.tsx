@@ -12,6 +12,7 @@ import {
 import { useUser } from "@/src/context/user.provider";
 import { submitWithdrawalRequest } from "@/src/shared/lib/wallet-store";
 import axiosInstance from "@/src/shared/lib/axiosInstance";
+import { checkWithdrawalPermission } from "@/src/shared/lib/verification-access";
 
 export interface WithdrawRequestResult {
   amount: string;
@@ -87,6 +88,13 @@ export default function WithdrawRequestModal({
       toast.error("Sign in to request a withdrawal.");
       return;
     }
+
+    const withdrawPerm = checkWithdrawalPermission(user);
+    if (!withdrawPerm.allowed) {
+      toast.error(withdrawPerm.message || "Withdrawal not permitted for your account status.");
+      return;
+    }
+
     if (parsedAmount <= 0) {
       toast.error("Enter a valid withdrawal amount.");
       return;

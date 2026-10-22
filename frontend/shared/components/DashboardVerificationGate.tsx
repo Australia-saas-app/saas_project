@@ -8,6 +8,8 @@ import { useUser } from "@/src/context/user.provider";
 import { accountTypeFromRole, resolveDashboardAccess } from "@/src/shared/lib/verification-access";
 import { logout } from "@/src/server/AuthService";
 
+import AccountStatusBanner from "@/src/shared/components/AccountStatusBanner";
+
 export default function DashboardVerificationGate({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useUser();
   const pathname = usePathname();
@@ -25,6 +27,40 @@ export default function DashboardVerificationGate({ children }: { children: Reac
   }
 
   if (!access.allowed && access.reason === "auth") {
+    if (access.status === "Blocked" || access.status === "Deactivated" || access.status === "Closed") {
+      const accountType = accountTypeFromRole(user?.role);
+      return (
+        <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center px-4 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-800 shadow-sm">
+            <ShieldAlert className="h-8 w-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Account {access.status}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-md">
+            {access.message}
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            {access.ctaHref && (
+              <Link
+                href={access.ctaHref}
+                className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-lg shadow-sm transition-colors text-center"
+              >
+                {access.ctaLabel || "Proceed"}
+              </Link>
+            )}
+            <button
+              onClick={() => logout()}
+              className="w-full sm:w-auto px-6 py-2.5 bg-muted hover:bg-muted/80 text-foreground font-semibold text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     if (typeof window !== "undefined") {
       let isManualLogout = false;
       try {
@@ -97,5 +133,12 @@ export default function DashboardVerificationGate({ children }: { children: Reac
     );
   }
 
-  return <>{children}</>;
+  const accountType = accountTypeFromRole(user?.role);
+
+  return (
+    <>
+      <AccountStatusBanner user={user} accountType={accountType} />
+      {children}
+    </>
+  );
 }

@@ -31,10 +31,28 @@ import { SocialLoginDto } from './dto/social-login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AccessTokenGuard, AuthContext } from '../../common/guards/access-token.guard';
 import { CurrentAuth } from '../../common/decorators/current-user.decorator';
+import { AccountLifecycleService } from './account-lifecycle.service';
 
 @Controller('sso/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly lifecycleService: AccountLifecycleService,
+  ) {}
+
+  @Post('admin/lifecycle/trigger')
+  @UseGuards(JwtAuthGuard)
+  async triggerLifecycleChecks(@Request() req: any) {
+    if (!['super_admin', 'admin'].includes(req.user?.role)) {
+      throw new ForbiddenException('Admin access required');
+    }
+    const result = await this.lifecycleService.runAutomatedLifecycleChecks();
+    return {
+      success: true,
+      message: 'Automated lifecycle checks completed',
+      data: result,
+    };
+  }
 
   @Delete('admin/users/:userId')
   @UseGuards(JwtAuthGuard)
@@ -200,7 +218,16 @@ export class AuthController {
       throw new ForbiddenException('Admin access required');
     }
     const ipAddress = req.ip || req.headers?.['x-forwarded-for'] || '127.0.0.1';
-    return this.authService.updateUserStatus(userId, body.status, body.reason || 'Status changed', (req.user as any).email, typeof ipAddress === 'string' ? ipAddress : ipAddress[0]);
+    const isSuperAdmin = req.user?.role === 'super_admin';
+    const allowOverride = Boolean(body.isAdminOverride && isSuperAdmin);
+    return this.authService.updateUserStatus(
+      userId,
+      body.status,
+      body.reason || '',
+      (req.user as any).email,
+      typeof ipAddress === 'string' ? ipAddress : ipAddress[0],
+      allowOverride,
+    );
   }
 
   @Patch('admin/users/:userId/kyc-status')

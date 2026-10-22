@@ -149,6 +149,25 @@ export class AppModule implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.dataSource.query(`
+        DO $$ 
+        BEGIN 
+          BEGIN
+            ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'under_review';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+          BEGIN
+            ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'deactivated';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+          BEGIN
+            ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'under_review';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+          BEGIN
+            ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'deactivated';
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+        END $$;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "trustedIps" JSONB DEFAULT '[]'::jsonb;
@@ -158,6 +177,9 @@ export class AppModule implements OnModuleInit {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "agencyInfo" JSONB;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "businessInfo" JSONB;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastActiveAt" TIMESTAMP DEFAULT NOW();
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP DEFAULT NOW();
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "deactivatedAt" TIMESTAMP;
       `);
       this.autoMigrateLogger.log('Users table schema verified and auto-migrated successfully.');
     } catch (e: any) {

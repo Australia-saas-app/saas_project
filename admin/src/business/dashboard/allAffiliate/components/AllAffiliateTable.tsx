@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger"
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type AffiliateStatus = "ACTIVE" | "PENDING" | "SUSPEND" | "BLOCK" | "DORMANT" | "CLOSED" | "INACTIVE"
+type AffiliateStatus = string
 
 interface AffiliateRow {
   id: string
@@ -35,16 +35,21 @@ interface AffiliateRow {
 }
 
 // ── Status Badge ───────────────────────────────────────────────────────────
-function getStatusStyle(status: AffiliateStatus) {
-  switch (status) {
-    case "ACTIVE":   return "bg-emerald-100 text-emerald-700 border-emerald-200"
-    case "PENDING":  return "bg-amber-100 text-amber-700 border-amber-200"
-    case "SUSPEND":  return "bg-orange-100 text-orange-700 border-orange-200"
-    case "BLOCK":    return "bg-red-100 text-red-700 border-red-200"
-    case "DORMANT":  return "bg-slate-100 text-slate-600 border-slate-200"
-    case "CLOSED":   return "bg-zinc-100 text-zinc-700 border-zinc-200"
-    case "INACTIVE": return "bg-gray-100 text-gray-500 border-gray-200"
-    default:         return "bg-gray-100 text-gray-500 border-gray-200"
+function getStatusStyle(status: string) {
+  const norm = String(status || '').toUpperCase().trim().replace(/[\s-]+/g, '_');
+  switch (norm) {
+    case "ACTIVE":       return "bg-emerald-100 text-emerald-700 border-emerald-200"
+    case "PENDING":      return "bg-amber-100 text-amber-700 border-amber-200"
+    case "UNDER_REVIEW": return "bg-indigo-100 text-indigo-700 border-indigo-200"
+    case "SUSPENDED":
+    case "SUSPEND":      return "bg-orange-100 text-orange-700 border-orange-200"
+    case "BLOCKED":
+    case "BLOCK":        return "bg-rose-100 text-rose-700 border-rose-200"
+    case "DORMANT":      return "bg-slate-100 text-slate-600 border-slate-200"
+    case "DEACTIVATED":  return "bg-zinc-100 text-zinc-700 border-zinc-300"
+    case "CLOSED":       return "bg-zinc-200 text-zinc-700 border-zinc-300"
+    case "INACTIVE":     return "bg-gray-100 text-gray-500 border-gray-200"
+    default:             return "bg-gray-100 text-gray-500 border-gray-200"
   }
 }
 
@@ -121,7 +126,14 @@ const AllAffiliateTable: React.FC = () => {
           )
         }
         if (status !== "All Statuses") {
-          filtered = filtered.filter((a: any) => a.status === status)
+          const filterNorm = status.toUpperCase().replace(/[\s-]+/g, '_');
+          filtered = filtered.filter((a: any) => {
+            const aNorm = String(a.status || '').toUpperCase().replace(/[\s-]+/g, '_');
+            if (filterNorm === 'SUSPENDED' && (aNorm === 'SUSPEND' || aNorm === 'SUSPENDED')) return true;
+            if (filterNorm === 'BLOCKED' && (aNorm === 'BLOCK' || aNorm === 'BLOCKED')) return true;
+            if (filterNorm === 'DEACTIVATED' && (aNorm === 'DEACTIVATE' || aNorm === 'DEACTIVATED')) return true;
+            return aNorm === filterNorm;
+          });
         }
         if (industryType !== "All Industries") {
            filtered = filtered.filter((a: any) => a.industryType === industryType)
@@ -147,7 +159,7 @@ const AllAffiliateTable: React.FC = () => {
     setIsModalOpen(true)
   }
 
-  const handleStatusUpdate = async (userId: string, newStatus: string) => {
+  const handleStatusUpdate = async (userId: string, newStatus: string, reason?: string, isAdminOverride?: boolean) => {
     try {
       const res = await fetch(`/admin/api/sso/auth/admin/users/${userId}/status`, {
         method: 'PATCH',
@@ -155,9 +167,10 @@ const AllAffiliateTable: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}` 
         },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus, reason, isAdminOverride })
       });
-      if (!res.ok) throw new Error("Failed to update");
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resData.message || resData.error || "Failed to update");
       setItems(prev => prev.map(u => u.userId === userId ? { ...u, status: newStatus } : u));
 
       const lowerStatus = newStatus.toLowerCase();
@@ -290,11 +303,14 @@ const AllAffiliateTable: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-slate-900 border-gray-200 rounded-md shadow-lg z-[100]">
                 <SelectItem value="All Statuses" className="focus:bg-blue-600 focus:text-white cursor-pointer rounded-sm mx-1 my-0.5">All Statuses</SelectItem>
-                <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                <SelectItem value="SUSPEND">SUSPEND</SelectItem>
-                <SelectItem value="BLOCK">BLOCK</SelectItem>
-                <SelectItem value="DORMANT">DORMANT</SelectItem>
-                <SelectItem value="CLOSED">CLOSED</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="UNDER_REVIEW">Under Review</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                <SelectItem value="BLOCKED">Blocked</SelectItem>
+                <SelectItem value="DORMANT">Dormant</SelectItem>
+                <SelectItem value="DEACTIVATED">Deactivated</SelectItem>
+                <SelectItem value="CLOSED">Closed</SelectItem>
               </SelectContent>
             </Select>
           </div>

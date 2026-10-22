@@ -58,20 +58,36 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
     })();
 
     let bc: BroadcastChannel | null = null;
+    const handleStatusSync = () => {
+      getCurrentUser().then((userData) => {
+        if (mounted && userData) {
+          setUser(userData);
+        }
+      }).catch(() => undefined);
+    };
+
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         bc = new BroadcastChannel("vero_channel");
         bc.onmessage = (ev) => {
           if (ev.data?.type === "USER_LOGGED_OUT") {
             setUser(null);
+          } else if (ev.data?.type === "vero:user_status_updated" || ev.data?.type === "vero:account_changed") {
+            handleStatusSync();
           }
         };
       }
+      window.addEventListener("vero:user_status_updated", handleStatusSync);
+      window.addEventListener("vero:account_changed", handleStatusSync);
     } catch {}
 
     return () => {
       mounted = false;
       if (bc) bc.close();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("vero:user_status_updated", handleStatusSync);
+        window.removeEventListener("vero:account_changed", handleStatusSync);
+      }
     };
   }, []);
 

@@ -38,11 +38,13 @@ export enum AccountType {
 export enum UserStatus {
   ACTIVE = 'active',
   PENDING = 'pending',
-  INACTIVE = 'inactive',
+  UNDER_REVIEW = 'under_review',
   SUSPENDED = 'suspended',
   BLOCKED = 'blocked',
   DORMANT = 'dormant',
+  DEACTIVATED = 'deactivated',
   CLOSED = 'closed',
+  INACTIVE = 'inactive',
 }
 
 export enum BusinessType {
@@ -213,10 +215,15 @@ export class User {
 
   @Column({ type: 'jsonb', nullable: true })
   statusHistory: {
+    fromStatus?: UserStatus | string;
     status: UserStatus;
     reason?: string;
     changedBy?: string;
     changedAt: string;
+    ipAddress?: string;
+    isOverride?: boolean;
+    recoveryExpiresAt?: string;
+    restoredAt?: string;
   }[] | null;
 
   @Column({ type: 'boolean', default: false })
@@ -369,6 +376,15 @@ export class User {
   @Column({ type: 'varchar', length: 255, default: 'NA' })
   industryType: string;
 
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastActiveAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLoginAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deactivatedAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

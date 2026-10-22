@@ -16,6 +16,7 @@ import { createProject, formatProjectDate, fetchServiceTaxonomy } from "../servi
 import { registerContact } from "@/src/shared/lib/contacts-store";
 import { useUser } from "@/src/context/user.provider";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+import { checkOrderCreationPermission } from "@/src/shared/lib/verification-access";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -303,6 +304,12 @@ export default function CreateProjectLayout() {
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async (data: ProjectForm) => {
+    const orderPerm = checkOrderCreationPermission(user);
+    if (!orderPerm.allowed) {
+      toast.error(orderPerm.message || "Project order creation is restricted for your account status.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       let attachmentData: any = null;

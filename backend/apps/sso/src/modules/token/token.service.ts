@@ -137,6 +137,11 @@ export class TokenService {
       loginRole: dto.login_role,
     });
 
+    const now = new Date();
+    user.lastLoginAt = now;
+    user.lastActiveAt = now;
+    await this.userRepository.save(user);
+
     return this.issueTokens({
       user,
       client,
@@ -285,12 +290,49 @@ export class TokenService {
   }
 
   private ensureUserIsAllowed(user: User) {
-    if (user.status !== UserStatus.ACTIVE && user.status !== UserStatus.PENDING) {
+    const status = user.status || UserStatus.PENDING;
+
+    // 1. Blocked: Login disabled; secure appeal channel available
+    if (status === UserStatus.BLOCKED) {
       throw new ForbiddenException({
-        error: user.status.toLowerCase(),
-        error_description: `Account is ${user.status.toLowerCase()}`,
+        error: 'account_blocked',
+        error_description: 'Account is blocked due to serious policy or security violations. A secure appeal channel is available.',
+        appealAvailable: true,
+        status: 'blocked',
       });
     }
+
+    // 2. Deactivated: User has requested account deletion; restoration may be requested during 60-day recovery period
+    if (status === UserStatus.DEACTIVATED) {
+      const deactTime = user.deactivatedAt ? new Date(user.deactivatedAt).getTime() : Date.now();
+      const expiresAt = new Date(deactTime + 60 * 24 * 60 * 60 * 1000);
+      const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+
+      throw new ForbiddenException({
+        error: 'account_deactivated',
+        error_description: `Account has been deactivated. You may request account restoration within the ${daysLeft}-day recovery window.`,
+        recoveryAvailable: daysLeft > 0,
+        daysRemaining: daysLeft,
+        status: 'deactivated',
+        userId: user.userId,
+      });
+    }
+
+    // 3. Closed: Account is permanently closed after the recovery period ends; normal access disabled
+    if (status === UserStatus.CLOSED) {
+      throw new ForbiddenException({
+        error: 'account_closed',
+        error_description: 'Account is permanently closed after the recovery period ended. Normal access is disabled.',
+        status: 'closed',
+      });
+    }
+
+    // 4. Allowed login with appropriate status flags (Image 1):
+    // - Active: Operational and approved
+    // - Pending: Limited dashboard access
+    // - Under Review: View existing info and contact support; high-risk actions restricted
+    // - Suspended: Access account status, support, and appeals
+    // - Dormant: Reactivation verification required
   }
 
   private async ensureValidOtp(user: User, otp?: string) {
