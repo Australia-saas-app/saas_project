@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Camera,
-  CameraOff,
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
@@ -16,7 +15,10 @@ import {
   Loader2,
   Check,
   ArrowRight,
-  Video
+  ArrowLeft,
+  Video,
+  Lock,
+  UserCheck
 } from "lucide-react";
 
 interface LiveKycCaptureModalProps {
@@ -38,8 +40,12 @@ export default function LiveKycCaptureModal({
   const animFrameRef = useRef<number | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Workflow steps: guidelines (policy & instructions) -> camera -> review
+  const [step, setStep] = useState<"guidelines" | "camera">("guidelines");
+
   const [isInitializing, setIsInitializing] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isWaitingForPermission, setIsWaitingForPermission] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
@@ -258,18 +264,16 @@ export default function LiveKycCaptureModal({
     }
   }, [countdown, startCountdown]);
 
-  // Request camera stream and play inside circle
-  const startCamera = useCallback(async () => {
+  // Starts the camera stream directly
+  const startCameraStream = useCallback(async () => {
     stopCamera();
     setIsInitializing(true);
     setCameraError(null);
-    setCapturedImage(null);
     setAlignmentProgress(0);
     setCountdown(null);
     stableFramesCount.current = 0;
     isCountingDown.current = false;
 
-    // Check if mediaDevices exists
     const nav = typeof navigator !== "undefined" ? navigator : null;
     const mediaDevices = nav?.mediaDevices;
     const getUserMedia =
@@ -280,72 +284,120 @@ export default function LiveKycCaptureModal({
 
     if (!getUserMedia) {
       setIsInitializing(false);
-      setCameraError(
-        "Browser blocked camera on HTTP. To see live camera video on this server IP, enable chrome://flags/#unsafely-treat-insecure-origin-as-secure or use HTTPS."
-      );
+      setIsWaitingForPermission(true);
+      setCameraError("Camera access is not permitted in this browser origin.");
       return;
     }
 
     try {
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: 1280, min: 320 },
+          height: { ideal: 720, min: 240 }
+        },
+        audio: false
+      };
+
       let stream: MediaStream;
       try {
-        // Try front selfie camera first
-        stream = await getUserMedia({
-          video: {
-            facingMode: { ideal: "user" },
-            width: { ideal: 1280, min: 320 },
-            height: { ideal: 720, min: 240 }
-          },
-          audio: false
-        });
+        stream = await getUserMedia(constraints);
       } catch {
-        // Fallback to any camera
-        stream = await getUserMedia({
-          video: true,
-          audio: false
-        });
+        stream = await getUserMedia({ video: true, audio: false });
       }
 
       streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().then(() => {
-            setIsInitializing(false);
-            setIsStreaming(true);
-            animFrameRef.current = requestAnimationFrame(runDetectionLoop);
-          }).catch((err) => {
-            console.warn("Video playback blocked:", err);
-            setIsInitializing(false);
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.muted = true;
+        (video as any).defaultMuted = true;
+        video.playsInline = true;
+
+        try {
+          await video.play();
+        } catch (playErr) {
+          console.warn("Direct play error, waiting for onloadedmetadata:", playErr);
+          await new Promise<void>((resolve) => {
+            video.onloadedmetadata = () => {
+              video.play().then(() => resolve()).catch(() => resolve());
+            };
+            setTimeout(resolve, 600);
           });
-        };
-      } else {
+        }
+
+        setIsStreaming(true);
+        setIsWaitingForPermission(false);
         setIsInitializing(false);
+        setCameraError(null);
+
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = requestAnimationFrame(runDetectionLoop);
       }
     } catch (err: any) {
       setIsInitializing(false);
-      console.warn("Camera access error:", err?.name, err?.message);
+      setIsStreaming(false);
+      console.warn("Camera stream failed:", err);
 
       if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
-        setCameraError("Camera permission was denied. Please click 'Allow' in your browser address bar.");
+        setIsWaitingForPermission(true);
+        setCameraError("Camera permission denied. Please allow camera access in the browser prompt.");
       } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
-        setCameraError("No webcam or camera detected on your device.");
+        setCameraError("No webcam or camera device detected on this computer.");
       } else {
-        setCameraError(err?.message || "Could not access camera. Please allow permissions and retry.");
+        setIsWaitingForPermission(true);
+        setCameraError(err?.message || "Could not access camera. Please click Allow Camera Access.");
       }
     }
   }, [runDetectionLoop, stopCamera]);
 
-  useEffect(() => {
-    if (isOpen) {
-      startCamera();
-    } else {
-      stopCamera();
+  const checkPermissionAndStart = useCallback(async () => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.permissions?.query) {
+        const permissionStatus = await navigator.permissions.query({ name: "camera" as any });
+        if (permissionStatus.state === "granted") {
+          // Already allowed previously! Auto-start camera directly without asking!
+          startCameraStream();
+        } else {
+          // Not yet allowed (prompt or denied): show the "Camera Access Required" prompt inside circle
+          setIsStreaming(false);
+          setIsInitializing(false);
+        }
+
+        permissionStatus.onchange = () => {
+          if (permissionStatus.state === "granted" && !streamRef.current) {
+            startCameraStream();
+          }
+        };
+      } else {
+        // If permissions API is not supported, wait for user to click button
+        setIsStreaming(false);
+        setIsInitializing(false);
+      }
+    } catch {
+      // Query threw on this browser, keep button visible
+      setIsStreaming(false);
+      setIsInitializing(false);
     }
+  }, [startCameraStream]);
+
+  // On modal open: Reset to guidelines step and cleanup
+  useEffect(() => {
+    if (!isOpen) {
+      stopCamera();
+      return;
+    }
+
+    setStep("guidelines");
+    setCapturedImage(null);
+    setCameraError(null);
+    setAlignmentProgress(0);
+    setCountdown(null);
+
     return () => {
       stopCamera();
     };
-  }, [isOpen, startCamera, stopCamera]);
+  }, [isOpen, stopCamera]);
 
   if (!isOpen) return null;
 
@@ -367,9 +419,26 @@ export default function LiveKycCaptureModal({
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground tracking-tight">
-                Live Biometric Verification
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-foreground tracking-tight">
+                  Live Biometric Verification
+                </h3>
+                {step === "guidelines" && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                    Step 1 of 2
+                  </span>
+                )}
+                {step === "camera" && !capturedImage && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    Step 2 of 2
+                  </span>
+                )}
+                {capturedImage && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-sm">
+                    Verified
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground font-medium">
                 Bank-Grade Face & Liveness Detection
               </p>
@@ -380,282 +449,413 @@ export default function LiveKycCaptureModal({
               stopCamera();
               onClose();
             }}
-            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 flex flex-col items-center">
-          {/* Shutter White Flash Effect */}
-          {isFlashing && (
-            <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-out fade-out duration-300" />
-          )}
+        {/* Shutter White Flash Effect */}
+        {isFlashing && (
+          <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-out fade-out duration-300" />
+        )}
 
-          {capturedImage ? (
-            /* ─── Captured Review State ─── */
-            <div className="w-full flex flex-col items-center py-2 animate-in fade-in zoom-in-95 duration-200">
-              {/* Photo Circular Frame */}
-              <div className="relative mb-5">
-                <div className="h-64 w-64 rounded-full overflow-hidden border-4 border-emerald-500 shadow-xl bg-muted relative">
-                  <img
-                    src={capturedImage}
-                    alt="Captured Live Selfie"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-3.5 py-1 rounded-full text-xs font-bold shadow-md flex items-center gap-1.5 whitespace-nowrap">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Live Photo Captured
-                </div>
+        {/* ─── STEP 1: POLICY & GUIDELINES ─── */}
+        {step === "guidelines" ? (
+          <div className="p-6 flex flex-col gap-4 animate-in fade-in duration-200">
+            {/* Policy Box: Why Liveness is Required */}
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                <Lock className="h-4 w-4 text-primary shrink-0" />
+                <h4>Biometric Verification & Anti-Spoofing Policy</h4>
               </div>
-
-              <div className="text-center max-w-sm mb-6">
-                <h4 className="text-base font-bold text-foreground mb-1">
-                  Biometric Face Match Verified
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your live portrait has been securely stamped. Click Continue to attach this photo to your formal KYC application.
-                </p>
-              </div>
-
-              {/* Quality Checklist */}
-              <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-6 text-xs">
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                  <span>Face Centered</span>
-                </div>
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                  <span>Clear Lighting</span>
-                </div>
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                  <span>Live Anti-Spoof</span>
-                </div>
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                  <span>Timestamp Stamped</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3 w-full justify-center">
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="px-5 py-2.5 rounded-lg border border-border text-foreground hover:bg-muted font-semibold text-sm transition-colors flex items-center gap-2"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Retake Photo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onCaptureComplete(capturedImage);
-                  }}
-                  className="px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm shadow hover:bg-primary/90 transition-colors flex items-center gap-2"
-                >
-                  <span>Continue to KYC</span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                To protect your account against identity theft, synthetic identity fraud, and AI-generated deepfakes, financial and regulatory standards require live biometric verification.
+              </p>
+              <div className="flex items-start gap-2 pt-1 text-[11px] text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                <span>This test confirms that you are a <strong>real, physically present living person</strong>. Your live selfie is encrypted, timestamped, and attached exclusively to your formal KYC application.</span>
               </div>
             </div>
-          ) : (
-            /* ─── LIVE CIRCULAR BIOMETRIC VIEWPORT (ALWAYS VISIBLE) ─── */
-            <div className="w-full flex flex-col items-center">
-              {/* Circular Camera Viewport */}
-              <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center my-2">
-                {/* Outer SVG Progress Ring */}
-                <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-20">
-                  <circle
-                    cx="50%"
-                    cy="50%"
-                    r={radius}
-                    className="stroke-muted/40 fill-none"
-                    strokeWidth="6"
-                  />
-                  <circle
-                    cx="50%"
-                    cy="50%"
-                    r={radius}
-                    className={`fill-none transition-all duration-150 ${
-                      alignmentProgress >= 100
-                        ? "stroke-emerald-500"
-                        : alignmentProgress > 40
-                        ? "stroke-emerald-400"
-                        : isStreaming
-                        ? "stroke-red-500/70"
-                        : "stroke-primary/70"
-                    }`}
-                    strokeWidth="6"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                  />
-                </svg>
 
-                {/* Video Stream Container Inside Circle */}
-                <div
-                  style={{ width: "270px", height: "270px" }}
-                  className="rounded-full overflow-hidden bg-slate-900 relative shadow-2xl flex items-center justify-center z-10 border-2 border-border/40"
-                >
-                  {/* Loading or Permission Prompt inside the Circle */}
-                  {isInitializing && (
-                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/90 text-white p-4 text-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-                      <span className="text-xs font-semibold">Starting camera...</span>
-                      <span className="text-[10px] text-slate-300 mt-1">Click "Allow" when prompted</span>
-                    </div>
-                  )}
+            {/* Preparation Instructions Checklist */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                What is required for the liveness check:
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="flex items-start gap-2.5 p-3 rounded-xl border border-border/60 bg-card hover:border-primary/40 transition-colors">
+                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sun className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-foreground">Good, Even Lighting</div>
+                    <div className="text-[11px] text-muted-foreground leading-snug">Face a light source. Avoid dark shadows or strong backlight behind you.</div>
+                  </div>
+                </div>
 
-                  {!isStreaming && !isInitializing && (
-                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/95 text-white p-4 text-center">
-                      <Camera className="h-10 w-10 text-primary mb-2 animate-bounce" />
-                      <span className="text-xs font-bold mb-1">Camera Access Required</span>
-                      <p className="text-[10px] text-slate-300 max-w-[200px] mb-3 leading-tight">
-                        Click below to allow camera access in your browser
-                      </p>
-                      <button
-                        type="button"
-                        onClick={startCamera}
-                        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold shadow hover:bg-primary/90 transition-all flex items-center gap-1.5"
-                      >
-                        <Video className="h-3.5 w-3.5" />
-                        <span>Allow & Start Camera</span>
-                      </button>
-                    </div>
-                  )}
+                <div className="flex items-start gap-2.5 p-3 rounded-xl border border-border/60 bg-card hover:border-primary/40 transition-colors">
+                  <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                    <Eye className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-foreground">Face Unobstructed</div>
+                    <div className="text-[11px] text-muted-foreground leading-snug">Remove sunglasses, masks, or wide hats. Reading glasses are fine.</div>
+                  </div>
+                </div>
 
-                  {/* Mirrored Video Feed */}
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover scale-x-[-1]"
-                  />
+                <div className="flex items-start gap-2.5 p-3 rounded-xl border border-border/60 bg-card hover:border-primary/40 transition-colors">
+                  <div className="h-7 w-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+                    <Smile className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-foreground">Center Face in Circle</div>
+                    <div className="text-[11px] text-muted-foreground leading-snug">Look directly into camera at eye level and align your face inside the frame.</div>
+                  </div>
+                </div>
 
-                  {/* Biometric Oval Center Guide Overlay with Red/Green Status */}
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div
-                      style={{ width: "170px", height: "215px" }}
-                      className={`rounded-[50%] border-2 border-dashed transition-all duration-200 ${
-                        alignmentProgress >= 90
-                          ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.4)]"
-                          : alignmentProgress > 30
-                          ? "border-amber-400 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
-                          : isStreaming
-                          ? "border-red-500/80 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.25)]"
-                          : "border-white/40"
-                      }`}
+                <div className="flex items-start gap-2.5 p-3 rounded-xl border border-border/60 bg-card hover:border-primary/40 transition-colors">
+                  <div className="h-7 w-7 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-foreground">Hold Still for Capture</div>
+                    <div className="text-[11px] text-muted-foreground leading-snug">When the frame glows green, hold steady for 3s to auto-capture your photo.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Compliance Consent Note */}
+            <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-2.5">
+              <UserCheck className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-[11px] text-foreground font-medium">
+                By clicking "Continue to Camera", you agree to enable live camera capture for real-person biometric verification.
+              </span>
+            </div>
+
+            {/* Footer Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  stopCamera();
+                  onClose();
+                }}
+                className="px-4 py-2.5 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("camera");
+                  checkPermissionAndStart();
+                }}
+                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span>Continue to Camera</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ─── STEP 2: CAMERA CAPTURE & REVIEW ─── */
+          <div className="p-6 flex flex-col items-center">
+            {capturedImage ? (
+              /* ─── Captured Review State ─── */
+              <div className="w-full flex flex-col items-center py-2 animate-in fade-in zoom-in-95 duration-200">
+                {/* Photo Circular Frame */}
+                <div className="relative mb-5">
+                  <div className="h-64 w-64 rounded-full overflow-hidden border-4 border-emerald-500 shadow-xl bg-muted relative">
+                    <img
+                      src={capturedImage}
+                      alt="Captured Live Selfie"
+                      className="h-full w-full object-cover"
                     />
                   </div>
-
-                  {/* Countdown Number Badge Overlay */}
-                  {countdown !== null && (
-                    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in zoom-in-50 duration-200">
-                      <span className="text-7xl font-black text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] scale-110 animate-pulse">
-                        {countdown}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Status Hint Pill */}
-              <div className="mt-3 mb-3">
-                <span
-                  className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                    alignmentProgress >= 90
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                      : alignmentProgress > 30
-                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                      : isStreaming
-                      ? "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30"
-                      : "bg-muted text-foreground border border-border"
-                  }`}
-                >
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      alignmentProgress >= 90
-                        ? "bg-emerald-500 animate-ping"
-                        : alignmentProgress > 30
-                        ? "bg-amber-500 animate-pulse"
-                        : isStreaming
-                        ? "bg-red-500"
-                        : "bg-primary"
-                    }`}
-                  />
-                  {detectionTip}
-                </span>
-              </div>
-
-              {/* Error notice if browser blocks on HTTP */}
-              {cameraError && (
-                <div className="w-full max-w-md p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 mb-4 text-xs space-y-2">
-                  <div className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>Browser Camera Notice (HTTP IP)</span>
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-3.5 py-1 rounded-full text-xs font-bold shadow-md flex items-center gap-1.5 whitespace-nowrap">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Live Photo Captured
                   </div>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Chrome blocks live video streaming on plain <strong>http://</strong> IP addresses. In production with <strong>HTTPS</strong>, this turns on automatically!
+                </div>
+
+                <div className="text-center max-w-sm mb-6">
+                  <h4 className="text-base font-bold text-foreground mb-1">
+                    Biometric Face Match Verified
+                  </h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your live portrait has been securely stamped. Click Continue to attach this photo to your formal KYC application.
                   </p>
-                  <div className="p-2.5 rounded-lg bg-background/80 border border-border text-[10px] space-y-1">
-                    <p className="font-semibold text-foreground">To enable live camera streaming on this IP right now:</p>
-                    <p>1. Open a new Chrome tab and go to: <code className="bg-muted px-1 py-0.5 rounded select-all font-mono">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></p>
-                    <p>2. Enter: <code className="bg-muted px-1 py-0.5 rounded select-all font-mono">http://140.245.193.19:8080</code>, select <strong>Enabled</strong>, and click <strong>Relaunch</strong>.</p>
+                </div>
+
+                {/* Quality Checklist */}
+                <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-6 text-xs">
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    <span>Face Centered</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    <span>Clear Lighting</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    <span>Live Anti-Spoof</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    <span>Timestamp Stamped</span>
                   </div>
                 </div>
-              )}
 
-              {/* 4 Core Bank KYC Guidance Requirements */}
-              <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-4 text-[11px] text-muted-foreground">
-                <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                  <Smile className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>Center face in frame</span>
-                </div>
-                <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                  <Sun className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>Even, bright lighting</span>
-                </div>
-                <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                  <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>Remove hats / glasses</span>
-                </div>
-                <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                  <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>Automatic auto-capture</span>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3 w-full justify-center">
+                  <button
+                    type="button"
+                    onClick={startCameraStream}
+                    className="px-5 py-2.5 rounded-lg border border-border text-foreground hover:bg-muted font-semibold text-sm transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Retake Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCaptureComplete(capturedImage);
+                    }}
+                    className="px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm shadow hover:bg-primary/90 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Continue to KYC</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
+            ) : (
+              /* ─── LIVE CIRCULAR BIOMETRIC VIEWPORT ─── */
+              <div className="w-full flex flex-col items-center">
+                {/* Back to Guidelines Link */}
+                <div className="w-full flex items-center justify-between mb-2 px-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopCamera();
+                      setStep("guidelines");
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <span>Back to Guidelines</span>
+                  </button>
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    Align face inside circle
+                  </span>
+                </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3 w-full justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopCamera();
-                    onClose();
-                  }}
-                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={captureFrame}
-                  disabled={!isStreaming}
-                  className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                  Snap Photo Now
-                </button>
+                {/* Circular Camera Viewport */}
+                <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center my-2">
+                  {/* Outer SVG Progress Ring */}
+                  <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-20">
+                    <circle
+                      cx="50%"
+                      cy="50%"
+                      r={radius}
+                      stroke="rgba(148, 163, 184, 0.2)"
+                      fill="none"
+                      strokeWidth="6"
+                    />
+                    <circle
+                      cx="50%"
+                      cy="50%"
+                      r={radius}
+                      fill="none"
+                      className="transition-all duration-150"
+                      stroke={
+                        alignmentProgress >= 90
+                          ? "#10b981"
+                          : alignmentProgress > 30
+                          ? "#f59e0b"
+                          : isStreaming
+                          ? "#ef4444"
+                          : "#3b82f6"
+                      }
+                      strokeWidth="6"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+
+                  {/* Video Stream Container Inside Circle (Dark sleek biometric frame) */}
+                  <div
+                    style={{ width: "270px", height: "270px", backgroundColor: "#0b0f19" }}
+                    className="rounded-full overflow-hidden relative shadow-2xl flex items-center justify-center z-10 border-2 border-slate-700/60"
+                  >
+                    {/* Starting / Requesting Spinner */}
+                    {isInitializing && (
+                      <div
+                        style={{ backgroundColor: "rgba(11, 15, 25, 0.95)" }}
+                        className="absolute inset-0 z-30 flex flex-col items-center justify-center text-white p-4 text-center animate-in fade-in duration-150"
+                      >
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-2" />
+                        <span style={{ color: "#ffffff" }} className="text-xs font-semibold">
+                          Starting camera...
+                        </span>
+                        <span style={{ color: "#94a3b8" }} className="text-[10px] mt-1">
+                          Please allow camera in browser prompt
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Permission Prompt Button Inside Circle */}
+                    {!isStreaming && !isInitializing && (
+                      <div
+                        style={{ backgroundColor: "#0b0f19" }}
+                        className="absolute inset-0 z-30 flex flex-col items-center justify-center text-white p-5 text-center animate-in fade-in duration-150"
+                      >
+                        <div className="h-12 w-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3 shadow-sm">
+                          <Camera className="h-6 w-6" />
+                        </div>
+                        <span
+                          style={{ color: "#ffffff" }}
+                          className="text-sm font-bold mb-1 tracking-tight"
+                        >
+                          Camera Access Required
+                        </span>
+                        <p
+                          style={{ color: "#94a3b8" }}
+                          className="text-[11px] max-w-[200px] mb-4 leading-tight"
+                        >
+                          Click below to allow camera access in your browser
+                        </p>
+                        <button
+                          type="button"
+                          onClick={startCameraStream}
+                          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Video className="h-4 w-4" />
+                          <span>Allow Camera Access</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Mirrored Video Feed */}
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{
+                        backgroundColor: "#000000",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        transform: "scaleX(-1)"
+                      }}
+                    />
+
+                    {/* Biometric Oval Center Guide Overlay with Red/Green Status */}
+                    {isStreaming && (
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                        <div
+                          style={{ width: "170px", height: "215px" }}
+                          className={`rounded-[50%] border-2 border-dashed transition-all duration-200 ${
+                            alignmentProgress >= 90
+                              ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.5)]"
+                              : alignmentProgress > 30
+                              ? "border-amber-400 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+                              : "border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.35)]"
+                          }`}
+                        />
+                      </div>
+                    )}
+
+                    {/* Countdown Number Badge Overlay */}
+                    {countdown !== null && (
+                      <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in zoom-in-50 duration-200">
+                        <span className="text-7xl font-black text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] scale-110 animate-pulse">
+                          {countdown}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status Hint Pill with Red / Amber / Green Dynamic Color */}
+                <div className="mt-3 mb-4">
+                  <span
+                    className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                      alignmentProgress >= 90
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        : alignmentProgress > 30
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                        : isStreaming
+                        ? "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30"
+                        : "bg-muted text-foreground border border-border"
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        alignmentProgress >= 90
+                          ? "bg-emerald-500 animate-ping"
+                          : alignmentProgress > 30
+                          ? "bg-amber-500 animate-pulse"
+                          : isStreaming
+                          ? "bg-red-500"
+                          : "bg-primary"
+                      }`}
+                    />
+                    {detectionTip}
+                  </span>
+                </div>
+
+                {/* 4 Core Bank KYC Guidance Requirements */}
+                <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-4 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <Smile className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Center face in frame</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <Sun className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Even, bright lighting</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Remove hats / glasses</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Automatic auto-capture</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3 w-full justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopCamera();
+                      onClose();
+                    }}
+                    className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={captureFrame}
+                    disabled={!isStreaming}
+                    className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    Snap Photo Now
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

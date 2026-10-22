@@ -23,6 +23,7 @@ import { useUser } from "@/src/context/user.provider";
 import { io, Socket } from "socket.io-client";
 import axiosInstance from "@/src/lib/axiosInstance";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+import { getChatSocketUrl } from "@/src/shared/lib/chat-client";
 
 function getDefaultNotifications(): NotificationItem[] {
   return [];
@@ -500,7 +501,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     let socket: Socket | null = null;
     try {
-      const wsUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000";
+      const wsUrl = getChatSocketUrl() || "http://localhost:8000";
       socket = io(`${wsUrl}/notifications`, {
         transports: ["websocket", "polling"],
         query: {
@@ -510,6 +511,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         reconnection: true,
         reconnectionAttempts: 5,
         timeout: 10000,
+      });
+
+      socket.on("connect_error", () => {
+        // Silently handle if websocket gateway port is unreachable
       });
 
       socket.on("connect", () => {

@@ -100,10 +100,10 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           // Referrer information
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          // Basic permissions policy
+          // Permissions policy – allow camera and microphone on self origin for live biometric KYC
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            value: "camera=(self), microphone=(self), geolocation=()",
           },
           // Strict-Transport-Security (HTTPS only)
           {
