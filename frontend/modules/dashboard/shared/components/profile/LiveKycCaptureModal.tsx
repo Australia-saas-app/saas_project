@@ -16,8 +16,7 @@ import {
   Loader2,
   Check,
   ArrowRight,
-  Smartphone,
-  ExternalLink
+  Video
 } from "lucide-react";
 
 interface LiveKycCaptureModalProps {
@@ -25,13 +24,6 @@ interface LiveKycCaptureModalProps {
   onClose: () => void;
   onCaptureComplete: (photoBase64: string) => void;
   userName?: string;
-}
-
-type CameraErrorType = "NOT_FOUND" | "PERMISSION_DENIED" | "IN_USE" | "NOT_SUPPORTED" | "INSECURE_CONTEXT" | "UNKNOWN" | null;
-
-interface CameraError {
-  type: CameraErrorType;
-  message: string;
 }
 
 export default function LiveKycCaptureModal({
@@ -43,14 +35,13 @@ export default function LiveKycCaptureModal({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const animFrameRef = useRef<number | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [cameraError, setCameraError] = useState<CameraError | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [isSecureOrigin, setIsSecureOrigin] = useState(true);
 
   // Live detection & alignment states
   const [isFaceCentered, setIsFaceCentered] = useState(false);
@@ -107,6 +98,7 @@ export default function LiveKycCaptureModal({
       });
       streamRef.current = null;
     }
+    setIsStreaming(false);
     isCountingDown.current = false;
   }, []);
 
@@ -138,26 +130,6 @@ export default function LiveKycCaptureModal({
       stopCamera();
     }
   }, [playShutterSound, stopCamera]);
-
-  // Handle native camera capture (Works 100% on all mobile devices and laptops without WebRTC restrictions)
-  const handleNativeDeviceCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsInitializing(true);
-    try {
-      const { compressImageFile } = await import("@/src/shared/lib/image-compressor");
-      const compressedBase64 = await compressImageFile(file, 640, 640, 0.85);
-      playShutterSound();
-      setCapturedImage(compressedBase64);
-      setCameraError(null);
-      setIsInitializing(false);
-    } catch (err) {
-      console.error("Native camera processing failed:", err);
-      setIsInitializing(false);
-    }
-    e.target.value = "";
-  };
 
   // Start the 3-second auto countdown when user is aligned and steady
   const startCountdown = useCallback(() => {
@@ -286,7 +258,7 @@ export default function LiveKycCaptureModal({
     }
   }, [countdown, startCountdown]);
 
-  // Request camera stream with cross-browser and insecure-context polyfills
+  // Request camera stream and play inside circle
   const startCamera = useCallback(async () => {
     stopCamera();
     setIsInitializing(true);
@@ -297,55 +269,28 @@ export default function LiveKycCaptureModal({
     stableFramesCount.current = 0;
     isCountingDown.current = false;
 
-    // Check secure context
-    if (typeof window !== "undefined") {
-      const isSecure = window.isSecureContext ||
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1";
-      setIsSecureOrigin(isSecure);
+    // Check if mediaDevices exists
+    const nav = typeof navigator !== "undefined" ? navigator : null;
+    const mediaDevices = nav?.mediaDevices;
+    const getUserMedia =
+      mediaDevices?.getUserMedia?.bind(mediaDevices) ||
+      (nav as any)?.getUserMedia?.bind(nav) ||
+      (nav as any)?.webkitGetUserMedia?.bind(nav) ||
+      (nav as any)?.mozGetUserMedia?.bind(nav);
 
-      if (!isSecure && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) {
-        setIsInitializing(false);
-        setCameraError({
-          type: "INSECURE_CONTEXT",
-          message: "Your browser requires HTTPS to stream live camera video. You can take your live selfie directly using your device camera button below."
-        });
-        return;
-      }
-    }
-
-    // Resolve mediaDevices API (handles legacy and standard implementations)
-    let getMediaFunc: ((c: MediaStreamConstraints) => Promise<MediaStream>) | null = null;
-
-    if (typeof navigator !== "undefined") {
-      if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
-        getMediaFunc = (c) => navigator.mediaDevices.getUserMedia(c);
-      } else {
-        const legacy = (navigator as any).getUserMedia ||
-          (navigator as any).webkitGetUserMedia ||
-          (navigator as any).mozGetUserMedia ||
-          (navigator as any).msGetUserMedia;
-        if (legacy) {
-          getMediaFunc = (c) =>
-            new Promise<MediaStream>((res, rej) => legacy.call(navigator, c, res, rej));
-        }
-      }
-    }
-
-    if (!getMediaFunc) {
+    if (!getUserMedia) {
       setIsInitializing(false);
-      setCameraError({
-        type: "NOT_SUPPORTED",
-        message: "WebRTC camera streaming is not enabled in this browser window. Please click 'Open Camera' below to take your live selfie."
-      });
+      setCameraError(
+        "Browser blocked camera on HTTP. To see live camera video on this server IP, enable chrome://flags/#unsafely-treat-insecure-origin-as-secure or use HTTPS."
+      );
       return;
     }
 
     try {
       let stream: MediaStream;
       try {
-        // 1. Try front camera (selfie mode) with optimal resolution
-        stream = await getMediaFunc({
+        // Try front selfie camera first
+        stream = await getUserMedia({
           video: {
             facingMode: { ideal: "user" },
             width: { ideal: 1280, min: 320 },
@@ -354,8 +299,8 @@ export default function LiveKycCaptureModal({
           audio: false
         });
       } catch {
-        // 2. Fallback to any default video device
-        stream = await getMediaFunc({
+        // Fallback to any camera
+        stream = await getUserMedia({
           video: true,
           audio: false
         });
@@ -367,6 +312,7 @@ export default function LiveKycCaptureModal({
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().then(() => {
             setIsInitializing(false);
+            setIsStreaming(true);
             animFrameRef.current = requestAnimationFrame(runDetectionLoop);
           }).catch((err) => {
             console.warn("Video playback blocked:", err);
@@ -380,26 +326,12 @@ export default function LiveKycCaptureModal({
       setIsInitializing(false);
       console.warn("Camera access error:", err?.name, err?.message);
 
-      if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
-        setCameraError({
-          type: "NOT_FOUND",
-          message: "No camera detected on your device. Please connect a webcam or use the device camera button below."
-        });
-      } else if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
-        setCameraError({
-          type: "PERMISSION_DENIED",
-          message: "Camera permission was denied. Please allow camera permissions in your browser's address bar or click 'Open Device Camera'."
-        });
-      } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
-        setCameraError({
-          type: "IN_USE",
-          message: "Camera is currently being used by another application. Please close other video apps and retry, or use the camera button below."
-        });
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        setCameraError("Camera permission was denied. Please click 'Allow' in your browser address bar.");
+      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+        setCameraError("No webcam or camera detected on your device.");
       } else {
-        setCameraError({
-          type: "UNKNOWN",
-          message: err?.message || "Could not start camera stream. You can capture your photo directly using the camera button."
-        });
+        setCameraError(err?.message || "Could not access camera. Please allow permissions and retry.");
       }
     }
   }, [runDetectionLoop, stopCamera]);
@@ -424,16 +356,6 @@ export default function LiveKycCaptureModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
-      {/* Hidden Native Device Camera Input (100% reliable across all mobiles and laptops) */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="user"
-        className="hidden"
-        onChange={handleNativeDeviceCapture}
-      />
-
       <div
         style={{ maxWidth: "560px", width: "100%" }}
         className="relative bg-background border border-border shadow-2xl overflow-hidden rounded-2xl my-4 text-foreground transition-colors"
@@ -472,74 +394,7 @@ export default function LiveKycCaptureModal({
             <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-out fade-out duration-300" />
           )}
 
-          {/* If Camera Error Detected */}
-          {cameraError ? (
-            <div className="w-full py-4 px-2 flex flex-col items-center text-center animate-in fade-in duration-200">
-              <div className="h-16 w-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4">
-                <Camera className="h-8 w-8" />
-              </div>
-              <h4 className="text-lg font-bold text-foreground mb-1.5">
-                {cameraError.type === "PERMISSION_DENIED"
-                  ? "Camera Permission Required"
-                  : cameraError.type === "INSECURE_CONTEXT"
-                  ? "Take Photo with Device Camera"
-                  : "Camera Access Notice"}
-              </h4>
-              <p className="text-xs sm:text-sm text-muted-foreground max-w-md mb-6 leading-relaxed">
-                {cameraError.message}
-              </p>
-
-              {/* Instant Camera Trigger Button (Works on all Laptops and Mobiles) */}
-              <div className="w-full max-w-sm p-4 rounded-xl border border-primary/30 bg-primary/5 flex flex-col items-center mb-6">
-                <p className="text-xs font-semibold text-foreground mb-3 text-center">
-                  Recommended for Mobile & Laptop:
-                </p>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-3 px-5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
-                >
-                  <Camera className="h-4 w-4" />
-                  <span>Open Camera (Take Live Selfie)</span>
-                </button>
-                <span className="text-[11px] text-muted-foreground mt-2 text-center">
-                  Opens your device camera directly to take your live selfie photo
-                </span>
-              </div>
-
-              {/* Troubleshooting Checklist */}
-              <div className="p-4 rounded-xl border border-border bg-muted/40 text-left w-full max-w-sm mb-6 text-xs text-muted-foreground space-y-2">
-                <div className="font-semibold text-foreground flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                  To allow browser live video:
-                </div>
-                <p>• Click the <strong>camera / lock icon</strong> in your browser's address bar and set Camera to <strong>"Allow"</strong>.</p>
-                <p>• Ensure your webcam is not in use by Zoom, Teams, or another window.</p>
-                <p>• If using on mobile or local IP, use the <strong>Open Camera</strong> button above.</p>
-              </div>
-
-              <div className="flex items-center gap-3 w-full justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopCamera();
-                    onClose();
-                  }}
-                  className="px-4 py-2.5 rounded-lg border border-border text-foreground hover:bg-muted font-medium text-xs transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="px-5 py-2.5 rounded-lg border border-border text-foreground hover:bg-muted font-semibold text-xs transition-colors flex items-center gap-2"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Retry Browser Stream
-                </button>
-              </div>
-            </div>
-          ) : capturedImage ? (
+          {capturedImage ? (
             /* ─── Captured Review State ─── */
             <div className="w-full flex flex-col items-center py-2 animate-in fade-in zoom-in-95 duration-200">
               {/* Photo Circular Frame */}
@@ -609,9 +464,9 @@ export default function LiveKycCaptureModal({
               </div>
             </div>
           ) : (
-            /* ─── Live Camera & Circle Biometric Viewport ─── */
+            /* ─── LIVE CIRCULAR BIOMETRIC VIEWPORT (ALWAYS VISIBLE) ─── */
             <div className="w-full flex flex-col items-center">
-              {/* Camera Circle Viewport */}
+              {/* Circular Camera Viewport */}
               <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center my-2">
                 {/* Outer SVG Progress Ring */}
                 <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-20">
@@ -631,6 +486,8 @@ export default function LiveKycCaptureModal({
                         ? "stroke-emerald-500"
                         : alignmentProgress > 40
                         ? "stroke-emerald-400"
+                        : isStreaming
+                        ? "stroke-red-500/70"
                         : "stroke-primary/70"
                     }`}
                     strokeWidth="6"
@@ -640,16 +497,35 @@ export default function LiveKycCaptureModal({
                   />
                 </svg>
 
-                {/* Video Stream Container */}
+                {/* Video Stream Container Inside Circle */}
                 <div
                   style={{ width: "270px", height: "270px" }}
-                  className="rounded-full overflow-hidden bg-black relative shadow-2xl flex items-center justify-center z-10 border-2 border-border/40"
+                  className="rounded-full overflow-hidden bg-slate-900 relative shadow-2xl flex items-center justify-center z-10 border-2 border-border/40"
                 >
+                  {/* Loading or Permission Prompt inside the Circle */}
                   {isInitializing && (
-                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/90 text-foreground">
+                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/90 text-white p-4 text-center">
                       <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
                       <span className="text-xs font-semibold">Starting camera...</span>
-                      <span className="text-[10px] text-muted-foreground mt-1">Please allow camera permissions if prompted</span>
+                      <span className="text-[10px] text-slate-300 mt-1">Click "Allow" when prompted</span>
+                    </div>
+                  )}
+
+                  {!isStreaming && !isInitializing && (
+                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900/95 text-white p-4 text-center">
+                      <Camera className="h-10 w-10 text-primary mb-2 animate-bounce" />
+                      <span className="text-xs font-bold mb-1">Camera Access Required</span>
+                      <p className="text-[10px] text-slate-300 max-w-[200px] mb-3 leading-tight">
+                        Click below to allow camera access in your browser
+                      </p>
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold shadow hover:bg-primary/90 transition-all flex items-center gap-1.5"
+                      >
+                        <Video className="h-3.5 w-3.5" />
+                        <span>Allow & Start Camera</span>
+                      </button>
                     </div>
                   )}
 
@@ -662,15 +538,17 @@ export default function LiveKycCaptureModal({
                     className="w-full h-full object-cover scale-x-[-1]"
                   />
 
-                  {/* Biometric Oval Center Guide Overlay */}
+                  {/* Biometric Oval Center Guide Overlay with Red/Green Status */}
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                     <div
                       style={{ width: "170px", height: "215px" }}
-                      className={`rounded-[50%] border-2 border-dashed transition-colors duration-200 ${
+                      className={`rounded-[50%] border-2 border-dashed transition-all duration-200 ${
                         alignmentProgress >= 90
-                          ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.3)]"
+                          ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.4)]"
                           : alignmentProgress > 30
-                          ? "border-amber-400 bg-amber-400/5"
+                          ? "border-amber-400 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+                          : isStreaming
+                          ? "border-red-500/80 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.25)]"
                           : "border-white/40"
                       }`}
                     />
@@ -688,13 +566,15 @@ export default function LiveKycCaptureModal({
               </div>
 
               {/* Status Hint Pill */}
-              <div className="mt-3 mb-4">
+              <div className="mt-3 mb-3">
                 <span
                   className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
                     alignmentProgress >= 90
                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                       : alignmentProgress > 30
                       ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                      : isStreaming
+                      ? "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30"
                       : "bg-muted text-foreground border border-border"
                   }`}
                 >
@@ -704,6 +584,8 @@ export default function LiveKycCaptureModal({
                         ? "bg-emerald-500 animate-ping"
                         : alignmentProgress > 30
                         ? "bg-amber-500 animate-pulse"
+                        : isStreaming
+                        ? "bg-red-500"
                         : "bg-primary"
                     }`}
                   />
@@ -711,8 +593,26 @@ export default function LiveKycCaptureModal({
                 </span>
               </div>
 
+              {/* Error notice if browser blocks on HTTP */}
+              {cameraError && (
+                <div className="w-full max-w-md p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 mb-4 text-xs space-y-2">
+                  <div className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>Browser Camera Notice (HTTP IP)</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Chrome blocks live video streaming on plain <strong>http://</strong> IP addresses. In production with <strong>HTTPS</strong>, this turns on automatically!
+                  </p>
+                  <div className="p-2.5 rounded-lg bg-background/80 border border-border text-[10px] space-y-1">
+                    <p className="font-semibold text-foreground">To enable live camera streaming on this IP right now:</p>
+                    <p>1. Open a new Chrome tab and go to: <code className="bg-muted px-1 py-0.5 rounded select-all font-mono">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></p>
+                    <p>2. Enter: <code className="bg-muted px-1 py-0.5 rounded select-all font-mono">http://140.245.193.19:8080</code>, select <strong>Enabled</strong>, and click <strong>Relaunch</strong>.</p>
+                  </div>
+                </div>
+              )}
+
               {/* 4 Core Bank KYC Guidance Requirements */}
-              <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-5 text-[11px] text-muted-foreground">
+              <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-4 text-[11px] text-muted-foreground">
                 <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
                   <Smile className="h-3.5 w-3.5 text-primary shrink-0" />
                   <span>Center face in frame</span>
@@ -731,38 +631,26 @@ export default function LiveKycCaptureModal({
                 </div>
               </div>
 
-              {/* Capture Actions */}
-              <div className="flex flex-col items-center gap-2 w-full">
-                <div className="flex items-center gap-3 w-full justify-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      stopCamera();
-                      onClose();
-                    }}
-                    className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={captureFrame}
-                    disabled={isInitializing}
-                    className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Camera className="h-3.5 w-3.5" />
-                    Snap Photo Now
-                  </button>
-                </div>
-
-                {/* Mobile / Fallback direct device camera trigger */}
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 w-full justify-center">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 pt-1"
+                  onClick={() => {
+                    stopCamera();
+                    onClose();
+                  }}
+                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors"
                 >
-                  <Smartphone className="h-3 w-3" />
-                  <span>Or use Device Camera App</span>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={captureFrame}
+                  disabled={!isStreaming}
+                  className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  Snap Photo Now
                 </button>
               </div>
             </div>
