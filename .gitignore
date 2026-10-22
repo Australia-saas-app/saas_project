@@ -24,4 +24,6 @@ yarn-error.log*
 # Internal Planning and Testing Guides
 IMPLEMENTATION_PLAN.txt
 TESTING_GUIDE.txt
+plan.txt
+test.txt
 

@@ -448,10 +448,12 @@ export class AuthService implements OnModuleInit {
         throw new BadRequestException('Device ID is required for secure login');
       }
 
+      const isKnownDevice = Boolean(user.trustedIps && user.trustedIps.includes(deviceIdentifier));
+
       if (!user.trustedIps || user.trustedIps.length === 0) {
         user.trustedIps = Array.from(new Set([deviceIdentifier, actualIp]));
         await this.userRepository.save(user);
-      } else if (!user.trustedIps.includes(deviceIdentifier) && !user.trustedIps.includes(actualIp)) {
+      } else if (!isKnownDevice) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
 
         if (loginDto.otp) {
@@ -477,6 +479,12 @@ export class AuthService implements OnModuleInit {
             message: 'New device or IP detected. Please enter the OTP sent to your email to authorize this login.',
             data: { capturedIp: actualIp }
           });
+        }
+      } else {
+        // Same trusted device: update trusted list with latest IP address if changed
+        if (!user.trustedIps.includes(actualIp)) {
+          user.trustedIps = Array.from(new Set([...user.trustedIps, actualIp]));
+          await this.userRepository.save(user);
         }
       }
     }

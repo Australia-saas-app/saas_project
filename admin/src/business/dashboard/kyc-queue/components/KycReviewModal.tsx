@@ -285,16 +285,27 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
                   {/* Right side info & Photo */}
                   <div className="flex-1 space-y-4 w-full">
-                    <div className="flex justify-center md:justify-end mb-4">
-                      <div className="h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
-                        {(snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl) ? (
-                          <img src={snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                    <div className="flex flex-col items-center md:items-end mb-4">
+                      <div className="relative h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
+                        {(snap.livePhotoUrl || snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl) ? (
+                          <img src={snap.livePhotoUrl || snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-slate-300 dark:text-slate-600 font-bold text-2xl">
                             {(fullName || "U").charAt(0).toUpperCase()}
                           </div>
                         )}
+                        {(snap.isLiveCapture || snap.livePhotoUrl) && (
+                          <div className="absolute top-1 right-1 bg-emerald-600 text-white rounded-full p-1 shadow" title="Live Biometric Capture Verified">
+                            <ShieldAlert className="h-3.5 w-3.5 rotate-180" />
+                          </div>
+                        )}
                       </div>
+                      {(snap.isLiveCapture || snap.livePhotoUrl) && (
+                        <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          Live Biometric Capture
+                        </span>
+                      )}
                     </div>
                     <div className="text-center md:text-right">
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">KYC Application ID</span>

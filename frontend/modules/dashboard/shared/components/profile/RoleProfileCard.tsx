@@ -5,6 +5,7 @@ import { ShieldCheck, Pencil, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileFormGrid from "./ProfileFormGrid";
 import KycApplicationModal from "./KycApplicationModal";
+import LiveKycCaptureModal from "./LiveKycCaptureModal";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
 import { addProfileDocument, saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
@@ -40,18 +41,21 @@ export default function RoleProfileCard({
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false);
+  const [liveCapturedPhoto, setLiveCapturedPhoto] = useState<string | null>(null);
   const { user, refreshUser } = useUser();
 
   const effectiveKycStatus = kycStatus;
   const effectiveIsKycVerified = kycStatus === 'approved';
 
   const handleApplyKycClick = () => {
-    if (effectiveKycStatus === "pending" || effectiveKycStatus === "submitted" || effectiveIsKycVerified || effectiveKycStatus === "rejected") {
+    // If already submitted / approved, open view mode directly
+    if (effectiveKycStatus === "pending" || effectiveKycStatus === "submitted" || effectiveIsKycVerified) {
       setIsKycModalOpen(true);
       return;
     }
 
-    // Validate if profile is complete
+    // Validate if profile and ID documents are complete (Profile Photo is captured live via biometric camera)
     const missingFields: string[] = [];
     if (!fullName) missingFields.push("Full Name");
     if (!phone && !email) missingFields.push("Phone or Email");
@@ -61,7 +65,6 @@ export default function RoleProfileCard({
     if (!nationalIdentity) missingFields.push("National Identity");
     if (!documentFrontUrl) missingFields.push("ID Document Front");
     if (!documentBackUrl) missingFields.push("ID Document Back");
-    if (!hasCustomAvatar) missingFields.push("Profile Photo");
 
     const isBusiness = String((user as any)?.accountType || (user as any)?.role || "").toLowerCase().includes("business");
     if (isBusiness) {
@@ -76,6 +79,14 @@ export default function RoleProfileCard({
       return;
     }
 
+    // Open Live Biometric Face Detection Modal
+    setLiveCapturedPhoto(null);
+    setIsLiveCaptureOpen(true);
+  };
+
+  const handleLiveCaptureComplete = (photoBase64: string) => {
+    setLiveCapturedPhoto(photoBase64);
+    setIsLiveCaptureOpen(false);
     setIsKycModalOpen(true);
   };
 
@@ -288,11 +299,23 @@ export default function RoleProfileCard({
         </div>
       )}
 
+      <LiveKycCaptureModal
+        isOpen={isLiveCaptureOpen}
+        onClose={() => setIsLiveCaptureOpen(false)}
+        onCaptureComplete={handleLiveCaptureComplete}
+        userName={fullName}
+      />
+
       <KycApplicationModal 
         isOpen={isKycModalOpen} 
         onClose={() => setIsKycModalOpen(false)}
         kycStatus={effectiveKycStatus}
         isKycVerified={effectiveIsKycVerified}
+        initialLivePhoto={liveCapturedPhoto}
+        onRetakeLivePhoto={() => {
+          setIsKycModalOpen(false);
+          setIsLiveCaptureOpen(true);
+        }}
         onSuccess={async () => {
           await updateProfile({ kycStatus: "pending" });
           if (refreshUser) await refreshUser().catch(() => {});
@@ -308,7 +331,7 @@ export default function RoleProfileCard({
           nationalIdentity,
           governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
           permanentAddress,
-          avatarUrl,
+          avatarUrl: liveCapturedPhoto || avatarUrl,
           documentUrl,
           documentFrontUrl,
           documentBackUrl,

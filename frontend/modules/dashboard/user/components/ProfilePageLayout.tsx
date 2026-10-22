@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal";
+import LiveKycCaptureModal from "../../shared/components/profile/LiveKycCaptureModal";
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display";
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { useUser } from "@/src/shared/context/user.provider";
@@ -16,6 +17,8 @@ export default function ProfilePageLayout() {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false);
+  const [liveCapturedPhoto, setLiveCapturedPhoto] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const effectiveKycStatus = kycStatus;
@@ -35,13 +38,19 @@ export default function ProfilePageLayout() {
     if (!nationality) missingFields.push("Nationality");
     if (!nationalIdentity) missingFields.push("National Identity");
     if (!documentFrontUrl) missingFields.push("ID Document");
-    if (!hasCustomAvatar) missingFields.push("Profile Photo");
 
     if (missingFields.length > 0) {
       toast.error(`Please complete the following fields before applying for KYC: ${missingFields.join(', ')}`);
       return;
     }
 
+    setLiveCapturedPhoto(null);
+    setIsLiveCaptureOpen(true);
+  };
+
+  const handleLiveCaptureComplete = (photoBase64: string) => {
+    setLiveCapturedPhoto(photoBase64);
+    setIsLiveCaptureOpen(false);
     setIsKycModalOpen(true);
   };
 
@@ -192,11 +201,23 @@ export default function ProfilePageLayout() {
           />
         </div>
       </div>
+      <LiveKycCaptureModal
+        isOpen={isLiveCaptureOpen}
+        onClose={() => setIsLiveCaptureOpen(false)}
+        onCaptureComplete={handleLiveCaptureComplete}
+        userName={fullName}
+      />
+
       <KycApplicationModal 
         isOpen={isKycModalOpen} 
         onClose={() => setIsKycModalOpen(false)}
         kycStatus={effectiveKycStatus}
         isKycVerified={effectiveIsKycVerified}
+        initialLivePhoto={liveCapturedPhoto}
+        onRetakeLivePhoto={() => {
+          setIsKycModalOpen(false);
+          setIsLiveCaptureOpen(true);
+        }}
         onSuccess={async () => {
           await updateProfile({ kycStatus: "pending" });
           if (refreshUser) await refreshUser().catch(() => {});
@@ -212,8 +233,8 @@ export default function ProfilePageLayout() {
           nationalIdentity,
           governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
           permanentAddress,
-          avatarUrl,
-          profilePhoto: avatarUrl,
+          avatarUrl: liveCapturedPhoto || avatarUrl,
+          profilePhoto: liveCapturedPhoto || avatarUrl,
           documentUrl,
           documentFrontUrl,
           documentBackUrl,

@@ -23,6 +23,7 @@ import { toast } from "sonner"
 import { useUser } from "@/src/context/user.provider"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
+import LiveKycCaptureModal from "../../shared/components/profile/LiveKycCaptureModal"
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 import SelectDropdown from "@/src/shared/components/SelectDropdown"
@@ -77,6 +78,8 @@ export default function AffiliaProAffiliateProfilePage() {
   } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
+  const [isLiveCaptureOpen, setIsLiveCaptureOpen] = useState(false)
+  const [liveCapturedPhoto, setLiveCapturedPhoto] = useState<string | null>(null)
 
   const avatarFileRef = useRef<HTMLInputElement>(null)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
@@ -409,13 +412,19 @@ export default function AffiliaProAffiliateProfilePage() {
     if (!nationalIdentity) missingFields.push("ID Number");
     if (!documentFrontUrl) missingFields.push("Front ID Document");
     if (idType !== "Passport" && !documentBackUrl) missingFields.push("Back ID Document");
-    if (!hasCustomAvatar) missingFields.push("Profile Photo");
 
     if (missingFields.length > 0) {
       toast.error(`Please complete the following missing fields before applying for KYC: ${missingFields.join(', ')}`);
       return;
     }
 
+    setLiveCapturedPhoto(null);
+    setIsLiveCaptureOpen(true);
+  };
+
+  const handleLiveCaptureComplete = (photoBase64: string) => {
+    setLiveCapturedPhoto(photoBase64);
+    setIsLiveCaptureOpen(false);
     setIsKycModalOpen(true);
   };
 
@@ -952,15 +961,28 @@ export default function AffiliaProAffiliateProfilePage() {
         </aside>
       </div>
 
+      <LiveKycCaptureModal
+        isOpen={isLiveCaptureOpen}
+        onClose={() => setIsLiveCaptureOpen(false)}
+        onCaptureComplete={handleLiveCaptureComplete}
+        userName={fullName}
+      />
+
       <KycApplicationModal
         isOpen={isKycModalOpen}
         onClose={() => setIsKycModalOpen(false)}
+        initialLivePhoto={liveCapturedPhoto}
+        onRetakeLivePhoto={() => {
+          setIsKycModalOpen(false);
+          setIsLiveCaptureOpen(true);
+        }}
         user={{
           ...user,
           fullName, email: profileEmail, phone: profilePhone,
           nationality, nationalIdentity: idNumber, governmentIdType: idType, dateOfBirth,
           permanentAddress: { country, city, state, zipCode: zip, address },
-          avatarUrl, profilePhoto: avatarUrl,
+          avatarUrl: liveCapturedPhoto || avatarUrl,
+          profilePhoto: liveCapturedPhoto || avatarUrl,
           documentUrl, 
           documentFrontUrl, 
           documentBackUrl,

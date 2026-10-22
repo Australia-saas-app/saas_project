@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, ShieldAlert, FileText, Loader2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, ShieldAlert, FileText, Loader2, Camera, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { applyForKyc } from "@/src/shared/server/AuthService";
 import { saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
@@ -14,6 +14,8 @@ interface KycApplicationModalProps {
   kycStatus: string;
   isKycVerified: boolean;
   onSuccess: () => void;
+  initialLivePhoto?: string | null;
+  onRetakeLivePhoto?: () => void;
 }
 
 export default function KycApplicationModal({
@@ -23,25 +25,36 @@ export default function KycApplicationModal({
   kycStatus,
   isKycVerified,
   onSuccess,
+  initialLivePhoto,
+  onRetakeLivePhoto,
 }: KycApplicationModalProps) {
   const [isApplying, setIsApplying] = useState(false);
+  const [livePhoto, setLivePhoto] = useState<string | null>(initialLivePhoto || null);
+
+  useEffect(() => {
+    if (initialLivePhoto) {
+      setLivePhoto(initialLivePhoto);
+    }
+  }, [initialLivePhoto]);
 
   if (!isOpen) return null;
 
   const isViewMode =
     kycStatus === "pending" || kycStatus === "submitted" || isKycVerified;
 
+  const effectivePhoto = livePhoto || user.avatarUrl || user.profilePhoto;
+
   const handleApply = async () => {
     if (!isViewMode) {
       const missing: string[] = [];
-      const hasPhoto = Boolean(user.avatarUrl || user.profilePhoto);
+      const hasPhoto = Boolean(effectivePhoto);
       const hasFrontDoc = Boolean(user.documentFrontUrl || user.documentUrl);
       const hasBackDoc = Boolean(user.documentBackUrl);
       const isDualDoc =
         user.documentUrl?.startsWith("[") ||
         Boolean(user.documentFrontUrl && user.documentBackUrl);
 
-      if (!hasPhoto) missing.push("Profile Photo");
+      if (!hasPhoto) missing.push("Live Face Capture");
       if (!hasFrontDoc) missing.push("Front ID Document");
       if (isDualDoc && !hasBackDoc) missing.push("Back ID Document");
 
@@ -76,7 +89,9 @@ export default function KycApplicationModal({
         idDocument: user.documentUrl || user.idDocument,
         documentFrontUrl: user.documentFrontUrl,
         documentBackUrl: user.documentBackUrl,
-        avatarUrl: user.avatarUrl || user.profilePhoto,
+        avatarUrl: effectivePhoto,
+        livePhotoUrl: effectivePhoto,
+        isLiveCapture: Boolean(livePhoto),
         accountType: isBusiness ? "business" : (user.accountType || user.role || "user"),
         role: isBusiness ? "business" : (user.role || "user"),
         // Business KYC Details Snapshot (Strictly for Business Accounts)
@@ -92,9 +107,19 @@ export default function KycApplicationModal({
       if (res && res.success !== false) {
         toast.success("KYC Application submitted successfully!");
 
-        saveProfileOverrides(uid, { kycStatus: "pending", kycApplicationData: snapData, resubmitted: true, unverifiedByAdmin: false });
+        saveProfileOverrides(uid, {
+          kycStatus: "pending",
+          kycApplicationData: snapData,
+          avatarUrl: effectivePhoto,
+          resubmitted: true,
+          unverifiedByAdmin: false
+        });
         if (user.updateProfile) {
-          await user.updateProfile({ kycStatus: "pending", kycApplicationData: snapData }).catch(() => {});
+          await user.updateProfile({
+            kycStatus: "pending",
+            kycApplicationData: snapData,
+            avatarUrl: effectivePhoto
+          }).catch(() => {});
         }
 
         // Record Real Activity Log
@@ -405,11 +430,11 @@ export default function KycApplicationModal({
                   {/* Right col */}
                   <div className="flex-1 space-y-4 w-full">
                     {/* Profile photo */}
-                    <div className="flex sm:justify-end mb-4">
-                      <div className="h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
-                        {(isViewMode ? (snap.avatarUrl || snap.profilePhoto) : (user.avatarUrl || user.profilePhoto)) ? (
+                    <div className="flex flex-col sm:items-end mb-4">
+                      <div className="relative h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
+                        {(isViewMode ? (snap.avatarUrl || snap.profilePhoto || snap.livePhotoUrl) : effectivePhoto) ? (
                           <img
-                            src={isViewMode ? (snap.avatarUrl || snap.profilePhoto) : (user.avatarUrl || user.profilePhoto)}
+                            src={isViewMode ? (snap.avatarUrl || snap.profilePhoto || snap.livePhotoUrl) : effectivePhoto}
                             alt="Profile"
                             className="h-full w-full object-cover"
                           />
@@ -418,7 +443,25 @@ export default function KycApplicationModal({
                             {(displayFullName || "U").charAt(0).toUpperCase()}
                           </div>
                         )}
+                        {(snap.isLiveCapture || livePhoto) && (
+                          <div
+                            className="absolute top-1 right-1 bg-emerald-600 text-white rounded-full p-1 shadow-md"
+                            title="Live Biometric Capture Verified"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                          </div>
+                        )}
                       </div>
+                      {!isViewMode && onRetakeLivePhoto && (
+                        <button
+                          type="button"
+                          onClick={onRetakeLivePhoto}
+                          className="mt-1.5 text-xs text-primary hover:underline font-semibold flex items-center gap-1"
+                        >
+                          <Camera className="h-3 w-3" />
+                          Retake Live Photo
+                        </button>
+                      )}
                     </div>
 
                     <div className="sm:text-right">
@@ -555,7 +598,7 @@ export default function KycApplicationModal({
               onClick={handleApply}
               disabled={
                 isApplying ||
-                !(user.avatarUrl || user.profilePhoto) ||
+                !effectivePhoto ||
                 !(user.documentUrl || user.documentFrontUrl)
               }
               className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 min-w-[150px] justify-center"
