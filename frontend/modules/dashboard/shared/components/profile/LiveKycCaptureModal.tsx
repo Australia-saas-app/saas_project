@@ -112,6 +112,10 @@ export default function LiveKycCaptureModal({
   const captureFrame = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) return;
+    if (!isGoodLighting) {
+      setDetectionTip("Room is too dark. Please turn on room lights.");
+      return;
+    }
 
     playShutterSound();
     setIsFlashing(true);
@@ -186,6 +190,12 @@ export default function LiveKycCaptureModal({
       let totalLuminance = 0;
       let centerLuminance = 0;
       let centerCount = 0;
+      let leftCenterLum = 0;
+      let leftCenterCount = 0;
+      let rightCenterLum = 0;
+      let rightCenterCount = 0;
+      let bgLuminance = 0;
+      let bgCount = 0;
       let skinLikePixels = 0;
 
       for (let y = 0; y < 160; y++) {
@@ -199,22 +209,52 @@ export default function LiveKycCaptureModal({
 
           const dx = x - 80;
           const dy = y - 80;
-          if (dx * dx + dy * dy < 50 * 50) {
+          const distSq = dx * dx + dy * dy;
+
+          if (distSq < 50 * 50) {
             centerLuminance += lum;
             centerCount++;
+            if (dx < -5) {
+              leftCenterLum += lum;
+              leftCenterCount++;
+            } else if (dx > 5) {
+              rightCenterLum += lum;
+              rightCenterCount++;
+            }
+
             if (r > 60 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 10) {
               skinLikePixels++;
             }
+          } else if (distSq > 65 * 65) {
+            bgLuminance += lum;
+            bgCount++;
           }
         }
       }
 
       const avgLum = totalLuminance / totalPixels;
       const centerAvgLum = centerCount > 0 ? centerLuminance / centerCount : 0;
+      const bgAvgLum = bgCount > 0 ? bgLuminance / bgCount : 0;
+      const leftAvg = leftCenterCount > 0 ? leftCenterLum / leftCenterCount : 0;
+      const rightAvg = rightCenterCount > 0 ? rightCenterLum / rightCenterCount : 0;
       const skinRatio = centerCount > 0 ? skinLikePixels / centerCount : 0;
 
-      const goodLighting = avgLum > 35 && avgLum < 235;
-      const facePresent = skinRatio > 0.12 && centerAvgLum > 40 && centerAvgLum < 240;
+      const maxSide = Math.max(leftAvg, rightAvg);
+      const minSide = Math.min(leftAvg, rightAvg);
+      const sideDiffRatio = maxSide > 15 ? (maxSide - minSide) / maxSide : 0;
+
+      // Strict bank-grade lighting restrictions:
+      // 1. Dark room restriction: If background is pitch dark or overall room light is low
+      const isDarkRoom = bgAvgLum < 24 || avgLum < 45;
+      // 2. Center face must have sufficient illumination
+      const isFaceTooDim = centerAvgLum < 55;
+      // 3. Face must not be over-exposed (> 225)
+      const isFaceTooBright = centerAvgLum > 225 || avgLum > 225;
+      // 4. Uneven lighting restriction: screen-only glare in dark room produces heavy shadow disparity
+      const isUnevenLighting = sideDiffRatio > 0.45 && minSide < 35;
+
+      const goodLighting = !isDarkRoom && !isFaceTooDim && !isFaceTooBright && !isUnevenLighting;
+      const facePresent = skinRatio > 0.12 && centerAvgLum > 48 && centerAvgLum < 235;
 
       let motionScore = 0;
       if (lastFrameData.current) {
@@ -233,10 +273,18 @@ export default function LiveKycCaptureModal({
       setIsFaceCentered(facePresent);
       setIsHoldingStill(steady);
 
-      if (!goodLighting) {
-        setDetectionTip(avgLum <= 35 ? "Lighting too dark. Move to a well-lit area." : "Lighting too bright. Avoid strong glare.");
+      if (isDarkRoom || isFaceTooDim) {
+        setDetectionTip("Room is too dark. Please turn on room lights.");
         stableFramesCount.current = 0;
-        setAlignmentProgress((prev) => Math.max(0, prev - 10));
+        setAlignmentProgress((prev) => Math.max(0, prev - 15));
+      } else if (isUnevenLighting) {
+        setDetectionTip("Uneven lighting / shadows. Face light source directly.");
+        stableFramesCount.current = 0;
+        setAlignmentProgress((prev) => Math.max(0, prev - 15));
+      } else if (isFaceTooBright) {
+        setDetectionTip("Too much glare. Move away from harsh light.");
+        stableFramesCount.current = 0;
+        setAlignmentProgress((prev) => Math.max(0, prev - 15));
       } else if (!facePresent) {
         setDetectionTip("Position your face inside the circle");
         stableFramesCount.current = 0;
@@ -247,7 +295,7 @@ export default function LiveKycCaptureModal({
         setAlignmentProgress((prev) => Math.max(20, prev - 5));
       } else {
         stableFramesCount.current += 1;
-        setDetectionTip("Perfect! Hold still for automatic capture");
+        setDetectionTip("Lighting & face aligned! Hold still for capture");
 
         setAlignmentProgress((prev) => {
           const next = Math.min(100, prev + 12);
@@ -267,6 +315,7 @@ export default function LiveKycCaptureModal({
   // Starts the camera stream directly
   const startCameraStream = useCallback(async () => {
     stopCamera();
+    setCapturedImage(null);
     setIsInitializing(true);
     setCameraError(null);
     setAlignmentProgress(0);
@@ -350,6 +399,16 @@ export default function LiveKycCaptureModal({
       }
     }
   }, [runDetectionLoop, stopCamera]);
+
+  const handleRetakePhoto = useCallback(() => {
+    setCapturedImage(null);
+    setAlignmentProgress(0);
+    setCountdown(null);
+    setDetectionTip("Position your face inside the circle");
+    stableFramesCount.current = 0;
+    isCountingDown.current = false;
+    startCameraStream();
+  }, [startCameraStream]);
 
   const checkPermissionAndStart = useCallback(async () => {
     try {
@@ -614,7 +673,7 @@ export default function LiveKycCaptureModal({
                 <div className="flex items-center gap-3 w-full justify-center">
                   <button
                     type="button"
-                    onClick={startCameraStream}
+                    onClick={handleRetakePhoto}
                     className="px-5 py-2.5 rounded-lg border border-border text-foreground hover:bg-muted font-semibold text-sm transition-colors flex items-center gap-2 cursor-pointer"
                   >
                     <RotateCcw className="h-4 w-4" />
@@ -845,7 +904,14 @@ export default function LiveKycCaptureModal({
                   <button
                     type="button"
                     onClick={captureFrame}
-                    disabled={!isStreaming}
+                    disabled={!isStreaming || !isGoodLighting || !isFaceCentered}
+                    title={
+                      !isGoodLighting
+                        ? "Turn on room lights to enable capture"
+                        : !isFaceCentered
+                        ? "Center face inside circle"
+                        : "Snap Photo Now"
+                    }
                     className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
                     <Camera className="h-3.5 w-3.5" />
