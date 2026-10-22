@@ -58,10 +58,12 @@ export default function LiveKycCaptureModal({
   const [isFlashing, setIsFlashing] = useState(false);
   const [detectionTip, setDetectionTip] = useState("Position your face inside the circle");
 
-  // Keep track of consecutive stable frames
+  // Keep track of consecutive stable frames & live status refs for synchronous capture verification
   const stableFramesCount = useRef(0);
   const lastFrameData = useRef<ImageData | null>(null);
   const isCountingDown = useRef(false);
+  const isGoodLightingRef = useRef(false);
+  const isFaceCenteredRef = useRef(false);
 
   // Pleasant shutter beep with Web Audio API
   const playShutterSound = useCallback(() => {
@@ -108,18 +110,20 @@ export default function LiveKycCaptureModal({
     isCountingDown.current = false;
   }, []);
 
-  // Snaps the current video frame as high quality square base64 image
+  // Snaps the current video frame as high quality square base64 image (strict lighting guard)
   const captureFrame = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) return;
-    if (!isGoodLighting) {
+
+    // Strict Bank KYC Lighting & Face Alignment Check: Low light cannot capture
+    if (!isGoodLightingRef.current) {
       setDetectionTip("Room is too dark. Please turn on room lights.");
       return;
     }
-
-    playShutterSound();
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 300);
+    if (!isFaceCenteredRef.current) {
+      setDetectionTip("Position your face inside the circle");
+      return;
+    }
 
     const canvas = document.createElement("canvas");
     const size = Math.min(video.videoWidth, video.videoHeight, 640);
@@ -135,11 +139,40 @@ export default function LiveKycCaptureModal({
       const startY = (video.videoHeight - size) / 2;
 
       ctx.drawImage(video, startX, startY, size, size, 0, 0, size, size);
+
+      // Verify the snapped image pixels directly before accepting
+      const imgData = ctx.getImageData(0, 0, size, size).data;
+      let sampleLum = 0;
+      let count = 0;
+      for (let i = 0; i < imgData.length; i += 4 * 16) {
+        sampleLum += 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+        count++;
+      }
+      const finalLum = count > 0 ? sampleLum / count : 0;
+      if (finalLum < 22) {
+        setDetectionTip("Room is too dark. Please turn on room lights.");
+        return;
+      }
+
+      playShutterSound();
+      setIsFlashing(true);
+      setTimeout(() => setIsFlashing(false), 300);
+
       const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
       setCapturedImage(dataUrl);
       stopCamera();
     }
   }, [playShutterSound, stopCamera]);
+
+  // Cancel countdown if conditions degrade
+  const cancelCountdown = useCallback(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    isCountingDown.current = false;
+    setCountdown(null);
+  }, []);
 
   // Start the 3-second auto countdown when user is aligned and steady
   const startCountdown = useCallback(() => {
@@ -161,7 +194,7 @@ export default function LiveKycCaptureModal({
         isCountingDown.current = false;
         captureFrame();
       }
-    }, 850);
+    }, 1000);
   }, [captureFrame]);
 
   // Frame-by-frame biometric & stability analyzer
@@ -190,6 +223,8 @@ export default function LiveKycCaptureModal({
       let totalLuminance = 0;
       let centerLuminance = 0;
       let centerCount = 0;
+      let upperFaceLuminance = 0;
+      let upperFaceCount = 0;
       let leftCenterLum = 0;
       let leftCenterCount = 0;
       let rightCenterLum = 0;
@@ -197,6 +232,7 @@ export default function LiveKycCaptureModal({
       let bgLuminance = 0;
       let bgCount = 0;
       let skinLikePixels = 0;
+      let skinLuminance = 0;
 
       for (let y = 0; y < 160; y++) {
         for (let x = 0; x < 160; x++) {
@@ -211,19 +247,36 @@ export default function LiveKycCaptureModal({
           const dy = y - 80;
           const distSq = dx * dx + dy * dy;
 
-          if (distSq < 50 * 50) {
+          if (distSq < 52 * 52) {
             centerLuminance += lum;
             centerCount++;
-            if (dx < -5) {
+
+            // Upper face region (forehead, eyes, upper cheeks) - independent of beards/hair
+            if (dy >= -32 && dy <= 8 && Math.abs(dx) <= 36) {
+              upperFaceLuminance += lum;
+              upperFaceCount++;
+            }
+
+            if (dx < -6) {
               leftCenterLum += lum;
               leftCenterCount++;
-            } else if (dx > 5) {
+            } else if (dx > 6) {
               rightCenterLum += lum;
               rightCenterCount++;
             }
 
-            if (r > 60 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 10) {
+            // Universal skin tone detection accommodating webcam color temperature & diverse skin tones
+            const isSkin =
+              r > 30 &&
+              g > 20 &&
+              b > 15 &&
+              r >= b - 15 &&
+              (r + g + b) > 80 &&
+              (r + g + b) < 700;
+
+            if (isSkin) {
               skinLikePixels++;
+              skinLuminance += lum;
             }
           } else if (distSq > 65 * 65) {
             bgLuminance += lum;
@@ -235,6 +288,11 @@ export default function LiveKycCaptureModal({
       const avgLum = totalLuminance / totalPixels;
       const centerAvgLum = centerCount > 0 ? centerLuminance / centerCount : 0;
       const bgAvgLum = bgCount > 0 ? bgLuminance / bgCount : 0;
+      const upperFaceAvgLum = upperFaceCount > 0 ? upperFaceLuminance / upperFaceCount : centerAvgLum;
+      const skinAvgLum = skinLikePixels > 0 ? skinLuminance / skinLikePixels : upperFaceAvgLum;
+      // Effective face illumination: uses skin or upper-face reading to prevent false rejects from dark beards or hair
+      const effectiveFaceLum = Math.max(skinAvgLum, upperFaceAvgLum);
+
       const leftAvg = leftCenterCount > 0 ? leftCenterLum / leftCenterCount : 0;
       const rightAvg = rightCenterCount > 0 ? rightCenterLum / rightCenterCount : 0;
       const skinRatio = centerCount > 0 ? skinLikePixels / centerCount : 0;
@@ -243,18 +301,18 @@ export default function LiveKycCaptureModal({
       const minSide = Math.min(leftAvg, rightAvg);
       const sideDiffRatio = maxSide > 15 ? (maxSide - minSide) / maxSide : 0;
 
-      // Strict bank-grade lighting restrictions:
-      // 1. Dark room restriction: If background is pitch dark or overall room light is low
-      const isDarkRoom = bgAvgLum < 24 || avgLum < 45;
-      // 2. Center face must have sufficient illumination
-      const isFaceTooDim = centerAvgLum < 55;
-      // 3. Face must not be over-exposed (> 225)
-      const isFaceTooBright = centerAvgLum > 225 || avgLum > 225;
-      // 4. Uneven lighting restriction: screen-only glare in dark room produces heavy shadow disparity
-      const isUnevenLighting = sideDiffRatio > 0.45 && minSide < 35;
+      // Realistic Bank-Grade Lighting Rules:
+      // 1. Truly pitch-black room (all room lights off, black background and black face)
+      const isPitchDarkRoom = (bgAvgLum < 12 && avgLum < 20 && effectiveFaceLum < 24) || (avgLum < 16 && effectiveFaceLum < 22);
+      // 2. Face skin must have sufficient illumination
+      const isFaceTooDim = effectiveFaceLum < 25;
+      // 3. Face must not be over-exposed (> 235)
+      const isFaceTooBright = effectiveFaceLum > 235 || avgLum > 240;
+      // 4. Uneven lighting: screen-only glare in a dark room (dark background + extreme shadow disparity)
+      const isUnevenLighting = bgAvgLum < 16 && sideDiffRatio > 0.65 && minSide < 18;
 
-      const goodLighting = !isDarkRoom && !isFaceTooDim && !isFaceTooBright && !isUnevenLighting;
-      const facePresent = skinRatio > 0.12 && centerAvgLum > 48 && centerAvgLum < 235;
+      const goodLighting = !isPitchDarkRoom && !isFaceTooDim && !isFaceTooBright && !isUnevenLighting;
+      const facePresent = (skinRatio > 0.05 || upperFaceAvgLum > 22 || centerAvgLum > 22) && effectiveFaceLum > 22 && effectiveFaceLum < 240;
 
       let motionScore = 0;
       if (lastFrameData.current) {
@@ -268,39 +326,49 @@ export default function LiveKycCaptureModal({
       lastFrameData.current = frame;
 
       const steady = motionScore < 16;
-
+      isGoodLightingRef.current = goodLighting;
+      isFaceCenteredRef.current = facePresent;
       setIsGoodLighting(goodLighting);
       setIsFaceCentered(facePresent);
       setIsHoldingStill(steady);
 
-      if (isDarkRoom || isFaceTooDim) {
+      if (isPitchDarkRoom || isFaceTooDim) {
+        cancelCountdown();
         setDetectionTip("Room is too dark. Please turn on room lights.");
         stableFramesCount.current = 0;
-        setAlignmentProgress((prev) => Math.max(0, prev - 15));
+        setAlignmentProgress(0);
       } else if (isUnevenLighting) {
+        cancelCountdown();
         setDetectionTip("Uneven lighting / shadows. Face light source directly.");
         stableFramesCount.current = 0;
-        setAlignmentProgress((prev) => Math.max(0, prev - 15));
+        setAlignmentProgress(0);
       } else if (isFaceTooBright) {
+        cancelCountdown();
         setDetectionTip("Too much glare. Move away from harsh light.");
         stableFramesCount.current = 0;
-        setAlignmentProgress((prev) => Math.max(0, prev - 15));
+        setAlignmentProgress(0);
       } else if (!facePresent) {
+        cancelCountdown();
         setDetectionTip("Position your face inside the circle");
         stableFramesCount.current = 0;
-        setAlignmentProgress((prev) => Math.max(0, prev - 10));
+        setAlignmentProgress(0);
       } else if (!steady) {
+        cancelCountdown();
         setDetectionTip("Hold still... detecting face");
         stableFramesCount.current = Math.max(1, stableFramesCount.current - 1);
-        setAlignmentProgress((prev) => Math.max(20, prev - 5));
+        setAlignmentProgress((prev) => Math.max(20, prev - 8));
       } else {
         stableFramesCount.current += 1;
-        setDetectionTip("Lighting & face aligned! Hold still for capture");
 
         setAlignmentProgress((prev) => {
-          const next = Math.min(100, prev + 12);
-          if (next >= 100 && !isCountingDown.current) {
-            startCountdown();
+          const next = Math.min(100, prev + 20);
+          if (next >= 100) {
+            setDetectionTip(isCountingDown.current ? "Capturing photo in 3 seconds..." : "All requirements met! Hold still for capture");
+            if (!isCountingDown.current) {
+              startCountdown();
+            }
+          } else {
+            setDetectionTip("Face aligned! Hold still...");
           }
           return next;
         });
@@ -310,7 +378,7 @@ export default function LiveKycCaptureModal({
     if (!isCountingDown.current || countdown !== null) {
       animFrameRef.current = requestAnimationFrame(runDetectionLoop);
     }
-  }, [countdown, startCountdown]);
+  }, [cancelCountdown, countdown, startCountdown]);
 
   // Starts the camera stream directly
   const startCameraStream = useCallback(async () => {
@@ -401,14 +469,14 @@ export default function LiveKycCaptureModal({
   }, [runDetectionLoop, stopCamera]);
 
   const handleRetakePhoto = useCallback(() => {
+    cancelCountdown();
     setCapturedImage(null);
     setAlignmentProgress(0);
     setCountdown(null);
     setDetectionTip("Position your face inside the circle");
     stableFramesCount.current = 0;
-    isCountingDown.current = false;
     startCameraStream();
-  }, [startCameraStream]);
+  }, [cancelCountdown, startCameraStream]);
 
   const checkPermissionAndStart = useCallback(async () => {
     try {
@@ -713,161 +781,178 @@ export default function LiveKycCaptureModal({
                 </div>
 
                 {/* Circular Camera Viewport */}
-                <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center my-2">
-                  {/* Outer SVG Progress Ring */}
-                  <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-20">
-                    <circle
-                      cx="50%"
-                      cy="50%"
-                      r={radius}
-                      stroke="rgba(148, 163, 184, 0.2)"
-                      fill="none"
-                      strokeWidth="6"
-                    />
-                    <circle
-                      cx="50%"
-                      cy="50%"
-                      r={radius}
-                      fill="none"
-                      className="transition-all duration-150"
-                      stroke={
-                        alignmentProgress >= 90
-                          ? "#10b981"
-                          : alignmentProgress > 30
-                          ? "#f59e0b"
-                          : isStreaming
-                          ? "#ef4444"
-                          : "#3b82f6"
-                      }
-                      strokeWidth="6"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                {(() => {
+                  const isCounting = countdown !== null;
+                  const isFullyReady = isStreaming && isGoodLighting && isFaceCentered && isHoldingStill && alignmentProgress >= 100;
+                  const isGreen = isStreaming && (isFullyReady || isCounting);
+                  const isAmber = isStreaming && isGoodLighting && isFaceCentered && !isGreen;
+                  const isRed = isStreaming && !isGreen && !isAmber;
 
-                  {/* Video Stream Container Inside Circle (Dark sleek biometric frame) */}
-                  <div
-                    style={{ width: "270px", height: "270px", backgroundColor: "#0b0f19" }}
-                    className="rounded-full overflow-hidden relative shadow-2xl flex items-center justify-center z-10 border-2 border-slate-700/60"
-                  >
-                    {/* Starting / Requesting Spinner */}
-                    {isInitializing && (
-                      <div
-                        style={{ backgroundColor: "rgba(11, 15, 25, 0.95)" }}
-                        className="absolute inset-0 z-30 flex flex-col items-center justify-center text-white p-4 text-center animate-in fade-in duration-150"
-                      >
-                        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-2" />
-                        <span style={{ color: "#ffffff" }} className="text-xs font-semibold">
-                          Starting camera...
-                        </span>
-                        <span style={{ color: "#94a3b8" }} className="text-[10px] mt-1">
-                          Please allow camera in browser prompt
-                        </span>
-                      </div>
-                    )}
+                  const ringColor = !isStreaming
+                    ? "#3b82f6"
+                    : isGreen
+                    ? "#10b981"
+                    : isAmber
+                    ? "#f59e0b"
+                    : "#ef4444";
 
-                    {/* Permission Prompt Button Inside Circle */}
-                    {!isStreaming && !isInitializing && (
-                      <div
-                        style={{ backgroundColor: "#0b0f19" }}
-                        className="absolute inset-0 z-30 flex flex-col items-center justify-center text-white p-5 text-center animate-in fade-in duration-150"
-                      >
-                        <div className="h-12 w-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3 shadow-sm">
-                          <Camera className="h-6 w-6" />
-                        </div>
-                        <span
-                          style={{ color: "#ffffff" }}
-                          className="text-sm font-bold mb-1 tracking-tight"
-                        >
-                          Camera Access Required
-                        </span>
-                        <p
-                          style={{ color: "#94a3b8" }}
-                          className="text-[11px] max-w-[200px] mb-4 leading-tight"
-                        >
-                          Click below to allow camera access in your browser
-                        </p>
-                        <button
-                          type="button"
-                          onClick={startCameraStream}
-                          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-                        >
-                          <Video className="h-4 w-4" />
-                          <span>Allow Camera Access</span>
-                        </button>
-                      </div>
-                    )}
+                  const containerBorderClass = !isStreaming
+                    ? "border-slate-700/60"
+                    : isGreen
+                    ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.5)]"
+                    : isAmber
+                    ? "border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+                    : "border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.4)]";
 
-                    {/* Mirrored Video Feed */}
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      style={{
-                        backgroundColor: "#000000",
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        transform: "scaleX(-1)"
-                      }}
-                    />
+                  const ovalClass = isGreen
+                    ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.5)]"
+                    : isAmber
+                    ? "border-amber-400 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+                    : "border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
 
-                    {/* Biometric Oval Center Guide Overlay with Red/Green Status */}
-                    {isStreaming && (
-                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                  const badgeClass = isGreen
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                    : isAmber
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30";
+
+                  const dotClass = isGreen
+                    ? "bg-emerald-500 animate-ping"
+                    : isAmber
+                    ? "bg-amber-500 animate-pulse"
+                    : "bg-red-500";
+
+                  return (
+                    <>
+                      <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center my-2">
+                        {/* Outer SVG Progress Ring */}
+                        <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-20">
+                          <circle
+                            cx="50%"
+                            cy="50%"
+                            r={radius}
+                            stroke={isRed ? "rgba(239, 68, 68, 0.25)" : "rgba(148, 163, 184, 0.2)"}
+                            fill="none"
+                            strokeWidth="6"
+                          />
+                          <circle
+                            cx="50%"
+                            cy="50%"
+                            r={radius}
+                            fill="none"
+                            className="transition-all duration-150"
+                            stroke={ringColor}
+                            strokeWidth="6"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={isGreen ? 0 : strokeDashoffset}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+
+                        {/* Video Stream Container Inside Circle (Dark sleek biometric frame) */}
                         <div
-                          style={{ width: "170px", height: "215px" }}
-                          className={`rounded-[50%] border-2 border-dashed transition-all duration-200 ${
-                            alignmentProgress >= 90
-                              ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.5)]"
-                              : alignmentProgress > 30
-                              ? "border-amber-400 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
-                              : "border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.35)]"
-                          }`}
-                        />
-                      </div>
-                    )}
+                          style={{ width: "270px", height: "270px", backgroundColor: "#0b0f19" }}
+                          className={`rounded-full overflow-hidden relative flex items-center justify-center z-10 border-2 transition-all duration-200 ${containerBorderClass}`}
+                        >
+                          {/* Starting / Requesting Spinner */}
+                          {isInitializing && (
+                            <div
+                              style={{ backgroundColor: "rgba(11, 15, 25, 0.95)" }}
+                              className="absolute inset-0 z-30 flex flex-col items-center justify-center text-white p-4 text-center animate-in fade-in duration-150"
+                            >
+                              <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-2" />
+                              <span style={{ color: "#ffffff" }} className="text-xs font-semibold">
+                                Starting camera...
+                              </span>
+                              <span style={{ color: "#94a3b8" }} className="text-[10px] mt-1">
+                                Please allow camera in browser prompt
+                              </span>
+                            </div>
+                          )}
 
-                    {/* Countdown Number Badge Overlay */}
-                    {countdown !== null && (
-                      <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in zoom-in-50 duration-200">
-                        <span className="text-7xl font-black text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] scale-110 animate-pulse">
-                          {countdown}
+                          {/* Permission Prompt Button Inside Circle */}
+                          {!isStreaming && !isInitializing && (
+                            <div
+                              style={{ backgroundColor: "#0b0f19" }}
+                              className="absolute inset-0 z-30 flex flex-col items-center justify-center text-white p-5 text-center animate-in fade-in duration-150"
+                            >
+                              <div className="h-12 w-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3 shadow-sm">
+                                <Camera className="h-6 w-6" />
+                              </div>
+                              <span
+                                style={{ color: "#ffffff" }}
+                                className="text-sm font-bold mb-1 tracking-tight"
+                              >
+                                Camera Access Required
+                              </span>
+                              <p
+                                style={{ color: "#94a3b8" }}
+                                className="text-[11px] max-w-[200px] mb-4 leading-tight"
+                              >
+                                Click below to allow camera access in your browser
+                              </p>
+                              <button
+                                type="button"
+                                onClick={startCameraStream}
+                                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                              >
+                                <Video className="h-4 w-4" />
+                                <span>Allow Camera Access</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Mirrored Video Feed */}
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            style={{
+                              backgroundColor: "#000000",
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              transform: "scaleX(-1)"
+                            }}
+                          />
+
+                          {/* Biometric Oval Center Guide Overlay with Strict Red / Amber / Green Status */}
+                          {isStreaming && (
+                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                              <div
+                                style={{ width: "170px", height: "215px" }}
+                                className={`rounded-[50%] border-2 border-dashed transition-all duration-200 ${ovalClass}`}
+                              />
+                            </div>
+                          )}
+
+                          {/* Countdown Number Badge Overlay */}
+                          {countdown !== null && (
+                            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] animate-in zoom-in-50 duration-200">
+                              <span className="text-8xl font-black text-emerald-400 drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)] scale-110 animate-pulse">
+                                {countdown}
+                              </span>
+                              <span className="text-xs font-bold text-white/90 mt-2 tracking-wide uppercase">
+                                Smile & Hold Still
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status Hint Pill with Strict Red / Amber / Green Dynamic Color */}
+                      <div className="mt-3 mb-4">
+                        <span
+                          className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${badgeClass}`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+                          {detectionTip}
                         </span>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Status Hint Pill with Red / Amber / Green Dynamic Color */}
-                <div className="mt-3 mb-4">
-                  <span
-                    className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                      alignmentProgress >= 90
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                        : alignmentProgress > 30
-                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                        : isStreaming
-                        ? "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30"
-                        : "bg-muted text-foreground border border-border"
-                    }`}
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        alignmentProgress >= 90
-                          ? "bg-emerald-500 animate-ping"
-                          : alignmentProgress > 30
-                          ? "bg-amber-500 animate-pulse"
-                          : isStreaming
-                          ? "bg-red-500"
-                          : "bg-primary"
-                      }`}
-                    />
-                    {detectionTip}
-                  </span>
-                </div>
+                    </>
+                  );
+                })()}
 
                 {/* 4 Core Bank KYC Guidance Requirements */}
                 <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-4 text-[11px] text-muted-foreground">
