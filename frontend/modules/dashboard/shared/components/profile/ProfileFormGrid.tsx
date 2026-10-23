@@ -132,11 +132,11 @@ export default function ProfileFormGrid({ onDocumentChange }: { onDocumentChange
   // Sync values when the data loads from the DB.
   // user object updates after the initial login cookie (which lacks heavy fields) is refreshed via /me
   useEffect(() => {
-    if (initialPermanentAddress?.country && !permCountry) setPermCountry(initialPermanentAddress.country);
-    if (initialPermanentAddress?.city && !permCity) setPermCity(initialPermanentAddress.city);
-    if (initialPermanentAddress?.state && !permState) setPermState(initialPermanentAddress.state);
-    if (initialPermanentAddress?.zipCode && !permZipCode) setPermZipCode(initialPermanentAddress.zipCode);
-    if (initialPermanentAddress?.address && !permAddress) setPermAddress(initialPermanentAddress.address);
+    if (initialPermanentAddress?.country) setPermCountry((prev: string) => prev || initialPermanentAddress.country);
+    if (initialPermanentAddress?.city) setPermCity((prev: string) => prev || initialPermanentAddress.city);
+    if (initialPermanentAddress?.state) setPermState((prev: string) => prev || initialPermanentAddress.state);
+    if (initialPermanentAddress?.zipCode) setPermZipCode((prev: string) => prev || initialPermanentAddress.zipCode);
+    if (initialPermanentAddress?.address) setPermAddress((prev: string) => prev || initialPermanentAddress.address);
 
     if (initialNationality) setNationality((prev: string) => prev || initialNationality);
     if (initialDateOfBirth) setDateOfBirth((prev: string) => prev || initialDateOfBirth);

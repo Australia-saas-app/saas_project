@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, ShieldAlert, FileText, Loader2, Camera, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { applyForKyc } from "@/src/shared/server/AuthService";
@@ -38,17 +38,29 @@ export default function KycApplicationModal({
     }
   }, [initialLivePhoto]);
 
+  const snap = useMemo(() => {
+    const d = user?.kycApplicationData || {};
+    if (typeof d === "string") {
+      try {
+        return JSON.parse(d);
+      } catch {
+        return {};
+      }
+    }
+    return d || {};
+  }, [user?.kycApplicationData]);
+
+  const effectiveLivePhoto = livePhoto || user?.livePhotoUrl || (snap && (snap.livePhotoUrl || snap.avatarUrl)) || "";
+
   if (!isOpen) return null;
 
   const isViewMode =
     kycStatus === "pending" || kycStatus === "submitted" || isKycVerified;
 
-  const effectivePhoto = livePhoto || user.avatarUrl || user.profilePhoto;
-
   const handleApply = async () => {
     if (!isViewMode) {
       const missing: string[] = [];
-      const hasPhoto = Boolean(effectivePhoto);
+      const hasPhoto = Boolean(effectiveLivePhoto);
       const hasFrontDoc = Boolean(user.documentFrontUrl || user.documentUrl);
       const hasBackDoc = Boolean(user.documentBackUrl);
       const isDualDoc =
@@ -108,9 +120,10 @@ export default function KycApplicationModal({
         idDocument: user.documentUrl || user.idDocument,
         documentFrontUrl: user.documentFrontUrl,
         documentBackUrl: user.documentBackUrl,
-        avatarUrl: effectivePhoto,
-        livePhotoUrl: effectivePhoto,
-        isLiveCapture: Boolean(livePhoto),
+        // KYC live biometric photo stored strictly in KYC snapshot
+        livePhotoUrl: effectiveLivePhoto,
+        avatarUrl: user.avatarUrl || user.profilePhoto || "",
+        isLiveCapture: Boolean(livePhoto || user.livePhotoUrl),
         accountType: isBusiness ? "business" : (user.accountType || user.role || "user"),
         role: isBusiness ? "business" : (user.role || "user"),
         // Business KYC Details Snapshot (Strictly for Business Accounts)
@@ -126,10 +139,10 @@ export default function KycApplicationModal({
       if (res && res.success !== false) {
         toast.success("KYC Application submitted successfully!");
 
+        // Update KYC status and snapshot only, DO NOT touch account avatarUrl
         saveProfileOverrides(uid, {
           kycStatus: "pending",
           kycApplicationData: snapData,
-          avatarUrl: effectivePhoto,
           resubmitted: true,
           unverifiedByAdmin: false,
           rejectionReasons: null,
@@ -140,7 +153,6 @@ export default function KycApplicationModal({
           await user.updateProfile({
             kycStatus: "pending",
             kycApplicationData: snapData,
-            avatarUrl: effectivePhoto,
             kycRejectionReasons: null,
             kycRejectionReason: null
           }).catch(() => {});
@@ -442,7 +454,6 @@ export default function KycApplicationModal({
                       { label: "Account Type", value: displayAccountType },
                       { label: "Gender", value: displayGender },
                       { label: "Nationality", value: displayNationality },
-                      { label: "Government ID Type", value: displayGovtIdType },
                       { label: "Government ID", value: displayGovtId },
                       { label: "Date of Birth", value: displayDob },
                     ].map(({ label, value }) => (
@@ -460,10 +471,10 @@ export default function KycApplicationModal({
                     {/* Profile photo */}
                     <div className="flex flex-col sm:items-end mb-4">
                       <div className="relative h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md border-4 border-border shadow-sm bg-muted">
-                        {(isViewMode ? (snap.avatarUrl || snap.profilePhoto || snap.livePhotoUrl) : effectivePhoto) ? (
+                        {(isViewMode ? (snap.livePhotoUrl || snap.avatarUrl || snap.profilePhoto) : effectiveLivePhoto) ? (
                           <img
-                            src={isViewMode ? (snap.avatarUrl || snap.profilePhoto || snap.livePhotoUrl) : effectivePhoto}
-                            alt="Profile"
+                            src={isViewMode ? (snap.livePhotoUrl || snap.avatarUrl || snap.profilePhoto) : effectiveLivePhoto}
+                            alt="Live Biometric Capture"
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -588,6 +599,14 @@ export default function KycApplicationModal({
 
                 {/* Documents */}
                 <div className="mb-4 relative z-10">
+                  <div className="mb-4">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-0.5">
+                      Government ID Type
+                    </span>
+                    <p className="font-bold text-foreground text-sm sm:text-base">
+                      {displayGovtIdType}
+                    </p>
+                  </div>
                   <h4 className="font-bold text-base text-foreground mb-3">Attached Documents</h4>
                   {renderDocuments()}
                 </div>
@@ -626,7 +645,7 @@ export default function KycApplicationModal({
               onClick={handleApply}
               disabled={
                 isApplying ||
-                !effectivePhoto ||
+                !effectiveLivePhoto ||
                 !(user.documentUrl || user.documentFrontUrl)
               }
               className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 min-w-[150px] justify-center"

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, FileX, CameraOff, UserX, ArrowRight } from "lucide-react";
+import { AlertTriangle, FileX, CameraOff, UserX } from "lucide-react";
 
 export interface KycRejectionReasons {
   documentsNotVerified?: boolean;
@@ -114,17 +114,6 @@ export default function KycRejectionBanner({ user, onReApply, className = "" }: 
             )}
           </div>
         </div>
-
-        {onReApply && (
-          <button
-            type="button"
-            onClick={onReApply}
-            className="shrink-0 self-end sm:self-center px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <span>Re Apply KYC</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        )}
       </div>
     </div>
   );

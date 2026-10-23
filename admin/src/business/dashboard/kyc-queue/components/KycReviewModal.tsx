@@ -281,6 +281,18 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               }
               return d;
             })();
+            const liveSnapshotPhoto = (() => {
+              if (snap.livePhotoUrl) return snap.livePhotoUrl;
+              if (snap.liveCapturedPhoto) return snap.liveCapturedPhoto;
+              if (snap.livePhoto) return snap.livePhoto;
+              if (snap.isLiveCapture) {
+                return snap.avatarUrl || snap.profilePhoto || null;
+              }
+              if (user.livePhotoUrl) return user.livePhotoUrl;
+              if (user.liveCapturedPhoto) return user.liveCapturedPhoto;
+              return null;
+            })();
+            const hasLiveCapture = Boolean(liveSnapshotPhoto || snap.isLiveCapture || snap.livePhotoUrl);
             const fullName = snap.fullName || user.fullName;
             const email = snap.email || user.email || user.phone;
             const nationality = snap.nationality || user.nationality;
@@ -346,10 +358,6 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{nationality || "N/A"}</p>
                     </div>
                     <div>
-                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Government ID Type</span>
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{govtIdType}</p>
-                    </div>
-                    <div>
                       <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Government ID</span>
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{govtId || "N/A"}</p>
                     </div>
@@ -363,20 +371,21 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   <div className="flex-1 space-y-4 w-full">
                     <div className="flex flex-col items-center md:items-end mb-4">
                       <div className="relative h-28 w-28 overflow-hidden rounded-md border-4 border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-800/50">
-                        {(snap.livePhotoUrl || snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl) ? (
-                          <img src={snap.livePhotoUrl || snap.profilePhoto || snap.avatarUrl || user.profilePhoto || user.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
+                        {liveSnapshotPhoto ? (
+                          <img src={liveSnapshotPhoto} alt="Live Biometric Snapshot" className="h-full w-full object-cover" />
                         ) : (
-                          <div className="h-full w-full flex items-center justify-center text-slate-300 dark:text-slate-600 font-bold text-2xl">
-                            {(fullName || "U").charAt(0).toUpperCase()}
+                          <div className="h-full w-full flex flex-col items-center justify-center text-slate-300 dark:text-slate-600 font-bold p-1 text-center bg-slate-50 dark:bg-slate-800/50">
+                            <span className="text-2xl">{(fullName || "U").charAt(0).toUpperCase()}</span>
+                            <span className="text-[9px] text-slate-400 font-medium mt-0.5">No Live Photo</span>
                           </div>
                         )}
-                        {(snap.isLiveCapture || snap.livePhotoUrl) && (
+                        {hasLiveCapture && (
                           <div className="absolute top-1 right-1 bg-emerald-600 text-white rounded-full p-1 shadow" title="Live Biometric Capture Verified">
                             <ShieldAlert className="h-3.5 w-3.5 rotate-180" />
                           </div>
                         )}
                       </div>
-                      {(snap.isLiveCapture || snap.livePhotoUrl) && (
+                      {hasLiveCapture && (
                         <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                           Live Biometric Capture
@@ -475,6 +484,26 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
           {/* Attached Document Preview */}
           <div className="mb-4 relative z-10">
+            {(() => {
+              const snap = (() => {
+                const d = user.kycApplicationData || {};
+                if (typeof d === "string") {
+                  try { return JSON.parse(d); } catch { return {}; }
+                }
+                return d;
+              })();
+              const govtIdType = snap.governmentIdType || user.governmentIdType || "NID";
+              return (
+                <div className="mb-4">
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase block mb-0.5">
+                    Government ID Type
+                  </span>
+                  <p className="font-bold text-slate-900 dark:text-slate-100 text-base">
+                    {govtIdType}
+                  </p>
+                </div>
+              );
+            })()}
             <h4 className="font-bold text-md text-slate-800 dark:text-slate-100 mb-3">Attached Documents</h4>
             {(() => {
               const snap = (() => {
@@ -597,7 +626,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 <button
                   onClick={() => setShowRejectModal(true)}
                   disabled={isAnyLoading}
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[110px] flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[110px] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject Application"}
                 </button>
@@ -605,7 +634,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 <button
                   onClick={() => handleUpdateStatus('approved')}
                   disabled={isAnyLoading}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[130px] flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[130px] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve Application"}
                 </button>
@@ -614,7 +643,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               <button
                 onClick={() => handleUpdateStatus('approved')}
                 disabled={isAnyLoading}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Re-evaluate & Approve"}
               </button>
@@ -622,7 +651,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               <button
                 onClick={() => setShowRejectModal(true)}
                 disabled={isAnyLoading}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Revoke & Reject"}
               </button>
@@ -632,78 +661,113 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
       {/* ─── REASON OF REJECTION MODAL ─── */}
       {showRejectModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative bg-background border border-border shadow-2xl rounded-2xl w-full max-w-md overflow-hidden text-foreground">
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 120,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && loadingAction !== 'rejected') {
+              setShowRejectModal(false);
+            }
+          }}
+        >
+          <div
+            className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl overflow-hidden text-slate-900 dark:text-slate-100 transition-all flex flex-col"
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              maxHeight: '90vh',
+              margin: '0 auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+              borderRadius: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                <h3 className="text-base font-bold text-foreground">Reason of Rejection</h3>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Reason of Rejection</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Specify why this application is rejected</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowRejectModal(false)}
                 disabled={loadingAction === 'rejected'}
-                className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Body Checklist */}
-            <div className="p-6 space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Select one or more reasons for rejecting this KYC application:
+            <div className="p-5 space-y-3.5 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Select one or more rejection reasons to notify the user:
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {/* Option 1: Documents not Verified */}
-                <label className="flex items-start gap-3 p-3 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors cursor-pointer select-none">
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rejectDocs}
                     onChange={(e) => setRejectDocs(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                   />
                   <div className="text-xs">
-                    <span className="font-bold text-foreground block">Documents not Verified</span>
-                    <span className="text-[11px] text-muted-foreground">Document is unreadable, expired, cropped, or not official.</span>
+                    <span className="font-bold text-slate-900 dark:text-white block">Documents not Verified</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Document is unreadable, expired, cropped, or not official.</span>
                   </div>
                 </label>
 
                 {/* Option 2: Liveness not verified */}
-                <label className="flex items-start gap-3 p-3 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors cursor-pointer select-none">
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rejectLiveness}
                     onChange={(e) => setRejectLiveness(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                   />
                   <div className="text-xs">
-                    <span className="font-bold text-foreground block">Liveness not verified</span>
-                    <span className="text-[11px] text-muted-foreground">Live selfie failed anti-spoofing check, dim room, or face obstructed.</span>
+                    <span className="font-bold text-slate-900 dark:text-white block">Liveness not verified</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Live selfie failed anti-spoofing check, dim room, or face obstructed.</span>
                   </div>
                 </label>
 
                 {/* Option 3: Personal Data */}
-                <div className="rounded-xl border border-border/80 bg-card overflow-hidden">
-                  <label className="flex items-start gap-3 p-3 hover:bg-muted/30 transition-colors cursor-pointer select-none">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 overflow-hidden">
+                  <label className="flex items-start gap-3 p-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={rejectPersonalData}
                       onChange={(e) => setRejectPersonalData(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                     />
                     <div className="text-xs">
-                      <span className="font-bold text-foreground block">Personal Data</span>
-                      <span className="text-[11px] text-muted-foreground">Details do not match identity documents or required fields are missing.</span>
+                      <span className="font-bold text-slate-900 dark:text-white block">Personal Data</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">Details do not match identity documents or required fields are missing.</span>
                     </div>
                   </label>
 
                   {/* When Personal Data is checked: show text box */}
                   {rejectPersonalData && (
-                    <div className="px-3 pb-3 pt-1 border-t border-border/50 bg-muted/20 animate-in fade-in duration-150">
-                      <label className="block text-[11px] font-semibold text-foreground mb-1">
+                    <div className="px-3 pb-3 pt-1 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 animate-in fade-in duration-150">
+                      <label className="block text-[11px] font-semibold text-slate-800 dark:text-slate-200 mb-1">
                         Specify details about incorrect or missing data <span className="text-rose-500">*</span>:
                       </label>
                       <textarea
@@ -711,7 +775,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                         onChange={(e) => setPersonalDataDetails(e.target.value)}
                         placeholder="e.g., Full name does not match passport, permanent address is incomplete, birth date mismatch..."
                         rows={3}
-                        className="w-full text-xs rounded-lg border border-border bg-background p-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                        className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
                       />
                     </div>
                   )}
@@ -720,12 +784,12 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-3.5 bg-muted/30 border-t border-border">
+            <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowRejectModal(false)}
                 disabled={loadingAction === 'rejected'}
-                className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -741,7 +805,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                   });
                 }}
                 disabled={!isRejectValid || loadingAction === 'rejected'}
-                className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
               >
                 {loadingAction === 'rejected' ? (
                   <>

@@ -117,7 +117,16 @@ export function useProfileDisplay() {
     if (u.governmentIdType && !(getProfileOverrides(rawUserId) as any).governmentIdType) {
       (patch as any).governmentIdType = String(u.governmentIdType);
     }
-    const dbAddr = u.permanentAddress as ProfileDataPatch["permanentAddress"] | undefined;
+    let dbAddr = u.permanentAddress as ProfileDataPatch["permanentAddress"] | undefined;
+    if (!dbAddr && (u as any).kycApplicationData) {
+      const snap = typeof (u as any).kycApplicationData === "string" 
+        ? (() => { try { return JSON.parse((u as any).kycApplicationData); } catch { return {}; } })() 
+        : ((u as any).kycApplicationData || {});
+      if (snap.permanentAddress) dbAddr = snap.permanentAddress;
+    }
+    if (typeof dbAddr === "string") {
+      try { dbAddr = JSON.parse(dbAddr); } catch {}
+    }
     const localAddr = (getProfileOverrides(rawUserId) as any).permanentAddress;
     if (dbAddr && !localAddr) {
       (patch as any).permanentAddress = dbAddr;
@@ -339,14 +348,28 @@ export function useProfileDisplay() {
       : "")
 
   const permanentAddress = useMemo(() => {
-    const oAddr = (overrides as any).permanentAddress;
-    const uAddr = user && "permanentAddress" in user ? (user as any).permanentAddress : null;
+    let oAddr = (overrides as any).permanentAddress;
+    if (typeof oAddr === "string") {
+      try { oAddr = JSON.parse(oAddr); } catch {}
+    }
+
+    let uAddr = user && "permanentAddress" in user ? (user as any).permanentAddress : null;
+    if (!uAddr && (user as any)?.kycApplicationData) {
+      const snap = typeof (user as any).kycApplicationData === "string"
+        ? (() => { try { return JSON.parse((user as any).kycApplicationData); } catch { return {}; } })()
+        : ((user as any).kycApplicationData || {});
+      if (snap.permanentAddress) uAddr = snap.permanentAddress;
+    }
+    if (typeof uAddr === "string") {
+      try { uAddr = JSON.parse(uAddr); } catch {}
+    }
+
     return {
-      country: oAddr?.country ?? uAddr?.country ?? "",
-      city: oAddr?.city ?? uAddr?.city ?? "",
-      state: oAddr?.state ?? uAddr?.state ?? "",
-      zipCode: oAddr?.zipCode ?? uAddr?.zipCode ?? "",
-      address: oAddr?.address ?? uAddr?.address ?? "",
+      country: oAddr?.country || uAddr?.country || "",
+      city: oAddr?.city || uAddr?.city || "",
+      state: oAddr?.state || uAddr?.state || "",
+      zipCode: oAddr?.zipCode || uAddr?.zipCode || "",
+      address: oAddr?.address || uAddr?.address || "",
     };
   }, [overrides, user]);
 

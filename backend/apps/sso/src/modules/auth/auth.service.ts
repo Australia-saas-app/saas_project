@@ -1014,6 +1014,14 @@ export class AuthService implements OnModuleInit {
     const kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
     const kycApplicationData = kycRecord?.applicationData ?? null;
 
+    let permanentAddress = user.permanentAddress;
+    if (!permanentAddress && kycApplicationData && (kycApplicationData as any).permanentAddress) {
+      permanentAddress = (kycApplicationData as any).permanentAddress;
+    }
+    if (typeof permanentAddress === 'string') {
+      try { permanentAddress = JSON.parse(permanentAddress); } catch {}
+    }
+
     return {
       success: true,
       data: {
@@ -1033,6 +1041,7 @@ export class AuthService implements OnModuleInit {
         dateOfBirth: user.dateOfBirth,
         governmentId: user.governmentId,
         governmentIdType: user.governmentIdType,
+        permanentAddress: permanentAddress ?? null,
         kycApplicationData: kycApplicationData,
         kycRejectionReasons: (kycApplicationData as any)?.rejectionReasons ?? null,
         kycRejectionReason: (user as any).kycRejectionReason ?? null,
@@ -1202,6 +1211,7 @@ export class AuthService implements OnModuleInit {
         businessType: user.businessType,
         percentageRate: user.percentageRate,
         businessInfo: user.businessInfo,
+        permanentAddress: user.permanentAddress,
       },
     };
   }
@@ -1780,6 +1790,8 @@ export class AuthService implements OnModuleInit {
       idDocument: clientApplicationData?.idDocument || clientApplicationData?.documentUrl || user.idDocument,
       documentFrontUrl: clientApplicationData?.documentFrontUrl || (user as any).documentFrontUrl,
       documentBackUrl: clientApplicationData?.documentBackUrl || (user as any).documentBackUrl,
+      livePhotoUrl: clientApplicationData?.livePhotoUrl || '',
+      isLiveCapture: Boolean(clientApplicationData?.isLiveCapture || clientApplicationData?.livePhotoUrl),
       avatarUrl: clientApplicationData?.avatarUrl || user.profilePhoto || (user as any).avatarUrl,
       accountType: isBusiness ? 'business' : userAccountType,
       role: isBusiness ? 'business' : userAccountType,
@@ -1818,6 +1830,9 @@ export class AuthService implements OnModuleInit {
     }
     await this.kycApplicationRepository.save(kycRecord);
 
+    if (clientApplicationData?.permanentAddress) {
+      user.permanentAddress = clientApplicationData.permanentAddress;
+    }
     user.kycStatus = KycStatus.PENDING;
     (user as any).kycRejectionReason = null;
     await this.userRepository.save(user);

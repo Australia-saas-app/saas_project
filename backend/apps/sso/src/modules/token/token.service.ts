@@ -528,6 +528,7 @@ export class TokenService {
         nationality: options.user.nationality,
         dateOfBirth: options.user.dateOfBirth,
         governmentId: options.user.governmentId,
+        permanentAddress: options.user.permanentAddress,
         currency: options.user.currency,
         createdAt: options.user.createdAt,
       },

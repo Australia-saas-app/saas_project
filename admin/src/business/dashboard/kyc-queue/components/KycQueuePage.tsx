@@ -17,6 +17,43 @@ import { Pagination } from "@/src/shared/ui/ui/pagination";
 import { useAppSelector } from "@/src/core/store/hooks";
 import { KycReviewModal } from "./KycReviewModal";
 
+function getUploadedAccountPhoto(row: any): string | null {
+  let snap: any = null;
+  if (row?.kycApplicationData) {
+    if (typeof row.kycApplicationData === "string") {
+      try {
+        snap = JSON.parse(row.kycApplicationData);
+      } catch {
+        snap = {};
+      }
+    } else {
+      snap = row.kycApplicationData;
+    }
+  }
+
+  const livePhoto = snap?.livePhotoUrl || snap?.liveCapturedPhoto || snap?.livePhoto || null;
+
+  // 1. If snap specifically recorded an uploaded profile photo distinct from live photo
+  if (snap?.uploadedPhotoUrl && snap.uploadedPhotoUrl !== livePhoto) {
+    return snap.uploadedPhotoUrl;
+  }
+
+  const photo = row?.profilePhoto || row?.avatarUrl || null;
+  if (!photo) return null;
+
+  // 2. If the user's profilePhoto in DB matches the live captured photo, it is NOT an uploaded profile photo
+  if (livePhoto && photo === livePhoto) {
+    return null;
+  }
+
+  // 3. If legacy snap had isLiveCapture and avatarUrl equals this photo without separate upload
+  if (snap?.isLiveCapture && (photo === snap.avatarUrl || photo === snap.livePhotoUrl)) {
+    return null;
+  }
+
+  return photo;
+}
+
 export default function KycQueuePage() {
   const queryClient = useQueryClient();
   const token = useAppSelector((state) => state.auth.token);
@@ -321,7 +358,9 @@ export default function KycQueuePage() {
                   </TableColumn>
                 </TableRow>
               ) : (
-                pageItems.map((row) => (
+                pageItems.map((row) => {
+                  const uploadedPhoto = getUploadedAccountPhoto(row);
+                  return (
                   <TableRow key={row.userId || row.id}>
                     <TableColumn>
                       <span className="font-mono font-medium text-gray-900 dark:text-gray-100 text-xs">
@@ -331,8 +370,8 @@ export default function KycQueuePage() {
                     <TableColumn>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                          {row.profilePhoto ? (
-                             <img src={row.profilePhoto} alt={row.fullName} className="w-full h-full object-cover" />
+                          {uploadedPhoto ? (
+                             <img src={uploadedPhoto} alt={row.fullName} className="w-full h-full object-cover" />
                           ) : (
                             (row.fullName || row.email || "U").charAt(0).toUpperCase()
                           )}
@@ -364,7 +403,8 @@ export default function KycQueuePage() {
                       </div>
                     </TableColumn>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>
