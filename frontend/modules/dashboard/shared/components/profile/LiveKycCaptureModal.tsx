@@ -79,7 +79,24 @@ export default function LiveKycCaptureModal({
   const isFaceCenteredRef = useRef(false);
   const isFaceClearRef = useRef(false);
   const isSteadyRef = useRef(false);
+  const isPersonPresentRef = useRef(false);
+  const nativeFaceDetectorRef = useRef<any>(null);
+  const nativeFaceDetectedRef = useRef<boolean>(false);
+  const nativeFaceCenteredRef = useRef<boolean>(false);
+  const isDetectingFaceRef = useRef<boolean>(false);
   const activeDotsRef = useRef(0);
+
+  // Initialize native browser FaceDetector (Chromium / Edge / Android) if available
+  useEffect(() => {
+    if (typeof window !== "undefined" && "FaceDetector" in window) {
+      try {
+        nativeFaceDetectorRef.current = new (window as any).FaceDetector({
+          fastMode: true,
+          maxDetectedFaces: 1,
+        });
+      } catch { }
+    }
+  }, []);
 
   // Pleasant shutter beep with Web Audio API
   const playShutterSound = useCallback(() => {
@@ -101,7 +118,7 @@ export default function LiveKycCaptureModal({
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.13);
-    } catch {}
+    } catch { }
   }, []);
 
   // Stop camera tracks cleanly
@@ -118,12 +135,15 @@ export default function LiveKycCaptureModal({
       streamRef.current.getTracks().forEach((track) => {
         try {
           track.stop();
-        } catch {}
+        } catch { }
       });
       streamRef.current = null;
     }
     setIsStreaming(false);
     isCountingDown.current = false;
+    isPersonPresentRef.current = false;
+    nativeFaceDetectedRef.current = false;
+    nativeFaceCenteredRef.current = false;
   }, []);
 
   // Snaps the current video frame as high quality square base64 image (strict bank KYC lighting & clarity guard)
@@ -132,12 +152,16 @@ export default function LiveKycCaptureModal({
     if (!video || video.videoWidth === 0) return;
 
     // Strict Bank KYC Pre-Capture Checks:
-    if (!isGoodLightingRef.current) {
-      setDetectionTip("Room is too dark. Please turn on room lights.");
+    if (!isPersonPresentRef.current && !nativeFaceDetectedRef.current) {
+      setDetectionTip("No person detected. Position your face inside the circle.");
       return;
     }
     if (!isFaceCenteredRef.current) {
-      setDetectionTip("Position & center your face inside the circle (25%)");
+      setDetectionTip("Face is not centered inside the circle. Position in the center.");
+      return;
+    }
+    if (!isGoodLightingRef.current) {
+      setDetectionTip("Room is too dark. Please turn on room lights.");
       return;
     }
     if (!isFaceClearRef.current) {
@@ -180,6 +204,10 @@ export default function LiveKycCaptureModal({
       // Multi-zone Bank KYC Post-Capture Validation directly on the canvas image:
       const center = size / 2;
       const radius = size * 0.35;
+      let snapSkinPixels = 0;
+      let snapCenterPixels = 0;
+      let snapUpperSkin = 0;
+      let snapLowerSkin = 0;
       let leftFaceLum = 0, leftFaceCount = 0;
       let rightFaceLum = 0, rightFaceCount = 0;
       let leftEyeLum = 0, leftEyeCount = 0;
@@ -189,7 +217,10 @@ export default function LiveKycCaptureModal({
       for (let y = 0; y < size; y += 4) {
         for (let x = 0; x < size; x += 4) {
           const idx = (y * size + x) * 4;
-          const lum = 0.299 * imgData[idx] + 0.587 * imgData[idx + 1] + 0.114 * imgData[idx + 2];
+          const r = imgData[idx];
+          const g = imgData[idx + 1];
+          const b = imgData[idx + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
           const dx = x - center;
           const dy = y - center;
           const dSq = dx * dx + dy * dy;
@@ -199,6 +230,24 @@ export default function LiveKycCaptureModal({
             bgLum += lum;
             bgCount++;
           } else if (dSq < radius * radius) {
+            snapCenterPixels++;
+            // YCbCr skin chrominance
+            const Cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+            const Cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+            const isSkin =
+              Cb >= 75 && Cb <= 128 &&
+              Cr >= 132 && Cr <= 175 &&
+              r > g && r > b &&
+              (r - b) >= 10 &&
+              (r - g) >= 4 &&
+              lum >= 35 && lum <= 235;
+
+            if (isSkin) {
+              snapSkinPixels++;
+              if (dy < 0) snapUpperSkin++;
+              else snapLowerSkin++;
+            }
+
             // Left vs Right half of face
             if (dx < -size * 0.04) {
               leftFaceLum += lum;
@@ -219,6 +268,19 @@ export default function LiveKycCaptureModal({
             }
           }
         }
+      }
+
+      const snapSkinRatio = snapCenterPixels > 0 ? snapSkinPixels / snapCenterPixels : 0;
+      // Strict Human Person / Face Check: at least 18% of the center face circle must be verified skin, or native face detected
+      if (snapSkinRatio < 0.18 && !nativeFaceDetectedRef.current) {
+        setDetectionTip("No person detected in circle. Position your face in the center.");
+        return;
+      }
+
+      // Strict Centering & Framing Check: Both upper half (forehead/eyes) and lower half (nose/mouth) must have skin
+      if ((snapUpperSkin < snapCenterPixels * 0.07 || snapLowerSkin < snapCenterPixels * 0.07) && !nativeFaceCenteredRef.current) {
+        setDetectionTip("Face is off-center in the photo. Please center your face inside the circle.");
+        return;
       }
 
       const snapBg = bgCount > 0 ? bgLum / bgCount : 0;
@@ -295,11 +357,44 @@ export default function LiveKycCaptureModal({
   }, [captureFrame]);
 
   // Frame-by-frame biometric & stability analyzer (4-requirement KYC verification)
+  // Frame-by-frame biometric & stability analyzer (4-requirement KYC verification)
   const runDetectionLoop = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.paused || video.ended || !video.videoWidth) {
       animFrameRef.current = requestAnimationFrame(runDetectionLoop);
       return;
+    }
+
+    // Attempt Native Face Detection if supported (runs asynchronously, updates nativeFaceDetectedRef and nativeFaceCenteredRef)
+    if (nativeFaceDetectorRef.current && !isDetectingFaceRef.current && video.readyState >= 2) {
+      isDetectingFaceRef.current = true;
+      nativeFaceDetectorRef.current
+        .detect(video)
+        .then((faces: any[]) => {
+          if (Array.isArray(faces) && faces.length > 0) {
+            nativeFaceDetectedRef.current = true;
+            const box = faces[0].boundingBox;
+            const minDim = Math.min(video.videoWidth, video.videoHeight);
+            const sx = (video.videoWidth - minDim) / 2;
+            const sy = (video.videoHeight - minDim) / 2;
+            const cx = ((box.x + box.width / 2 - sx) / minDim) * 160;
+            const cy = ((box.y + box.height / 2 - sy) / minDim) * 160;
+            const wNorm = (box.width / minDim) * 160;
+            const hNorm = (box.height / minDim) * 160;
+
+            // Is the native detected face strictly centered in the circular frame?
+            const isNativeCentered = Math.hypot(cx - 80, cy - 80) <= 11 && cy >= 71 && cy <= 86 && cx >= 72 && cx <= 88;
+            const isNativeSized = wNorm >= 48 && wNorm <= 110 && hNorm >= 52 && hNorm <= 120;
+            nativeFaceCenteredRef.current = isNativeCentered && isNativeSized;
+          } else {
+            nativeFaceDetectedRef.current = false;
+            nativeFaceCenteredRef.current = false;
+          }
+        })
+        .catch(() => { })
+        .finally(() => {
+          isDetectingFaceRef.current = false;
+        });
     }
 
     const canvas = canvasRef.current || document.createElement("canvas");
@@ -333,6 +428,10 @@ export default function LiveKycCaptureModal({
       let bgLuminance = 0;
       let bgCount = 0;
       let skinLikePixels = 0;
+      let upperHalfSkin = 0;
+      let lowerHalfSkin = 0;
+      let leftHalfSkin = 0;
+      let rightHalfSkin = 0;
       let skinLuminance = 0;
       let clarityGradSum = 0;
       let clarityGradCount = 0;
@@ -394,14 +493,16 @@ export default function LiveKycCaptureModal({
               rightCenterCount++;
             }
 
-            // Universal skin tone detection accommodating diverse skin tones & lighting
+            // Strict YCbCr + RGB Universal human skin chrominance model
+            const Cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+            const Cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
             const isSkin =
-              r > 32 &&
-              g > 22 &&
-              b > 15 &&
-              r >= b - 15 &&
-              r + g + b > 85 &&
-              r + g + b < 690;
+              Cb >= 75 && Cb <= 128 &&
+              Cr >= 132 && Cr <= 175 &&
+              r > g && r > b &&
+              (r - b) >= 10 &&
+              (r - g) >= 4 &&
+              lum >= 35 && lum <= 235;
 
             if (isSkin) {
               skinLikePixels++;
@@ -409,10 +510,12 @@ export default function LiveKycCaptureModal({
               faceMassX += x * lum;
               faceMassY += y * lum;
               faceMassWeight += lum;
-            } else if (lum > 35) {
-              faceMassX += x * lum;
-              faceMassY += y * lum;
-              faceMassWeight += lum;
+
+              if (y < 80) upperHalfSkin++;
+              else lowerHalfSkin++;
+
+              if (x < 80) leftHalfSkin++;
+              else rightHalfSkin++;
             }
           } else if (distSq > 65 * 65) {
             bgLuminance += lum;
@@ -445,28 +548,58 @@ export default function LiveKycCaptureModal({
       const minSide = Math.min(leftAvg, rightAvg);
       const sideDiffRatio = maxSide > 10 ? (maxSide - minSide) / maxSide : 0;
 
-      // Real Face Centroid calculation (checks true centering, reduces dots if shifted)
-      const centroidX = faceMassWeight > 0 ? faceMassX / faceMassWeight : 80;
-      const centroidY = faceMassWeight > 0 ? faceMassY / faceMassWeight : 80;
-      const centerOffset = Math.hypot(centroidX - 80, centroidY - 80);
+      // Real Face Centroid calculation (strictly from verified skin pixels, default to 999 if insufficient skin)
+      const hasValidSkinMass = faceMassWeight > 0 && skinLikePixels >= 450;
+      const centroidX = hasValidSkinMass ? faceMassX / faceMassWeight : 999;
+      const centroidY = hasValidSkinMass ? faceMassY / faceMassWeight : 999;
+      const centerOffset = hasValidSkinMass ? Math.hypot(centroidX - 80, centroidY - 80) : 999;
+
+      // ────────────────────────────────────────────────────────
+      // CORE RESTRICTION 1: Robust Face & Person Presence Detection
+      // 1. Hardware/ML-accelerated FaceDetector API (Chromium / Edge / Android)
+      // 2. Anatomical CV Verification:
+      //    - Substantial skin coverage inside circle (>= 18% and at least 450 skin pixels)
+      //    - Facial feature contrast & variance (eyes, nose, mouth structure)
+      // ────────────────────────────────────────────────────────
+      const hasNativeFace = nativeFaceDetectedRef.current;
+      const isSkinSubstantial = skinRatio >= 0.18 && skinLikePixels >= 450;
+      const hasFacialContrast = clarityScore >= 4.0 && faceStdDev >= 10;
+      const hasHeuristicFace = isSkinSubstantial && hasFacialContrast;
+
+      const isPersonPresent = hasNativeFace || hasHeuristicFace;
+      isPersonPresentRef.current = isPersonPresent;
+
+      // ────────────────────────────────────────────────────────
+      // CORE RESTRICTION 2: Strictly Centered & Within Dotted Circle
+      // - Face must not be sunken to bottom, drifted to top, or shifted left/right
+      // - Top half (forehead/eyes) must have at least 180 skin pixels
+      // - Bottom half (nose/mouth) must have at least 180 skin pixels
+      // - Left & right halves must both have at least 160 skin pixels
+      // - Centroid must be within [72..88] on X, and [71..86] on Y (offset <= 10.5px)
+      // - Face size: skin coverage between 20% and 60% of the circle (1600 - 5200 pixels)
+      // ────────────────────────────────────────────────────────
+      const isVerticallyBalanced = upperHalfSkin >= 180 && lowerHalfSkin >= 180;
+      const isHorizontallyBalanced = leftHalfSkin >= 160 && rightHalfSkin >= 160;
+      const isCentroidInTarget = centroidX >= 72 && centroidX <= 88 && centroidY >= 71 && centroidY <= 86 && centerOffset <= 10.5;
+      const isProperlySized = skinLikePixels >= 1600 && skinLikePixels <= 5200;
+
+      const nativeCentered = nativeFaceDetectedRef.current && nativeFaceCenteredRef.current;
+      const heuristicCentered = hasValidSkinMass && isCentroidInTarget && isVerticallyBalanced && isHorizontallyBalanced && isProperlySized;
+
+      const isFaceProperlyCentered = nativeCentered || heuristicCentered;
+      isFaceCenteredRef.current = isFaceProperlyCentered;
 
       // ────────────────────────────────────────────────────────
       // REQUIREMENT 1 (0 - 25% = 12 dots): Face Centered
-      // If user shifts to the side, dots reduce
+      // Strictly requires an actual person's face to be present, centered & within dotted circle
       // ────────────────────────────────────────────────────────
-      const facePresent =
-        (skinRatio > 0.05 || upperFaceAvgLum > 34 || centerAvgLum > 30) &&
-        effectiveFaceLum > 30 &&
-        effectiveFaceLum < 240;
-
       let dots1 = 0;
-      if (facePresent) {
-        if (centerOffset <= 11) dots1 = 12;
-        else if (centerOffset <= 17) dots1 = 8;
-        else if (centerOffset <= 24) dots1 = 4;
-        else dots1 = 1;
+      if (isPersonPresent && isFaceProperlyCentered) {
+        if (centerOffset <= 7) dots1 = 12;
+        else if (centerOffset <= 10.5) dots1 = 10;
+        else dots1 = 4;
       }
-      const isReq1Ok = dots1 >= 10;
+      const isReq1Ok = isPersonPresent && isFaceProperlyCentered && dots1 >= 10;
 
       // ────────────────────────────────────────────────────────
       // REQUIREMENT 2 (25 - 50% = 12 dots): Good Lighting
@@ -483,14 +616,14 @@ export default function LiveKycCaptureModal({
       const isUnevenLighting = minSide < 44 || sideDiffRatio > 0.30;
       const isTooBright = effectiveFaceLum > 235 || avgLum > 240;
 
-      const isReq2Ok = facePresent && !isRoomDark && !isFaceDark && !isEyeInShadow && !isUnevenLighting && !isTooBright;
+      const isReq2Ok = isPersonPresent && isFaceProperlyCentered && !isRoomDark && !isFaceDark && !isEyeInShadow && !isUnevenLighting && !isTooBright;
       const dots2 = isReq2Ok ? 12 : 0;
 
       // ────────────────────────────────────────────────────────
       // REQUIREMENT 3 (50 - 75% = 12 dots): Face Clearly Visible & Sharp
       // Features (eyes/nose/mouth) must be sharp and distinct, not blur/silhouette/dark eye sockets
       // ────────────────────────────────────────────────────────
-      const isReq3Ok = facePresent && clarityScore >= 5.5 && faceStdDev >= 11 && skinRatio >= 0.06 && effectiveFaceLum >= 55 && !isEyeInShadow && !isUnevenLighting;
+      const isReq3Ok = isPersonPresent && isFaceProperlyCentered && clarityScore >= 5.5 && faceStdDev >= 11 && (skinRatio >= 0.18 || hasNativeFace) && effectiveFaceLum >= 55 && !isEyeInShadow && !isUnevenLighting;
       const dots3 = isReq3Ok ? 12 : 0;
 
       // ────────────────────────────────────────────────────────
@@ -507,17 +640,17 @@ export default function LiveKycCaptureModal({
       }
       lastFrameData.current = frame;
 
-      const steady = motionScore < 14;
+      const steady = isPersonPresent && isFaceProperlyCentered && motionScore < 14;
       if (steady) {
         stableFramesCount.current = Math.min(4, stableFramesCount.current + 1);
       } else {
         stableFramesCount.current = Math.max(0, stableFramesCount.current - 1);
       }
-      const dots4 = Math.round((stableFramesCount.current / 4) * 12);
-      const isReq4Ok = dots4 >= 10;
+      const dots4 = (isPersonPresent && isFaceProperlyCentered) ? Math.round((stableFramesCount.current / 4) * 12) : 0;
+      const isReq4Ok = isPersonPresent && isFaceProperlyCentered && dots4 >= 10;
 
-      const totalDots = dots1 + dots2 + dots3 + dots4; // 0 to 48 green dots
-      const isAll4Ok = isReq1Ok && isReq2Ok && isReq3Ok && isReq4Ok;
+      const totalDots = (isPersonPresent && isFaceProperlyCentered) ? (dots1 + dots2 + dots3 + dots4) : 0; // 0 to 48 green dots
+      const isAll4Ok = isPersonPresent && isFaceProperlyCentered && isReq1Ok && isReq2Ok && isReq3Ok && isReq4Ok;
 
       // Synchronize state and live refs
       setDotsCount(totalDots);
@@ -542,8 +675,24 @@ export default function LiveKycCaptureModal({
         }
       } else {
         cancelCountdown();
-        if (!isReq1Ok) {
-          setDetectionTip("Center your face directly in the circle");
+        if (!isPersonPresent) {
+          setDetectionTip("Position & center your face inside the circle");
+        } else if (!isFaceProperlyCentered) {
+          if (centroidY > 86 || upperHalfSkin < 180) {
+            setDetectionTip("Face is too low. Move up to center inside circle");
+          } else if (centroidY < 71 || lowerHalfSkin < 180) {
+            setDetectionTip("Face is too high. Move down to center inside circle");
+          } else if (centroidX < 72 || rightHalfSkin < 160) {
+            setDetectionTip("Move right to center your face inside circle");
+          } else if (centroidX > 88 || leftHalfSkin < 160) {
+            setDetectionTip("Move left to center your face inside circle");
+          } else if (skinLikePixels < 1600) {
+            setDetectionTip("Move closer to fill the dotted circular frame");
+          } else if (skinLikePixels > 5200) {
+            setDetectionTip("Move back slightly to fit within the circle");
+          } else {
+            setDetectionTip("Center your face directly in the circle");
+          }
         } else if (isRoomDark) {
           setDetectionTip("Room is too dark. Turn on ceiling/room lights");
         } else if (isEyeInShadow) {
@@ -558,10 +707,12 @@ export default function LiveKycCaptureModal({
       }
     }
 
+
     if (!isCountingDown.current || countdown !== null) {
       animFrameRef.current = requestAnimationFrame(runDetectionLoop);
     }
   }, [cancelCountdown, countdown, startCountdown]);
+
 
   // Starts the camera stream directly
   const startCameraStream = useCallback(async () => {
@@ -981,28 +1132,28 @@ export default function LiveKycCaptureModal({
                   const containerBorderClass = !isStreaming
                     ? "border-slate-700/60"
                     : isGreenSolid
-                    ? "border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.55)] ring-4 ring-emerald-500/20"
-                    : isAnyProgress
-                    ? "border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
-                    : "border-red-500/70 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
+                      ? "border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.55)] ring-4 ring-emerald-500/20"
+                      : isAnyProgress
+                        ? "border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
+                        : "border-red-500/70 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
 
                   const ovalClass = isGreenSolid
                     ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.5)]"
                     : isAnyProgress
-                    ? "border-amber-400/80 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.25)]"
-                    : "border-red-500/80 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.3)]";
+                      ? "border-amber-400/80 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.25)]"
+                      : "border-red-500/80 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.3)]";
 
                   const badgeClass = isGreenSolid
                     ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                     : isAnyProgress
-                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                    : "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30";
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                      : "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30";
 
                   const dotClass = isGreenSolid
                     ? "bg-emerald-500 animate-ping"
                     : isAnyProgress
-                    ? "bg-amber-500 animate-pulse"
-                    : "bg-red-500";
+                      ? "bg-amber-500 animate-pulse"
+                      : "bg-red-500";
 
                   return (
                     <>
@@ -1142,18 +1293,16 @@ export default function LiveKycCaptureModal({
                 <div className="grid grid-cols-2 gap-2 w-full max-w-xs mt-2 mb-3 shrink-0">
                   {/* Card 1: Face Centered */}
                   <div
-                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
-                      reqCentered
+                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${reqCentered
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        reqCentered
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${reqCentered
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
-                      }`}
+                        }`}
                     >
                       {reqCentered ? (
                         <Check className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -1166,18 +1315,16 @@ export default function LiveKycCaptureModal({
 
                   {/* Card 2: Good Lighting */}
                   <div
-                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
-                      reqLighting
+                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${reqLighting
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        reqLighting
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${reqLighting
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
-                      }`}
+                        }`}
                     >
                       {reqLighting ? (
                         <Check className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -1190,18 +1337,16 @@ export default function LiveKycCaptureModal({
 
                   {/* Card 3: Face Clearly Visible */}
                   <div
-                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
-                      reqClarity
+                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${reqClarity
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        reqClarity
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${reqClarity
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
-                      }`}
+                        }`}
                     >
                       {reqClarity ? (
                         <Check className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -1214,18 +1359,16 @@ export default function LiveKycCaptureModal({
 
                   {/* Card 4: Hold Still */}
                   <div
-                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
-                      reqSteady
+                    className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${reqSteady
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        reqSteady
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${reqSteady
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
-                      }`}
+                        }`}
                     >
                       {reqSteady ? (
                         <Check className="h-3.5 w-3.5 stroke-[2.5]" />
