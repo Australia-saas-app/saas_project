@@ -53,9 +53,27 @@ export default function KycApplicationModal({
       const hasBackDoc = Boolean(user.documentBackUrl);
       const isDualDoc =
         user.documentUrl?.startsWith("[") ||
-        Boolean(user.documentFrontUrl && user.documentBackUrl);
+        Boolean(user.documentFrontUrl && user.documentBackUrl) ||
+        (user.governmentIdType || user.idType) !== "Passport";
 
       if (!hasPhoto) missing.push("Live Face Capture");
+      if (!user.fullName?.trim()) missing.push("Full Name");
+      if (!user.phone?.trim() && !user.email?.trim()) missing.push("Phone or Email");
+      if (!user.dateOfBirth) missing.push("Date of Birth");
+      if (!user.nationality?.trim()) missing.push("Nationality");
+      if (!user.governmentId?.trim() && !user.nationalIdentity?.trim()) missing.push("ID Number");
+
+      // Mandatory Address validation
+      const uid = user.rawUserId || user.userId || user.id;
+      const addr = user.permanentAddress || (getProfileOverrides(uid) as any)?.permanentAddress;
+      const hasCountry = Boolean(addr?.country?.trim());
+      const hasState = Boolean(addr?.state?.trim());
+      const hasCity = Boolean(addr?.city?.trim());
+      const hasStreet = Boolean(addr?.address?.trim());
+      if (!hasCountry || !hasState || !hasCity || !hasStreet) {
+        missing.push("Permanent Address (Country, State, City, Street Address)");
+      }
+
       if (!hasFrontDoc) missing.push("Front ID Document");
       if (isDualDoc && !hasBackDoc) missing.push("Back ID Document");
 

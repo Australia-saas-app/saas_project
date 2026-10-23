@@ -58,14 +58,26 @@ export default function RoleProfileCard({
 
     // Validate if profile and ID documents are complete (Profile Photo is captured live via biometric camera)
     const missingFields: string[] = [];
-    if (!fullName) missingFields.push("Full Name");
-    if (!phone && !email) missingFields.push("Phone or Email");
+    if (!fullName?.trim()) missingFields.push("Full Name");
+    if (!phone?.trim() && !email?.trim()) missingFields.push("Phone or Email");
     if (!gender || gender === "Select") missingFields.push("Gender");
     if (!dateOfBirth) missingFields.push("Date of Birth");
-    if (!nationality) missingFields.push("Nationality");
-    if (!nationalIdentity) missingFields.push("National Identity");
-    if (!documentFrontUrl) missingFields.push("ID Document Front");
-    if (!documentBackUrl) missingFields.push("ID Document Back");
+    if (!nationality?.trim()) missingFields.push("Nationality");
+    if (!nationalIdentity?.trim()) missingFields.push("National Identity / ID Number");
+
+    // Mandatory Address validation
+    const addr = permanentAddress || (getProfileOverrides(rawUserId) as any)?.permanentAddress;
+    const hasCountry = Boolean(addr?.country?.trim());
+    const hasState = Boolean(addr?.state?.trim());
+    const hasCity = Boolean(addr?.city?.trim());
+    const hasStreet = Boolean(addr?.address?.trim());
+    if (!hasCountry || !hasState || !hasCity || !hasStreet) {
+      missingFields.push("Permanent Address (Country, State, City, Street Address)");
+    }
+
+    const govIdType = (getProfileOverrides(rawUserId) as any)?.governmentIdType || "NID";
+    if (!documentFrontUrl && !documentUrl) missingFields.push("Front ID Document");
+    if (govIdType !== "Passport" && !documentBackUrl) missingFields.push("Back ID Document");
 
     const isBusiness = String((user as any)?.accountType || (user as any)?.role || "").toLowerCase().includes("business");
     if (isBusiness) {

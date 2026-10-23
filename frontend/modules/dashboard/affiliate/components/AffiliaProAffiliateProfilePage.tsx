@@ -406,11 +406,21 @@ export default function AffiliaProAffiliateProfilePage() {
     }
 
     const missingFields: string[] = [];
-    if (!fullName) missingFields.push("Full Name");
-    if (!profilePhone && !profileEmail) missingFields.push("Phone or Email");
+    if (!fullName?.trim()) missingFields.push("Full Name");
+    if (!profilePhone?.trim() && !profileEmail?.trim()) missingFields.push("Phone or Email");
     if (!dob) missingFields.push("Date of Birth");
-    if (!nationality) missingFields.push("Nationality");
-    if (!nationalIdentity) missingFields.push("ID Number");
+    if (!nationality?.trim()) missingFields.push("Nationality");
+    if (!nationalIdentity?.trim()) missingFields.push("ID Number");
+
+    // Mandatory Address validation
+    const hasCountry = Boolean(country?.trim() || permanentAddress?.country?.trim());
+    const hasState = Boolean(state?.trim() || permanentAddress?.state?.trim());
+    const hasCity = Boolean(city?.trim() || permanentAddress?.city?.trim());
+    const hasAddress = Boolean(address?.trim() || permanentAddress?.address?.trim());
+    if (!hasCountry || !hasState || !hasCity || !hasAddress) {
+      missingFields.push("Address (Country, State, City, Street Address)");
+    }
+
     if (!documentFrontUrl) missingFields.push("Front ID Document");
     if (idType !== "Passport" && !documentBackUrl) missingFields.push("Back ID Document");
 
