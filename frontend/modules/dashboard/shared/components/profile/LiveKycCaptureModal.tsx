@@ -178,13 +178,14 @@ export default function LiveKycCaptureModal({
       const finalGrad = count > 0 ? sampleGrad / count : 0;
 
       // Strict Bank KYC Post-Capture Validation:
-      // Murky/dark room silhouette (finalLum < 40) or blurry out-of-focus capture (finalGrad < 4.0) is rejected!
-      if (finalLum < 40) {
-        setDetectionTip("Photo too dark. Please turn on room lights.");
+      // Minimum brightness must be at least 56 (eliminates dim rooms with only monitor glare)
+      if (finalLum < 56) {
+        setDetectionTip("Lighting is too dim. Please turn on room lights to capture.");
         return;
       }
-      if (finalGrad < 4.0) {
-        setDetectionTip("Photo is blurry or unclear. Please retake in good light.");
+      // Must have sharp facial contours and features
+      if (finalGrad < 5.2) {
+        setDetectionTip("Photo lacks sharpness or contrast. Please face a light source.");
         return;
       }
 
@@ -259,6 +260,8 @@ export default function LiveKycCaptureModal({
       let centerCount = 0;
       let upperFaceLuminance = 0;
       let upperFaceCount = 0;
+      let eyeLuminance = 0;
+      let eyeCount = 0;
       let leftCenterLum = 0;
       let leftCenterCount = 0;
       let rightCenterLum = 0;
@@ -305,6 +308,12 @@ export default function LiveKycCaptureModal({
               upperFaceCount++;
             }
 
+            // Eye socket zone (detects dark shadows under brow/eyes)
+            if (dy >= -22 && dy <= -2 && Math.abs(dx) <= 26) {
+              eyeLuminance += lum;
+              eyeCount++;
+            }
+
             if (dx < -6) {
               leftCenterLum += lum;
               leftCenterCount++;
@@ -337,6 +346,7 @@ export default function LiveKycCaptureModal({
       const centerAvgLum = centerCount > 0 ? centerLuminance / centerCount : 0;
       const bgAvgLum = bgCount > 0 ? bgLuminance / bgCount : 0;
       const upperFaceAvgLum = upperFaceCount > 0 ? upperFaceLuminance / upperFaceCount : centerAvgLum;
+      const eyeAvgLum = eyeCount > 0 ? eyeLuminance / eyeCount : upperFaceAvgLum;
       const skinAvgLum = skinLikePixels > 0 ? skinLuminance / skinLikePixels : upperFaceAvgLum;
       // Effective face illumination: uses skin or upper-face reading to prevent false rejects from dark beards or hair
       const effectiveFaceLum = Math.max(skinAvgLum, upperFaceAvgLum);
@@ -363,8 +373,8 @@ export default function LiveKycCaptureModal({
       // If user shifts to the side, dots reduce
       // ────────────────────────────────────────────────────────
       const facePresent =
-        (skinRatio > 0.05 || upperFaceAvgLum > 32 || centerAvgLum > 28) &&
-        effectiveFaceLum > 28 &&
+        (skinRatio > 0.05 || upperFaceAvgLum > 34 || centerAvgLum > 30) &&
+        effectiveFaceLum > 30 &&
         effectiveFaceLum < 240;
 
       let dots1 = 0;
@@ -378,22 +388,24 @@ export default function LiveKycCaptureModal({
 
       // ────────────────────────────────────────────────────────
       // REQUIREMENT 2 (25 - 50% = 12 dots): Good Lighting
-      // Strict Bank KYC: Face >= 46 lum, room avg >= 26 lum.
-      // Low light / dark room silhouette (like user's photo) is REJECTED!
-      // Evaluated independently so user immediately knows if lighting is OK!
+      // Strict Bank KYC: Face >= 58 lum, room avg >= 35 lum, eye sockets >= 38 lum.
+      // Low light / dark room silhouette / screen glare is strictly REJECTED!
       // ────────────────────────────────────────────────────────
-      const isTooDark = (facePresent && effectiveFaceLum < 46) || avgLum < 26;
+      const isRoomDark = avgLum < 35;
+      const isFaceDark = effectiveFaceLum < 58;
+      const isEyeInShadow = eyeAvgLum < 38 || (effectiveFaceLum > 45 && eyeAvgLum < effectiveFaceLum * 0.58);
       const isTooBright = effectiveFaceLum > 235 || avgLum > 240;
-      const isHarshGlare = bgAvgLum < 20 && sideDiffRatio > 0.60 && minSide < 25;
-      const isReq2Ok = !isTooDark && !isTooBright && !isHarshGlare && avgLum >= 26;
-      const dots2 = isReq2Ok ? 12 : (effectiveFaceLum >= 38 && !isHarshGlare ? 6 : 0);
+      const isHarshGlareOrShadow = sideDiffRatio > 0.42 && minSide < 30;
+
+      const isReq2Ok = facePresent && !isRoomDark && !isFaceDark && !isEyeInShadow && !isTooBright && !isHarshGlareOrShadow;
+      const dots2 = isReq2Ok ? 12 : (effectiveFaceLum >= 48 && !isHarshGlareOrShadow && !isEyeInShadow ? 6 : 0);
 
       // ────────────────────────────────────────────────────────
       // REQUIREMENT 3 (50 - 75% = 12 dots): Face Clearly Visible & Sharp
-      // Features (eyes/nose/mouth) must be sharp and distinct, not blur/silhouette
+      // Features (eyes/nose/mouth) must be sharp and distinct, not blur/silhouette/dark eye sockets
       // ────────────────────────────────────────────────────────
-      const isReq3Ok = facePresent && clarityScore >= 5.0 && faceStdDev >= 10 && skinRatio >= 0.05 && effectiveFaceLum >= 42;
-      const dots3 = isReq3Ok ? 12 : (facePresent && clarityScore >= 3.8 ? 6 : 0);
+      const isReq3Ok = facePresent && clarityScore >= 5.5 && faceStdDev >= 11 && skinRatio >= 0.06 && effectiveFaceLum >= 52 && !isEyeInShadow;
+      const dots3 = isReq3Ok ? 12 : (facePresent && clarityScore >= 4.0 && !isEyeInShadow ? 6 : 0);
 
       // ────────────────────────────────────────────────────────
       // REQUIREMENT 4 (75 - 100% = 12 dots): Hold Still (Steady)
@@ -446,12 +458,16 @@ export default function LiveKycCaptureModal({
         cancelCountdown();
         if (!isReq1Ok) {
           setDetectionTip("Center your face inside the circle (25%)");
-        } else if (!isReq2Ok) {
+        } else if (isEyeInShadow) {
+          setDetectionTip("Dark shadows over eyes. Raise light to eye level (25%)");
+        } else if (isRoomDark || isFaceDark) {
           setDetectionTip("Room is too dark. Turn on room lights (25%)");
+        } else if (isHarshGlareOrShadow) {
+          setDetectionTip("Lighting is uneven. Face the light directly (25%)");
         } else if (!isReq3Ok) {
-          setDetectionTip("Face is blurry or indistinct. Hold steady in good light (25%)");
+          setDetectionTip("Face is blurry. Hold steady in bright light (50%)");
         } else {
-          setDetectionTip("Hold still... stabilizing (25%)");
+          setDetectionTip("Hold still... stabilizing (75%)");
         }
       }
     }
@@ -626,9 +642,10 @@ export default function LiveKycCaptureModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div
-        className="relative bg-background border border-border shadow-2xl overflow-hidden rounded-2xl w-full max-w-[560px] max-h-[92vh] sm:max-h-[90vh] flex flex-col my-auto text-foreground transition-colors"
+        style={{ maxWidth: "480px", width: "100%", maxHeight: "90vh" }}
+        className="relative bg-background border border-border shadow-2xl overflow-hidden rounded-2xl flex flex-col my-auto text-foreground transition-colors"
       >
         {/* Top Header - sticky shrink-0 so close button is always accessible */}
         <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-border bg-muted/40 z-20">
@@ -653,7 +670,7 @@ export default function LiveKycCaptureModal({
                 )}
                 {capturedImage && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-sm">
-                    Verified
+                    Photo Captured
                   </span>
                 )}
               </div>
@@ -799,10 +816,7 @@ export default function LiveKycCaptureModal({
                   </div>
                 </div>
 
-                <div className="text-center max-w-sm mb-6">
-                  <h4 className="text-base font-bold text-foreground mb-1">
-                    Biometric Face Match Verified
-                  </h4>
+                <div className="text-center max-w-sm mb-5">
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Your live portrait has been securely stamped. Click Continue to attach this photo to your formal KYC application.
                   </p>
@@ -1042,110 +1056,98 @@ export default function LiveKycCaptureModal({
                 <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm mt-3 mb-5">
                   {/* Card 1: Face Centered */}
                   <div
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
                       reqCentered
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
                     }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                         reqCentered
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {reqCentered ? (
-                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                        <Check className="h-4 w-4 stroke-[2.5]" />
                       ) : (
-                        <Smile className="h-3.5 w-3.5" />
+                        <Smile className="h-4 w-4" />
                       )}
                     </div>
-                    <div className="leading-tight">
-                      <div className="text-xs font-bold">1. Face Centered</div>
-                      <div className="text-[10px] opacity-80">25% dots</div>
-                    </div>
+                    <span className="text-xs font-bold leading-tight">Face Centered</span>
                   </div>
 
                   {/* Card 2: Good Lighting */}
                   <div
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
                       reqLighting
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
                     }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                         reqLighting
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {reqLighting ? (
-                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                        <Check className="h-4 w-4 stroke-[2.5]" />
                       ) : (
-                        <Sun className="h-3.5 w-3.5" />
+                        <Sun className="h-4 w-4" />
                       )}
                     </div>
-                    <div className="leading-tight">
-                      <div className="text-xs font-bold">2. Good Lighting</div>
-                      <div className="text-[10px] opacity-80">25% dots</div>
-                    </div>
+                    <span className="text-xs font-bold leading-tight">Good Lighting</span>
                   </div>
 
                   {/* Card 3: Face Clearly Visible */}
                   <div
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
                       reqClarity
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
                     }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                         reqClarity
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {reqClarity ? (
-                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                        <Check className="h-4 w-4 stroke-[2.5]" />
                       ) : (
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-4 w-4" />
                       )}
                     </div>
-                    <div className="leading-tight">
-                      <div className="text-xs font-bold">3. Clearly Visible</div>
-                      <div className="text-[10px] opacity-80">25% dots</div>
-                    </div>
+                    <span className="text-xs font-bold leading-tight">Clearly Visible</span>
                   </div>
 
                   {/* Card 4: Hold Still */}
                   <div
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
                       reqSteady
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
                         : "bg-card/70 border-border/70 text-muted-foreground"
                     }`}
                   >
                     <div
-                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                         reqSteady
                           ? "bg-emerald-500 text-white"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {reqSteady ? (
-                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                        <Check className="h-4 w-4 stroke-[2.5]" />
                       ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <Sparkles className="h-4 w-4" />
                       )}
                     </div>
-                    <div className="leading-tight">
-                      <div className="text-xs font-bold">4. Hold Still</div>
-                      <div className="text-[10px] opacity-80">25% dots</div>
-                    </div>
+                    <span className="text-xs font-bold leading-tight">Hold Still</span>
                   </div>
                 </div>
 
