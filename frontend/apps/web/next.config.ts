@@ -103,7 +103,7 @@ const nextConfig: NextConfig = {
           // Permissions policy – allow camera and microphone on self origin for live biometric KYC
           {
             key: "Permissions-Policy",
-            value: "camera=(self), microphone=(self), geolocation=()",
+            value: "camera=*, microphone=*, geolocation=()",
           },
           // Strict-Transport-Security (HTTPS only)
           {

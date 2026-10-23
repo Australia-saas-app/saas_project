@@ -28,6 +28,17 @@ interface LiveKycCaptureModalProps {
   userName?: string;
 }
 
+// 48 Biometric Requirement Dots (12 dots per 25% requirement)
+const TOTAL_DOTS = 48;
+const BIOMETRIC_DOTS = Array.from({ length: TOTAL_DOTS }, (_, i) => {
+  const angle = (i / TOTAL_DOTS) * 2 * Math.PI - Math.PI / 2; // -90 deg (top center)
+  return {
+    id: i,
+    cx: Math.round((160 + 144 * Math.cos(angle)) * 100) / 100,
+    cy: Math.round((160 + 144 * Math.sin(angle)) * 100) / 100,
+  };
+});
+
 export default function LiveKycCaptureModal({
   isOpen,
   onClose,
@@ -49,14 +60,16 @@ export default function LiveKycCaptureModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
-  // Live detection & alignment states
-  const [isFaceCentered, setIsFaceCentered] = useState(false);
-  const [isGoodLighting, setIsGoodLighting] = useState(false);
-  const [isHoldingStill, setIsHoldingStill] = useState(false);
-  const [alignmentProgress, setAlignmentProgress] = useState(0); // 0 to 100
+  // 4 Core Biometric Requirements (25% each = 12 dots each, total 48 dots)
+  const [dotsCount, setDotsCount] = useState(0); // 0 to 48 green dots
+  const [reqCentered, setReqCentered] = useState(false); // Req 1 (0-25%)
+  const [reqLighting, setReqLighting] = useState(false); // Req 2 (25-50%)
+  const [reqClarity, setReqClarity] = useState(false);   // Req 3 (50-75%)
+  const [reqSteady, setReqSteady] = useState(false);     // Req 4 (75-100%)
+
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
-  const [detectionTip, setDetectionTip] = useState("Position your face inside the circle");
+  const [detectionTip, setDetectionTip] = useState("Position & center your face inside the circle (25%)");
 
   // Keep track of consecutive stable frames & live status refs for synchronous capture verification
   const stableFramesCount = useRef(0);
@@ -64,6 +77,9 @@ export default function LiveKycCaptureModal({
   const isCountingDown = useRef(false);
   const isGoodLightingRef = useRef(false);
   const isFaceCenteredRef = useRef(false);
+  const isFaceClearRef = useRef(false);
+  const isSteadyRef = useRef(false);
+  const activeDotsRef = useRef(0);
 
   // Pleasant shutter beep with Web Audio API
   const playShutterSound = useCallback(() => {
@@ -110,18 +126,22 @@ export default function LiveKycCaptureModal({
     isCountingDown.current = false;
   }, []);
 
-  // Snaps the current video frame as high quality square base64 image (strict lighting guard)
+  // Snaps the current video frame as high quality square base64 image (strict bank KYC lighting & clarity guard)
   const captureFrame = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) return;
 
-    // Strict Bank KYC Lighting & Face Alignment Check: Low light cannot capture
+    // Strict Bank KYC Pre-Capture Checks:
     if (!isGoodLightingRef.current) {
       setDetectionTip("Room is too dark. Please turn on room lights.");
       return;
     }
     if (!isFaceCenteredRef.current) {
-      setDetectionTip("Position your face inside the circle");
+      setDetectionTip("Position & center your face inside the circle (25%)");
+      return;
+    }
+    if (!isFaceClearRef.current) {
+      setDetectionTip("Face is blurry or indistinct. Hold steady in good light (75%)");
       return;
     }
 
@@ -143,14 +163,28 @@ export default function LiveKycCaptureModal({
       // Verify the snapped image pixels directly before accepting
       const imgData = ctx.getImageData(0, 0, size, size).data;
       let sampleLum = 0;
+      let sampleGrad = 0;
       let count = 0;
       for (let i = 0; i < imgData.length; i += 4 * 16) {
-        sampleLum += 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+        const lum = 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+        sampleLum += lum;
+        if (i + 4 * 16 < imgData.length) {
+          const nextLum = 0.299 * imgData[i + 4 * 16] + 0.587 * imgData[i + 4 * 16 + 1] + 0.114 * imgData[i + 4 * 16 + 2];
+          sampleGrad += Math.abs(lum - nextLum);
+        }
         count++;
       }
       const finalLum = count > 0 ? sampleLum / count : 0;
-      if (finalLum < 22) {
-        setDetectionTip("Room is too dark. Please turn on room lights.");
+      const finalGrad = count > 0 ? sampleGrad / count : 0;
+
+      // Strict Bank KYC Post-Capture Validation:
+      // Murky/dark room silhouette (finalLum < 40) or blurry out-of-focus capture (finalGrad < 4.0) is rejected!
+      if (finalLum < 40) {
+        setDetectionTip("Photo too dark. Please turn on room lights.");
+        return;
+      }
+      if (finalGrad < 4.0) {
+        setDetectionTip("Photo is blurry or unclear. Please retake in good light.");
         return;
       }
 
@@ -197,7 +231,7 @@ export default function LiveKycCaptureModal({
     }, 1000);
   }, [captureFrame]);
 
-  // Frame-by-frame biometric & stability analyzer
+  // Frame-by-frame biometric & stability analyzer (4-requirement KYC verification)
   const runDetectionLoop = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.paused || video.ended || !video.videoWidth) {
@@ -233,6 +267,9 @@ export default function LiveKycCaptureModal({
       let bgCount = 0;
       let skinLikePixels = 0;
       let skinLuminance = 0;
+      let clarityGradSum = 0;
+      let clarityGradCount = 0;
+      let faceLumSqSum = 0;
 
       for (let y = 0; y < 160; y++) {
         for (let x = 0; x < 160; x++) {
@@ -250,6 +287,17 @@ export default function LiveKycCaptureModal({
           if (distSq < 52 * 52) {
             centerLuminance += lum;
             centerCount++;
+            faceLumSqSum += lum * lum;
+
+            // Gradient / Feature contrast calculation inside face region (measures eye/nose/mouth sharpness)
+            if (x < 158 && y < 158 && x % 2 === 0 && y % 2 === 0) {
+              const nextXIdx = (y * 160 + (x + 2)) * 4;
+              const nextYIdx = ((y + 2) * 160 + x) * 4;
+              const nextXLum = 0.299 * data[nextXIdx] + 0.587 * data[nextXIdx + 1] + 0.114 * data[nextXIdx + 2];
+              const nextYLum = 0.299 * data[nextYIdx] + 0.587 * data[nextYIdx + 1] + 0.114 * data[nextYIdx + 2];
+              clarityGradSum += Math.abs(lum - nextXLum) + Math.abs(lum - nextYLum);
+              clarityGradCount++;
+            }
 
             // Upper face region (forehead, eyes, upper cheeks) - independent of beards/hair
             if (dy >= -32 && dy <= 8 && Math.abs(dx) <= 36) {
@@ -265,14 +313,14 @@ export default function LiveKycCaptureModal({
               rightCenterCount++;
             }
 
-            // Universal skin tone detection accommodating webcam color temperature & diverse skin tones
+            // Universal skin tone detection accommodating diverse skin tones & lighting
             const isSkin =
-              r > 30 &&
-              g > 20 &&
+              r > 32 &&
+              g > 22 &&
               b > 15 &&
               r >= b - 15 &&
-              (r + g + b) > 80 &&
-              (r + g + b) < 700;
+              r + g + b > 85 &&
+              r + g + b < 690;
 
             if (isSkin) {
               skinLikePixels++;
@@ -293,27 +341,63 @@ export default function LiveKycCaptureModal({
       // Effective face illumination: uses skin or upper-face reading to prevent false rejects from dark beards or hair
       const effectiveFaceLum = Math.max(skinAvgLum, upperFaceAvgLum);
 
+      // Contrast & Feature Sharpness:
+      const clarityScore = clarityGradCount > 0 ? clarityGradSum / clarityGradCount : 0;
+      const variance = centerCount > 0 ? Math.max(0, faceLumSqSum / centerCount - centerAvgLum * centerAvgLum) : 0;
+      const faceStdDev = Math.sqrt(variance);
+
+      // Centering balance between left and right side of face
       const leftAvg = leftCenterCount > 0 ? leftCenterLum / leftCenterCount : 0;
       const rightAvg = rightCenterCount > 0 ? rightCenterLum / rightCenterCount : 0;
       const skinRatio = centerCount > 0 ? skinLikePixels / centerCount : 0;
-
       const maxSide = Math.max(leftAvg, rightAvg);
       const minSide = Math.min(leftAvg, rightAvg);
       const sideDiffRatio = maxSide > 15 ? (maxSide - minSide) / maxSide : 0;
+      const balanceRatio =
+        leftCenterCount > 0 && rightCenterCount > 0
+          ? Math.min(leftCenterCount, rightCenterCount) / Math.max(leftCenterCount, rightCenterCount)
+          : 0;
 
-      // Realistic Bank-Grade Lighting Rules:
-      // 1. Truly pitch-black room (all room lights off, black background and black face)
-      const isPitchDarkRoom = (bgAvgLum < 12 && avgLum < 20 && effectiveFaceLum < 24) || (avgLum < 16 && effectiveFaceLum < 22);
-      // 2. Face skin must have sufficient illumination
-      const isFaceTooDim = effectiveFaceLum < 25;
-      // 3. Face must not be over-exposed (> 235)
-      const isFaceTooBright = effectiveFaceLum > 235 || avgLum > 240;
-      // 4. Uneven lighting: screen-only glare in a dark room (dark background + extreme shadow disparity)
-      const isUnevenLighting = bgAvgLum < 16 && sideDiffRatio > 0.65 && minSide < 18;
+      // ────────────────────────────────────────────────────────
+      // REQUIREMENT 1 (0 - 25% = 12 dots): Face Centered
+      // If user shifts to the side, dots reduce
+      // ────────────────────────────────────────────────────────
+      const facePresent =
+        (skinRatio > 0.05 || upperFaceAvgLum > 32 || centerAvgLum > 28) &&
+        effectiveFaceLum > 28 &&
+        effectiveFaceLum < 240;
 
-      const goodLighting = !isPitchDarkRoom && !isFaceTooDim && !isFaceTooBright && !isUnevenLighting;
-      const facePresent = (skinRatio > 0.05 || upperFaceAvgLum > 22 || centerAvgLum > 22) && effectiveFaceLum > 22 && effectiveFaceLum < 240;
+      let dots1 = 0;
+      if (facePresent) {
+        if (balanceRatio >= 0.78) dots1 = 12;
+        else if (balanceRatio >= 0.65) dots1 = 8;
+        else if (balanceRatio >= 0.52) dots1 = 5;
+        else dots1 = 2;
+      }
+      const isReq1Ok = dots1 >= 10;
 
+      // ────────────────────────────────────────────────────────
+      // REQUIREMENT 2 (25 - 50% = 12 dots): Good Lighting
+      // Strict Bank KYC: Face >= 46 lum, room avg >= 26 lum.
+      // Low light / dark room silhouette (like user's photo) is REJECTED!
+      // Evaluated independently so user immediately knows if lighting is OK!
+      // ────────────────────────────────────────────────────────
+      const isTooDark = (facePresent && effectiveFaceLum < 46) || avgLum < 26;
+      const isTooBright = effectiveFaceLum > 235 || avgLum > 240;
+      const isHarshGlare = bgAvgLum < 20 && sideDiffRatio > 0.60 && minSide < 25;
+      const isReq2Ok = !isTooDark && !isTooBright && !isHarshGlare && avgLum >= 26;
+      const dots2 = isReq2Ok ? 12 : (effectiveFaceLum >= 38 && !isHarshGlare ? 6 : 0);
+
+      // ────────────────────────────────────────────────────────
+      // REQUIREMENT 3 (50 - 75% = 12 dots): Face Clearly Visible & Sharp
+      // Features (eyes/nose/mouth) must be sharp and distinct, not blur/silhouette
+      // ────────────────────────────────────────────────────────
+      const isReq3Ok = facePresent && clarityScore >= 5.0 && faceStdDev >= 10 && skinRatio >= 0.05 && effectiveFaceLum >= 42;
+      const dots3 = isReq3Ok ? 12 : (facePresent && clarityScore >= 3.8 ? 6 : 0);
+
+      // ────────────────────────────────────────────────────────
+      // REQUIREMENT 4 (75 - 100% = 12 dots): Hold Still (Steady)
+      // ────────────────────────────────────────────────────────
       let motionScore = 0;
       if (lastFrameData.current) {
         const lastData = lastFrameData.current.data;
@@ -325,53 +409,50 @@ export default function LiveKycCaptureModal({
       }
       lastFrameData.current = frame;
 
-      const steady = motionScore < 16;
-      isGoodLightingRef.current = goodLighting;
-      isFaceCenteredRef.current = facePresent;
-      setIsGoodLighting(goodLighting);
-      setIsFaceCentered(facePresent);
-      setIsHoldingStill(steady);
-
-      if (isPitchDarkRoom || isFaceTooDim) {
-        cancelCountdown();
-        setDetectionTip("Room is too dark. Please turn on room lights.");
-        stableFramesCount.current = 0;
-        setAlignmentProgress(0);
-      } else if (isUnevenLighting) {
-        cancelCountdown();
-        setDetectionTip("Uneven lighting / shadows. Face light source directly.");
-        stableFramesCount.current = 0;
-        setAlignmentProgress(0);
-      } else if (isFaceTooBright) {
-        cancelCountdown();
-        setDetectionTip("Too much glare. Move away from harsh light.");
-        stableFramesCount.current = 0;
-        setAlignmentProgress(0);
-      } else if (!facePresent) {
-        cancelCountdown();
-        setDetectionTip("Position your face inside the circle");
-        stableFramesCount.current = 0;
-        setAlignmentProgress(0);
-      } else if (!steady) {
-        cancelCountdown();
-        setDetectionTip("Hold still... detecting face");
-        stableFramesCount.current = Math.max(1, stableFramesCount.current - 1);
-        setAlignmentProgress((prev) => Math.max(20, prev - 8));
+      const steady = motionScore < 14;
+      if (steady) {
+        stableFramesCount.current = Math.min(4, stableFramesCount.current + 1);
       } else {
-        stableFramesCount.current += 1;
+        stableFramesCount.current = Math.max(0, stableFramesCount.current - 1);
+      }
+      const dots4 = Math.round((stableFramesCount.current / 4) * 12);
+      const isReq4Ok = dots4 >= 10;
 
-        setAlignmentProgress((prev) => {
-          const next = Math.min(100, prev + 20);
-          if (next >= 100) {
-            setDetectionTip(isCountingDown.current ? "Capturing photo in 3 seconds..." : "All requirements met! Hold still for capture");
-            if (!isCountingDown.current) {
-              startCountdown();
-            }
-          } else {
-            setDetectionTip("Face aligned! Hold still...");
-          }
-          return next;
-        });
+      const totalDots = dots1 + dots2 + dots3 + dots4; // 0 to 48 green dots
+      const isAll4Ok = isReq1Ok && isReq2Ok && isReq3Ok && isReq4Ok;
+
+      // Synchronize state and live refs
+      setDotsCount(totalDots);
+      setReqCentered(isReq1Ok);
+      setReqLighting(isReq2Ok);
+      setReqClarity(isReq3Ok);
+      setReqSteady(isReq4Ok);
+
+      isFaceCenteredRef.current = isReq1Ok;
+      isGoodLightingRef.current = isReq2Ok;
+      isFaceClearRef.current = isReq3Ok;
+      isSteadyRef.current = isReq4Ok;
+      activeDotsRef.current = totalDots;
+
+      // Auto Countdown Trigger: Only when ALL 4 requirements pass
+      if (isAll4Ok) {
+        if (isCountingDown.current) {
+          setDetectionTip("Capturing in 3 seconds... Hold still!");
+        } else {
+          setDetectionTip("All 4 requirements met! Capturing...");
+          startCountdown();
+        }
+      } else {
+        cancelCountdown();
+        if (!isReq1Ok) {
+          setDetectionTip("Center your face inside the circle (25%)");
+        } else if (!isReq2Ok) {
+          setDetectionTip("Room is too dark. Turn on room lights (25%)");
+        } else if (!isReq3Ok) {
+          setDetectionTip("Face is blurry or indistinct. Hold steady in good light (25%)");
+        } else {
+          setDetectionTip("Hold still... stabilizing (25%)");
+        }
       }
     }
 
@@ -386,7 +467,11 @@ export default function LiveKycCaptureModal({
     setCapturedImage(null);
     setIsInitializing(true);
     setCameraError(null);
-    setAlignmentProgress(0);
+    setDotsCount(0);
+    setReqCentered(false);
+    setReqLighting(false);
+    setReqClarity(false);
+    setReqSteady(false);
     setCountdown(null);
     stableFramesCount.current = 0;
     isCountingDown.current = false;
@@ -420,7 +505,11 @@ export default function LiveKycCaptureModal({
       try {
         stream = await getUserMedia(constraints);
       } catch {
-        stream = await getUserMedia({ video: true, audio: false });
+        try {
+          stream = await getUserMedia({ video: { facingMode: "user" }, audio: false });
+        } catch {
+          stream = await getUserMedia({ video: true, audio: false });
+        }
       }
 
       streamRef.current = stream;
@@ -471,9 +560,13 @@ export default function LiveKycCaptureModal({
   const handleRetakePhoto = useCallback(() => {
     cancelCountdown();
     setCapturedImage(null);
-    setAlignmentProgress(0);
+    setDotsCount(0);
+    setReqCentered(false);
+    setReqLighting(false);
+    setReqClarity(false);
+    setReqSteady(false);
     setCountdown(null);
-    setDetectionTip("Position your face inside the circle");
+    setDetectionTip("Position & center your face inside the circle (25%)");
     stableFramesCount.current = 0;
     startCameraStream();
   }, [cancelCountdown, startCameraStream]);
@@ -518,7 +611,11 @@ export default function LiveKycCaptureModal({
     setStep("guidelines");
     setCapturedImage(null);
     setCameraError(null);
-    setAlignmentProgress(0);
+    setDotsCount(0);
+    setReqCentered(false);
+    setReqLighting(false);
+    setReqClarity(false);
+    setReqSteady(false);
     setCountdown(null);
 
     return () => {
@@ -528,19 +625,13 @@ export default function LiveKycCaptureModal({
 
   if (!isOpen) return null;
 
-  // Circle outline stroke circumference (Radius 135)
-  const radius = 135;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (alignmentProgress / 100) * circumference;
-
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div
-        style={{ maxWidth: "560px", width: "100%" }}
-        className="relative bg-background border border-border shadow-2xl overflow-hidden rounded-2xl my-4 text-foreground transition-colors"
+        className="relative bg-background border border-border shadow-2xl overflow-hidden rounded-2xl w-full max-w-[560px] max-h-[92vh] sm:max-h-[90vh] flex flex-col my-auto text-foreground transition-colors"
       >
-        {/* Top Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
+        {/* Top Header - sticky shrink-0 so close button is always accessible */}
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-border bg-muted/40 z-20">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
               <ShieldCheck className="h-4 w-4" />
@@ -590,7 +681,7 @@ export default function LiveKycCaptureModal({
 
         {/* ─── STEP 1: POLICY & GUIDELINES ─── */}
         {step === "guidelines" ? (
-          <div className="p-6 flex flex-col gap-4 animate-in fade-in duration-200">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col gap-4 animate-in fade-in duration-200">
             {/* Policy Box: Why Liveness is Required */}
             <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-2">
               <div className="flex items-center gap-2 text-foreground font-bold text-sm">
@@ -689,13 +780,13 @@ export default function LiveKycCaptureModal({
           </div>
         ) : (
           /* ─── STEP 2: CAMERA CAPTURE & REVIEW ─── */
-          <div className="p-6 flex flex-col items-center">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center">
             {capturedImage ? (
               /* ─── Captured Review State ─── */
               <div className="w-full flex flex-col items-center py-2 animate-in fade-in zoom-in-95 duration-200">
                 {/* Photo Circular Frame */}
                 <div className="relative mb-5">
-                  <div className="h-64 w-64 rounded-full overflow-hidden border-4 border-emerald-500 shadow-xl bg-muted relative">
+                  <div className="h-52 w-52 sm:h-64 sm:w-64 rounded-full overflow-hidden border-4 border-emerald-500 shadow-xl bg-muted relative">
                     <img
                       src={capturedImage}
                       alt="Captured Live Selfie"
@@ -783,76 +874,80 @@ export default function LiveKycCaptureModal({
                 {/* Circular Camera Viewport */}
                 {(() => {
                   const isCounting = countdown !== null;
-                  const isFullyReady = isStreaming && isGoodLighting && isFaceCentered && isHoldingStill && alignmentProgress >= 100;
-                  const isGreen = isStreaming && (isFullyReady || isCounting);
-                  const isAmber = isStreaming && isGoodLighting && isFaceCentered && !isGreen;
-                  const isRed = isStreaming && !isGreen && !isAmber;
-
-                  const ringColor = !isStreaming
-                    ? "#3b82f6"
-                    : isGreen
-                    ? "#10b981"
-                    : isAmber
-                    ? "#f59e0b"
-                    : "#ef4444";
+                  const is100Percent = dotsCount >= TOTAL_DOTS;
+                  const isGreenSolid = is100Percent || isCounting;
+                  const isAnyProgress = dotsCount > 0;
 
                   const containerBorderClass = !isStreaming
                     ? "border-slate-700/60"
-                    : isGreen
-                    ? "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.5)]"
-                    : isAmber
-                    ? "border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
-                    : "border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.4)]";
+                    : isGreenSolid
+                    ? "border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.55)] ring-4 ring-emerald-500/20"
+                    : isAnyProgress
+                    ? "border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
+                    : "border-red-500/70 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
 
-                  const ovalClass = isGreen
+                  const ovalClass = isGreenSolid
                     ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.5)]"
-                    : isAmber
-                    ? "border-amber-400 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
-                    : "border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.35)]";
+                    : isAnyProgress
+                    ? "border-amber-400/80 bg-amber-400/5 shadow-[0_0_15px_rgba(251,191,36,0.25)]"
+                    : "border-red-500/80 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.3)]";
 
-                  const badgeClass = isGreen
+                  const badgeClass = isGreenSolid
                     ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                    : isAmber
+                    : isAnyProgress
                     ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
                     : "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30";
 
-                  const dotClass = isGreen
+                  const dotClass = isGreenSolid
                     ? "bg-emerald-500 animate-ping"
-                    : isAmber
+                    : isAnyProgress
                     ? "bg-amber-500 animate-pulse"
                     : "bg-red-500";
 
                   return (
                     <>
-                      <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center my-2">
-                        {/* Outer SVG Progress Ring */}
-                        <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-20">
-                          <circle
-                            cx="50%"
-                            cy="50%"
-                            r={radius}
-                            stroke={isRed ? "rgba(239, 68, 68, 0.25)" : "rgba(148, 163, 184, 0.2)"}
-                            fill="none"
-                            strokeWidth="6"
-                          />
-                          <circle
-                            cx="50%"
-                            cy="50%"
-                            r={radius}
-                            fill="none"
-                            className="transition-all duration-150"
-                            stroke={ringColor}
-                            strokeWidth="6"
-                            strokeDasharray={circumference}
-                            strokeDashoffset={isGreen ? 0 : strokeDashoffset}
-                            strokeLinecap="round"
-                          />
+                      <div className="relative w-64 h-64 sm:w-80 sm:h-80 flex items-center justify-center my-2 shrink-0">
+                        {/* Outer Dotted Biometric Ring (48 dots = 12 dots per 25% requirement) */}
+                        <svg className="absolute inset-0 w-full h-full pointer-events-none z-20" viewBox="0 0 320 320">
+                          {/* 48 Circular Biometric Requirement Dots */}
+                          {BIOMETRIC_DOTS.map((dot) => {
+                            const isFilled = dot.id < dotsCount;
+                            return (
+                              <circle
+                                key={dot.id}
+                                cx={dot.cx}
+                                cy={dot.cy}
+                                r={isFilled ? 3.8 : 2.4}
+                                fill={isFilled ? "#10b981" : "rgba(148, 163, 184, 0.28)"}
+                                className="transition-all duration-150"
+                                style={
+                                  isFilled
+                                    ? { filter: "drop-shadow(0 0 4px rgba(16, 185, 129, 0.9))" }
+                                    : undefined
+                                }
+                              />
+                            );
+                          })}
+
+                          {/* Full Solid Green Boundary (Appears ONLY when all 48 dots are filled or counting down) */}
+                          {isGreenSolid && (
+                            <circle
+                              cx="160"
+                              cy="160"
+                              r="144"
+                              fill="none"
+                              stroke="#10b981"
+                              strokeWidth="5"
+                              className="animate-in fade-in zoom-in-95 duration-200"
+                              style={{ filter: "drop-shadow(0 0 10px rgba(16, 185, 129, 0.85))" }}
+                            />
+                          )}
                         </svg>
 
                         {/* Video Stream Container Inside Circle (Dark sleek biometric frame) */}
                         <div
-                          style={{ width: "270px", height: "270px", backgroundColor: "#0b0f19" }}
-                          className={`rounded-full overflow-hidden relative flex items-center justify-center z-10 border-2 transition-all duration-200 ${containerBorderClass}`}
+                          style={{ backgroundColor: "#0b0f19" }}
+                          className={`w-[84%] h-[84%] rounded-full overflow-hidden relative flex items-center justify-center z-10 border-2 transition-all duration-200 ${containerBorderClass}`}
                         >
                           {/* Starting / Requesting Spinner */}
                           {isInitializing && (
@@ -921,8 +1016,7 @@ export default function LiveKycCaptureModal({
                           {isStreaming && (
                             <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
                               <div
-                                style={{ width: "170px", height: "215px" }}
-                                className={`rounded-[50%] border-2 border-dashed transition-all duration-200 ${ovalClass}`}
+                                className={`w-[62%] h-[78%] rounded-[50%] border-2 border-dashed transition-all duration-200 ${ovalClass}`}
                               />
                             </div>
                           )}
@@ -940,37 +1034,118 @@ export default function LiveKycCaptureModal({
                           )}
                         </div>
                       </div>
-
-                      {/* Status Hint Pill with Strict Red / Amber / Green Dynamic Color */}
-                      <div className="mt-3 mb-4">
-                        <span
-                          className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${badgeClass}`}
-                        >
-                          <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-                          {detectionTip}
-                        </span>
-                      </div>
                     </>
                   );
                 })()}
 
-                {/* 4 Core Bank KYC Guidance Requirements */}
-                <div className="grid grid-cols-2 gap-2 w-full max-w-sm mb-4 text-[11px] text-muted-foreground">
-                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                    <Smile className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Center face in frame</span>
+                {/* 4 Live Bank KYC Requirement Checklist Cards (2x2 Grid) */}
+                <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm mt-3 mb-5">
+                  {/* Card 1: Face Centered */}
+                  <div
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                      reqCentered
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
+                        : "bg-card/70 border-border/70 text-muted-foreground"
+                    }`}
+                  >
+                    <div
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        reqCentered
+                          ? "bg-emerald-500 text-white"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {reqCentered ? (
+                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                      ) : (
+                        <Smile className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                    <div className="leading-tight">
+                      <div className="text-xs font-bold">1. Face Centered</div>
+                      <div className="text-[10px] opacity-80">25% dots</div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                    <Sun className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Even, bright lighting</span>
+
+                  {/* Card 2: Good Lighting */}
+                  <div
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                      reqLighting
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
+                        : "bg-card/70 border-border/70 text-muted-foreground"
+                    }`}
+                  >
+                    <div
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        reqLighting
+                          ? "bg-emerald-500 text-white"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {reqLighting ? (
+                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                      ) : (
+                        <Sun className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                    <div className="leading-tight">
+                      <div className="text-xs font-bold">2. Good Lighting</div>
+                      <div className="text-[10px] opacity-80">25% dots</div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                    <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Remove hats / glasses</span>
+
+                  {/* Card 3: Face Clearly Visible */}
+                  <div
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                      reqClarity
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
+                        : "bg-card/70 border-border/70 text-muted-foreground"
+                    }`}
+                  >
+                    <div
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        reqClarity
+                          ? "bg-emerald-500 text-white"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {reqClarity ? (
+                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                      ) : (
+                        <Eye className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                    <div className="leading-tight">
+                      <div className="text-xs font-bold">3. Clearly Visible</div>
+                      <div className="text-[10px] opacity-80">25% dots</div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-muted/30 border border-border/50">
-                    <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Automatic auto-capture</span>
+
+                  {/* Card 4: Hold Still */}
+                  <div
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                      reqSteady
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
+                        : "bg-card/70 border-border/70 text-muted-foreground"
+                    }`}
+                  >
+                    <div
+                      className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        reqSteady
+                          ? "bg-emerald-500 text-white"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {reqSteady ? (
+                        <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                    </div>
+                    <div className="leading-tight">
+                      <div className="text-xs font-bold">4. Hold Still</div>
+                      <div className="text-[10px] opacity-80">25% dots</div>
+                    </div>
                   </div>
                 </div>
 
@@ -989,12 +1164,10 @@ export default function LiveKycCaptureModal({
                   <button
                     type="button"
                     onClick={captureFrame}
-                    disabled={!isStreaming || !isGoodLighting || !isFaceCentered}
+                    disabled={!isStreaming || dotsCount < 36}
                     title={
-                      !isGoodLighting
-                        ? "Turn on room lights to enable capture"
-                        : !isFaceCentered
-                        ? "Center face inside circle"
+                      dotsCount < 36
+                        ? "All requirements (centering, lighting, clarity) must pass"
                         : "Snap Photo Now"
                     }
                     className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"

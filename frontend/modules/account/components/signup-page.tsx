@@ -20,7 +20,6 @@ import { CheckCircle2, Copy, Check, XCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import Modal from "@/src/components/ui/modal";
 import { toast } from "sonner";
-import { SocialAuthButtons } from "./social-auth-buttons";
 
 const createSignupSchema = (accountType: "user" | "affiliate" | "business") => {
   const email = z.string()
@@ -354,8 +353,6 @@ export function SignupPage({ accountType, onNext, onAccountTypeChange }: SignupP
                   <Button type="button" onClick={handleContinueToOtp} disabled={isSendingOtp} className="w-full bg-primary hover:bg-primary/90 mt-6" size="lg">
                     {isSendingOtp ? "Sending OTP..." : "Continue"}
                   </Button>
-
-                  <SocialAuthButtons accountType={accountType} mode="signup" />
                 </div>
               )}
 

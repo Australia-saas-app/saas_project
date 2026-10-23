@@ -25,7 +25,6 @@ import { OtpInput } from "./OtpInput";
 import { getSecuritySettings, saveSecuritySettings } from "@/src/shared/lib/security-settings-store";
 import { verifyAccountPassword, sendRegistrationOtp, verifyRegistrationOtp } from "@/src/server/AuthService";
 import { SessionExpiredLandingModal } from "@/src/shared/components/SessionExpiredLandingModal";
-import { SocialAuthButtons } from "./social-auth-buttons";
 
 const loginSchema = z.object({
   email: z
@@ -300,22 +299,22 @@ export function LoginPage({
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                <h3 className="text-base sm:text-lg font-bold text-foreground">
                   {isNewDeviceStep ? "New Device Authentication" : "Two-Factor Authentication"}
                 </h3>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground break-words">
                   {isNewDeviceStep && capturedIp && (
-                    <span className="block mb-0.5 text-orange-500 font-medium truncate">
+                    <span className="block mb-0.5 text-orange-500 font-medium">
                       Unrecognized IP: {capturedIp}
                     </span>
                   )}
-                  Code sent to <span className="font-semibold text-foreground truncate">{pendingLoginData?.email}</span>
+                  Code sent to <span className="font-semibold text-foreground">{pendingLoginData?.email}</span>
                 </p>
               </div>
             </div>
 
             <form onSubmit={handleVerify2fa} className="space-y-5">
-              <div className="pt-1 w-full overflow-x-auto flex justify-center">
+              <div className="pt-1 w-full flex justify-center px-1">
                 <OtpInput
                   value={otpCode}
                   onChange={(val) => {
@@ -405,11 +404,6 @@ export function LoginPage({
                 isSubmitting={isSubmitting}
               />
 
-              <SocialAuthButtons
-                accountType={accountType}
-                redirectUrl={redirect}
-                mode="login"
-              />
 
               <p className="text-center text-sm text-muted-foreground pt-1">
                 Don&apos;t have an account?{" "}
