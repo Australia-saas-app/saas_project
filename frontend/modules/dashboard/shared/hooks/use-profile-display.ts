@@ -173,7 +173,7 @@ export function useProfileDisplay() {
       return false;
     };
 
-    const processKycChange = (targetUserId?: string, newKycStatus?: string) => {
+    const processKycChange = (targetUserId?: string, newKycStatus?: string, rejectionReasons?: any) => {
       if (!newKycStatus) return;
       if (!isTargetUser(targetUserId)) return;
 
@@ -181,7 +181,21 @@ export function useProfileDisplay() {
       if (lowerStatus === "none" || lowerStatus === "deleted") {
         clearAllUserStorage(targetUserId || rawUserId);
       } else {
-        saveProfileOverrides(rawUserId, { kycStatus: lowerStatus });
+        const patch: ProfileDataPatch = { kycStatus: lowerStatus };
+        if (rejectionReasons !== undefined) {
+          patch.kycRejectionReasons = rejectionReasons;
+          patch.rejectionReasons = rejectionReasons;
+          const currentOverrides = getProfileOverrides(rawUserId);
+          let currentSnap = currentOverrides.kycApplicationData || (user as any)?.kycApplicationData;
+          if (typeof currentSnap === "string") {
+            try { currentSnap = JSON.parse(currentSnap); } catch { currentSnap = {}; }
+          }
+          patch.kycApplicationData = {
+            ...(typeof currentSnap === "object" && currentSnap ? currentSnap : {}),
+            rejectionReasons,
+          };
+        }
+        saveProfileOverrides(rawUserId, patch);
       }
       setRevision(n => n + 1); // trigger re-read of overrides
       if (refreshUser) refreshUser().catch(() => {});
@@ -200,7 +214,7 @@ export function useProfileDisplay() {
     // 1. Local DOM CustomEvents
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      processKycChange(detail?.userId, detail?.kycStatus);
+      processKycChange(detail?.userId, detail?.kycStatus, detail?.rejectionReasons);
     };
     const handleStatusUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -216,7 +230,7 @@ export function useProfileDisplay() {
         bc = new BroadcastChannel("vero_channel");
         bc.onmessage = (event) => {
           if (event.data?.type === "vero:kyc_updated") {
-            processKycChange(event.data.userId, event.data.kycStatus);
+            processKycChange(event.data.userId, event.data.kycStatus, event.data.rejectionReasons);
           } else if (event.data?.type === "vero:user_status_updated") {
             processStatusChange(event.data.userId, event.data.status);
           } else if (event.data?.type === "vero:profile_updated") {
@@ -232,7 +246,7 @@ export function useProfileDisplay() {
       if (e.key === "vero_kyc_sync" && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          processKycChange(parsed.userId, parsed.kycStatus);
+          processKycChange(parsed.userId, parsed.kycStatus, parsed.rejectionReasons);
         } catch {}
       } else if (e.key === "vero_profile_sync" && e.newValue) {
         try {
@@ -607,7 +621,28 @@ export function useProfileDisplay() {
     nationalIdentity,
     governmentIdType,
     permanentAddress,
-    kycApplicationData: overrides.kycApplicationData || (user as any)?.kycApplicationData || null,
+    kycApplicationData: (() => {
+      const snap = overrides.kycApplicationData || (user as any)?.kycApplicationData || null;
+      let parsed = snap;
+      if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch { parsed = {}; }
+      }
+      const rejReasons = overrides.kycRejectionReasons || overrides.rejectionReasons || parsed?.rejectionReasons || (user as any)?.kycRejectionReasons || (user as any)?.rejectionReasons;
+      if (rejReasons) {
+        return {
+          ...(typeof parsed === "object" && parsed ? parsed : {}),
+          rejectionReasons: rejReasons,
+        };
+      }
+      return snap;
+    })(),
+    kycRejectionReasons: overrides.kycRejectionReasons || overrides.rejectionReasons || (user as any)?.kycRejectionReasons || (user as any)?.rejectionReasons || (() => {
+      const snap = overrides.kycApplicationData || (user as any)?.kycApplicationData;
+      if (typeof snap === "string") {
+        try { return JSON.parse(snap).rejectionReasons; } catch { return null; }
+      }
+      return snap?.rejectionReasons || null;
+    })(),
     currency,
     joiningDate,
     avatarUrl,

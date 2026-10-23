@@ -75,7 +75,7 @@ export default function AffiliaProAffiliateProfilePage() {
     fullName, email: profileEmail, phone: profilePhone, initials,
     username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
     permanentAddress, governmentIdType, joiningDate,
-    hasCustomAvatar
+    hasCustomAvatar, kycRejectionReasons
   } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
@@ -470,7 +470,7 @@ export default function AffiliaProAffiliateProfilePage() {
           {kycStatus === 'rejected' && (
             <div className="mb-5">
               <KycRejectionBanner
-                user={{ ...user, kycApplicationData, kycStatus, rawUserId, email: profileEmail, fullName }}
+                user={{ ...user, kycApplicationData, kycStatus, rawUserId, email: profileEmail, fullName, kycRejectionReasons }}
                 onReApply={handleApplyKycClick}
               />
             </div>
@@ -994,6 +994,7 @@ export default function AffiliaProAffiliateProfilePage() {
           documentFrontUrl, 
           documentBackUrl,
           kycApplicationData,
+          kycRejectionReasons,
           updateProfile
         }}
         kycStatus={kycStatus}

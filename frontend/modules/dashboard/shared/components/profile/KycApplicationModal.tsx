@@ -345,7 +345,7 @@ export default function KycApplicationModal({
 
         {/* ─── Body ─── */}
         <div className="px-10 py-8 relative bg-background max-h-[70vh] overflow-y-auto overflow-x-hidden">
-          {isViewMode && kycStatus === "rejected" && (
+          {kycStatus === "rejected" && (
             <div className="mb-6">
               <KycRejectionBanner user={user} />
             </div>

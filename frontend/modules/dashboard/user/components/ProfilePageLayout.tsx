@@ -14,7 +14,7 @@ import { useUser } from "@/src/shared/context/user.provider";
 
 export default function ProfilePageLayout() {
   const { refreshUser } = useUser() || {};
-  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData } = useProfileDisplay();
+  const { rawUserId, displayUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData, kycRejectionReasons } = useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [docRevision, setDocRevision] = useState(0);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -104,7 +104,7 @@ export default function ProfilePageLayout() {
     <div className="w-full space-y-6">
       {effectiveKycStatus === 'rejected' && (
         <KycRejectionBanner
-          user={{ kycApplicationData, kycStatus: effectiveKycStatus, rawUserId, email, fullName }}
+          user={{ kycApplicationData, kycStatus: effectiveKycStatus, rawUserId, email, fullName, kycRejectionReasons }}
           onReApply={handleApplyKycClick}
         />
       )}
@@ -251,7 +251,8 @@ export default function ProfilePageLayout() {
           documentUrl,
           documentFrontUrl,
           documentBackUrl,
-          kycApplicationData
+          kycApplicationData,
+          kycRejectionReasons
         }}
       />
     </div>

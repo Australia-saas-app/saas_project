@@ -37,7 +37,7 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData, kycRejectionReasons } =
     useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
@@ -132,7 +132,7 @@ export default function RoleProfileCard({
     <div className="flex flex-col space-y-4">
       {effectiveKycStatus === 'rejected' && (
         <KycRejectionBanner
-          user={{ kycApplicationData, kycStatus: effectiveKycStatus, rawUserId, email, fullName }}
+          user={{ kycApplicationData, kycStatus: effectiveKycStatus, rawUserId, email, fullName, kycRejectionReasons }}
           onReApply={handleApplyKycClick}
         />
       )}
@@ -344,7 +344,8 @@ export default function RoleProfileCard({
           documentUrl,
           documentFrontUrl,
           documentBackUrl,
-          kycApplicationData
+          kycApplicationData,
+          kycRejectionReasons
         }}
       />
       </div>

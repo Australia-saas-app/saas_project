@@ -1685,6 +1685,7 @@ export class AuthService implements OnModuleInit {
         userId: user.userId,
         kycStatus: user.kycStatus,
         reason,
+        rejectionReasons: rejectionReasons || null,
         changedBy: adminEmail,
       },
     };

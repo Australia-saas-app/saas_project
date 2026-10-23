@@ -22,11 +22,16 @@ export function parseKycRejectionReasons(user: any): KycRejectionReasons | null 
     return snap.rejectionReasons;
   }
 
-  // 2. Direct from user.kycRejectionReasons
+  // 2. Direct from user.kycRejectionReasons or user.rejectionReasons
   if (user.kycRejectionReasons) {
     return typeof user.kycRejectionReasons === "string"
       ? (() => { try { return JSON.parse(user.kycRejectionReasons); } catch { return null; } })()
       : user.kycRejectionReasons;
+  }
+  if (user.rejectionReasons) {
+    return typeof user.rejectionReasons === "string"
+      ? (() => { try { return JSON.parse(user.rejectionReasons); } catch { return null; } })()
+      : user.rejectionReasons;
   }
 
   // 3. From user.kycRejectionReason (stored as JSON string)
@@ -37,6 +42,29 @@ export function parseKycRejectionReasons(user: any): KycRejectionReasons | null 
     } catch {
       // plain text string fallback
     }
+  }
+
+  // 4. Fallback: Instant lookup in local storage overrides & sync
+  if (typeof window !== "undefined") {
+    try {
+      const uid = user.rawUserId || user.id || user.userId || user.sub;
+      const raw = localStorage.getItem("user_profile_overrides_v2");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (uid && parsed[uid]) {
+          if (parsed[uid].kycRejectionReasons) return parsed[uid].kycRejectionReasons;
+          if (parsed[uid].rejectionReasons) return parsed[uid].rejectionReasons;
+          if (parsed[uid].kycApplicationData?.rejectionReasons) return parsed[uid].kycApplicationData.rejectionReasons;
+        }
+      }
+      const syncRaw = localStorage.getItem("vero_kyc_sync");
+      if (syncRaw) {
+        const syncObj = JSON.parse(syncRaw);
+        if (syncObj?.rejectionReasons && (!uid || syncObj.userId === uid)) {
+          return syncObj.rejectionReasons;
+        }
+      }
+    } catch {}
   }
 
   return null;

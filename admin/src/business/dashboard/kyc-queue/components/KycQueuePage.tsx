@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Table } from "@/src/shared/ui/table/Table";
@@ -18,6 +18,27 @@ import { useAppSelector } from "@/src/core/store/hooks";
 import { KycReviewModal } from "./KycReviewModal";
 
 function getUploadedAccountPhoto(row: any): string | null {
+  if (!row) return null;
+  const uid = row.userId || row.id;
+
+  // Only take the actual uploaded profile photo from the user DB or recent local upload override
+  let photo = row?.profilePhoto || row?.avatarUrl || null;
+
+  if (!photo && uid && typeof window !== "undefined") {
+    try {
+      const overridesRaw = localStorage.getItem("user_profile_overrides_v2");
+      if (overridesRaw) {
+        const overrides = JSON.parse(overridesRaw);
+        if (overrides[uid]?.avatarUrl) {
+          photo = overrides[uid].avatarUrl;
+        }
+      }
+    } catch {}
+  }
+
+  if (!photo) return null;
+
+  // Verify it is not a live captured camera photo
   let snap: any = null;
   if (row?.kycApplicationData) {
     if (typeof row.kycApplicationData === "string") {
@@ -33,21 +54,8 @@ function getUploadedAccountPhoto(row: any): string | null {
 
   const livePhoto = snap?.livePhotoUrl || snap?.liveCapturedPhoto || snap?.livePhoto || null;
 
-  // 1. If snap specifically recorded an uploaded profile photo distinct from live photo
-  if (snap?.uploadedPhotoUrl && snap.uploadedPhotoUrl !== livePhoto) {
-    return snap.uploadedPhotoUrl;
-  }
-
-  const photo = row?.profilePhoto || row?.avatarUrl || null;
-  if (!photo) return null;
-
-  // 2. If the user's profilePhoto in DB matches the live captured photo, it is NOT an uploaded profile photo
+  // Never display live biometric capture in the table's uploaded photo slot
   if (livePhoto && photo === livePhoto) {
-    return null;
-  }
-
-  // 3. If legacy snap had isLiveCapture and avatarUrl equals this photo without separate upload
-  if (snap?.isLiveCapture && (photo === snap.avatarUrl || photo === snap.livePhotoUrl)) {
     return null;
   }
 
@@ -69,7 +77,7 @@ export default function KycQueuePage() {
   const [status, setStatus] = useState("All Statuses");
   const [activeTab, setActiveTab] = useState<"user" | "affiliate" | "business">(initialTab);
   const [localOverrides, setLocalOverrides] = useState<Record<string, string>>({});
-
+  const [localRejectionReasons, setLocalRejectionReasons] = useState<Record<string, any>>({});
   
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -98,41 +106,86 @@ export default function KycQueuePage() {
     refetchInterval: 5000,
   });
 
+  // Lifted processUpdate to update local cache, query data, and selected app
+  const processUpdate = useCallback((uid?: string, newKycStatus?: string, rejectionReasons?: any) => {
+    if (uid && newKycStatus) {
+      setLocalOverrides(prev => ({ ...prev, [uid]: newKycStatus }));
+      if (rejectionReasons) {
+        setLocalRejectionReasons(prev => ({ ...prev, [uid]: rejectionReasons }));
+      }
+      setSelectedApp((prev: any) => {
+        if (!prev) return prev;
+        const id = prev.userId || prev.id;
+        if (id === uid) {
+          return {
+            ...prev,
+            kycStatus: newKycStatus,
+            ...(rejectionReasons ? {
+              kycRejectionReasons: rejectionReasons,
+              kycApplicationData: {
+                ...(typeof prev.kycApplicationData === "string" ? JSON.parse(prev.kycApplicationData) : (prev.kycApplicationData || {})),
+                rejectionReasons
+              }
+            } : {})
+          };
+        }
+        return prev;
+      });
+      
+      queryClient.setQueryData(["kyc-users", token], (oldData: any[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map((u: any) => {
+          if (u.userId === uid || u.id === uid) {
+            const currentSnap = typeof u.kycApplicationData === "string" 
+              ? (() => { try { return JSON.parse(u.kycApplicationData); } catch { return {}; } })()
+              : (u.kycApplicationData || {});
+            return {
+              ...u,
+              kycStatus: newKycStatus,
+              ...(rejectionReasons ? {
+                kycRejectionReasons: rejectionReasons,
+                kycApplicationData: {
+                  ...currentSnap,
+                  rejectionReasons
+                }
+              } : (newKycStatus === "approved" ? {
+                kycRejectionReasons: null,
+                kycApplicationData: {
+                  ...currentSnap,
+                  rejectionReasons: null
+                }
+              } : {}))
+            };
+          }
+          return u;
+        });
+      });
+
+      refetch();
+    }
+  }, [queryClient, token, refetch]);
+
   // Auto-refetch and apply optimistic updates when an admin approves / rejects a KYC application or a user submits
   useEffect(() => {
-    const processUpdate = (uid?: string, newKycStatus?: string) => {
-      if (uid && newKycStatus) {
-        setLocalOverrides(prev => ({ ...prev, [uid]: newKycStatus }));
-        setSelectedApp((prev: any) => {
-          if (!prev) return prev;
-          const id = prev.userId || prev.id;
-          if (id === uid) return { ...prev, kycStatus: newKycStatus };
-          return prev;
-        });
-        
-        queryClient.setQueryData(["kyc-users", token], (oldData: any[] | undefined) => {
-          if (!oldData) return oldData;
-          return oldData.map((u: any) => 
-            (u.userId === uid || u.id === uid) ? { ...u, kycStatus: newKycStatus } : u
-          );
-        });
-      }
-    };
-
     const handleKycUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      processUpdate(detail?.userId, detail?.kycStatus);
+      processUpdate(detail?.userId, detail?.kycStatus, detail?.rejectionReasons);
     };
 
     const handleUserStatusUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.userId && detail.kycStatus) {
-        processUpdate(detail.userId, detail.kycStatus);
+        processUpdate(detail.userId, detail.kycStatus, detail.rejectionReasons);
       }
+    };
+
+    const handleProfileUpdate = () => {
+      refetch();
     };
 
     window.addEventListener("vero:kyc_updated", handleKycUpdate);
     window.addEventListener("vero:user_status_updated", handleUserStatusUpdate);
+    window.addEventListener("vero:profile_updated", handleProfileUpdate);
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -144,8 +197,10 @@ export default function KycQueuePage() {
             event.data?.type === "vero:kyc_submitted"
           ) {
             if (event.data?.userId && event.data?.kycStatus) {
-              processUpdate(event.data.userId, event.data.kycStatus);
+              processUpdate(event.data.userId, event.data.kycStatus, event.data.rejectionReasons);
             }
+          } else if (event.data?.type === "vero:profile_updated") {
+            refetch();
           }
         };
       }
@@ -156,9 +211,11 @@ export default function KycQueuePage() {
         try {
           const parsed = JSON.parse(e.newValue);
           if (parsed.userId && parsed.kycStatus) {
-            processUpdate(parsed.userId, parsed.kycStatus);
+            processUpdate(parsed.userId, parsed.kycStatus, parsed.rejectionReasons);
           }
         } catch {}
+      } else if (e.key === "user_profile_overrides_v2") {
+        refetch();
       }
     };
     window.addEventListener("storage", handleStorage);
@@ -166,10 +223,11 @@ export default function KycQueuePage() {
     return () => {
       window.removeEventListener("vero:kyc_updated", handleKycUpdate);
       window.removeEventListener("vero:user_status_updated", handleUserStatusUpdate);
+      window.removeEventListener("vero:profile_updated", handleProfileUpdate);
       window.removeEventListener("storage", handleStorage);
       if (bc) bc.close();
     };
-  }, [refetch, queryClient]);
+  }, [processUpdate, refetch]);
 
   // Remove deleted users instantly from the KYC queue
   useEffect(() => {
@@ -234,8 +292,22 @@ export default function KycQueuePage() {
 
   const filtered = (users || []).map(u => {
     const uid = u.userId || u.id;
-    if (localOverrides[uid]) return { ...u, kycStatus: localOverrides[uid] };
-    return u;
+    let res = u;
+    if (localOverrides[uid]) res = { ...res, kycStatus: localOverrides[uid] };
+    if (localRejectionReasons[uid]) {
+      const currentSnap = typeof res.kycApplicationData === "string"
+        ? (() => { try { return JSON.parse(res.kycApplicationData); } catch { return {}; } })()
+        : (res.kycApplicationData || {});
+      res = {
+        ...res,
+        kycRejectionReasons: localRejectionReasons[uid],
+        kycApplicationData: {
+          ...currentSnap,
+          rejectionReasons: localRejectionReasons[uid]
+        }
+      };
+    }
+    return res;
   }).filter(u => {
     // Tab filter
     if (activeTab === 'user' && u.accountType !== 'user') return false;
@@ -429,8 +501,13 @@ export default function KycQueuePage() {
           isOpen={!!selectedApp}
           onClose={() => setSelectedApp(null)}
           user={selectedApp}
-          onSuccess={() => {
+          onSuccess={(newStatus, reasons) => {
+            const uid = selectedApp.userId || selectedApp.id;
+            if (uid && newStatus) {
+              processUpdate(uid, newStatus, reasons);
+            }
             setSelectedApp(null);
+            refetch();
           }}
         />
       )}

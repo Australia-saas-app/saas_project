@@ -10,7 +10,7 @@ interface KycReviewModalProps {
   user: any | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newStatus?: string, rejectionReasons?: any) => void;
 }
 
 export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewModalProps) {
@@ -79,14 +79,14 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           targetUserName: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName,
           adminEmail: adminUser?.email,
           adminName: adminUser?.fullName || adminUser?.name,
-          extra: { kycStatus },
+          extra: { kycStatus, rejectionReasons },
         });
 
         if (typeof window !== "undefined") {
 
         // 1. Local DOM CustomEvents
         window.dispatchEvent(new CustomEvent("vero:kyc_updated", {
-          detail: { userId: uid, kycStatus }
+          detail: { userId: uid, kycStatus, rejectionReasons }
         }));
         window.dispatchEvent(new CustomEvent("vero:account_changed", { detail: { userId: uid } }));
 
@@ -100,7 +100,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
         try {
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
-            bc.postMessage({ type: "vero:kyc_updated", userId: uid, kycStatus });
+            bc.postMessage({ type: "vero:kyc_updated", userId: uid, kycStatus, rejectionReasons });
             bc.postMessage({ type: "vero:account_changed", userId: uid });
             if (kycStatus === "approved") {
               bc.postMessage({ type: "vero:user_status_updated", userId: uid, status: "active" });
@@ -157,6 +157,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           localStorage.setItem("vero_kyc_sync", JSON.stringify({
             userId: uid,
             kycStatus,
+            rejectionReasons,
             t: Date.now()
           }));
           if (kycStatus === "approved") {
@@ -168,7 +169,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           }
         } catch {}
       }
-      onSuccess();
+      onSuccess(kycStatus, rejectionReasons);
     } catch (error) {
       toast.error('Failed to update KYC status');
       console.error(error);
@@ -210,6 +211,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 : (user.kycApplicationData || {});
               if (snap.rejectionReasons) return snap.rejectionReasons;
               if (user.kycRejectionReasons) return user.kycRejectionReasons;
+              if (user.rejectionReasons) return user.rejectionReasons;
               if (typeof user.kycRejectionReason === "string") {
                 try {
                   const parsed = JSON.parse(user.kycRejectionReason);

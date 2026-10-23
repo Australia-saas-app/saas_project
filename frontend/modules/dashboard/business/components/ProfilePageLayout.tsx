@@ -76,7 +76,7 @@ export default function ProfilePageLayout() {
     username: hookUsername, gender: hookGender, bio: hookBio, currency: hookCurrency,
     businessName: hookBusinessName, businessType: hookBusinessType, percentageRate: hookPercentageRate,
     permanentAddress, governmentIdType, joiningDate,
-    hasCustomAvatar
+    hasCustomAvatar, kycRejectionReasons
   } = useProfileDisplay()
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
@@ -572,7 +572,7 @@ export default function ProfilePageLayout() {
         {kycStatus === 'rejected' && (
           <div className="mb-5">
             <KycRejectionBanner
-              user={{ ...user, kycApplicationData, kycStatus, rawUserId, email: profileEmail, fullName }}
+              user={{ ...user, kycApplicationData, kycStatus, rawUserId, email: profileEmail, fullName, kycRejectionReasons }}
               onReApply={handleApplyKycClick}
             />
           </div>
@@ -1241,6 +1241,7 @@ export default function ProfilePageLayout() {
           documentFrontUrl, 
           documentBackUrl,
           kycApplicationData,
+          kycRejectionReasons,
           updateProfile
         }}
         kycStatus={kycStatus}
