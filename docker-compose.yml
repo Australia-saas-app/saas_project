@@ -113,6 +113,7 @@ services:
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
       - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
       - TWILIO_MESSAGING_SERVICE_SID=${TWILIO_MESSAGING_SERVICE_SID:-}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
@@ -233,6 +234,7 @@ services:
       - DB_NAME=${POSTGRES_DB:-saas_db}
       - REDIS_HOST=${REDIS_HOST:-saas-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
     env_file:
       - ./backend/config/sso-keys.conf
     depends_on:
