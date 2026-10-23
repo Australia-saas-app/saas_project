@@ -26,6 +26,7 @@ import { useUser } from "@/src/context/user.provider"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
 import LiveKycCaptureModal from "../../shared/components/profile/LiveKycCaptureModal"
+import KycRejectionBanner from "../../shared/components/profile/KycRejectionBanner"
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 import SelectDropdown from "@/src/shared/components/SelectDropdown"
@@ -559,18 +560,13 @@ export default function ProfilePageLayout() {
 
       <div className="space-y-5">
         {kycStatus === 'rejected' && (
-            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 mb-5">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
-                <div>
-                  <h4 className="text-sm font-semibold text-red-700">Account Unverified by Admin</h4>
-                  <p className="mt-1 text-sm text-red-600/90">
-                    Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="mb-5">
+            <KycRejectionBanner
+              user={{ ...user, kycApplicationData, kycStatus, rawUserId, email: profileEmail, fullName }}
+              onReApply={handleApplyKycClick}
+            />
+          </div>
+        )}
           {/* Profile preview */}
           <section id="preview" className="rounded-2xl border border-gray-100 bg-white dark:bg-slate-900 overflow-hidden shadow-sm flex flex-col w-full order-1 xl:order-none">
             <div className="p-6 flex flex-col md:flex-row gap-8 items-center w-full">

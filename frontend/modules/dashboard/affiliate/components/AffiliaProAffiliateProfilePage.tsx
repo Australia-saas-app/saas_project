@@ -24,6 +24,7 @@ import { useUser } from "@/src/context/user.provider"
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account"
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal"
 import LiveKycCaptureModal from "../../shared/components/profile/LiveKycCaptureModal"
+import KycRejectionBanner from "../../shared/components/profile/KycRejectionBanner"
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display"
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage"
 import SelectDropdown from "@/src/shared/components/SelectDropdown"
@@ -457,16 +458,11 @@ export default function AffiliaProAffiliateProfilePage() {
       <div className="flex flex-col xl:grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="contents xl:block xl:min-w-0 xl:space-y-5">
           {kycStatus === 'rejected' && (
-            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 mb-5">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
-                <div>
-                  <h4 className="text-sm font-semibold text-red-700">Account Unverified by Admin</h4>
-                  <p className="mt-1 text-sm text-red-600/90">
-                    Your KYC application was rejected. Please review your personal information and re-upload a clear document if needed, then re-apply for KYC.
-                  </p>
-                </div>
-              </div>
+            <div className="mb-5">
+              <KycRejectionBanner
+                user={{ ...user, kycApplicationData, kycStatus, rawUserId, email: profileEmail, fullName }}
+                onReApply={handleApplyKycClick}
+              />
             </div>
           )}
           {/* Profile preview */}

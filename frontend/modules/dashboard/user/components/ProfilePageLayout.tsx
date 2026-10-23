@@ -7,6 +7,7 @@ import ProfileFormGrid from "../../shared/components/profile/ProfileFormGrid";
 import DocumentCards from "../../shared/components/profile/DocumentCards";
 import KycApplicationModal from "../../shared/components/profile/KycApplicationModal";
 import LiveKycCaptureModal from "../../shared/components/profile/LiveKycCaptureModal";
+import KycRejectionBanner from "../../shared/components/profile/KycRejectionBanner";
 import { useProfileDisplay, getStatusBadgeStyle } from "../../shared/hooks/use-profile-display";
 import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { useUser } from "@/src/shared/context/user.provider";
@@ -83,20 +84,13 @@ export default function ProfilePageLayout() {
 
   return (
     <div className="w-full space-y-6">
+      {effectiveKycStatus === 'rejected' && (
+        <KycRejectionBanner
+          user={{ kycApplicationData, kycStatus: effectiveKycStatus, rawUserId, email, fullName }}
+          onReApply={handleApplyKycClick}
+        />
+      )}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        {effectiveKycStatus === 'rejected' && (
-          <div className="mx-6 mt-6 mb-0 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
-              <div>
-                <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">KYC Application Rejected</h4>
-                <p className="mt-1 text-sm text-red-600/90 dark:text-red-300/90">
-                  Your KYC application was rejected. Please review your information and re-upload a clear document, then re-apply.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
         {/* Top Header Section */}
         <div className="flex flex-col items-start justify-between gap-4 border-b border-border p-6 md:flex-row md:items-center">
           <div className="flex items-center gap-4">

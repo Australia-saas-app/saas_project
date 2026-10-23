@@ -41,6 +41,14 @@ export class KycApplication {
     avatarUrl?: string;
     appliedAt?: string;
     resubmittedAt?: string;
+    rejectionReasons?: {
+      documentsNotVerified?: boolean;
+      livenessNotVerified?: boolean;
+      personalData?: boolean;
+      personalDataDetails?: string;
+      [key: string]: any;
+    } | null;
+    [key: string]: any;
   } | null;
 
   @CreateDateColumn()

@@ -16,6 +16,12 @@ interface KycReviewModalProps {
 export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewModalProps) {
   const [loadingAction, setLoadingAction] = useState<'approved' | 'rejected' | null>(null);
   const [localKycStatus, setLocalKycStatus] = useState<string | null>(null);
+  const [localRejectionReasons, setLocalRejectionReasons] = useState<any>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectDocs, setRejectDocs] = useState(false);
+  const [rejectLiveness, setRejectLiveness] = useState(false);
+  const [rejectPersonalData, setRejectPersonalData] = useState(false);
+  const [personalDataDetails, setPersonalDataDetails] = useState("");
   const token = useAppSelector((state) => state.auth.token);
   const adminUser = useAppSelector((state: any) => state.auth.user);
 
@@ -23,11 +29,19 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
     // Reset local overrides when a new user is opened
     setLocalKycStatus(null);
     setLoadingAction(null);
+    setLocalRejectionReasons(null);
+    setShowRejectModal(false);
+    setRejectDocs(false);
+    setRejectLiveness(false);
+    setRejectPersonalData(false);
+    setPersonalDataDetails("");
   }, [user?.userId, user?.id]);
 
-  if (!isOpen || !user) return null;
+  const isRejectValid =
+    (rejectDocs || rejectLiveness || rejectPersonalData) &&
+    (!rejectPersonalData || personalDataDetails.trim().length > 0);
 
-  const handleUpdateStatus = async (kycStatus: string) => {
+  const handleUpdateStatus = async (kycStatus: string, rejectionReasons?: any) => {
     if (!token || loadingAction) return;
     setLoadingAction(kycStatus as 'approved' | 'rejected');
     try {
@@ -37,13 +51,23 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ kycStatus })
+        body: JSON.stringify({
+          kycStatus,
+          reason: kycStatus === 'rejected' ? 'KYC application rejected by administrator' : 'KYC application approved by administrator',
+          rejectionReasons: rejectionReasons || undefined,
+        })
       });
 
       if (!response.ok) throw new Error('Failed to update KYC status');
 
       // Instant local stamp update — no need to wait for server refresh
       setLocalKycStatus(kycStatus);
+      if (kycStatus === 'rejected' && rejectionReasons) {
+        setLocalRejectionReasons(rejectionReasons);
+      } else if (kycStatus === 'approved') {
+        setLocalRejectionReasons(null);
+      }
+      setShowRejectModal(false);
       toast.success(`Application ${kycStatus === 'approved' ? 'approved' : 'rejected'} successfully.`);
       // Log admin KYC action with real IP — admin email in details only
         const uid = user.userId || user.id;
@@ -178,7 +202,59 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
         {/* Body - A4 Document Style */}
         <div className="px-10 pt-8 pb-2 relative bg-white dark:bg-slate-900 overflow-y-auto overflow-x-hidden flex flex-col" style={{ maxHeight: 'calc(80vh - 140px)' }}>
 
+          {/* Rejection Reasons Alert Box (shown when application is currently rejected) */}
+          {kycStatus === 'rejected' && (() => {
+            const reasons = localRejectionReasons ?? (() => {
+              const snap = typeof user.kycApplicationData === "string"
+                ? (() => { try { return JSON.parse(user.kycApplicationData); } catch { return {}; } })()
+                : (user.kycApplicationData || {});
+              if (snap.rejectionReasons) return snap.rejectionReasons;
+              if (user.kycRejectionReasons) return user.kycRejectionReasons;
+              if (typeof user.kycRejectionReason === "string") {
+                try {
+                  const parsed = JSON.parse(user.kycRejectionReason);
+                  if (parsed && typeof parsed === "object") return parsed;
+                } catch {}
+              }
+              return null;
+            })();
 
+            return (
+              <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/30 p-4 text-rose-800 dark:text-rose-200 animate-in fade-in duration-200">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5 flex-1">
+                    <h4 className="text-sm font-bold text-rose-700 dark:text-rose-300">
+                      Application Rejected by Administrator
+                    </h4>
+                    <div className="text-xs space-y-1.5 text-rose-700/90 dark:text-rose-300/90">
+                      {reasons?.documentsNotVerified && (
+                        <div className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />
+                          <span><strong>Documents not Verified:</strong> Please check and reupload again</span>
+                        </div>
+                      )}
+                      {reasons?.livenessNotVerified && (
+                        <div className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />
+                          <span><strong>Liveness not verified:</strong> Not verified capture again</span>
+                        </div>
+                      )}
+                      {reasons?.personalData && (
+                        <div className="flex items-start gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0 mt-1" />
+                          <span><strong>Personal Data:</strong> {reasons.personalDataDetails || "Information missing or incorrect"}</span>
+                        </div>
+                      )}
+                      {!reasons?.documentsNotVerified && !reasons?.livenessNotVerified && !reasons?.personalData && (
+                        <p>Application was rejected. Awaiting user resubmission.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Declaration Text / Formal Application Format */}
           <div className="mb-8 relative z-10 space-y-3">
@@ -519,7 +595,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             {(kycStatus === 'pending' || kycStatus === 'submitted') ? (
               <>
                 <button
-                  onClick={() => handleUpdateStatus('rejected')}
+                  onClick={() => setShowRejectModal(true)}
                   disabled={isAnyLoading}
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[110px] flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -544,7 +620,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               </button>
             ) : (
               <button
-                onClick={() => handleUpdateStatus('rejected')}
+                onClick={() => setShowRejectModal(true)}
                 disabled={isAnyLoading}
                 className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -553,6 +629,133 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
             )}
           </div>
       </div>
+
+      {/* ─── REASON OF REJECTION MODAL ─── */}
+      {showRejectModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative bg-background border border-border shadow-2xl rounded-2xl w-full max-w-md overflow-hidden text-foreground">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                <h3 className="text-base font-bold text-foreground">Reason of Rejection</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                disabled={loadingAction === 'rejected'}
+                className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body Checklist */}
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Select one or more reasons for rejecting this KYC application:
+              </p>
+
+              <div className="space-y-3">
+                {/* Option 1: Documents not Verified */}
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rejectDocs}
+                    onChange={(e) => setRejectDocs(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-foreground block">Documents not Verified</span>
+                    <span className="text-[11px] text-muted-foreground">Document is unreadable, expired, cropped, or not official.</span>
+                  </div>
+                </label>
+
+                {/* Option 2: Liveness not verified */}
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rejectLiveness}
+                    onChange={(e) => setRejectLiveness(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-foreground block">Liveness not verified</span>
+                    <span className="text-[11px] text-muted-foreground">Live selfie failed anti-spoofing check, dim room, or face obstructed.</span>
+                  </div>
+                </label>
+
+                {/* Option 3: Personal Data */}
+                <div className="rounded-xl border border-border/80 bg-card overflow-hidden">
+                  <label className="flex items-start gap-3 p-3 hover:bg-muted/30 transition-colors cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rejectPersonalData}
+                      onChange={(e) => setRejectPersonalData(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border text-rose-600 focus:ring-rose-500 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-foreground block">Personal Data</span>
+                      <span className="text-[11px] text-muted-foreground">Details do not match identity documents or required fields are missing.</span>
+                    </div>
+                  </label>
+
+                  {/* When Personal Data is checked: show text box */}
+                  {rejectPersonalData && (
+                    <div className="px-3 pb-3 pt-1 border-t border-border/50 bg-muted/20 animate-in fade-in duration-150">
+                      <label className="block text-[11px] font-semibold text-foreground mb-1">
+                        Specify details about incorrect or missing data <span className="text-rose-500">*</span>:
+                      </label>
+                      <textarea
+                        value={personalDataDetails}
+                        onChange={(e) => setPersonalDataDetails(e.target.value)}
+                        placeholder="e.g., Full name does not match passport, permanent address is incomplete, birth date mismatch..."
+                        rows={3}
+                        className="w-full text-xs rounded-lg border border-border bg-background p-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-3.5 bg-muted/30 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                disabled={loadingAction === 'rejected'}
+                className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isRejectValid) return;
+                  handleUpdateStatus('rejected', {
+                    documentsNotVerified: rejectDocs,
+                    livenessNotVerified: rejectLiveness,
+                    personalData: rejectPersonalData,
+                    personalDataDetails: rejectPersonalData ? personalDataDetails.trim() : "",
+                  });
+                }}
+                disabled={!isRejectValid || loadingAction === 'rejected'}
+                className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+              >
+                {loadingAction === 'rejected' ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Rejecting...</span>
+                  </>
+                ) : (
+                  <span>Reject</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

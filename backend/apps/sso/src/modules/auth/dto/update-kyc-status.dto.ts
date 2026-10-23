@@ -10,4 +10,12 @@ export class UpdateKycStatusDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @IsOptional()
+  rejectionReasons?: {
+    documentsNotVerified?: boolean;
+    livenessNotVerified?: boolean;
+    personalData?: boolean;
+    personalDataDetails?: string;
+  };
 }

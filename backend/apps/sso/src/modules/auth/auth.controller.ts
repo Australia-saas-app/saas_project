@@ -241,7 +241,7 @@ export class AuthController {
       throw new ForbiddenException('Admin access required');
     }
     const ipAddress = req.ip || req.headers?.['x-forwarded-for'] || '127.0.0.1';
-    return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email, typeof ipAddress === 'string' ? ipAddress : ipAddress[0]);
+    return this.authService.updateKycStatus(userId, body.kycStatus, body.reason || 'KYC Status changed', (req.user as any).email, typeof ipAddress === 'string' ? ipAddress : ipAddress[0], body.rejectionReasons);
   }
 
   @Patch('admin/users/:userId/business-info')

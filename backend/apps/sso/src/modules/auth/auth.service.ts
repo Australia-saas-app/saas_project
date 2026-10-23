@@ -1033,8 +1033,9 @@ export class AuthService implements OnModuleInit {
         dateOfBirth: user.dateOfBirth,
         governmentId: user.governmentId,
         governmentIdType: user.governmentIdType,
-        permanentAddress: user.permanentAddress,
         kycApplicationData: kycApplicationData,
+        kycRejectionReasons: (kycApplicationData as any)?.rejectionReasons ?? null,
+        kycRejectionReason: (user as any).kycRejectionReason ?? null,
         twoFactorEnabled: user.twoFactorEnabled,
         twoFactorMethod: user.twoFactorMethod,
         createdAt: user.createdAt,
@@ -1586,24 +1587,47 @@ export class AuthService implements OnModuleInit {
     };
   }
 
-  async updateKycStatus(userId: string, kycStatus: string, reason: string, adminEmail: string | undefined, ipAddress: string = '127.0.0.1') {
+  async updateKycStatus(userId: string, kycStatus: string, reason: string, adminEmail: string | undefined, ipAddress: string = '127.0.0.1', rejectionReasons?: any) {
     const user = await this.findUserByAnyId(userId);
     if (!user) {
       throw new NotFoundException('User not found');
-    }
-
-    if (user.kycStatus === kycStatus) {
-      return {
-        success: true,
-        message: `User KYC is already in ${kycStatus} status`,
-        user: { userId: user.userId, kycStatus: user.kycStatus, status: user.status },
-      };
     }
 
     user.kycStatus = kycStatus as KycStatus;
     if (kycStatus === 'approved') {
       user.status = UserStatus.ACTIVE;
     }
+
+    // Persist rejection reasons to separate kyc_application table
+    let kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+    if (kycStatus === 'rejected') {
+      if (rejectionReasons) {
+        if (!kycRecord) {
+          kycRecord = this.kycApplicationRepository.create({
+            userId: user.userId,
+            applicationData: {
+              fullName: user.fullName,
+              email: user.email,
+              rejectionReasons: rejectionReasons,
+            },
+          });
+        } else {
+          kycRecord.applicationData = {
+            ...(kycRecord.applicationData || {}),
+            rejectionReasons: rejectionReasons,
+          };
+        }
+        await this.kycApplicationRepository.save(kycRecord);
+        (user as any).kycRejectionReason = JSON.stringify(rejectionReasons);
+      }
+    } else if (kycStatus === 'approved') {
+      if (kycRecord && kycRecord.applicationData?.rejectionReasons) {
+        delete (kycRecord.applicationData as any).rejectionReasons;
+        await this.kycApplicationRepository.save(kycRecord);
+      }
+      (user as any).kycRejectionReason = null;
+    }
+
     await this.userRepository.save(user);
 
     try {
@@ -1783,7 +1807,11 @@ export class AuthService implements OnModuleInit {
     }
 
     // Upsert into kyc_application table (create or update)
+    // Make sure rejection reasons are completely removed from DB upon new application
     if (kycRecord) {
+      if ((applicationData as any).rejectionReasons) {
+        delete (applicationData as any).rejectionReasons;
+      }
       kycRecord.applicationData = applicationData;
     } else {
       kycRecord = this.kycApplicationRepository.create({ userId: user.userId, applicationData });
@@ -1791,6 +1819,7 @@ export class AuthService implements OnModuleInit {
     await this.kycApplicationRepository.save(kycRecord);
 
     user.kycStatus = KycStatus.PENDING;
+    (user as any).kycRejectionReason = null;
     await this.userRepository.save(user);
 
     try {

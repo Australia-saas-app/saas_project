@@ -8,6 +8,7 @@ import KycApplicationModal from "./KycApplicationModal";
 import LiveKycCaptureModal from "./LiveKycCaptureModal";
 import DocumentCards, { DocumentUploadButton } from "./DocumentCards";
 import LevelProgressSection from "./LevelProgressSection";
+import KycRejectionBanner from "./KycRejectionBanner";
 import { addProfileDocument, saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { useProfileDisplay, getStatusBadgeStyle } from "../../hooks/use-profile-display";
 import { useUser } from "@/src/context/user.provider";
@@ -116,21 +117,15 @@ export default function RoleProfileCard({
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <div className="flex flex-col space-y-4">
       {effectiveKycStatus === 'rejected' && (
-        <div className="mx-6 mt-6 mb-0 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-500 shrink-0" />
-            <div>
-              <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">KYC Application Rejected</h4>
-              <p className="mt-1 text-sm text-red-600/90 dark:text-red-300/90">
-                Your KYC application was rejected. Please review your information and re-upload a clear document, then re-apply.
-              </p>
-            </div>
-          </div>
-        </div>
+        <KycRejectionBanner
+          user={{ kycApplicationData, kycStatus: effectiveKycStatus, rawUserId, email, fullName }}
+          onReApply={handleApplyKycClick}
+        />
       )}
-      <div className="flex flex-col border-b border-border p-6 pb-6 md:p-8">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-col border-b border-border p-6 pb-6 md:p-8">
         <div className="mb-6 flex flex-col justify-between gap-6 lg:flex-row">
           <div className="flex items-start gap-5">
             {/* Avatar Container with Pencil Icon */}
@@ -338,6 +333,7 @@ export default function RoleProfileCard({
           kycApplicationData
         }}
       />
+      </div>
     </div>
   );
 }
