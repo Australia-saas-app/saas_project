@@ -178,12 +178,12 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
   // 1. Try server API
   try {
     const ssoRes = await axiosInstance.get('/sso/wallet/balance');
-    if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null && Number(ssoRes.data.balance) > 0) {
+    if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null && !isNaN(Number(ssoRes.data.balance))) {
       return {
         balance: Number(ssoRes.data.balance),
-        totalEarned: Number(ssoRes.data.totalEarned || ssoRes.data.balance),
-        totalWithdrawn: Number(ssoRes.data.totalWithdrawn || 0),
-        pendingEscrow: Number(ssoRes.data.pendingEscrow || 0),
+        totalEarned: Number(ssoRes.data.totalEarned ?? ssoRes.data.balance),
+        totalWithdrawn: Number(ssoRes.data.totalWithdrawn ?? 0),
+        pendingEscrow: Number(ssoRes.data.pendingEscrow ?? 0),
       };
     }
   } catch {}

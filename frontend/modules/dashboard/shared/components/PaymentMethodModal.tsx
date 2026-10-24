@@ -17,6 +17,7 @@ import {
 import {
   savePaymentMethod,
   updatePaymentMethod,
+  savePaymentMethodDb,
   type SavedPaymentMethod,
 } from "@/src/shared/lib/payment-methods-store";
 import { saveWalletCard } from "@/src/modules/technical/services/technical.services";
@@ -130,24 +131,24 @@ export default function PaymentMethodModal({
     }
 
     let savedResult: SavedPaymentMethod | null = null;
-    if (editingMethod?.id) {
-      savedResult =
-        updatePaymentMethod(editingMethod.id, {
+    try {
+      savedResult = await savePaymentMethodDb(
+        {
+          type,
           label: finalLabel,
           summary,
           details: sanitized,
           isDefault,
-        }) ?? null;
-      toast.success(`${type} payment method updated.`);
-    } else {
-      savedResult = savePaymentMethod({
-        type,
-        label: finalLabel,
-        summary,
-        details: sanitized,
-        isDefault,
-      });
-      toast.success(`${type} payout method saved.`);
+        },
+        editingMethod?.id
+      );
+      if (editingMethod?.id) {
+        toast.success(`${type} payment method updated.`);
+      } else {
+        toast.success(`${type} payout method saved.`);
+      }
+    } catch {
+      toast.error("Failed to save payment method.");
     }
 
     setSubmitting(false);
@@ -170,25 +171,25 @@ export default function PaymentMethodModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-xs sm:text-sm font-medium text-foreground dark:text-slate-200">
+          <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-foreground">
             Payment method
           </label>
           <select
             value={type}
             disabled={Boolean(editingMethod)}
             onChange={(e) => handleTypeChange(e.target.value as PaymentMethodType)}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
           >
             {PAYMENT_METHOD_OPTIONS.map((opt) => (
-              <option key={opt} value={opt} className="bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100">
+              <option key={opt} value={opt}>
                 {opt}
               </option>
             ))}
           </select>
         </div>
 
-        {/* High contrast info pill */}
-        <div className="rounded-lg border border-blue-500/20 bg-blue-50/80 dark:bg-blue-950/40 px-3.5 py-2.5 text-xs font-medium text-blue-700 dark:text-blue-300 leading-relaxed">
+        {/* High contrast theme info pill */}
+        <div className="rounded-lg border border-primary/20 bg-primary/10 px-3.5 py-2.5 text-xs font-semibold text-primary leading-relaxed">
           {type === "PayPal" && "Withdrawals will be sent to your PayPal email address."}
           {type === "Bank Transfer" &&
             "Provide your bank details exactly as they appear on your account."}
@@ -203,7 +204,7 @@ export default function PaymentMethodModal({
         <div className="space-y-3.5">
           {fields.map((field) => (
             <div key={field.key}>
-              <label className="mb-1.5 block text-xs sm:text-sm font-medium text-foreground dark:text-slate-200">
+              <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-foreground">
                 {field.label}
                 {field.required && <span className="text-red-500 font-bold"> *</span>}
               </label>
@@ -211,11 +212,11 @@ export default function PaymentMethodModal({
                 <select
                   value={details[field.key] || ""}
                   onChange={(e) => setDetails((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer"
                 >
-                  <option value="" className="bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100">Select…</option>
+                  <option value="">Select…</option>
                   {(field.options || []).map((opt) => (
-                    <option key={opt} value={opt} className="bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100">
+                    <option key={opt} value={opt}>
                       {opt}
                     </option>
                   ))}
@@ -238,7 +239,7 @@ export default function PaymentMethodModal({
         </div>
 
         <div>
-          <label className="mb-1.5 flex items-center gap-2 text-xs sm:text-sm font-medium text-foreground dark:text-slate-200 cursor-pointer">
+          <label className="mb-1.5 flex items-center gap-2 text-xs sm:text-sm font-medium text-foreground cursor-pointer">
             <input
               type="checkbox"
               checked={useCustomLabel}
@@ -246,7 +247,7 @@ export default function PaymentMethodModal({
                 setUseCustomLabel(e.target.checked);
                 if (!e.target.checked) setLabel("");
               }}
-              className="rounded border-input text-blue-600 focus:ring-blue-500"
+              className="rounded border-input text-primary focus:ring-primary accent-primary"
             />
             Use a custom display name
           </label>
@@ -264,12 +265,12 @@ export default function PaymentMethodModal({
           )}
         </div>
 
-        <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-foreground dark:text-slate-200 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs sm:text-sm font-medium text-foreground cursor-pointer">
           <input
             type="checkbox"
             checked={isDefault}
             onChange={(e) => setIsDefault(e.target.checked)}
-            className="rounded border-input text-blue-600 focus:ring-blue-500"
+            className="rounded border-input text-primary focus:ring-primary accent-primary"
           />
           Set as default payout method
         </label>
@@ -286,7 +287,7 @@ export default function PaymentMethodModal({
           <Button
             type="submit"
             disabled={submitting}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
+            className="bg-primary hover:bg-primary/90 text-white font-semibold shadow-sm transition-all cursor-pointer"
           >
             {submitting ? (
               <>

@@ -1,7 +1,7 @@
 import type { PaymentMethodType } from "@/src/shared/lib/payment-method-config"
 import { WITHDRAWAL_METHOD_TYPES } from "@/src/shared/lib/payment-method-config"
-
 import { scopedStorageKey } from "@/src/shared/lib/storage-scope"
+import axiosInstance from "@/src/shared/lib/axiosInstance"
 
 export interface SavedPaymentMethod {
   id: string
@@ -10,6 +10,7 @@ export interface SavedPaymentMethod {
   summary: string
   details: Record<string, string>
   isDefault: boolean
+  createdAt?: string
 }
 
 const STORAGE_KEY = "platform_payment_methods"
@@ -30,9 +31,67 @@ export function readPaymentMethods(): SavedPaymentMethod[] {
   }
 }
 
-function writePaymentMethods(methods: SavedPaymentMethod[]) {
+export function writePaymentMethods(methods: SavedPaymentMethod[]) {
   if (typeof window === "undefined") return
   localStorage.setItem(storageKey(), JSON.stringify(methods))
+}
+
+export async function fetchPaymentMethodsFromDb(): Promise<SavedPaymentMethod[]> {
+  try {
+    const res = await axiosInstance.get("/sso/wallet/payment-methods", { timeout: 7000 })
+    const list = Array.isArray(res?.data) ? (res.data as SavedPaymentMethod[]) : []
+    if (list.length > 0) {
+      writePaymentMethods(list)
+      return list
+    }
+  } catch {
+    // Fallback to local storage if API call fails
+  }
+  return readPaymentMethods()
+}
+
+export async function savePaymentMethodDb(
+  method: Omit<SavedPaymentMethod, "id">,
+  existingId?: string
+): Promise<SavedPaymentMethod> {
+  const localRecord = existingId
+    ? updatePaymentMethod(existingId, method) || { id: existingId, ...method }
+    : savePaymentMethod(method)
+
+  try {
+    const res = await axiosInstance.post("/sso/wallet/payment-methods", localRecord)
+    if (res?.data?.id) {
+      const serverRecord = res.data as SavedPaymentMethod
+      const current = readPaymentMethods()
+      const next = current.map((m) => (m.id === localRecord.id ? serverRecord : m))
+      writePaymentMethods(next)
+      return serverRecord
+    }
+  } catch (err) {
+    console.warn("Save payment method to DB error:", err)
+  }
+
+  return localRecord
+}
+
+export async function deletePaymentMethodDb(id: string): Promise<boolean> {
+  deletePaymentMethod(id)
+  try {
+    await axiosInstance.delete(`/sso/wallet/payment-methods/${encodeURIComponent(id)}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function setDefaultPaymentMethodDb(id: string): Promise<SavedPaymentMethod | undefined> {
+  const localDefault = setDefaultPaymentMethod(id)
+  try {
+    await axiosInstance.post(`/sso/wallet/payment-methods/${encodeURIComponent(id)}/default`)
+  } catch {
+    // Keep local default
+  }
+  return localDefault
 }
 
 export function savePaymentMethod(method: Omit<SavedPaymentMethod, "id">): SavedPaymentMethod {
@@ -92,3 +151,9 @@ export function isWithdrawalEligible(type: PaymentMethodType): boolean {
 export function getWithdrawalEligibleMethods(): SavedPaymentMethod[] {
   return readPaymentMethods().filter((m) => isWithdrawalEligible(m.type))
 }
+
+export async function getWithdrawalEligibleMethodsFromDb(): Promise<SavedPaymentMethod[]> {
+  const all = await fetchPaymentMethodsFromDb()
+  return all.filter((m) => isWithdrawalEligible(m.type))
+}
+

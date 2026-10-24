@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { accountTypeFromRole } from "@/src/shared/lib/verification-access"
 import { completeProfilePath, isProfileComplete } from "@/src/shared/lib/profile-completion"
 import { setCookie, deleteCookie } from "@/src/utils/cookie-utils"
+import { getOrCreateDeviceId } from "@/src/shared/lib/device-id"
 
 type DecodedToken = {
     id?: string;
@@ -65,7 +66,8 @@ export const useUserRegistration = () => {
     return useMutation<AuthResponse, Error, FieldValues>({
         mutationKey: ["USER_REGISTRATION"],
         mutationFn: async (userData) => {
-            const result = await registerUser(userData);
+            const deviceId = userData.deviceId || getOrCreateDeviceId();
+            const result = await registerUser({ ...userData, deviceId });
             if (!result || !result.success) {
                 throw new Error(result?.message || "Registration failed");
             }

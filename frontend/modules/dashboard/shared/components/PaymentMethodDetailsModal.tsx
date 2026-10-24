@@ -159,7 +159,7 @@ export default function PaymentMethodDetailsModal({
             <Button
               type="button"
               onClick={() => onEdit(method)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm"
+              className="bg-primary hover:bg-primary/90 text-white font-semibold shadow-sm transition-all cursor-pointer"
             >
               <Pencil className="h-4 w-4 mr-1.5" />
               Edit Details
@@ -172,7 +172,7 @@ export default function PaymentMethodDetailsModal({
         {/* Method header card */}
         <div className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
               {getMethodIcon()}
             </div>
             <div>

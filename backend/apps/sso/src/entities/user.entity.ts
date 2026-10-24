@@ -376,6 +376,17 @@ export class User {
   @Column({ type: 'varchar', length: 255, default: 'NA' })
   industryType: string;
 
+  @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
+  paymentMethods: {
+    id: string;
+    type: string;
+    label: string;
+    summary: string;
+    details: Record<string, string>;
+    isDefault: boolean;
+    createdAt?: string;
+  }[];
+
 
   @Column({ type: 'timestamp', nullable: true })
   lastActiveAt: Date;

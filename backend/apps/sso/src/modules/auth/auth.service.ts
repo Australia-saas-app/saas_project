@@ -307,6 +307,7 @@ export class AuthService implements OnModuleInit {
       emailVerified,
       phoneVerified,
       recoveryKey: registerDto.recoveryKey?.trim() || null,
+      trustedIps: registerDto.deviceId ? [registerDto.deviceId] : [],
       statusHistory: [] as User['statusHistory'],
     } as DeepPartial<User>);
 
@@ -444,16 +445,14 @@ export class AuthService implements OnModuleInit {
       const actualIp = clientIp.split(',')[0].trim();
       const deviceIdentifier = loginDto.deviceId || 'unknown-device';
 
-      if (deviceIdentifier === 'unknown-device') {
-        throw new BadRequestException('Device ID is required for secure login');
-      }
+      // Pure device-level identification: do not rely on dynamic network IPs
+      const isKnownDevice = Boolean(
+        user.trustedIps &&
+        deviceIdentifier !== 'unknown-device' &&
+        user.trustedIps.includes(deviceIdentifier)
+      );
 
-      const isKnownDevice = Boolean(user.trustedIps && user.trustedIps.includes(deviceIdentifier));
-
-      if (!user.trustedIps || user.trustedIps.length === 0) {
-        user.trustedIps = Array.from(new Set([deviceIdentifier, actualIp]));
-        await this.userRepository.save(user);
-      } else if (!isKnownDevice) {
+      if (!isKnownDevice) {
         const otpKey = `otp:${user.email || user.phone}:new_device`;
 
         if (loginDto.otp) {
@@ -461,7 +460,11 @@ export class AuthService implements OnModuleInit {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          user.trustedIps = Array.from(new Set([...user.trustedIps, deviceIdentifier, actualIp]));
+          // Store this authorized device in user's trusted device list
+          user.trustedIps = Array.from(new Set([
+            ...(user.trustedIps || []),
+            deviceIdentifier !== 'unknown-device' ? deviceIdentifier : actualIp,
+          ].filter(Boolean) as string[]));
           await this.userRepository.save(user);
         } else {
           const otp = this.otpUtil.generateOTP(6, user.email || user.phone);
@@ -476,15 +479,9 @@ export class AuthService implements OnModuleInit {
           throw new ForbiddenException({
             success: false,
             error: 'NEW_DEVICE_OTP_REQUIRED',
-            message: 'New device or IP detected. Please enter the OTP sent to your email to authorize this login.',
+            message: 'New device detected. Please enter the OTP sent to your email to authorize this device.',
             data: { capturedIp: actualIp }
           });
-        }
-      } else {
-        // Same trusted device: update trusted list with latest IP address if changed
-        if (!user.trustedIps.includes(actualIp)) {
-          user.trustedIps = Array.from(new Set([...user.trustedIps, actualIp]));
-          await this.userRepository.save(user);
         }
       }
     }
@@ -913,11 +910,15 @@ export class AuthService implements OnModuleInit {
     if (user.email) {
       await this.redisClient.del(`otp:${user.email}:registration`).catch(() => undefined);
       await this.redisClient.del(`otp:${user.email}:forgot-password`).catch(() => undefined);
+      await this.redisClient.del(`otp:${user.email}:new_device`).catch(() => undefined);
     }
     if (user.phone) {
       await this.redisClient.del(`otp:${user.phone}:registration`).catch(() => undefined);
       await this.redisClient.del(`otp:${user.phone}:forgot-password`).catch(() => undefined);
+      await this.redisClient.del(`otp:${user.phone}:new_device`).catch(() => undefined);
     }
+
+    user.trustedIps = [];
 
     const runner = this.dataSource.createQueryRunner();
     await runner.connect();

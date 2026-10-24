@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Wallet, AlertCircle, Loader2 } from "lucide-react";
+import { Wallet, AlertCircle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import AppModal from "./AppModal";
 import {
   getWithdrawalEligibleMethods,
+  getWithdrawalEligibleMethodsFromDb,
   type SavedPaymentMethod,
 } from "@/src/shared/lib/payment-methods-store";
 import { useUser } from "@/src/context/user.provider";
@@ -46,6 +47,8 @@ function getUserIdentity(user: NonNullable<ReturnType<typeof useUser>["user"]>) 
   return { id, name };
 }
 
+const MIN_WITHDRAWAL = 100;
+
 export default function WithdrawRequestModal({
   open,
   onClose,
@@ -64,10 +67,20 @@ export default function WithdrawRequestModal({
       setSubmitting(false);
       return;
     }
+    // 1. Instant local render
     const saved = getWithdrawalEligibleMethods();
     setMethods(saved);
     const defaultMethod = saved.find((m) => m.isDefault) ?? saved[0];
-    setSelectedMethodId(defaultMethod?.id ?? "");
+    if (defaultMethod) setSelectedMethodId(defaultMethod.id);
+
+    // 2. Fresh fetch from database
+    getWithdrawalEligibleMethodsFromDb().then((fresh) => {
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        setMethods(fresh);
+        const def = fresh.find((m) => m.isDefault) ?? fresh[0];
+        if (def) setSelectedMethodId(def.id);
+      }
+    });
   }, [open]);
 
   const selectedMethod = useMemo(
@@ -75,8 +88,19 @@ export default function WithdrawRequestModal({
     [methods, selectedMethodId]
   );
 
-  const maxAmount = parseFloat(availableBalance.replace(/[^0-9.]/g, "")) || 0;
-  const parsedAmount = parseFloat(amount) || 0;
+  const totalBalance = useMemo(() => {
+    return Math.max(0, parseFloat(availableBalance.replace(/[^0-9.]/g, "")) || 0);
+  }, [availableBalance]);
+
+  const trimmedInput = amount.trim();
+  const hasInput = trimmedInput !== "" && !isNaN(Number(trimmedInput));
+  const enteredAmount = hasInput ? parseFloat(trimmedInput) : 0;
+  const remainingBalance = totalBalance - enteredAmount;
+
+  // Validation flags
+  const isInsufficient = hasInput && enteredAmount > totalBalance;
+  const isBelowMin = hasInput && enteredAmount < MIN_WITHDRAWAL;
+  const isValidWithdrawal = hasInput && enteredAmount >= MIN_WITHDRAWAL && enteredAmount <= totalBalance;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,47 +119,70 @@ export default function WithdrawRequestModal({
       return;
     }
 
-    if (parsedAmount <= 0) {
+    if (!hasInput || enteredAmount <= 0) {
       toast.error("Enter a valid withdrawal amount.");
       return;
     }
-    if (parsedAmount > maxAmount) {
-      toast.error("Amount exceeds available balance.");
+    if (enteredAmount < MIN_WITHDRAWAL) {
+      toast.error(`Minimum withdrawal amount is $${MIN_WITHDRAWAL}.00.`);
+      return;
+    }
+    if (enteredAmount > totalBalance) {
+      toast.error("Insufficient balance.");
       return;
     }
 
     setSubmitting(true);
-    let backendRecordId: string | null = null;
+    let backendTxId: string | null = null;
 
     try {
+      // 1. Immediately deduct amount from wallet balance in PostgreSQL DB and record pending transaction
+      const ssoRes = await axiosInstance.post("/sso/wallet/withdraw", {
+        amount: enteredAmount,
+        method: `${selectedMethod.type} (${selectedMethod.summary})`,
+        description: `Withdrawal via ${selectedMethod.label}`,
+      });
+      if (ssoRes?.data?.transactionId || ssoRes?.data?.transaction?.transactionId) {
+        backendTxId = ssoRes.data.transactionId || ssoRes.data.transaction?.transactionId;
+      }
+    } catch (ssoErr: any) {
+      console.warn("SSO wallet withdraw API notice:", ssoErr?.response?.data?.message || ssoErr?.message);
+      const errMsg = ssoErr?.response?.data?.message;
+      if (errMsg && (errMsg.includes("Insufficient") || errMsg.includes("Minimum"))) {
+        toast.error(errMsg);
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    // 2. Secondary backup request to payment service if configured
+    try {
       const res = await axiosInstance.post("/payment/withdrawals/request", {
-        amount: parsedAmount,
+        amount: enteredAmount,
         payoutMethod: selectedMethod.label,
         stripeAccountId: selectedMethod.id,
         note: `Withdrawal via ${selectedMethod.label}`,
       });
-      if (res?.data?.requestId || res?.data?.id) {
-        backendRecordId = String(res.data.requestId || res.data.id);
+      if (!backendTxId && (res?.data?.requestId || res?.data?.id)) {
+        backendTxId = String(res.data.requestId || res.data.id);
       }
     } catch (apiErr: any) {
-      console.warn("Withdrawal live API notice:", apiErr?.response?.data?.message || apiErr?.message);
+      console.warn("Payment live API notice:", apiErr?.response?.data?.message || apiErr?.message);
     }
 
     const identity = getUserIdentity(user);
     const record = submitWithdrawalRequest({
+      id: backendTxId || undefined,
       userId: identity.id,
       userName: identity.name,
-      amount: parsedAmount,
+      amount: enteredAmount,
       methodId: selectedMethod.id,
       methodLabel: selectedMethod.label,
       methodType: selectedMethod.type,
+      method: `${selectedMethod.type} · ${selectedMethod.summary}`,
     });
 
-    if (backendRecordId) {
-      record.id = backendRecordId;
-    }
-
-    // Trigger wallet balance reload across dashboard
+    // 3. Immediately notify wallet balance observers to refresh live from database
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("wallet_updated"));
     }
@@ -147,7 +194,7 @@ export default function WithdrawRequestModal({
       date: record.date,
     });
 
-    toast.success("Withdrawal request submitted. Admin will review it shortly.");
+    toast.success(`Withdrawal request submitted! Transaction ID: ${record.id}`);
     setSubmitting(false);
     onClose();
   };
@@ -157,7 +204,7 @@ export default function WithdrawRequestModal({
       open={open}
       onClose={onClose}
       title="Request Withdrawal"
-      description={`Available balance: ${availableBalance}`}
+      description={`Available balance: $${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
       size="sm"
       icon={<Wallet className="h-5 w-5" />}
       footer={
@@ -165,15 +212,16 @@ export default function WithdrawRequestModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-border bg-background hover:bg-muted px-4 py-2.5 text-sm font-medium text-foreground transition-colors"
+            disabled={submitting}
+            className="flex-1 rounded-lg border border-border bg-background hover:bg-muted px-4 py-2.5 text-sm font-medium text-foreground transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             form="withdraw-form"
-            disabled={submitting || methods.length === 0}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            disabled={submitting || methods.length === 0 || !isValidWithdrawal}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             {submitting ? (
               <>
@@ -199,20 +247,16 @@ export default function WithdrawRequestModal({
           </div>
         ) : (
           <div>
-            <label className="mb-1.5 block text-xs sm:text-sm font-medium text-foreground dark:text-slate-200">
+            <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-foreground">
               Payout method
             </label>
             <select
               value={selectedMethodId}
               onChange={(e) => setSelectedMethodId(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer"
             >
               {methods.map((method) => (
-                <option
-                  key={method.id}
-                  value={method.id}
-                  className="bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
-                >
+                <option key={method.id} value={method.id}>
                   {method.type} — {method.summary}
                   {method.isDefault ? " (default)" : ""}
                 </option>
@@ -225,26 +269,91 @@ export default function WithdrawRequestModal({
         )}
 
         <div>
-          <label className="mb-1.5 block text-xs sm:text-sm font-medium text-foreground dark:text-slate-200">
-            Amount (USD)
-          </label>
-          <input
-            type="number"
-            min="1"
-            step="0.01"
-            max={maxAmount}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
-            required
-            disabled={methods.length === 0}
-          />
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-xs sm:text-sm font-semibold text-foreground">
+              Amount (USD)
+            </label>
+            <span className="text-xs text-muted-foreground">
+              Min. withdraw: <span className="font-semibold text-foreground">$100.00</span>
+            </span>
+          </div>
+
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+              $
+            </span>
+            <input
+              type="number"
+              min="1"
+              step="any"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className={`w-full rounded-lg border pl-7 pr-3.5 py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:outline-none transition-colors dark:bg-card dark:text-foreground ${
+                isInsufficient
+                  ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                  : isValidWithdrawal
+                    ? "border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    : "border-input focus:border-primary focus:ring-1 focus:ring-primary"
+              }`}
+              required
+              disabled={methods.length === 0 || submitting}
+            />
+          </div>
+
+          {/* Real-time Calculation and Inline Status */}
+          {hasInput ? (
+            <div
+              className={`mt-2.5 rounded-lg border p-3 transition-all ${
+                isInsufficient
+                  ? "border-red-300 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 text-red-900 dark:text-red-200"
+                  : isValidWithdrawal
+                    ? "border-emerald-300 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200"
+                    : "border-amber-300 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200"
+              }`}
+            >
+              {/* Formula: Total Balance - Entered Value = Remaining Value */}
+              <div className="flex items-center justify-between text-xs font-mono font-medium pb-1.5 border-b border-current/10">
+                <span className="opacity-80">Calculation:</span>
+                <span className="font-bold tracking-tight">
+                  ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} - ${enteredAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} = ${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* Status Message */}
+              <div className="mt-2 flex items-center justify-between text-xs">
+                {isInsufficient ? (
+                  <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-semibold">
+                    <XCircle className="h-4 w-4 shrink-0" />
+                    <span>Insufficient balance</span>
+                  </div>
+                ) : isBelowMin ? (
+                  <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                    <span>Minimum withdrawal amount is $100.00</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>Accept to withdraw</span>
+                  </div>
+                )}
+
+                <span className="text-[11px] opacity-80">
+                  Remaining: <strong>${Math.max(0, remainingBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground px-1">
+              <span>Total Balance: <strong className="text-foreground">${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+              <span>Minimum: <strong className="text-foreground">$100.00</strong></span>
+            </div>
+          )}
         </div>
 
         <div className="rounded-lg border border-border bg-muted/40 dark:bg-card px-4 py-3 text-xs leading-relaxed text-muted-foreground">
-          Withdrawals are reviewed by admin within 1–3 business days. Status updates appear in your
-          withdraw history and admin transactions.
+          Withdrawals are immediately recorded as pending and processed by the system. The requested amount is deducted from your balance in real time.
         </div>
       </form>
     </AppModal>

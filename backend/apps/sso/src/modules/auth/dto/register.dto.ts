@@ -256,6 +256,10 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   recoveryKey?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 }
 
 

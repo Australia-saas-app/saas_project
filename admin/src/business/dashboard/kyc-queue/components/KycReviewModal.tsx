@@ -70,19 +70,19 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
       setShowRejectModal(false);
       toast.success(`Application ${kycStatus === 'approved' ? 'approved' : 'rejected'} successfully.`);
       // Log admin KYC action with real IP — admin email in details only
-        const uid = user.userId || user.id;
-        logAdminActivity(token || "", {
-          action: kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
-          resource: `KYC application ${kycStatus} by administrator`,
-          targetUserId: uid,
-          targetUserEmail: user.email,
-          targetUserName: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName,
-          adminEmail: adminUser?.email,
-          adminName: adminUser?.fullName || adminUser?.name,
-          extra: { kycStatus, rejectionReasons },
-        });
+      const uid = user.userId || user.id;
+      logAdminActivity(token || "", {
+        action: kycStatus === "approved" ? "KYC_APPROVED" : "KYC_REJECTED",
+        resource: `KYC application ${kycStatus} by administrator`,
+        targetUserId: uid,
+        targetUserEmail: user.email,
+        targetUserName: user.fullName || user.agencyInfo?.agencyName || user.businessInfo?.companyName,
+        adminEmail: adminUser?.email,
+        adminName: adminUser?.fullName || adminUser?.name,
+        extra: { kycStatus, rejectionReasons },
+      });
 
-        if (typeof window !== "undefined") {
+      if (typeof window !== "undefined") {
 
         // 1. Local DOM CustomEvents
         window.dispatchEvent(new CustomEvent("vero:kyc_updated", {
@@ -149,8 +149,8 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               priority: "high",
               data: { href: userNotif.href },
             }),
-          }).catch(() => {});
-        } catch {}
+          }).catch(() => { });
+        } catch { }
 
         try {
           localStorage.setItem("vero_account_sync", JSON.stringify({ userId: uid, action: kycStatus, t: Date.now() }));
@@ -167,7 +167,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               timestamp: Date.now()
             }));
           }
-        } catch {}
+        } catch { }
       }
       onSuccess(kycStatus, rejectionReasons);
     } catch (error) {
@@ -216,7 +216,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 try {
                   const parsed = JSON.parse(user.kycRejectionReason);
                   if (parsed && typeof parsed === "object") return parsed;
-                } catch {}
+                } catch { }
               }
               return null;
             })();
@@ -516,7 +516,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                 return d;
               })();
               const rawDocUrl = snap.idDocument || snap.documentUrl || user.idDocument || user.documentUrl;
-              
+
               if (!rawDocUrl && !snap.documentFrontUrl && !user.documentFrontUrl) {
                 return (
                   <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
@@ -528,7 +528,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
 
               let front = snap.documentFrontUrl || user.documentFrontUrl || "";
               let back = snap.documentBackUrl || user.documentBackUrl || "";
-              
+
               let parsedDocUrl = rawDocUrl;
 
               if (Array.isArray(rawDocUrl)) {
@@ -556,13 +556,13 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-500 uppercase">Front ID</p>
                       <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full">
-                          <img src={front} alt="Front ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
+                        <img src={front} alt="Front ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                       </div>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-500 uppercase">Back ID</p>
                       <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full">
-                          <img src={back} alt="Back ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
+                        <img src={back} alt="Back ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                       </div>
                     </div>
                   </div>
@@ -570,7 +570,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               }
 
               const docStr = (typeof parsedDocUrl === "string" ? parsedDocUrl : "");
-              
+
               return (
                 <div className="relative group rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800/50 aspect-video w-full max-w-md">
                   {docStr.toLowerCase().endsWith(".pdf") ? (
@@ -579,7 +579,7 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
                       <span className="text-sm font-medium underline">Open PDF Document</span>
                     </a>
                   ) : (
-                      <img src={docStr} alt="ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
+                    <img src={docStr} alt="ID Document" className="w-full h-full object-contain p-1 hover:scale-105 transition-transform duration-200" />
                   )}
                 </div>
               );
@@ -618,47 +618,47 @@ export function KycReviewModal({ user, isOpen, onClose, onSuccess }: KycReviewMo
               </p>
             </div>
           </div>
-          </div>
-          {/* END OF SCROLLABLE BODY */}
+        </div>
+        {/* END OF SCROLLABLE BODY */}
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 px-8 py-4 bg-background border-t border-border mt-auto">
-            {(kycStatus === 'pending' || kycStatus === 'submitted') ? (
-              <>
-                <button
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={isAnyLoading}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[110px] flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject Application"}
-                </button>
-
-                <button
-                  onClick={() => handleUpdateStatus('approved')}
-                  disabled={isAnyLoading}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[130px] flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve Application"}
-                </button>
-              </>
-            ) : kycStatus === 'rejected' ? (
-              <button
-                onClick={() => handleUpdateStatus('approved')}
-                disabled={isAnyLoading}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Re-evaluate & Approve"}
-              </button>
-            ) : (
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-3 px-8 py-4 bg-background border-t border-border mt-auto">
+          {(kycStatus === 'pending' || kycStatus === 'submitted') ? (
+            <>
               <button
                 onClick={() => setShowRejectModal(true)}
                 disabled={isAnyLoading}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[110px] flex items-center justify-center gap-2 cursor-pointer"
               >
-                {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Revoke & Reject"}
+                {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject Application"}
               </button>
-            )}
-          </div>
+
+              <button
+                onClick={() => handleUpdateStatus('approved')}
+                disabled={isAnyLoading}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[130px] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve Application"}
+              </button>
+            </>
+          ) : kycStatus === 'rejected' ? (
+            <button
+              onClick={() => handleUpdateStatus('approved')}
+              disabled={isAnyLoading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loadingAction === 'approved' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Re-evaluate & Approve"}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowRejectModal(true)}
+              disabled={isAnyLoading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 min-w-[140px] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loadingAction === 'rejected' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Revoke & Reject"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ─── REASON OF REJECTION MODAL ─── */}

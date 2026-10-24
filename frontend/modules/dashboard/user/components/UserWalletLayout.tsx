@@ -17,7 +17,7 @@ import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
-import { getWithdrawalsForUser } from "@/src/shared/lib/wallet-store";
+import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
 import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { USER_STATS } from "../data/user-demo-data";
 
@@ -42,8 +42,8 @@ export default function UserWalletLayout() {
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
 
-  useEffect(() => {
-    if (!isReady || !userId) return;
+  const loadWithdrawals = async () => {
+    // 1. Instant local render
     const stored = getWithdrawalsForUser(userId).map((row) => ({
       id: row.id,
       method: row.method,
@@ -55,6 +55,33 @@ export default function UserWalletLayout() {
     const demoRows = isDemo ? [...WITHDRAW_ROWS] : [];
     const ids = new Set(stored.map((r) => r.id));
     setWithdrawRows([...stored, ...demoRows.filter((r) => !ids.has(r.id))]);
+
+    // 2. Fresh sync from database
+    const dbRows = await fetchWalletWithdrawalsFromDb();
+    if (dbRows.length > 0) {
+      setWithdrawRows((prev) => {
+        const existingIds = new Set(prev.map((r) => r.id));
+        const newFromDb = dbRows
+          .filter((d) => !existingIds.has(d.id))
+          .map((d) => ({
+            id: d.id,
+            method: d.method,
+            amount: d.amount,
+            date: d.date,
+            status: d.status,
+          }));
+        const updated = prev.map((p) => {
+          const match = dbRows.find((d) => d.id === p.id);
+          return match ? { ...p, status: match.status } : p;
+        });
+        return [...newFromDb, ...updated];
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isReady) return;
+    loadWithdrawals();
   }, [isReady, userId, isDemo]);
 
   const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
@@ -76,10 +103,13 @@ export default function UserWalletLayout() {
 
   useEffect(() => {
     loadRealBalance();
-    const onWalletUpdated = () => loadRealBalance();
+    const onWalletUpdated = () => {
+      loadRealBalance();
+      loadWithdrawals();
+    };
     window.addEventListener("wallet_updated", onWalletUpdated);
     return () => window.removeEventListener("wallet_updated", onWalletUpdated);
-  }, []);
+  }, [userId]);
 
   const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
 
@@ -141,7 +171,7 @@ export default function UserWalletLayout() {
         <button
           type="button"
           onClick={() => setWithdrawOpen(true)}
-          className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+          className="shrink-0 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-all cursor-pointer"
         >
           {w.withdraw}
         </button>
@@ -150,7 +180,7 @@ export default function UserWalletLayout() {
       <WithdrawRequestModal
         open={withdrawOpen}
         onClose={() => setWithdrawOpen(false)}
-        availableBalance={stats.currentBalance}
+        availableBalance={displayBalance}
         onSubmit={(result: WithdrawRequestResult) => {
           setWithdrawRows((prev) => [
             {
@@ -192,9 +222,9 @@ export default function UserWalletLayout() {
       <WalletPaymentMethodsCard />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-base font-bold text-gray-900">{w.withdrawHistory}</h2>
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">{w.withdrawHistory}</h2>
             <div className="relative">
               <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -205,42 +235,50 @@ export default function UserWalletLayout() {
                   setWithdrawSearch(e.target.value);
                   setWithdrawPage(1);
                 }}
-                className="w-full sm:w-44 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
+                className="w-full sm:w-44 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 py-1.5 pr-3 pl-8 text-xs focus:outline-none focus:border-primary"
               />
             </div>
           </div>
           {withdrawData.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-500">No withdrawals yet.</p>
+            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No withdrawals yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs min-w-[420px]">
+              <table className="w-full text-xs min-w-[540px]">
                 <thead>
-                  <tr className="bg-primary text-white uppercase font-bold">
-                    <th className="p-2.5 text-left">ID</th>
-                    <th className="p-2.5 text-left">{w.method}</th>
-                    <th className="p-2.5 text-left">{w.amount}</th>
-                    <th className="p-2.5 text-left">{w.status}</th>
-                    <th className="p-2.5 text-right">Action</th>
+                  <tr className="bg-primary text-white uppercase font-bold text-[11px]">
+                    <th className="p-3 text-left">Transaction ID</th>
+                    <th className="p-3 text-left">{w.method}</th>
+                    <th className="p-3 text-left">{w.amount}</th>
+                    <th className="p-3 text-left">Date</th>
+                    <th className="p-3 text-left">{w.status}</th>
+                    <th className="p-3 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
                   {withdrawData.map((row, i) => (
-                    <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50">
-                      <td className="p-2.5 font-semibold">{row.id}</td>
-                      <td className="p-2.5">{row.method}</td>
-                      <td className="p-2.5">{row.amount}</td>
-                      <td className="p-2.5">
+                    <tr key={`${row.id}-${i}`} className="text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="p-3 font-mono font-semibold text-gray-900 dark:text-white text-xs">{row.id}</td>
+                      <td className="p-3 text-gray-700 dark:text-gray-300">{row.method}</td>
+                      <td className="p-3 font-semibold text-gray-900 dark:text-white">{row.amount}</td>
+                      <td className="p-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.date}</td>
+                      <td className="p-3">
                         <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${row.status === "Complete" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                            row.status === "Complete"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60"
+                              : row.status === "Failed"
+                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60"
+                          }`}
                         >
                           {row.status}
                         </span>
                       </td>
-                      <td className="p-2.5 text-right">
+                      <td className="p-3 text-right">
                         <button
                           type="button"
                           onClick={() => setSelectedWithdrawal(row)}
-                          className="inline-flex items-center gap-1 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                          className="inline-flex items-center gap-1 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                           title="View withdrawal info"
                         >
                           <Eye className="h-3.5 w-3.5" />

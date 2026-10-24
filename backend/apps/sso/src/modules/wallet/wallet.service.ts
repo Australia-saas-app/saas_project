@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Wallet } from '../../entities/wallet.entity';
@@ -7,7 +7,7 @@ import { User } from '../../entities/user.entity';
 import { PaymentCard, CardType, CardStatus } from '../../entities/payment-card.entity';
 
 @Injectable()
-export class WalletService {
+export class WalletService implements OnModuleInit {
   constructor(
     @InjectRepository(Wallet)
     private readonly walletRepository: Repository<Wallet>,
@@ -18,6 +18,16 @@ export class WalletService {
     @InjectRepository(PaymentCard)
     private readonly paymentCardRepository: Repository<PaymentCard>,
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.userRepository.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" jsonb DEFAULT '[]'::jsonb;`
+      );
+    } catch {
+      // Ignore if table or column already adjusted
+    }
+  }
 
   async getWallet(userId: string): Promise<Wallet> {
     if (!userId) {
@@ -209,34 +219,61 @@ export class WalletService {
     return wallet;
   }
 
-  async withdraw(userId: string, amount: number, description?: string): Promise<Wallet> {
+  private generateMixedAlphaNumericTxId(prefix = 'WD'): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let randomPart = '';
+    for (let i = 0; i < 12; i++) {
+      randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `${prefix}-${randomPart}`;
+  }
+
+  async withdraw(userId: string, amount: number, description?: string, method?: string): Promise<any> {
+    const numAmount = Number(amount);
+    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
+      throw new BadRequestException('Invalid withdrawal amount');
+    }
+    if (numAmount < 100) {
+      throw new BadRequestException('Minimum withdrawal amount is $100');
+    }
+
     const wallet = await this.getWallet(userId);
     const balanceBefore = Number(wallet.balance || 0);
 
-    if (balanceBefore < amount) {
+    if (balanceBefore < numAmount) {
       throw new BadRequestException('Insufficient balance');
     }
 
-    const balanceAfter = Number((balanceBefore - Number(amount)).toFixed(2));
+    const balanceAfter = Number((balanceBefore - numAmount).toFixed(2));
     wallet.balance = balanceAfter;
     await this.walletRepository.save(wallet);
+
+    const txId = this.generateMixedAlphaNumericTxId('WD');
 
     const tx = this.transactionRepository.create({
       userId: wallet.userId || userId,
       walletId: wallet.id,
+      transactionId: txId,
       type: TransactionType.WITHDRAWAL,
-      amount,
+      amount: numAmount,
       currency: wallet.currency || 'USD',
-      status: TransactionStatus.COMPLETED,
+      status: TransactionStatus.PENDING,
       description: description || 'Wallet Withdrawal',
-      paymentMethod: 'wallet',
+      paymentMethod: method || 'wallet',
       balanceBefore,
       balanceAfter,
     });
 
-    await this.transactionRepository.save(tx);
+    const savedTx = await this.transactionRepository.save(tx);
 
-    return wallet;
+    return {
+      success: true,
+      message: 'Withdrawal request submitted successfully',
+      wallet,
+      balance: balanceAfter,
+      transactionId: txId,
+      transaction: savedTx,
+    };
   }
 
   async getTransactions(userId: string, page: any = 1, limit: any = 20): Promise<any> {
@@ -308,5 +345,132 @@ export class WalletService {
     });
 
     return await this.transactionRepository.save(transaction);
+  }
+
+  async getPaymentMethods(userId: string): Promise<any[]> {
+    if (!userId) return [];
+    try {
+      const user = await this.userRepository.findOne({
+        where: [{ userId }, { id: userId }],
+      });
+      if (!user) return [];
+
+      const list = Array.isArray(user.paymentMethods) ? [...user.paymentMethods] : [];
+
+      // If user has saved payment cards in payment_cards table that are not yet in list, include them
+      const cards = await this.getCards(userId);
+      for (const card of cards) {
+        const cardId = `CARD-${card.id}`;
+        if (!list.some((m) => m.id === cardId || (m.type === 'Credit / Debit Card' && m.details?.cardNumber?.endsWith(card.last4)))) {
+          list.push({
+            id: cardId,
+            type: 'Credit / Debit Card',
+            label: `${card.cardBrand || 'Card'} ending in ${card.last4}`,
+            summary: `•••• ${card.last4} · Exp ${card.expiryMonth}/${card.expiryYear}`,
+            details: {
+              cardHolderName: card.cardHolderName,
+              cardNumber: `•••• •••• •••• ${card.last4}`,
+              expiryMonth: card.expiryMonth,
+              expiryYear: card.expiryYear,
+              cardBrand: card.cardBrand,
+            },
+            isDefault: Boolean(card.isDefault),
+            createdAt: card.createdAt ? new Date(card.createdAt).toISOString() : new Date().toISOString(),
+          });
+        }
+      }
+
+      return list;
+    } catch {
+      return [];
+    }
+  }
+
+  async savePaymentMethod(userId: string, data: any): Promise<any> {
+    if (!userId) throw new NotFoundException('User not found');
+    const user = await this.userRepository.findOne({
+      where: [{ userId }, { id: userId }],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    let list = Array.isArray(user.paymentMethods) ? [...user.paymentMethods] : [];
+    const isDefault = Boolean(data.isDefault);
+
+    if (isDefault) {
+      list = list.map((m) => ({ ...m, isDefault: false }));
+    }
+
+    const id = data.id || `PM-${Date.now().toString(36).toUpperCase()}`;
+    const newRecord = {
+      id,
+      type: data.type,
+      label: data.label,
+      summary: data.summary,
+      details: data.details || {},
+      isDefault: isDefault || list.length === 0,
+      createdAt: data.createdAt || new Date().toISOString(),
+    };
+
+    const existingIndex = list.findIndex((m) => m.id === id);
+    if (existingIndex >= 0) {
+      list[existingIndex] = { ...list[existingIndex], ...newRecord };
+    } else {
+      list.unshift(newRecord);
+    }
+
+    user.paymentMethods = list;
+    await this.userRepository.save(user);
+
+    // If Credit / Debit card, also sync into payment_cards
+    if (data.type === 'Credit / Debit Card' && data.details?.cardNumber) {
+      try {
+        await this.addCard(userId, {
+          cardHolderName: data.details.cardHolderName || user.fullName || 'Cardholder',
+          cardNumber: data.details.cardNumber,
+          expiryMonth: data.details.expiryMonth || '12',
+          expiryYear: data.details.expiryYear || '2030',
+          cardBrand: data.details.cardBrand || 'VISA',
+          isDefault,
+        });
+      } catch (err) {
+        console.warn('Sync to payment_cards table warning:', err);
+      }
+    }
+
+    return newRecord;
+  }
+
+  async deletePaymentMethod(userId: string, methodId: string): Promise<boolean> {
+    if (!userId || !methodId) return false;
+    const user = await this.userRepository.findOne({
+      where: [{ userId }, { id: userId }],
+    });
+    if (!user) return false;
+
+    const list = Array.isArray(user.paymentMethods) ? [...user.paymentMethods] : [];
+    const filtered = list.filter((m) => m.id !== methodId);
+    if (filtered.length > 0 && !filtered.some((m) => m.isDefault)) {
+      filtered[0].isDefault = true;
+    }
+    user.paymentMethods = filtered;
+    await this.userRepository.save(user);
+    return true;
+  }
+
+  async setDefaultPaymentMethod(userId: string, methodId: string): Promise<any> {
+    if (!userId || !methodId) return null;
+    const user = await this.userRepository.findOne({
+      where: [{ userId }, { id: userId }],
+    });
+    if (!user) return null;
+
+    let list = Array.isArray(user.paymentMethods) ? [...user.paymentMethods] : [];
+    list = list.map((m) => ({
+      ...m,
+      isDefault: m.id === methodId,
+    }));
+    user.paymentMethods = list;
+    await this.userRepository.save(user);
+    return list.find((m) => m.id === methodId) || null;
   }
 }

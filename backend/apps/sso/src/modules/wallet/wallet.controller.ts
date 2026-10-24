@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -25,6 +25,44 @@ export class WalletController {
     const userId = req.user?.userId || req.user?.sub || req.user?.id;
     const balance = await this.walletService.getBalance(userId);
     return { balance };
+  }
+
+  @Get('payment-methods')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all saved payment methods from database' })
+  async getPaymentMethods(@Request() req: any) {
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
+    return await this.walletService.getPaymentMethods(userId);
+  }
+
+  @Post('payment-methods')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Save or update payment method in database' })
+  async savePaymentMethod(@Request() req: any, @Body() body: any) {
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
+    return await this.walletService.savePaymentMethod(userId, body);
+  }
+
+  @Delete('payment-methods/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete a payment method from database' })
+  async deletePaymentMethod(@Request() req: any, @Param('id') id: string) {
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
+    const success = await this.walletService.deletePaymentMethod(userId, id);
+    return { success, message: success ? 'Payment method deleted' : 'Payment method not found' };
+  }
+
+  @Post('payment-methods/:id/default')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Set default payout method in database' })
+  async setDefaultPaymentMethod(@Request() req: any, @Param('id') id: string) {
+    const userId = req.user?.userId || req.user?.sub || req.user?.id;
+    const updated = await this.walletService.setDefaultPaymentMethod(userId, id);
+    return { success: Boolean(updated), method: updated };
   }
 
   @Get('cards')
@@ -101,12 +139,13 @@ export class WalletController {
       properties: {
         amount: { type: 'number' },
         description: { type: 'string' },
+        method: { type: 'string' },
       },
     },
   })
-  async withdraw(@Request() req: any, @Body() body: { amount: number; description?: string }) {
+  async withdraw(@Request() req: any, @Body() body: { amount: number; description?: string; method?: string }) {
     const userId = req.user?.userId || req.user?.sub || req.user?.id;
-    return await this.walletService.withdraw(userId, body.amount, body.description);
+    return await this.walletService.withdraw(userId, body.amount, body.description, body.method);
   }
 
   @Get('transactions')

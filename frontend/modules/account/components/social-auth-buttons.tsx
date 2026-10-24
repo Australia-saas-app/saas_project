@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSocialLogin } from "@/src/hooks/auth.hook";
 import type { DashboardDemoAccountType } from "@/src/constants/demo-accounts";
+import { getOrCreateDeviceId } from "@/src/shared/lib/device-id";
 
 interface SocialAuthButtonsProps {
   accountType?: DashboardDemoAccountType;
@@ -59,10 +60,7 @@ export function SocialAuthButtons({
     }
 
     const name = email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    let deviceId = "web-browser";
-    if (typeof window !== "undefined") {
-      deviceId = localStorage.getItem("vero_device_id") || "web-browser";
-    }
+    const deviceId = getOrCreateDeviceId();
 
     socialLoginMutation.mutate(
       {

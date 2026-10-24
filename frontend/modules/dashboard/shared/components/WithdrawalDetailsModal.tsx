@@ -46,13 +46,13 @@ export default function WithdrawalDetailsModal({
       title="Withdrawal Request Details"
       description={`Transaction reference ${withdrawal.id}`}
       size="sm"
-      icon={<Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
+      icon={<Wallet className="h-5 w-5 text-primary" />}
       footer={
         <div className="flex justify-end w-full">
           <Button
             type="button"
             onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 shadow-sm"
+            className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 shadow-sm transition-all cursor-pointer"
           >
             Close
           </Button>

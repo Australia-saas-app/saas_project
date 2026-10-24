@@ -25,6 +25,7 @@ import { OtpInput } from "./OtpInput";
 import { getSecuritySettings, saveSecuritySettings } from "@/src/shared/lib/security-settings-store";
 import { verifyAccountPassword, sendRegistrationOtp, verifyRegistrationOtp } from "@/src/server/AuthService";
 import { SessionExpiredLandingModal } from "@/src/shared/components/SessionExpiredLandingModal";
+import { getOrCreateDeviceId } from "@/src/shared/lib/device-id";
 
 const loginSchema = z.object({
   email: z
@@ -165,14 +166,7 @@ export function LoginPage({
       }
 
       // 3. Perform login when 2FA is disabled
-      let deviceId = "";
-      if (typeof window !== "undefined") {
-        deviceId = localStorage.getItem("vero_device_id") || "";
-        if (!deviceId) {
-          deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
-          localStorage.setItem("vero_device_id", deviceId);
-        }
-      }
+      const deviceId = getOrCreateDeviceId();
 
       setIsVerifyingCreds(false);
       loginMutation.mutate(
@@ -227,10 +221,7 @@ export function LoginPage({
       if (typeof window !== "undefined") {
         sessionStorage.setItem("show_login_success_toast", "true");
       }
-      let deviceId = "";
-      if (typeof window !== "undefined") {
-        deviceId = localStorage.getItem("vero_device_id") || "";
-      }
+      const deviceId = getOrCreateDeviceId();
       
       loginMutation.mutate(
         { ...pendingLoginData, otp: otpCode, accountType, deviceId },
