@@ -1,6 +1,7 @@
-import { Module } from "@nestjs/common";
+import { Module, OnModuleInit, Logger } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
 import { HttpModule } from "@nestjs/axios";
 import {
   ThrottlerModule,
@@ -109,4 +110,19 @@ import { CompanyModule } from "./company/company.module";
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit {
+  private readonly autoMigrateLogger = new Logger("PlatformAutoMigration");
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onModuleInit() {
+    try {
+      await this.dataSource.query(`
+        ALTER TABLE blogs ADD COLUMN IF NOT EXISTS "photo" JSONB;
+      `);
+      this.autoMigrateLogger.log("Platform tables verified and auto-migrated successfully.");
+    } catch (e: any) {
+      this.autoMigrateLogger.warn(`Platform auto-migration note: ${e?.message || e}`);
+    }
+  }
+}

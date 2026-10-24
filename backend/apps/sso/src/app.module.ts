@@ -177,6 +177,9 @@ export class AppModule implements OnModuleInit {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "agencyInfo" JSONB;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "businessInfo" JSONB;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "governmentId" VARCHAR(100);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "governmentIdType" VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" JSONB DEFAULT '[]'::jsonb;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastActiveAt" TIMESTAMP DEFAULT NOW();
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP DEFAULT NOW();
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "deactivatedAt" TIMESTAMP;
