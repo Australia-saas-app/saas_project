@@ -14,6 +14,7 @@ export interface SavedPaymentMethod {
 }
 
 const STORAGE_KEY = "platform_payment_methods"
+const GLOBAL_KEY = "platform_payment_methods:global"
 
 function storageKey() {
   return scopedStorageKey(STORAGE_KEY)
@@ -23,9 +24,17 @@ export function readPaymentMethods(): SavedPaymentMethod[] {
   if (typeof window === "undefined") return []
   try {
     const raw = localStorage.getItem(storageKey())
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as SavedPaymentMethod[]
-    return Array.isArray(parsed) ? parsed : []
+    if (raw) {
+      const parsed = JSON.parse(raw) as SavedPaymentMethod[]
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    // Fallback across scope transitions / relogin
+    const globalRaw = localStorage.getItem(GLOBAL_KEY) || localStorage.getItem(STORAGE_KEY)
+    if (globalRaw) {
+      const parsed = JSON.parse(globalRaw) as SavedPaymentMethod[]
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    return []
   } catch {
     return []
   }
@@ -33,7 +42,12 @@ export function readPaymentMethods(): SavedPaymentMethod[] {
 
 export function writePaymentMethods(methods: SavedPaymentMethod[]) {
   if (typeof window === "undefined") return
-  localStorage.setItem(storageKey(), JSON.stringify(methods))
+  try {
+    const serialized = JSON.stringify(methods)
+    localStorage.setItem(storageKey(), serialized)
+    localStorage.setItem(GLOBAL_KEY, serialized)
+    localStorage.setItem(STORAGE_KEY, serialized)
+  } catch {}
 }
 
 export async function fetchPaymentMethodsFromDb(): Promise<SavedPaymentMethod[]> {
@@ -43,6 +57,14 @@ export async function fetchPaymentMethodsFromDb(): Promise<SavedPaymentMethod[]>
     if (list.length > 0) {
       writePaymentMethods(list)
       return list
+    }
+    // If DB is currently empty but we have local methods, auto-persist them to DB
+    const local = readPaymentMethods()
+    if (local.length > 0) {
+      for (const m of local) {
+        axiosInstance.post("/sso/wallet/payment-methods", m).catch(() => undefined)
+      }
+      return local
     }
   } catch {
     // Fallback to local storage if API call fails
@@ -57,6 +79,8 @@ export async function savePaymentMethodDb(
   const localRecord = existingId
     ? updatePaymentMethod(existingId, method) || { id: existingId, ...method }
     : savePaymentMethod(method)
+
+  writePaymentMethods(readPaymentMethods())
 
   try {
     const res = await axiosInstance.post("/sso/wallet/payment-methods", localRecord)

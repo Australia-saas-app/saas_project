@@ -21,7 +21,7 @@ import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/share
 import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { USER_STATS } from "../data/user-demo-data";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 const EMPTY_STATS = {
   totalEarnings: "$0",
@@ -121,25 +121,45 @@ export default function UserWalletLayout() {
   ];
 
   const filteredWithdraw = useMemo(() => {
-    if (!withdrawSearch.trim()) return withdrawRows;
-    const q = withdrawSearch.toLowerCase();
-    return withdrawRows.filter(
-      (r) =>
-        r.id.toLowerCase().includes(q) ||
-        r.method.toLowerCase().includes(q) ||
-        r.amount.toLowerCase().includes(q)
-    );
+    let rows = withdrawRows;
+    if (withdrawSearch.trim()) {
+      const q = withdrawSearch.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.id.toLowerCase().includes(q) ||
+          r.method.toLowerCase().includes(q) ||
+          r.amount.toLowerCase().includes(q)
+      );
+    }
+    return [...rows].sort((a, b) => {
+      const tA = new Date(a.date).getTime();
+      const tB = new Date(b.date).getTime();
+      if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
+        return tB - tA;
+      }
+      return 0;
+    });
   }, [withdrawSearch, withdrawRows]);
 
   const filteredEarning = useMemo(() => {
-    if (!earningSearch.trim()) return earningRows;
-    const q = earningSearch.toLowerCase();
-    return earningRows.filter(
-      (r) =>
-        r.id.toLowerCase().includes(q) ||
-        r.subcategory.toLowerCase().includes(q) ||
-        r.commission.toLowerCase().includes(q)
-    );
+    let rows = earningRows;
+    if (earningSearch.trim()) {
+      const q = earningSearch.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.id.toLowerCase().includes(q) ||
+          r.subcategory.toLowerCase().includes(q) ||
+          r.commission.toLowerCase().includes(q)
+      );
+    }
+    return [...rows].sort((a: any, b: any) => {
+      const tA = a.date ? new Date(a.date).getTime() : NaN;
+      const tB = b.date ? new Date(b.date).getTime() : NaN;
+      if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
+        return tB - tA;
+      }
+      return 0;
+    });
   }, [earningSearch, earningRows]);
 
   const withdrawPages = Math.max(1, Math.ceil(filteredWithdraw.length / PAGE_SIZE));
@@ -221,10 +241,10 @@ export default function UserWalletLayout() {
 
       <WalletPaymentMethodsCard />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl border border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+      <div className="space-y-6">
+        <div className="w-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">{w.withdrawHistory}</h2>
+            <h2 className="text-base font-bold text-gray-900">{w.withdrawHistory}</h2>
             <div className="relative">
               <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -235,16 +255,16 @@ export default function UserWalletLayout() {
                   setWithdrawSearch(e.target.value);
                   setWithdrawPage(1);
                 }}
-                className="w-full sm:w-44 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 py-1.5 pr-3 pl-8 text-xs focus:outline-none focus:border-primary"
+                className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
               />
             </div>
           </div>
           {withdrawData.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No withdrawals yet.</p>
+            <p className="py-8 text-center text-sm text-gray-500">No withdrawals yet.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
               <table className="w-full text-xs min-w-[540px]">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="bg-primary text-white uppercase font-bold text-[11px]">
                     <th className="p-3 text-left">Transaction ID</th>
                     <th className="p-3 text-left">{w.method}</th>
@@ -254,21 +274,21 @@ export default function UserWalletLayout() {
                     <th className="p-3 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-gray-100">
                   {withdrawData.map((row, i) => (
-                    <tr key={`${row.id}-${i}`} className="text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="p-3 font-mono font-semibold text-gray-900 dark:text-white text-xs">{row.id}</td>
-                      <td className="p-3 text-gray-700 dark:text-gray-300">{row.method}</td>
-                      <td className="p-3 font-semibold text-gray-900 dark:text-white">{row.amount}</td>
-                      <td className="p-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.date}</td>
+                    <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50 transition-colors">
+                      <td className="p-3 font-mono font-semibold text-gray-900 text-xs">{row.id}</td>
+                      <td className="p-3 text-gray-700">{row.method}</td>
+                      <td className="p-3 font-semibold text-gray-900">{row.amount}</td>
+                      <td className="p-3 text-gray-500 whitespace-nowrap">{row.date}</td>
                       <td className="p-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
                             row.status === "Complete"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                               : row.status === "Failed"
-                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
-                                : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60"
+                                ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                : "bg-amber-100 text-amber-800 border border-amber-200"
                           }`}
                         >
                           {row.status}
@@ -278,7 +298,7 @@ export default function UserWalletLayout() {
                         <button
                           type="button"
                           onClick={() => setSelectedWithdrawal(row)}
-                          className="inline-flex items-center gap-1 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
                           title="View withdrawal info"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -306,7 +326,7 @@ export default function UserWalletLayout() {
           withdrawal={selectedWithdrawal}
         />
 
-        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="w-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-bold text-gray-900">{w.earningHistory}</h2>
             <div className="relative">
@@ -326,9 +346,9 @@ export default function UserWalletLayout() {
           {earningData.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500">No earnings recorded yet.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
               <table className="w-full text-xs min-w-[360px]">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="bg-primary text-white uppercase font-bold">
                     <th className="p-2.5 text-left">ID</th>
                     <th className="p-2.5 text-left">{w.category}</th>

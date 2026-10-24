@@ -350,46 +350,72 @@ export class WalletService implements OnModuleInit {
   async getPaymentMethods(userId: string): Promise<any[]> {
     if (!userId) return [];
     try {
-      const user = await this.userRepository.findOne({
-        where: [{ userId }, { id: userId }],
+      let user = await this.userRepository.findOne({
+        where: [{ userId }, { id: userId }, { email: userId }],
       });
       if (!user) return [];
 
-      const list = Array.isArray(user.paymentMethods) ? [...user.paymentMethods] : [];
+      let list = Array.isArray(user.paymentMethods) ? [...user.paymentMethods] : [];
 
       // If user has saved payment cards in payment_cards table that are not yet in list, include them
-      const cards = await this.getCards(userId);
-      for (const card of cards) {
-        const cardId = `CARD-${card.id}`;
-        if (!list.some((m) => m.id === cardId || (m.type === 'Credit / Debit Card' && m.details?.cardNumber?.endsWith(card.last4)))) {
-          list.push({
-            id: cardId,
-            type: 'Credit / Debit Card',
-            label: `${card.cardBrand || 'Card'} ending in ${card.last4}`,
-            summary: `•••• ${card.last4} · Exp ${card.expiryMonth}/${card.expiryYear}`,
-            details: {
-              cardHolderName: card.cardHolderName,
-              cardNumber: `•••• •••• •••• ${card.last4}`,
-              expiryMonth: card.expiryMonth,
-              expiryYear: card.expiryYear,
-              cardBrand: card.cardBrand,
-            },
-            isDefault: Boolean(card.isDefault),
-            createdAt: card.createdAt ? new Date(card.createdAt).toISOString() : new Date().toISOString(),
-          });
+      try {
+        const cards = await this.getCards(userId);
+        for (const card of cards) {
+          const cardId = `CARD-${card.id}`;
+          if (!list.some((m) => m.id === cardId || (m.type === 'Credit / Debit Card' && m.details?.cardNumber?.endsWith(card.last4)))) {
+            list.push({
+              id: cardId,
+              type: 'Credit / Debit Card',
+              label: `${card.cardBrand || 'Card'} ending in ${card.last4}`,
+              summary: `•••• ${card.last4} · Exp ${card.expiryMonth}/${card.expiryYear}`,
+              details: {
+                cardHolderName: card.cardHolderName,
+                cardNumber: `•••• •••• •••• ${card.last4}`,
+                expiryMonth: card.expiryMonth,
+                expiryYear: card.expiryYear,
+                cardBrand: card.cardBrand,
+              },
+              isDefault: Boolean(card.isDefault),
+              createdAt: card.createdAt ? new Date(card.createdAt).toISOString() : new Date().toISOString(),
+            });
+          }
         }
-      }
+      } catch {}
 
       return list;
-    } catch {
-      return [];
+    } catch (err: any) {
+      if (err?.message?.includes('paymentMethods') || String(err).includes('paymentMethods')) {
+        try {
+          await this.userRepository.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" JSONB DEFAULT '[]'::jsonb;`);
+        } catch {}
+      }
+      try {
+        const cards = await this.getCards(userId);
+        return cards.map((card) => ({
+          id: `CARD-${card.id}`,
+          type: 'Credit / Debit Card',
+          label: `${card.cardBrand || 'Card'} ending in ${card.last4}`,
+          summary: `•••• ${card.last4} · Exp ${card.expiryMonth}/${card.expiryYear}`,
+          details: {
+            cardHolderName: card.cardHolderName,
+            cardNumber: `•••• •••• •••• ${card.last4}`,
+            expiryMonth: card.expiryMonth,
+            expiryYear: card.expiryYear,
+            cardBrand: card.cardBrand,
+          },
+          isDefault: Boolean(card.isDefault),
+          createdAt: card.createdAt ? new Date(card.createdAt).toISOString() : new Date().toISOString(),
+        }));
+      } catch {
+        return [];
+      }
     }
   }
 
   async savePaymentMethod(userId: string, data: any): Promise<any> {
     if (!userId) throw new NotFoundException('User not found');
-    const user = await this.userRepository.findOne({
-      where: [{ userId }, { id: userId }],
+    let user = await this.userRepository.findOne({
+      where: [{ userId }, { id: userId }, { email: userId }],
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -419,7 +445,16 @@ export class WalletService implements OnModuleInit {
     }
 
     user.paymentMethods = list;
-    await this.userRepository.save(user);
+    try {
+      await this.userRepository.save(user);
+    } catch (saveErr: any) {
+      if (saveErr?.message?.includes('paymentMethods') || String(saveErr).includes('paymentMethods')) {
+        await this.userRepository.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" JSONB DEFAULT '[]'::jsonb;`);
+        await this.userRepository.save(user);
+      } else {
+        throw saveErr;
+      }
+    }
 
     // If Credit / Debit card, also sync into payment_cards
     if (data.type === 'Credit / Debit Card' && data.details?.cardNumber) {
@@ -443,7 +478,7 @@ export class WalletService implements OnModuleInit {
   async deletePaymentMethod(userId: string, methodId: string): Promise<boolean> {
     if (!userId || !methodId) return false;
     const user = await this.userRepository.findOne({
-      where: [{ userId }, { id: userId }],
+      where: [{ userId }, { id: userId }, { email: userId }],
     });
     if (!user) return false;
 
@@ -460,7 +495,7 @@ export class WalletService implements OnModuleInit {
   async setDefaultPaymentMethod(userId: string, methodId: string): Promise<any> {
     if (!userId || !methodId) return null;
     const user = await this.userRepository.findOne({
-      where: [{ userId }, { id: userId }],
+      where: [{ userId }, { id: userId }, { email: userId }],
     });
     if (!user) return null;
 

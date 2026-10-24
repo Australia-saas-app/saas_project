@@ -22,7 +22,7 @@ import { fetchWalletBalance } from "@/src/modules/technical/services/technical.s
 import { EMPTY_AFFILIATE_STATS } from "@/src/shared/lib/dashboard-empty-stats";
 import { AFFILIATE_STATS, AFFILIATE_LEVELS } from "../data/affiliate-demo-data";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function AffiliateWalletLayout() {
   const { t } = useLocale();
@@ -109,19 +109,39 @@ export default function AffiliateWalletLayout() {
   ];
 
   const filteredWithdraw = useMemo(() => {
-    if (!withdrawSearch.trim()) return withdrawRows;
-    const q = withdrawSearch.toLowerCase();
-    return withdrawRows.filter(
-      (r) => r.id.toLowerCase().includes(q) || r.method.toLowerCase().includes(q)
-    );
+    let rows = withdrawRows;
+    if (withdrawSearch.trim()) {
+      const q = withdrawSearch.toLowerCase();
+      rows = rows.filter(
+        (r) => r.id.toLowerCase().includes(q) || r.method.toLowerCase().includes(q)
+      );
+    }
+    return [...rows].sort((a, b) => {
+      const tA = new Date(a.date).getTime();
+      const tB = new Date(b.date).getTime();
+      if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
+        return tB - tA;
+      }
+      return 0;
+    });
   }, [withdrawSearch, withdrawRows]);
 
   const filteredEarning = useMemo(() => {
-    if (!earningSearch.trim()) return earningRows;
-    const q = earningSearch.toLowerCase();
-    return earningRows.filter(
-      (r) => r.id.toLowerCase().includes(q) || r.subcategory.toLowerCase().includes(q)
-    );
+    let rows = earningRows;
+    if (earningSearch.trim()) {
+      const q = earningSearch.toLowerCase();
+      rows = rows.filter(
+        (r) => r.id.toLowerCase().includes(q) || r.subcategory.toLowerCase().includes(q)
+      );
+    }
+    return [...rows].sort((a: any, b: any) => {
+      const tA = a.date ? new Date(a.date).getTime() : NaN;
+      const tB = b.date ? new Date(b.date).getTime() : NaN;
+      if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
+        return tB - tA;
+      }
+      return 0;
+    });
   }, [earningSearch, earningRows]);
 
   const withdrawPages = Math.max(1, Math.ceil(filteredWithdraw.length / PAGE_SIZE));
@@ -228,10 +248,10 @@ export default function AffiliateWalletLayout() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 md:gap-6">
-        <div className="xl:col-span-2 rounded-xl border border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 md:p-6 shadow-sm">
+      <div className="space-y-6">
+        <div className="w-full rounded-xl border border-gray-100 bg-white p-5 md:p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">{w.withdrawHistory}</h2>
+            <h2 className="text-base font-bold text-gray-900">{w.withdrawHistory}</h2>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -242,44 +262,40 @@ export default function AffiliateWalletLayout() {
                   setWithdrawSearch(e.target.value);
                   setWithdrawPage(1);
                 }}
-                className="pl-8 pr-3 py-1.5 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-lg text-xs w-full sm:w-44 focus:outline-none focus:border-primary"
+                className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[540px]">
-              <thead>
-                <tr className="bg-primary text-white font-bold uppercase text-[11px]">
-                  <th className="p-3">Transaction ID</th>
-                  <th className="p-3">{w.method}</th>
-                  <th className="p-3">{w.amount}</th>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">{w.status}</th>
-                  <th className="p-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                {withdrawData.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-gray-500 dark:text-gray-400">
-                      No withdrawals yet.
-                    </td>
+          {withdrawData.length === 0 ? (
+            <p className="p-6 text-center text-gray-500">No withdrawals yet.</p>
+          ) : (
+            <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
+              <table className="w-full text-left text-xs min-w-[540px]">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-primary text-white font-bold uppercase text-[11px]">
+                    <th className="p-3">Transaction ID</th>
+                    <th className="p-3">{w.method}</th>
+                    <th className="p-3">{w.amount}</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">{w.status}</th>
+                    <th className="p-3 text-right">Action</th>
                   </tr>
-                ) : (
-                  withdrawData.map((item, i) => (
-                    <tr key={`${item.id}-${i}`} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 text-gray-700 dark:text-gray-200 transition-colors">
-                      <td className="p-3 font-mono font-semibold text-gray-900 dark:text-white text-xs">{item.id}</td>
-                      <td className="p-3 text-gray-700 dark:text-gray-300">{item.method}</td>
-                      <td className="p-3 font-semibold text-gray-900 dark:text-white">{item.amount}</td>
-                      <td className="p-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{item.date}</td>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {withdrawData.map((item, i) => (
+                    <tr key={`${item.id}-${i}`} className="hover:bg-gray-50 text-gray-700 transition-colors">
+                      <td className="p-3 font-mono font-semibold text-gray-900 text-xs">{item.id}</td>
+                      <td className="p-3 text-gray-700">{item.method}</td>
+                      <td className="p-3 font-semibold text-gray-900">{item.amount}</td>
+                      <td className="p-3 text-gray-500 whitespace-nowrap">{item.date}</td>
                       <td className="p-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
                             item.status === "Complete"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                               : item.status === "Failed"
-                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60"
-                                : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60"
+                                ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                : "bg-amber-100 text-amber-800 border border-amber-200"
                           }`}
                         >
                           {item.status}
@@ -289,18 +305,18 @@ export default function AffiliateWalletLayout() {
                         <button
                           type="button"
                           onClick={() => setSelectedWithdrawal(item)}
-                          className="inline-flex items-center gap-1 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
                           title="View withdrawal info"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <DashboardTablePagination
             current={withdrawPage}
             total={withdrawPages}
@@ -317,7 +333,7 @@ export default function AffiliateWalletLayout() {
           withdrawal={selectedWithdrawal}
         />
 
-        <div className="rounded-xl border border-gray-100 bg-white p-5 md:p-6 shadow-sm">
+        <div className="w-full rounded-xl border border-gray-100 bg-white p-5 md:p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-base font-bold text-gray-900">{w.earningHistory}</h2>
             <div className="relative">
@@ -330,29 +346,25 @@ export default function AffiliateWalletLayout() {
                   setEarningSearch(e.target.value);
                   setEarningPage(1);
                 }}
-                className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs w-full sm:w-32 focus:outline-none"
+                className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[280px]">
-              <thead>
-                <tr className="bg-primary text-white font-bold uppercase">
-                  <th className="p-3">ID</th>
-                  <th className="p-3">{w.category}</th>
-                  <th className="p-3">{w.commission}</th>
-                  <th className="p-3">{w.status}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {earningData.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-6 text-center text-gray-500">
-                      No earnings yet.
-                    </td>
+          {earningData.length === 0 ? (
+            <p className="p-6 text-center text-gray-500">No earnings yet.</p>
+          ) : (
+            <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
+              <table className="w-full text-left text-xs min-w-[280px]">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-primary text-white font-bold uppercase">
+                    <th className="p-3">ID</th>
+                    <th className="p-3">{w.category}</th>
+                    <th className="p-3">{w.commission}</th>
+                    <th className="p-3">{w.status}</th>
                   </tr>
-                ) : (
-                  earningData.map((item, i) => (
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {earningData.map((item, i) => (
                     <tr key={`${item.id}-${i}`} className="hover:bg-gray-50 text-gray-700">
                       <td className="p-3 font-semibold">{item.id}</td>
                       <td className="p-3 text-gray-500">{item.subcategory}</td>
@@ -365,11 +377,11 @@ export default function AffiliateWalletLayout() {
                         </span>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <DashboardTablePagination
             current={earningPage}
             total={earningPages}
