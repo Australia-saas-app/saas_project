@@ -68,6 +68,7 @@ export const PAYMENT_METHOD_FIELDS: Record<PaymentMethodType, PaymentFieldConfig
     { key: "cardholderName", label: "Cardholder name", placeholder: "Name on card", required: true },
     { key: "cardNumber", label: "Card number", placeholder: "1234 5678 9012 3456", required: true, maxLength: 19 },
     { key: "expiry", label: "Expiry date", type: "month", required: true },
+    { key: "cvc", label: "Security code (CVC / CVV)", placeholder: "123", required: true, maxLength: 4 },
     { key: "billingCountry", label: "Billing country", type: "select", options: ["United States", "Canada", "United Kingdom", "European Union", "Australia", "Other"], required: true },
     { key: "billingZip", label: "Billing ZIP / postal code", placeholder: "ZIP or postal code", required: true },
   ],
@@ -120,6 +121,10 @@ export function validatePaymentDetails(type: PaymentMethodType, details: Record<
     if (digits.length < 13 || digits.length > 19) {
       return "Enter a valid card number."
     }
+    const cvc = (details.cvc || "").trim()
+    if (!cvc || cvc.length < 3 || cvc.length > 4) {
+      return "Enter a valid 3 or 4-digit security code (CVC / CVV)."
+    }
   }
   return null
 }
@@ -132,6 +137,10 @@ export function sanitizePaymentDetails(type: PaymentMethodType, details: Record<
       const digits = value.replace(/\D/g, "")
       sanitized.cardLast4 = digits.slice(-4)
       sanitized.cardNumber = `•••• •••• •••• ${digits.slice(-4)}`
+      continue
+    }
+    if (field.key === "cvc") {
+      sanitized.cvc = "•••"
       continue
     }
     sanitized[field.key] = value

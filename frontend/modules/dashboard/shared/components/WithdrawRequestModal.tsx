@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Wallet, AlertCircle } from "lucide-react";
+import { Wallet, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import AppModal from "./AppModal";
 import {
@@ -165,7 +165,7 @@ export default function WithdrawRequestModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-white"
+            className="flex-1 rounded-lg border border-border bg-background hover:bg-muted px-4 py-2.5 text-sm font-medium text-foreground transition-colors"
           >
             Cancel
           </button>
@@ -173,18 +173,25 @@ export default function WithdrawRequestModal({
             type="submit"
             form="withdraw-form"
             disabled={submitting || methods.length === 0}
-            className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 transition-colors"
           >
-            {submitting ? "Submitting..." : "Submit Request"}
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              "Submit Request"
+            )}
           </button>
         </div>
       }
     >
       <form id="withdraw-form" onSubmit={handleSubmit} className="space-y-4">
         {methods.length === 0 ? (
-          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
+            <p className="text-xs sm:text-sm">
               Save a withdrawal-eligible payout method (PayPal, bank transfer, Stripe, Wise, or
               Payoneer) using <strong>Add method</strong> on this wallet page. Credit and debit
               cards cannot receive withdrawals.
@@ -192,27 +199,35 @@ export default function WithdrawRequestModal({
           </div>
         ) : (
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Payout method</label>
+            <label className="mb-1.5 block text-xs sm:text-sm font-medium text-foreground dark:text-slate-200">
+              Payout method
+            </label>
             <select
               value={selectedMethodId}
               onChange={(e) => setSelectedMethodId(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-xs sm:text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground cursor-pointer"
             >
               {methods.map((method) => (
-                <option key={method.id} value={method.id}>
+                <option
+                  key={method.id}
+                  value={method.id}
+                  className="bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
+                >
                   {method.type} — {method.summary}
                   {method.isDefault ? " (default)" : ""}
                 </option>
               ))}
             </select>
             {selectedMethod && (
-              <p className="mt-1.5 text-xs text-gray-500">{selectedMethod.label}</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">{selectedMethod.label}</p>
             )}
           </div>
         )}
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">Amount (USD)</label>
+          <label className="mb-1.5 block text-xs sm:text-sm font-medium text-foreground dark:text-slate-200">
+            Amount (USD)
+          </label>
           <input
             type="number"
             min="1"
@@ -221,13 +236,13 @@ export default function WithdrawRequestModal({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-xs sm:text-sm font-medium text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:bg-card dark:text-foreground"
             required
             disabled={methods.length === 0}
           />
         </div>
 
-        <div className="rounded-lg bg-gray-50 px-4 py-3 text-xs leading-relaxed text-gray-600">
+        <div className="rounded-lg border border-border bg-muted/40 dark:bg-card px-4 py-3 text-xs leading-relaxed text-muted-foreground">
           Withdrawals are reviewed by admin within 1–3 business days. Status updates appear in your
           withdraw history and admin transactions.
         </div>

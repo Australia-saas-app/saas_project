@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Eye } from "lucide-react";
 import {
   WITHDRAW_ROWS,
   EARNING_ROWS,
@@ -173,7 +173,7 @@ export default function BusinessWalletLayout() {
         <button
           type="button"
           onClick={() => setWithdrawOpen(true)}
-          className="shrink-0 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
+          className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
         >
           {w.withdraw}
         </button>
@@ -275,9 +275,11 @@ export default function BusinessWalletLayout() {
                             setSelectedWithdraw(row);
                             setDetailOpen(true);
                           }}
-                          className="rounded bg-primary px-3 py-1 text-[10px] font-bold text-white hover:bg-primary/90"
+                          className="inline-flex items-center gap-1 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                          title="View withdrawal info"
                         >
-                          {w.view}
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>{w.view}</span>
                         </button>
                       </td>
                     </tr>

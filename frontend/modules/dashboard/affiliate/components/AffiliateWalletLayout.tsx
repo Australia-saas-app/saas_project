@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Eye } from "lucide-react";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { DashboardTablePagination } from "@/src/modules/dashboard/shared/components/DashboardTablePagination";
 import {
@@ -13,6 +13,7 @@ import {
 import WithdrawRequestModal, {
   type WithdrawRequestResult,
 } from "@/src/modules/dashboard/shared/components/WithdrawRequestModal";
+import WithdrawalDetailsModal from "@/src/modules/dashboard/shared/components/WithdrawalDetailsModal";
 import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/WalletPaymentMethodsCard";
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
@@ -30,6 +31,7 @@ export default function AffiliateWalletLayout() {
   const stats = demoOrEmpty(AFFILIATE_STATS, EMPTY_AFFILIATE_STATS);
   const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>([]);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawRow | null>(null);
   const [withdrawSearch, setWithdrawSearch] = useState("");
   const [earningSearch, setEarningSearch] = useState("");
   const [withdrawPage, setWithdrawPage] = useState(1);
@@ -112,7 +114,7 @@ export default function AffiliateWalletLayout() {
         <button
           type="button"
           onClick={() => setWithdrawOpen(true)}
-          className="shrink-0 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"
+          className="shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
         >
           {w.withdraw}
         </button>
@@ -217,7 +219,7 @@ export default function AffiliateWalletLayout() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[520px]">
+            <table className="w-full text-left text-xs min-w-[540px]">
               <thead>
                 <tr className="bg-primary text-white font-bold uppercase">
                   <th className="p-3">Transaction ID</th>
@@ -225,12 +227,13 @@ export default function AffiliateWalletLayout() {
                   <th className="p-3">{w.amount}</th>
                   <th className="p-3">Date</th>
                   <th className="p-3">{w.status}</th>
+                  <th className="p-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {withdrawData.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-gray-500">
+                    <td colSpan={6} className="p-6 text-center text-gray-500">
                       No withdrawals yet.
                     </td>
                   </tr>
@@ -248,6 +251,16 @@ export default function AffiliateWalletLayout() {
                           {item.status}
                         </span>
                       </td>
+                      <td className="p-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWithdrawal(item)}
+                          className="inline-flex items-center gap-1 rounded border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                          title="View withdrawal info"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -263,6 +276,12 @@ export default function AffiliateWalletLayout() {
             compact
           />
         </div>
+
+        <WithdrawalDetailsModal
+          open={Boolean(selectedWithdrawal)}
+          onClose={() => setSelectedWithdrawal(null)}
+          withdrawal={selectedWithdrawal}
+        />
 
         <div className="rounded-xl border border-gray-100 bg-white p-5 md:p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">

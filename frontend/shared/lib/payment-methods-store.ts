@@ -48,6 +48,24 @@ export function savePaymentMethod(method: Omit<SavedPaymentMethod, "id">): Saved
   return record
 }
 
+export function updatePaymentMethod(
+  id: string,
+  updates: Partial<Omit<SavedPaymentMethod, "id">>
+): SavedPaymentMethod | undefined {
+  const existing = readPaymentMethods()
+  const idx = existing.findIndex((m) => m.id === id)
+  if (idx === -1) return undefined
+  const updated: SavedPaymentMethod = { ...existing[idx], ...updates }
+  const next = [...existing]
+  next[idx] = updated
+  if (updates.isDefault) {
+    writePaymentMethods(next.map((m) => ({ ...m, isDefault: m.id === id })))
+  } else {
+    writePaymentMethods(next)
+  }
+  return updated
+}
+
 export function deletePaymentMethod(id: string): boolean {
   const existing = readPaymentMethods()
   const next = existing.filter((m) => m.id !== id)
