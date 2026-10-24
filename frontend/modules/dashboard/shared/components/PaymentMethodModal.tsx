@@ -131,12 +131,13 @@ export default function PaymentMethodModal({
 
     let savedResult: SavedPaymentMethod | null = null;
     if (editingMethod?.id) {
-      savedResult = updatePaymentMethod(editingMethod.id, {
-        label: finalLabel,
-        summary,
-        details: sanitized,
-        isDefault,
-      });
+      savedResult =
+        updatePaymentMethod(editingMethod.id, {
+          label: finalLabel,
+          summary,
+          details: sanitized,
+          isDefault,
+        }) ?? null;
       toast.success(`${type} payment method updated.`);
     } else {
       savedResult = savePaymentMethod({
