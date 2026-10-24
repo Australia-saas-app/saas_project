@@ -240,9 +240,7 @@ export default function WithdrawRequestModal({
           <div className="flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-xs sm:text-sm">
-              Save a withdrawal-eligible payout method (PayPal, bank transfer, Stripe, Wise, or
-              Payoneer) using <strong>Add method</strong> on this wallet page. Credit and debit
-              cards cannot receive withdrawals.
+              Save a payout method (Card, Bank Transfer, PayPal, Stripe, Wise, or Payoneer) using <strong>Add method</strong> on this wallet page before submitting a withdrawal.
             </p>
           </div>
         ) : (

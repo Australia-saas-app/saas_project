@@ -67,8 +67,7 @@ export default function WalletPaymentMethodsCard({
             <h2 className="text-base font-bold text-gray-900">{title}</h2>
             <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
             <p className="mt-2 text-[11px] text-gray-500">
-              Credit and debit cards can be saved for purchases but are not eligible for
-              withdrawals.
+              Saved payout methods and cards can be selected for real-time wallet withdrawals.
             </p>
           </div>
           <button

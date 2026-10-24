@@ -7,13 +7,14 @@ export const PAYMENT_METHOD_OPTIONS = [
   "Credit / Debit Card",
 ] as const
 
-/** Methods that can receive platform payouts / withdrawals. Cards are pay-in only. */
+/** Methods that can receive platform payouts / withdrawals. */
 export const WITHDRAWAL_METHOD_TYPES = [
   "PayPal",
   "Bank Transfer",
   "Stripe",
   "Wise",
   "Payoneer",
+  "Credit / Debit Card",
 ] as const
 
 export type WithdrawalMethodType = (typeof WITHDRAWAL_METHOD_TYPES)[number]
