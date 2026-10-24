@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { applyForKyc } from "@/src/shared/server/AuthService";
 import { saveProfileOverrides, getProfileOverrides } from "@/src/shared/utils/profile-storage";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
-import KycRejectionBanner from "./KycRejectionBanner";
 
 interface KycApplicationModalProps {
   isOpen: boolean;
@@ -345,12 +344,6 @@ export default function KycApplicationModal({
 
         {/* ─── Body ─── */}
         <div className="px-10 py-8 relative bg-background max-h-[70vh] overflow-y-auto overflow-x-hidden">
-          {kycStatus === "rejected" && (
-            <div className="mb-6">
-              <KycRejectionBanner user={user} />
-            </div>
-          )}
-
           {/* Preamble / Formal Application Format */}
           <div className="mb-8 relative z-10 space-y-3">
             <div>
