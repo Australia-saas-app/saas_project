@@ -263,9 +263,8 @@ export default function AdminNotificationsLayout() {
             aria-label="Refresh notifications"
           >
             <RefreshCw
-              className={`h-4 w-4 text-gray-500 dark:text-gray-400 ${
-                isRefreshing ? "animate-spin text-blue-600 dark:text-blue-400" : ""
-              }`}
+              className={`h-4 w-4 text-gray-500 dark:text-gray-400 ${isRefreshing ? "animate-spin text-blue-600 dark:text-blue-400" : ""
+                }`}
             />
             <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
@@ -294,19 +293,17 @@ export default function AdminNotificationsLayout() {
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border shadow-xs flex items-center gap-2 cursor-pointer ${
-                isActive
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border shadow-xs flex items-center gap-2 cursor-pointer ${isActive
                   ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-slate-800"
-              }`}
+                }`}
             >
               <span>{tab.label}</span>
               <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold transition-colors ${
-                  isActive
+                className={`px-2 py-0.5 rounded-full text-xs font-bold transition-colors ${isActive
                     ? "bg-white text-blue-600"
                     : "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-gray-300"
-                }`}
+                  }`}
               >
                 {count}
               </span>
@@ -317,12 +314,12 @@ export default function AdminNotificationsLayout() {
 
       {/* Main Notifications Table Card */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-        {/* Table Container with custom scrollbar: 4 notifications visible, then scrollbar scrolls up to 10 per page */}
-        <div className="max-h-[355px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+        {/* Table Container - Fixed natural view, no vertical scroll */}
+        <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse min-w-[750px]">
-            {/* Table Header (Sticky) */}
-            <thead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
-              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/90 dark:bg-slate-800/90 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            {/* Table Header */}
+            <thead>
+              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 <th scope="col" className="w-16 px-4 py-3.5 text-center">
                   #
                 </th>
@@ -367,11 +364,10 @@ export default function AdminNotificationsLayout() {
                     <tr
                       key={item.id}
                       onClick={() => !item.read && markRead(item.id)}
-                      className={`group transition-colors hover:bg-gray-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${
-                        !item.read
+                      className={`group transition-colors hover:bg-gray-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${!item.read
                           ? "bg-blue-50/40 dark:bg-blue-950/20"
                           : ""
-                      }`}
+                        }`}
                     >
                       {/* Column 1: Row Number */}
                       <td className="px-4 py-4 text-center font-mono text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -397,11 +393,10 @@ export default function AdminNotificationsLayout() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`text-sm ${
-                                  !item.read
+                                className={`text-sm ${!item.read
                                     ? "font-bold text-gray-900 dark:text-white"
                                     : "font-medium text-gray-800 dark:text-gray-200"
-                                }`}
+                                  }`}
                               >
                                 {item.title}
                               </span>
@@ -504,11 +499,10 @@ export default function AdminNotificationsLayout() {
                         <button
                           type="button"
                           onClick={() => setPage(p)}
-                          className={`h-8 min-w-8 rounded-lg px-2 text-xs font-semibold transition-colors cursor-pointer ${
-                            p === currentPage
+                          className={`h-8 min-w-8 rounded-lg px-2 text-xs font-semibold transition-colors cursor-pointer ${p === currentPage
                               ? "bg-blue-600 text-white shadow-sm"
                               : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800"
-                          }`}
+                            }`}
                         >
                           {p}
                         </button>
