@@ -1640,6 +1640,12 @@ export class AuthService implements OnModuleInit {
     }
 
     await this.userRepository.save(user);
+    try {
+      await this.userRepository.query(
+        `UPDATE users SET "kycStatus" = $1, kycstatus = $1 WHERE id = $2 OR "userId" = $3`,
+        [kycStatus, user.id, user.userId]
+      );
+    } catch {}
 
     try {
       const userProfileUrl = process.env.USER_PROFILE_SERVICE_URL || 'http://saas-backend-user-profile:3005/user-profile-service';
@@ -1838,6 +1844,12 @@ export class AuthService implements OnModuleInit {
     user.kycStatus = KycStatus.PENDING;
     (user as any).kycRejectionReason = null;
     await this.userRepository.save(user);
+    try {
+      await this.userRepository.query(
+        `UPDATE users SET "kycStatus" = $1, kycstatus = $1 WHERE id = $2 OR "userId" = $3`,
+        [KycStatus.PENDING, user.id, user.userId]
+      );
+    } catch {}
 
     try {
       // Trigger real-time notification to ADMINs

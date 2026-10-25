@@ -173,6 +173,13 @@ export class AppModule implements OnModuleInit {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "trustedIps" JSONB DEFAULT '[]'::jsonb;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "recoveryKey" VARCHAR(100);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "kycStatus" VARCHAR(50) DEFAULT 'none';
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='kycstatus') AND
+             EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='kycStatus') THEN
+            UPDATE users SET "kycStatus" = kycstatus WHERE ("kycStatus" IS NULL OR "kycStatus" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';
+          END IF;
+        END $$;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "agencyInfo" JSONB;
@@ -183,6 +190,13 @@ export class AppModule implements OnModuleInit {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastActiveAt" TIMESTAMP DEFAULT NOW();
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP DEFAULT NOW();
         ALTER TABLE users ADD COLUMN IF NOT EXISTS "deactivatedAt" TIMESTAMP;
+        CREATE TABLE IF NOT EXISTS kyc_application (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          "userId" varchar UNIQUE NOT NULL,
+          "applicationData" jsonb,
+          "createdAt" timestamp DEFAULT now(),
+          "updatedAt" timestamp DEFAULT now()
+        );
       `);
       this.autoMigrateLogger.log('Users table schema verified and auto-migrated successfully.');
     } catch (e: any) {
