@@ -190,12 +190,12 @@ export default function DashboardNotificationsLayout({
 
       {/* Main Notifications Table Card */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-        {/* Table Container with custom scrollbar */}
-        <div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+        {/* Table Container with custom scrollbar: 4 notifications visible, then scrollbar scrolls up to 10 per page */}
+        <div className="max-h-[355px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
           <table className="w-full text-left text-sm border-collapse min-w-[650px]">
-            {/* Table Header */}
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {/* Table Header (Sticky) */}
+            <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm">
+              <tr className="border-b border-border bg-muted/70 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <th scope="col" className="w-16 px-4 py-3.5 text-center">
                   #
                 </th>

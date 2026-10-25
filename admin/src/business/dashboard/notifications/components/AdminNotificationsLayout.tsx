@@ -317,12 +317,12 @@ export default function AdminNotificationsLayout() {
 
       {/* Main Notifications Table Card */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-        {/* Table Container with custom scrollbar */}
-        <div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+        {/* Table Container with custom scrollbar: 4 notifications visible, then scrollbar scrolls up to 10 per page */}
+        <div className="max-h-[355px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
           <table className="w-full text-left text-sm border-collapse min-w-[750px]">
-            {/* Table Header */}
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            {/* Table Header (Sticky) */}
+            <thead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
+              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/90 dark:bg-slate-800/90 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 <th scope="col" className="w-16 px-4 py-3.5 text-center">
                   #
                 </th>

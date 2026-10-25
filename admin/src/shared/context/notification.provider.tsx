@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -114,6 +115,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<NotificationItem[]>([]);
 
   const knownAdminIdsRef = useMemo(() => new Set<string>(), []);
+  const deletingAdminIdsRef = useRef<Set<string>>(new Set());
   const [hasAdminInit, setHasAdminInit] = useState(false);
 
   // Load and merge notifications from local store & DB
@@ -269,6 +271,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             if (!knownAdminIdsRef.has(String(p.id))) {
               notify(p, false);
             }
+          } else if (event.data?.type === "vero:admin_notification_deleted" && event.data.id) {
+            const delId = String(event.data.id);
+            setItems((prev) => prev.filter((item) => String(item.id) !== delId && String(item.title) !== delId));
+          } else if (event.data?.type === "vero:admin_notifications_cleared") {
+            setItems([]);
           }
         };
       }
@@ -371,8 +378,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [userId, token]);
 
   const deleteNotification = useCallback((id: string) => {
+    if (!id) return;
+    const strId = String(id);
+    if (deletingAdminIdsRef.current.has(strId)) return;
+    deletingAdminIdsRef.current.add(strId);
+    setTimeout(() => {
+      deletingAdminIdsRef.current.delete(strId);
+    }, 2500);
+
     setItems((prev) => {
-      const next = prev.filter((item) => item.id !== id);
+      const next = prev.filter((item) => String(item.id) !== strId && String(item.title) !== strId);
       if (typeof window !== "undefined") {
         try {
           const keys = [
@@ -386,7 +401,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             if (raw) {
               const list: any[] = JSON.parse(raw);
               if (Array.isArray(list)) {
-                const filtered = list.filter((n) => String(n.id || n.title) !== id);
+                const filtered = list.filter((n) => String(n.id || n.title) !== strId);
                 localStorage.setItem(k, JSON.stringify(filtered));
               }
             }
@@ -395,11 +410,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
-    fetch(`${notifApiBase}/${id}`, {
+
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({ type: "vero:admin_notification_deleted", id: strId });
+        bc.close();
+      }
+    } catch {}
+
+    fetch(`${notifApiBase}/${strId}`, {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }).catch(() => {});
-    toast.success("Notification deleted successfully");
+    toast.success("Notification deleted successfully", { id: `admin-delete-notif-${strId}` });
   }, [userId, token]);
 
   const deleteAllNotifications = useCallback(() => {
@@ -416,12 +440,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem(k);
         });
       } catch {}
+
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:admin_notifications_cleared" });
+          bc.close();
+        }
+      } catch {}
     }
     fetch(`${notifApiBase}/all`, {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }).catch(() => {});
-    toast.success("All notifications deleted successfully");
+    toast.success("All notifications deleted successfully", { id: "admin-delete-all-notifs" });
   }, [userId, token]);
 
   const refreshNotifications = useCallback(async () => {

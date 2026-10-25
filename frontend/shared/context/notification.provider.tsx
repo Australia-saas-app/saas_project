@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -189,6 +190,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const [items, setItems] = useState<NotificationItem[]>([]);
   const knownIdsRef = useMemo(() => new Set<string>(), []);
+  const deletingIdsRef = useRef<Set<string>>(new Set());
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Load from cache on first render (filtering out deleted items and dummy fallbacks)
@@ -457,7 +459,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               notify(p, false);
             }
           } else if (event.data?.type === "vero:notification_deleted" && event.data.id) {
-            deleteNotification(event.data.id);
+            const delId = String(event.data.id);
+            addDeletedId(delId, userEmail);
+            removeNotificationFromAllCaches(delId, userEmail, userId);
+            setItems((prev) => prev.filter((item) => String(item.id) !== delId));
           } else if (event.data?.type === "vero:notifications_cleared") {
             setItems([]);
           }
@@ -622,11 +627,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const deleteNotification = useCallback(
     (id: string) => {
       if (!id) return;
-      addDeletedId(id, userEmail);
-      removeNotificationFromAllCaches(id, userEmail, userId);
+      const strId = String(id);
+      if (deletingIdsRef.current.has(strId)) return;
+      deletingIdsRef.current.add(strId);
+      setTimeout(() => {
+        deletingIdsRef.current.delete(strId);
+      }, 2500);
+
+      addDeletedId(strId, userEmail);
+      removeNotificationFromAllCaches(strId, userEmail, userId);
 
       setItems((prev) => {
-        const next = prev.filter((item) => item.id !== id);
+        const next = prev.filter((item) => String(item.id) !== strId);
         if (userId) {
           try {
             localStorage.setItem(`app_notifs_${userId}`, JSON.stringify(next));
@@ -641,21 +653,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       });
 
       if (typeof window !== "undefined") {
-        fetch(`/api/live-chat/notifications?id=${encodeURIComponent(id)}&email=${encodeURIComponent(userEmail)}`, {
+        fetch(`/api/live-chat/notifications?id=${encodeURIComponent(strId)}&email=${encodeURIComponent(userEmail)}`, {
           method: "DELETE",
         }).catch(() => {});
 
         try {
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
-            bc.postMessage({ type: "vero:notification_deleted", id });
+            bc.postMessage({ type: "vero:notification_deleted", id: strId });
             bc.close();
           }
         } catch {}
       }
 
-      axiosInstance.delete(`/notifications/${id}`).catch(() => {});
-      toast.success("Notification deleted successfully");
+      axiosInstance.delete(`/notifications/${strId}`).catch(() => {});
+      toast.success("Notification deleted successfully", { id: `delete-notif-${strId}` });
     },
     [userId, userEmail]
   );
@@ -696,7 +708,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     axiosInstance.delete("/notifications/all").catch(() => {});
-    toast.success("All notifications deleted successfully");
+    toast.success("All notifications deleted successfully", { id: "delete-all-notifications" });
 
     try {
       const userRole = role || (user as any)?.role || "User";
