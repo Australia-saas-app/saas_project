@@ -19,6 +19,11 @@ import {
   AFFILIATE_NOTIFICATIONS,
   BUSINESS_NOTIFICATIONS,
 } from "@/src/constants/notifications";
+
+export {
+  type NotificationItem,
+  formatNotificationTime,
+};
 import { useUser } from "@/src/context/user.provider";
 import { io, Socket } from "socket.io-client";
 import axiosInstance from "@/src/lib/axiosInstance";
@@ -151,14 +156,12 @@ function clearAllNotificationCaches(userEmail?: string, userId?: string) {
 
 function deduplicateNotifications(notifications: NotificationItem[]): NotificationItem[] {
   const map = new Map<string, NotificationItem>();
-  const seenContent = new Set<string>();
 
   notifications.forEach((item) => {
     if (!item || !item.id || DUMMY_IDS.has(String(item.id))) return;
-    const contentKey = `${item.title?.trim().toLowerCase()}::${item.message?.trim().toLowerCase()}`;
-    if (!map.has(String(item.id)) && !seenContent.has(contentKey)) {
-      seenContent.add(contentKey);
-      map.set(String(item.id), item);
+    const id = String(item.id);
+    if (!map.has(id)) {
+      map.set(id, item);
     }
   });
 
@@ -173,6 +176,7 @@ interface INotificationContext {
   markAllRead: () => void;
   deleteNotification: (id: string) => void;
   deleteAllNotifications: () => void;
+  refreshNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
@@ -302,10 +306,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 
   // Fetch notifications from DB & persistent store safely with fallback and resilient polling
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchNotifications = async (triggerToast = false) => {
+  const fetchNotifications = useCallback(
+    async (triggerToast = false) => {
       try {
         const deletedIds = getDeletedIds(userEmail);
         const clearedTs = getClearedTimestamp(userEmail);
@@ -370,8 +372,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           } catch {}
         }
 
-        if (!isMounted) return;
-
         let hasNewUnread = false;
 
         setItems((prev) => {
@@ -411,8 +411,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       } catch {
         // Keep existing notifications safely on error
       }
-    };
+    },
+    [userId, userEmail, knownIdsRef, hasInitialized]
+  );
 
+  useEffect(() => {
     fetchNotifications(false);
 
     // Resilient background poll
@@ -422,14 +425,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const handleFocus = () => fetchNotifications(true);
     window.addEventListener("focus", handleFocus);
-    window.addEventListener("notifications_updated", () => fetchNotifications(true));
+    const handleUpdate = () => fetchNotifications(true);
+    window.addEventListener("notifications_updated", handleUpdate);
 
     return () => {
-      isMounted = false;
       clearInterval(pollInterval);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("notifications_updated", handleUpdate);
     };
-  }, [userId, userEmail, knownIdsRef, hasInitialized]);
+  }, [fetchNotifications]);
+
+  const refreshNotifications = useCallback(async () => {
+    await fetchNotifications(false);
+  }, [fetchNotifications]);
 
   // Cross-tab BroadcastChannel & Local Storage sync
   useEffect(() => {
@@ -721,8 +729,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       markAllRead,
       deleteNotification,
       deleteAllNotifications,
+      refreshNotifications,
     }),
-    [items, notify, markRead, markAllRead, deleteNotification, deleteAllNotifications]
+    [items, notify, markRead, markAllRead, deleteNotification, deleteAllNotifications, refreshNotifications]
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

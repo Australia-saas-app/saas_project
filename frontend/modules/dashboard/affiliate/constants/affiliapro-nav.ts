@@ -31,7 +31,7 @@ export const AFFILIAPRO_AFFILIATE_NAV: AffiliaProAffiliateNavItem[] = [
   { label: "Reports", href: "/affiliate/earnings", icon: FileBarChart },
   { label: "Profile", href: "/affiliate/profile", icon: User },
 
-  { label: "Notifications", href: "/affiliate/notices", icon: Bell },
+  { label: "Notifications", href: "/affiliate/notifications", icon: Bell },
   { label: "Tickets", href: "/affiliate/messages", icon: Ticket },
   { label: "Help Center", href: "/affiliate/messages", icon: CircleHelp },
 ]

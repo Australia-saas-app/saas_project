@@ -22,6 +22,10 @@ export type NotificationItem = {
   createdAt?: string | Date;
   read: boolean;
   href?: string;
+  role?: string;
+  targetRole?: string;
+  type?: string;
+  data?: any;
 };
 
 export function formatNotificationTime(input?: string | number | Date | null): string {
@@ -84,6 +88,7 @@ interface INotificationContext {
   markAllRead: () => void;
   deleteNotification: (id: string) => void;
   deleteAllNotifications: () => void;
+  refreshNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<INotificationContext | undefined>(undefined);
@@ -141,6 +146,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           time: formatNotificationTime(n.createdAt),
           read: Boolean(n.isRead || n.read),
           href: n.data?.href || n.href,
+          role: n.role || n.targetRole || n.data?.role || n.data?.targetRole || n.userRole,
+          targetRole: n.targetRole || n.role,
+          type: n.type || n.data?.type,
+          data: n.data,
         }));
       }
     } catch {}
@@ -321,6 +330,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         title: payload.title,
         message: payload.message,
         href: payload.href,
+        role: payload.role || payload.targetRole || payload.data?.role,
+        targetRole: payload.targetRole || payload.role,
+        type: payload.type || payload.data?.type,
+        data: payload.data,
       });
     });
 
@@ -411,6 +424,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     toast.success("All notifications deleted successfully");
   }, [userId, token]);
 
+  const refreshNotifications = useCallback(async () => {
+    await loadNotifications(false);
+  }, [loadNotifications]);
+
   const value = useMemo<INotificationContext>(
     () => ({
       notifications: items,
@@ -420,8 +437,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       markAllRead,
       deleteNotification,
       deleteAllNotifications,
+      refreshNotifications,
     }),
-    [items, notify, markRead, markAllRead, deleteNotification, deleteAllNotifications]
+    [items, notify, markRead, markAllRead, deleteNotification, deleteAllNotifications, refreshNotifications]
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

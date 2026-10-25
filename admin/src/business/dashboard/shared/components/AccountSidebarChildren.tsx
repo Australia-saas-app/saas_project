@@ -138,7 +138,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     {
       title: "SYSTEM",
       items: [
-        { label: "Notifications", href: `#`, icon: Bell },
+        { label: "Notifications", href: `/notifications`, icon: Bell },
         { label: "System Logs",   href: `#`, icon: ScrollText },
         { label: "Support",       href: `#`, icon: MessageSquare },
       ]

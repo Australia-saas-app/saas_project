@@ -74,8 +74,8 @@ export function AccountSidebarChildren({
         { label: "Returns", icon: RotateCcw, href: `${dashboardPrefix}/returns` },
         { label: t.dashboard.user.applications, icon: FileText, href: `${dashboardPrefix}/applications` },
         { label: t.dashboard.user.technical, icon: Code2, href: `${dashboardPrefix}/technical` },
-        { label: t.dashboard.user.notices, icon: Bell, href: `${dashboardPrefix}/notices` },
         { label: t.dashboard.user.marketplace, icon: ShoppingBag, href: `${dashboardPrefix}/marketplace` },
+        { label: "Notifications", icon: Bell, href: `${dashboardPrefix}/notifications` },
         { label: t.dashboard.user.messages, icon: MessageSquare, href: `${dashboardPrefix}/messages` },
       ]
     : isBusiness
@@ -87,7 +87,7 @@ export function AccountSidebarChildren({
           { label: "Returns", icon: RotateCcw, href: `${dashboardPrefix}/returns` },
           { label: t.business.sidebar.clients, icon: Users, href: `${dashboardPrefix}/clients` },
           { label: t.business.sidebar.technical, icon: Code2, href: `${dashboardPrefix}/technical` },
-          { label: t.business.sidebar.notices, icon: Bell, href: `${dashboardPrefix}/notices` },
+          { label: "Notifications", icon: Bell, href: `${dashboardPrefix}/notifications` },
           { label: t.business.sidebar.messages, icon: MessageSquare, href: `${dashboardPrefix}/messages` },
         ]
       : [
@@ -97,7 +97,7 @@ export function AccountSidebarChildren({
           { label: t.dashboard.affiliate.referrals, icon: Users, href: `${dashboardPrefix}/referrals` },
           { label: t.dashboard.affiliate.technical, icon: Code2, href: `${dashboardPrefix}/technical` },
           { label: t.dashboard.affiliate.promotions, icon: Link2, href: `${dashboardPrefix}/promotions` },
-          { label: t.dashboard.affiliate.notices, icon: Bell, href: `${dashboardPrefix}/notices` },
+          { label: "Notifications", icon: Bell, href: `${dashboardPrefix}/notifications` },
           { label: t.dashboard.affiliate.messages, icon: MessageSquare, href: `${dashboardPrefix}/messages` },
         ];
 

@@ -114,9 +114,9 @@ export default function Header() {
 
   const noticesHref = useMemo(() => {
     if (!user) return "/notice";
-    if (isBusiness) return "/business/notices";
-    if (isAffiliate) return "/affiliate/notices";
-    return "/user/notices";
+    if (isBusiness) return "/business/notifications";
+    if (isAffiliate) return "/affiliate/notifications";
+    return "/user/notifications";
   }, [user, isAffiliate, isBusiness]);
 
   const userId = getUserIdFromAuthUser(user);

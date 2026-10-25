@@ -214,7 +214,7 @@ export default function AffiliaProAffiliateShell({ children }: { children: React
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle compact />
             <MessagesBell viewAllHref="/dashboard/affiliate/messages" />
-            <NotificationBell viewAllHref="/affiliate/notices" />
+            <NotificationBell viewAllHref="/affiliate/notifications" />
 
             <div className="relative ml-1">
               <button

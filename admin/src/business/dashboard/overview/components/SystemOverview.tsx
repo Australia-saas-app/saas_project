@@ -62,28 +62,107 @@ const SystemOverview: React.FC = () => {
     refetchInterval: 5000,
   })
 
+  // Real-time technology taxonomy query (Categories, Subcategories, Skills)
+  const { data: taxonomy } = useQuery({
+    queryKey: ["technology-taxonomy"],
+    queryFn: async () => {
+      let result = { categories: [] as string[], subcategories: [] as string[], skills: [] as string[] };
+
+      // 1. Instant read from local taxonomy storage
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("platform_service_taxonomies");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const tech = parsed?.technology || parsed?.Technology || {};
+            result = {
+              categories: Array.isArray(tech.categories) ? tech.categories : [],
+              subcategories: Array.isArray(tech.subcategories) ? tech.subcategories : [],
+              skills: Array.isArray(tech.skills) ? tech.skills : [],
+            };
+          }
+        } catch {}
+      }
+
+      // 2. Fetch from backend API to ensure fresh DB sync
+      try {
+        const tokenHeader = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch("/admin/api/technology/projects/taxonomy?serviceType=technology", {
+          headers: tokenHeader,
+        }).catch(() => null);
+
+        if (res && res.ok) {
+          const json = await res.json().catch(() => null);
+          const data = json?.data?.data || json?.data || json;
+          if (data && (Array.isArray(data.categories) || Array.isArray(data.subcategories) || Array.isArray(data.skills))) {
+            const remoteCats = Array.isArray(data.categories) ? data.categories : [];
+            const remoteSubs = Array.isArray(data.subcategories) ? data.subcategories : [];
+            const remoteSkills = Array.isArray(data.skills) ? data.skills : [];
+
+            if (remoteCats.length > 0 || remoteSubs.length > 0 || remoteSkills.length > 0) {
+              result = {
+                categories: remoteCats,
+                subcategories: remoteSubs,
+                skills: remoteSkills,
+              };
+              if (typeof window !== "undefined") {
+                try {
+                  const raw = localStorage.getItem("platform_service_taxonomies");
+                  const store = raw ? JSON.parse(raw) : {};
+                  store.technology = result;
+                  localStorage.setItem("platform_service_taxonomies", JSON.stringify(store));
+                } catch {}
+              }
+            }
+          }
+        }
+      } catch {}
+
+      return result;
+    },
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 3000,
+  });
+
   useEffect(() => {
     const handleSync = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
       queryClient.invalidateQueries({ queryKey: ["admin-dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["technology-taxonomy"] });
+    };
+
+    const handleTaxonomySync = () => {
+      queryClient.invalidateQueries({ queryKey: ["technology-taxonomy"] });
     };
 
     window.addEventListener("vero:account_changed", handleSync);
     window.addEventListener("vero:user_deleted", handleSync);
     window.addEventListener("vero:user_created", handleSync);
     window.addEventListener("vero:user_status_updated", handleSync);
+    window.addEventListener("platform_taxonomy_updated", handleTaxonomySync);
+    window.addEventListener("taxonomy_updated", handleTaxonomySync);
 
     let bc: BroadcastChannel | null = null;
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         bc = new BroadcastChannel("vero_channel");
-        bc.onmessage = () => handleSync();
+        bc.onmessage = (event) => {
+          if (event.data?.type === "TAXONOMY_UPDATED") {
+            handleTaxonomySync();
+          } else {
+            handleSync();
+          }
+        };
       }
     } catch {}
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "vero_account_sync" || e.key === "vero_profile_sync") {
         handleSync();
+      }
+      if (e.key === "platform_service_taxonomies") {
+        handleTaxonomySync();
       }
     };
     window.addEventListener("storage", handleStorage);
@@ -93,6 +172,8 @@ const SystemOverview: React.FC = () => {
       window.removeEventListener("vero:user_deleted", handleSync);
       window.removeEventListener("vero:user_created", handleSync);
       window.removeEventListener("vero:user_status_updated", handleSync);
+      window.removeEventListener("platform_taxonomy_updated", handleTaxonomySync);
+      window.removeEventListener("taxonomy_updated", handleTaxonomySync);
       window.removeEventListener("storage", handleStorage);
       if (bc) bc.close();
     };
@@ -102,8 +183,15 @@ const SystemOverview: React.FC = () => {
     const num = parseInt(String(numStr), 10);
     if (isNaN(num)) return "0";
     if (num < 1000) return num.toString();
-    if (num < 1000000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-    return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (num < 1000000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+  }
+
+  const formatTaxonomyCount = (count: number) => {
+    if (!count || count <= 0) return "0";
+    if (count < 1000) return count.toString();
+    if (count < 1000000) return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
   }
 
   const getValue = (role: string, status: string) => {
@@ -167,10 +255,14 @@ const SystemOverview: React.FC = () => {
     { label: "Total Cancelled", value: defaultVal },
   ]
 
+  const categoryCount = taxonomy?.categories?.length || 0;
+  const subCategoryCount = taxonomy?.subcategories?.length || 0;
+  const skillCount = taxonomy?.skills?.length || 0;
+
   const technologyService = [
-    { label: "Category", value: "12" },
-    { label: "Sub category", value: "45" },
-    { label: "Skills", value: "505K" },
+    { label: "Category", value: formatTaxonomyCount(categoryCount) },
+    { label: "Sub category", value: formatTaxonomyCount(subCategoryCount) },
+    { label: "Skills", value: formatTaxonomyCount(skillCount) },
   ]
 
   return (

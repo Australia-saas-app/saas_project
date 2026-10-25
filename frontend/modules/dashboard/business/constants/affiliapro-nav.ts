@@ -51,6 +51,11 @@ export const AFFILIAPRO_NAV_GROUPS: AffiliaProNavGroup[] = [
         exact: true,
       },
       {
+        label: "Notifications",
+        href: "/business/notifications",
+        icon: Bell,
+      },
+      {
         label: "Messages",
         href: "/business/messages",
         icon: MessageSquare,

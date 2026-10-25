@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import DashboardNotificationsLayout from "@/src/modules/dashboard/shared/components/DashboardNotificationsLayout";
 
 export const metadata: Metadata = {
-  title: "Notices",
+  title: "Notifications",
+  description: "View and manage all your affiliate notifications",
 };
 
-import AffiliateNoticesLayout from "@/src/modules/dashboard/affiliate/components/AffiliateNoticesLayout"
-
 export default function AffiliateNoticesPage() {
-  return <AffiliateNoticesLayout />
+  return <DashboardNotificationsLayout title="Affiliate Notifications" subtitle="Stay updated with your latest affiliate commissions, approvals, and alerts." />;
 }

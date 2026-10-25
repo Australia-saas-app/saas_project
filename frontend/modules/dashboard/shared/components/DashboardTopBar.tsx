@@ -26,20 +26,20 @@ export function DashboardTopBar({
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
-  let noticesHref = "/user/notices";
+  let noticesHref = "/user/notifications";
   let messagesHref = "/dashboard/user/messages";
   let profileHref = "/user/profile";
   let settingsHref = "/user/settings";
   let roleSubtitle = "User Account";
 
   if (isAffiliate) {
-    noticesHref = "/affiliate/notices";
+    noticesHref = "/affiliate/notifications";
     messagesHref = "/dashboard/affiliate/messages";
     profileHref = "/affiliate/profile";
     settingsHref = "/affiliate/settings";
     roleSubtitle = "Affiliate Account";
   } else if (isBusiness) {
-    noticesHref = "/business/notices";
+    noticesHref = "/business/notifications";
     messagesHref = "/dashboard/business/messages";
     profileHref = "/business/profile";
     settingsHref = "/business/settings";

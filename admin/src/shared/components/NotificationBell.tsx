@@ -144,7 +144,7 @@ export function NotificationBell({
                 </p>
               </li>
             ) : (
-              notifications.map((item) => (
+              notifications.slice(0, 10).map((item) => (
                 <li key={item.id} className="relative group">
                   {item.href ? (
                     <Link
@@ -208,27 +208,35 @@ export function NotificationBell({
           </ul>
 
           {/* Footer */}
-          {unreadCount > 0 && (
-            <div
-              style={{
-                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "#f8fafc",
-                borderTop: isDark ? "1px solid #1e293b" : "1px solid #f1f5f9",
-              }}
-              className="px-4 py-2.5"
+          <div
+            style={{
+              backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "#f8fafc",
+              borderTop: isDark ? "1px solid #1e293b" : "1px solid #f1f5f9",
+            }}
+            className="flex items-center justify-between px-4 py-2.5"
+          >
+            <Link
+              href={viewAllHref}
+              onClick={() => setOpen(false)}
+              style={{ color: isDark ? "#60a5fa" : "#2563eb" }}
+              className="text-xs font-semibold hover:underline cursor-pointer"
             >
+              View all notifications
+            </Link>
+            {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   markAllRead();
                 }}
-                style={{ color: isDark ? "#60a5fa" : "#2563eb" }}
-                className="block w-full text-center text-xs font-bold hover:underline cursor-pointer"
+                style={{ color: isDark ? "#94a3b8" : "#64748b" }}
+                className="text-xs font-medium hover:underline cursor-pointer"
               >
-                Read all
+                Mark all as read
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
