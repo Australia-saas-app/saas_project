@@ -57,27 +57,34 @@ export default function AffiliateWalletLayout() {
         row.status === "Complete" ? "Complete" : row.status === "Failed" ? "Failed" : "Pending",
     }));
     const demoRows = isDemo ? WITHDRAW_ROWS.slice(0, 20) : [];
-    const ids = new Set(stored.map((r) => r.id));
-    setWithdrawRows([...stored, ...demoRows.filter((r) => !ids.has(r.id))]);
+    const map = new Map<string, WithdrawRow>();
+    for (const r of [...stored, ...demoRows]) {
+      if (!map.has(r.id)) map.set(r.id, r);
+    }
+    setWithdrawRows(Array.from(map.values()));
 
     const dbRows = await fetchWalletWithdrawalsFromDb();
     if (dbRows.length > 0) {
       setWithdrawRows((prev) => {
-        const existingIds = new Set(prev.map((r) => r.id));
-        const newFromDb = dbRows
-          .filter((d) => !existingIds.has(d.id))
-          .map((d) => ({
+        const merged = new Map<string, WithdrawRow>();
+        for (const d of dbRows) {
+          merged.set(d.id, {
             id: d.id,
             method: d.method,
             amount: d.amount,
             date: d.date,
             status: d.status,
-          }));
-        const updated = prev.map((p) => {
-          const match = dbRows.find((d) => d.id === p.id);
-          return match ? { ...p, status: match.status } : p;
-        });
-        return [...newFromDb, ...updated];
+          });
+        }
+        for (const p of prev) {
+          if (!merged.has(p.id)) {
+            merged.set(p.id, p);
+          } else {
+            const current = merged.get(p.id)!;
+            merged.set(p.id, { ...p, status: current.status });
+          }
+        }
+        return Array.from(merged.values());
       });
     }
   };
@@ -109,14 +116,20 @@ export default function AffiliateWalletLayout() {
   ];
 
   const filteredWithdraw = useMemo(() => {
-    let rows = withdrawRows;
+    const uniqueMap = new Map<string, WithdrawRow>();
+    for (const r of withdrawRows) {
+      if (!uniqueMap.has(r.id)) {
+        uniqueMap.set(r.id, r);
+      }
+    }
+    let rows = Array.from(uniqueMap.values());
     if (withdrawSearch.trim()) {
       const q = withdrawSearch.toLowerCase();
       rows = rows.filter(
         (r) => r.id.toLowerCase().includes(q) || r.method.toLowerCase().includes(q)
       );
     }
-    return [...rows].sort((a, b) => {
+    return rows.sort((a, b) => {
       const tA = new Date(a.date).getTime();
       const tB = new Date(b.date).getTime();
       if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
@@ -173,16 +186,19 @@ export default function AffiliateWalletLayout() {
         onClose={() => setWithdrawOpen(false)}
         availableBalance={displayBalance}
         onSubmit={(result: WithdrawRequestResult) => {
-          setWithdrawRows((prev) => [
-            {
-              id: result.id,
-              method: result.method,
-              amount: result.amount,
-              date: result.date,
-              status: "Pending",
-            },
-            ...prev,
-          ]);
+          setWithdrawRows((prev) => {
+            if (prev.some((r) => r.id === result.id)) return prev;
+            return [
+              {
+                id: result.id,
+                method: result.method,
+                amount: result.amount,
+                date: result.date,
+                status: "Pending",
+              },
+              ...prev,
+            ];
+          });
         }}
       />
 

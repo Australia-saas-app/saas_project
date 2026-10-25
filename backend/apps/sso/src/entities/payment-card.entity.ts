@@ -26,7 +26,7 @@ export class PaymentCard {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 26 })
+  @Column({ type: 'varchar', length: 100 })
   userId: string;
 
   @Column({ type: 'varchar', length: 100 })
@@ -38,7 +38,7 @@ export class PaymentCard {
   @Column({ type: 'varchar', length: 50 })
   cardBrand: string;
 
-  @Column({ type: 'enum', enum: CardType })
+  @Column({ type: 'varchar', length: 50, default: CardType.VISA })
   cardType: CardType;
 
   @Column({ type: 'varchar', length: 5 })
@@ -50,7 +50,7 @@ export class PaymentCard {
   @Column({ type: 'text' })
   encryptedCardToken: string; // Token from payment provider (Stripe/PayPal)
 
-  @Column({ type: 'enum', enum: CardStatus, default: CardStatus.ACTIVE })
+  @Column({ type: 'varchar', length: 50, default: CardStatus.ACTIVE })
   status: CardStatus;
 
   @Column({ type: 'boolean', default: false })

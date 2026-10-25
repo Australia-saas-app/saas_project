@@ -16,7 +16,14 @@ function readWithdrawals(): WalletWithdrawalRecord[] {
     const raw = localStorage.getItem(WITHDRAWALS_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as WalletWithdrawalRecord[]
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+    const unique = new Map<string, WalletWithdrawalRecord>()
+    for (const item of parsed) {
+      if (item && item.id && !unique.has(item.id)) {
+        unique.set(item.id, item)
+      }
+    }
+    return Array.from(unique.values())
   } catch {
     return []
   }
@@ -131,7 +138,8 @@ export function submitWithdrawalRequest(input: {
     methodType: input.methodType || "Withdrawal",
   }
 
-  writeWithdrawals([record, ...readWithdrawals()])
+  const filtered = readWithdrawals().filter((r) => r.id !== id);
+  writeWithdrawals([record, ...filtered]);
 
   addAdminTransaction({
     id,
