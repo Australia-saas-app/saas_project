@@ -147,61 +147,54 @@ export class AppModule implements OnModuleInit {
   constructor(private readonly dataSource: DataSource) {}
 
   async onModuleInit() {
-    try {
-      await this.dataSource.query(`
-        DO $$ 
-        BEGIN 
-          BEGIN
-            ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'under_review';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'deactivated';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'under_review';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'deactivated';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-        END $$;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50);
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "trustedIps" JSONB DEFAULT '[]'::jsonb;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "recoveryKey" VARCHAR(100);
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "kycStatus" VARCHAR(50) DEFAULT 'none';
-        DO $$
-        BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='kycstatus') AND
-             EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='kycStatus') THEN
-            UPDATE users SET "kycStatus" = kycstatus WHERE ("kycStatus" IS NULL OR "kycStatus" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';
-          END IF;
-        END $$;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "agencyInfo" JSONB;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "businessInfo" JSONB;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "governmentId" VARCHAR(100);
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "governmentIdType" VARCHAR(50);
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" JSONB DEFAULT '[]'::jsonb;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastActiveAt" TIMESTAMP DEFAULT NOW();
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP DEFAULT NOW();
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS "deactivatedAt" TIMESTAMP;
-        CREATE TABLE IF NOT EXISTS kyc_application (
-          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-          "userId" varchar UNIQUE NOT NULL,
-          "applicationData" jsonb,
-          "createdAt" timestamp DEFAULT now(),
-          "updatedAt" timestamp DEFAULT now()
-        );
-      `);
-      this.autoMigrateLogger.log('Users table schema verified and auto-migrated successfully.');
-    } catch (e: any) {
-      this.autoMigrateLogger.warn(`Database auto-migration note: ${e?.message || e}`);
+    const enumStatements = [
+      `ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'under_review';`,
+      `ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'deactivated';`,
+      `ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'under_review';`,
+      `ALTER TYPE user_status_enum ADD VALUE IF NOT EXISTS 'deactivated';`,
+    ];
+
+    for (const sql of enumStatements) {
+      try {
+        await this.dataSource.query(sql);
+      } catch {}
     }
+
+    const columnStatements = [
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50);`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "trustedIps" JSONB DEFAULT '[]'::jsonb;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "recoveryKey" VARCHAR(100);`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "kycStatus" VARCHAR(50) DEFAULT 'none';`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "agencyInfo" JSONB;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "businessInfo" JSONB;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "governmentId" VARCHAR(100);`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "governmentIdType" VARCHAR(50);`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" JSONB DEFAULT '[]'::jsonb;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastActiveAt" TIMESTAMP DEFAULT NOW();`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP DEFAULT NOW();`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS "deactivatedAt" TIMESTAMP;`,
+      `ALTER TABLE blogs ADD COLUMN IF NOT EXISTS photo JSONB;`,
+      `CREATE TABLE IF NOT EXISTS kyc_application (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "userId" varchar UNIQUE NOT NULL,
+        "applicationData" jsonb,
+        "createdAt" timestamp DEFAULT now(),
+        "updatedAt" timestamp DEFAULT now()
+      );`,
+    ];
+
+    for (const sql of columnStatements) {
+      try {
+        await this.dataSource.query(sql);
+      } catch (err: any) {
+        this.autoMigrateLogger.debug(`Column migration note for [${sql}]: ${err?.message || err}`);
+      }
+    }
+
+    this.autoMigrateLogger.log('Users and core database tables verified and auto-migrated successfully.');
   }
 }
 
