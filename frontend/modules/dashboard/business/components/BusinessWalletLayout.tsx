@@ -52,14 +52,22 @@ export default function BusinessWalletLayout() {
   });
 
   const loadWithdrawals = async () => {
-    const stored = getWithdrawalsForUser(userId).map((row) => ({
-      id: row.id,
-      method: row.method,
-      amount: row.amount,
-      date: row.date,
-      status:
-        row.status === "Complete" ? "Complete" : row.status === "Failed" ? "Failed" : "Pending",
-    }));
+    const stored = getWithdrawalsForUser(userId).map((row) => {
+      const s = String(row.status || "").toLowerCase();
+      const status: "Approved" | "Rejected" | "Pending" =
+        s === "approved" || s === "complete" || s === "paid"
+          ? "Approved"
+          : s === "rejected" || s === "failed"
+          ? "Rejected"
+          : "Pending";
+      return {
+        id: row.id,
+        method: row.method,
+        amount: row.amount,
+        date: row.date,
+        status: status as any,
+      };
+    });
     const demoRows = isDemo ? WITHDRAW_ROWS.slice(0, 40) : [];
     const map = new Map<string, WithdrawRow>();
     for (const r of [...stored, ...demoRows]) {
@@ -72,12 +80,19 @@ export default function BusinessWalletLayout() {
       setWithdrawRows((prev) => {
         const merged = new Map<string, WithdrawRow>();
         for (const d of dbRows) {
+          const s = String(d.status || "").toLowerCase();
+          const status =
+            s === "approved" || s === "complete" || s === "paid"
+              ? "Approved"
+              : s === "rejected" || s === "failed"
+              ? "Rejected"
+              : "Pending";
           merged.set(d.id, {
             id: d.id,
             method: d.method,
             amount: d.amount,
             date: d.date,
-            status: d.status,
+            status: status as any,
           });
         }
         for (const p of prev) {
@@ -109,14 +124,36 @@ export default function BusinessWalletLayout() {
       loadWithdrawals();
     };
     window.addEventListener("wallet_updated", onWalletUpdated);
+    window.addEventListener("vero:withdrawal_updated", onWalletUpdated);
     window.addEventListener("storage", onWalletUpdated);
     window.addEventListener("focus", onWalletUpdated);
     window.addEventListener("platform_projects_updated", onWalletUpdated);
+
+    let bc1: BroadcastChannel | null = null;
+    let bc2: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc1 = new BroadcastChannel("wallet_channel");
+        bc1.onmessage = () => {
+          loadRealBalance();
+          loadWithdrawals();
+        };
+        bc2 = new BroadcastChannel("vero_channel");
+        bc2.onmessage = () => {
+          loadRealBalance();
+          loadWithdrawals();
+        };
+      }
+    } catch {}
+
     return () => {
       window.removeEventListener("wallet_updated", onWalletUpdated);
+      window.removeEventListener("vero:withdrawal_updated", onWalletUpdated);
       window.removeEventListener("storage", onWalletUpdated);
       window.removeEventListener("focus", onWalletUpdated);
       window.removeEventListener("platform_projects_updated", onWalletUpdated);
+      if (bc1) try { bc1.close(); } catch {}
+      if (bc2) try { bc2.close(); } catch {}
     };
   }, [user, userId]);
 
@@ -330,11 +367,11 @@ export default function BusinessWalletLayout() {
                       <td className="p-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                            row.status === "Complete"
+                            row.status === "Approved" || row.status === "Complete" || row.status === "Paid"
                               ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                              : row.status === "Failed"
-                                ? "bg-rose-100 text-rose-800 border border-rose-200"
-                                : "bg-amber-100 text-amber-800 border border-amber-200"
+                              : row.status === "Rejected" || row.status === "Failed"
+                              ? "bg-rose-100 text-rose-800 border border-rose-200"
+                              : "bg-amber-100 text-amber-800 border border-amber-200"
                           }`}
                         >
                           {row.status}

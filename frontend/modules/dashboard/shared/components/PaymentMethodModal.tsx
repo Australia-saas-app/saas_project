@@ -21,6 +21,8 @@ import {
   type SavedPaymentMethod,
 } from "@/src/shared/lib/payment-methods-store";
 import { saveWalletCard } from "@/src/modules/technical/services/technical.services";
+import { useUser } from "@/src/context/user.provider";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 
 export { PAYMENT_METHOD_OPTIONS, type PaymentMethodType };
 export type { SavedPaymentMethod };
@@ -43,6 +45,7 @@ export default function PaymentMethodModal({
   onSaved,
   editingMethod = null,
 }: PaymentMethodModalProps) {
+  const { user } = useUser();
   const [type, setType] = useState<PaymentMethodType>(PAYMENT_METHOD_OPTIONS[0]);
   const [details, setDetails] = useState<Record<string, string>>(() =>
     emptyDetails(PAYMENT_METHOD_OPTIONS[0])
@@ -147,6 +150,20 @@ export default function PaymentMethodModal({
       } else {
         toast.success(`${type} payout method saved.`);
       }
+
+      // Record activity log on requester side
+      try {
+        const uId = (user as any)?.id || (user as any)?.userId || "user";
+        const uEmail = (user as any)?.email || "";
+        const uName = (user as any)?.fullName || (user as any)?.name || "User";
+        recordRealActivity(
+          editingMethod?.id ? "PAYMENT_METHOD_UPDATED" : "PAYMENT_METHOD_ADDED",
+          editingMethod?.id
+            ? `Updated ${type} payment method (${finalLabel} · ${summary})`
+            : `Added new ${type} payout method (${finalLabel} · ${summary})`,
+          { userId: uId, email: uEmail, name: uName }
+        );
+      } catch {}
     } catch {
       toast.error("Failed to save payment method.");
     }

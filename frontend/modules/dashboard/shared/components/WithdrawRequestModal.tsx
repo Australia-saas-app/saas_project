@@ -14,6 +14,12 @@ import { useUser } from "@/src/context/user.provider";
 import { submitWithdrawalRequest } from "@/src/shared/lib/wallet-store";
 import axiosInstance from "@/src/shared/lib/axiosInstance";
 import { checkWithdrawalPermission } from "@/src/shared/lib/verification-access";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+import {
+  KycVerificationGateModal,
+  getLiveKycStatus,
+  type KycGateStatus,
+} from "./KycVerificationGateModal";
 
 export interface WithdrawRequestResult {
   amount: string;
@@ -60,6 +66,8 @@ export default function WithdrawRequestModal({
   const [methods, setMethods] = useState<SavedPaymentMethod[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [kycGateOpen, setKycGateOpen] = useState(false);
+  const [kycGateStatus, setKycGateStatus] = useState<"not_applied" | "pending" | "rejected">("not_applied");
 
   useEffect(() => {
     if (!open) {
@@ -133,6 +141,17 @@ export default function WithdrawRequestModal({
     }
 
     setSubmitting(true);
+
+    // 0. Check live KYC verification status with spinner active
+    const kycState = await getLiveKycStatus(user);
+    if (kycState !== "approved") {
+      await new Promise((r) => setTimeout(r, 550));
+      setSubmitting(false);
+      setKycGateStatus(kycState as "not_applied" | "pending" | "rejected");
+      setKycGateOpen(true);
+      return;
+    }
+
     let backendTxId: string | null = null;
 
     try {
@@ -187,6 +206,112 @@ export default function WithdrawRequestModal({
       window.dispatchEvent(new Event("wallet_updated"));
     }
 
+    // 4. Record Real Activity Log on Requester's Side (User / Business / Affiliate)
+    const userRole = String((user as any)?.role || (user as any)?.accountType || "USER").toUpperCase();
+    const userEmail = "email" in user && user.email ? String(user.email).trim() : "";
+    try {
+      recordRealActivity(
+        "WITHDRAWAL_REQUESTED",
+        `Requested withdrawal of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id})`,
+        {
+          userId: identity.id,
+          email: userEmail,
+          name: identity.name,
+        }
+      );
+    } catch {}
+
+    // 5. Add Notification for User / Business / Affiliate in their Notification Bell
+    const userWalletHref = userRole.includes("BUS")
+      ? "/dashboard/business/wallet"
+      : userRole.includes("AFF")
+      ? "/dashboard/affiliate/wallet"
+      : "/dashboard/user/wallet";
+
+    const userNotif = {
+      id: `notif-with-${record.id}-${Date.now()}`,
+      title: "Withdrawal Request Submitted",
+      message: `Your withdrawal request of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id}) has been submitted and is pending review.`,
+      time: "Just now",
+      createdAt: new Date().toISOString(),
+      read: false,
+      href: userWalletHref,
+      type: "withdrawal_requested",
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        const uEmail = userEmail.toLowerCase();
+        const roleKey = userRole.toLowerCase();
+        const storageKeys = ["app_notifs_all", `app_notifs_${identity.id}`, `app_notifs_${roleKey}`];
+        if (uEmail) {
+          storageKeys.push(`app_notifs_${uEmail}`);
+          storageKeys.push(`app_notifs_${uEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+        }
+        storageKeys.forEach((key) => {
+          try {
+            const existing = JSON.parse(localStorage.getItem(key) || "[]");
+            localStorage.setItem(key, JSON.stringify([userNotif, ...existing]));
+          } catch {}
+        });
+        window.dispatchEvent(new Event("notifications_updated"));
+      } catch {}
+    }
+
+    // 6. Send Notification to Admin (Notification Bell & Toast Alert on Admin Side)
+    const adminNotif = {
+      id: `adm-with-${record.id}-${Date.now()}`,
+      title: "New Withdrawal Request",
+      message: `${identity.name} (${userRole}) requested a withdrawal of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id}).`,
+      time: "Just now",
+      createdAt: new Date().toISOString(),
+      read: false,
+      targetRole: "admin",
+      role: "admin",
+      href: "/withdrawal-requests",
+      type: "withdrawal_request",
+      data: {
+        href: "/withdrawal-requests",
+        requestId: record.id,
+        amount: enteredAmount,
+        userId: identity.id,
+        userName: identity.name,
+        role: userRole,
+      },
+    };
+
+    axiosInstance
+      .post("/notifications", {
+        targetRole: "admin",
+        role: "admin",
+        title: adminNotif.title,
+        message: adminNotif.message,
+        type: "withdrawal_request",
+        priority: "high",
+        data: adminNotif.data,
+      })
+      .catch(() => {});
+
+    if (typeof window !== "undefined") {
+      try {
+        ["admin_notifications", "app_notifs_admin"].forEach((key) => {
+          try {
+            const existing = JSON.parse(localStorage.getItem(key) || "[]");
+            localStorage.setItem(key, JSON.stringify([adminNotif, ...existing]));
+          } catch {}
+        });
+
+        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: adminNotif, timestamp: Date.now() }));
+
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:new_notification", payload: adminNotif });
+          bc.close();
+        }
+        window.dispatchEvent(new Event("notifications_updated"));
+      } catch {}
+    }
+
     onSubmit({
       amount: record.amount,
       method: record.method,
@@ -200,7 +325,8 @@ export default function WithdrawRequestModal({
   };
 
   return (
-    <AppModal
+    <>
+      <AppModal
       open={open}
       onClose={onClose}
       title="Request Withdrawal"
@@ -355,5 +481,12 @@ export default function WithdrawRequestModal({
         </div>
       </form>
     </AppModal>
+    <KycVerificationGateModal
+      open={kycGateOpen}
+      onClose={() => setKycGateOpen(false)}
+      status={kycGateStatus}
+      role={(user as any)?.role || (user as any)?.accountType}
+    />
+    </>
   );
 }

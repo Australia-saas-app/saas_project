@@ -53,7 +53,23 @@ export default function UserLogLayout() {
     fetchLogs();
     const handleLogAdded = () => fetchLogs();
     window.addEventListener(LOG_ADDED_EVENT, handleLogAdded);
-    return () => window.removeEventListener(LOG_ADDED_EVENT, handleLogAdded);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (e) => {
+          if (e.data?.type === "vero:log_added") {
+            fetchLogs();
+          }
+        };
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener(LOG_ADDED_EVENT, handleLogAdded);
+      if (bc) bc.close();
+    };
   }, [userId]);
 
   useEffect(() => {

@@ -5,7 +5,8 @@ import {
   ChevronRight, LayoutDashboard, Users, FileText, ShoppingBag, 
   CreditCard, FolderOpen, MessageSquare, Bell, BarChart2, 
   PieChart, LineChart, Settings, Link as LinkIcon, ScrollText, 
-  Crown, MoreVertical, Hexagon, LogOut, Database, Briefcase
+  Crown, MoreVertical, Hexagon, LogOut, Database, Briefcase,
+  ArrowUpRight
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import Image from "next/image"
@@ -17,6 +18,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { hasPermission, Permission, UserRole } from "@/src/core/authentication/utils/rbac"
 import { ShieldCheck } from "lucide-react"
+import axiosInstanceClient from "@/src/infra/lib/axiosInstance/client"
 
 const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggle: () => void }) => {
   const pathname = usePathname()
@@ -28,6 +30,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
   const role = user?.role as UserRole | undefined
 
   const [kycCount, setKycCount] = useState(0)
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -73,6 +76,101 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
       window.removeEventListener("vero:user_deleted", handleUserDeleted)
     }
   }, [token])
+
+  // Real-time tracking of pending withdrawal requests
+  useEffect(() => {
+    let active = true;
+
+    const fetchPendingWithdrawals = async () => {
+      try {
+        let count = 0;
+        let fetched = false;
+
+        // 1. Try Backend API
+        const endpoints = [
+          "/payment/withdrawals/admin/requests",
+          "/payment/withdrawals/all",
+          "/payment/admin/withdrawals",
+        ];
+
+        for (const ep of endpoints) {
+          try {
+            const res = await axiosInstanceClient.get(ep);
+            const data = res.data?.data || res.data?.withdrawals || res.data || [];
+            if (Array.isArray(data)) {
+              count = data.filter((w: any) => String(w.status || "").toLowerCase() === "pending").length;
+              fetched = true;
+              break;
+            }
+          } catch {}
+        }
+
+        // 2. Also check local requests from user session
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("platform_wallet_withdrawals");
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const localPending = list.filter((w: any) => {
+                  const s = String(w.status || "").toLowerCase();
+                  return s === "pending";
+                }).length;
+                if (!fetched || localPending > count) {
+                  count = localPending;
+                }
+              }
+            }
+          } catch {}
+        }
+
+        if (active) {
+          setPendingWithdrawalsCount(count);
+        }
+      } catch {}
+    };
+
+    fetchPendingWithdrawals();
+    const interval = setInterval(fetchPendingWithdrawals, 4000);
+
+    const handleWithdrawalUpdated = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (typeof detail?.count === "number") {
+        setPendingWithdrawalsCount(detail.count);
+      } else {
+        setPendingWithdrawalsCount((prev) => Math.max(0, prev - 1));
+      }
+    };
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("vero_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "vero:withdrawal_updated") {
+            if (typeof event.data?.count === "number") {
+              setPendingWithdrawalsCount(event.data.count);
+            } else {
+              setPendingWithdrawalsCount((prev) => Math.max(0, prev - 1));
+            }
+          }
+        };
+      }
+    } catch {}
+
+    window.addEventListener("vero:withdrawal_updated", handleWithdrawalUpdated);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener("vero:withdrawal_updated", handleWithdrawalUpdated);
+      if (bc) {
+        try {
+          bc.close();
+        } catch {}
+      }
+    };
+  }, []);
 
   const handleLogout = () => {
     queryClient.clear()
@@ -120,11 +218,12 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     {
       title: "OPERATIONS",
       items: [
-        { label: "Payment",      href: `/payment`, icon: CreditCard },
-        { label: "Orders",       href: `/gallery`, icon: ShoppingBag },
-        { label: "Return",       href: `/return`, icon: MoreVertical },
-        { label: "Monitoring",   href: `/monitoring`, icon: LineChart },
-        { label: "Files",        href: `/files`, icon: FolderOpen },
+        { label: "Payment",             href: `/payment`,             icon: CreditCard },
+        { label: "Withdrawal Requests", href: `/withdrawal-requests`, icon: ArrowUpRight, badge: pendingWithdrawalsCount },
+        { label: "Orders",              href: `/gallery`,             icon: ShoppingBag },
+        { label: "Return",              href: `/return`,              icon: MoreVertical },
+        { label: "Monitoring",          href: `/monitoring`,          icon: LineChart },
+        { label: "Files",               href: `/files`,               icon: FolderOpen },
       ]
     },
     {
@@ -265,13 +364,21 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
             <nav className="space-y-0.5">
               {group.items.filter((item: any) => item.permission ? hasPermission(role, item.permission) : true).map((item, index) => {
                 const active = isActive(item.href)
+                const badgeCount = (item as any).badge
                 return (
                   <Link key={item.label} href={item.href} title={!isOpen ? item.label : undefined}>
                     <div 
                       className={`relative flex items-center justify-between ${isOpen ? 'px-3' : 'justify-center px-0'} py-2.5 rounded-xl transition-all duration-200 group ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-gray-100'}`}
                     >
                       <div className="flex items-center gap-3">
-                        <item.icon size={18} className={`${active ? "text-white" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"} shrink-0 transition-colors`} />
+                        <div className="relative shrink-0 flex items-center justify-center">
+                          <item.icon size={18} className={`${active ? "text-white" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"} shrink-0 transition-colors`} />
+                          {!isOpen && typeof badgeCount === 'number' && badgeCount > 0 && (
+                            <span className="absolute -top-2 -right-2.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full shadow-sm min-w-[15px] h-[15px] flex items-center justify-center leading-none">
+                              {badgeCount > 99 ? '99+' : badgeCount}
+                            </span>
+                          )}
+                        </div>
                         {isOpen && (
                           <span className="font-medium text-[13px] whitespace-nowrap animate-in fade-in zoom-in duration-200">
                             {item.label}
@@ -279,6 +386,11 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
                         )}
                       </div>
 
+                      {isOpen && typeof badgeCount === 'number' && badgeCount > 0 && (
+                        <span className="bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm shrink-0">
+                          {badgeCount}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 )

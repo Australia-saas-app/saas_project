@@ -37,6 +37,11 @@ import {
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import SelectDropdown from "@/src/shared/components/SelectDropdown";
 import { checkDepositPermission } from "@/src/shared/lib/verification-access";
+import {
+  KycVerificationGateModal,
+  getLiveKycStatus,
+  type KycGateStatus,
+} from "./KycVerificationGateModal";
 
 type TabId = "overview" | "deposit" | "security" | "holds" | "refunds";
 
@@ -107,6 +112,8 @@ export default function WalletFinancePanel() {
   const [method, setMethod] = useState("Credit / Debit Card");
   const [project, setProject] = useState("Technical Project");
   const [loadingDeposit, setLoadingDeposit] = useState(false);
+  const [kycGateOpen, setKycGateOpen] = useState(false);
+  const [kycGateStatus, setKycGateStatus] = useState<"not_applied" | "pending" | "rejected">("not_applied");
 
   // Cards State
   const [cards, setCards] = useState<SavedCard[]>([]);
@@ -351,6 +358,17 @@ export default function WalletFinancePanel() {
     }
 
     setLoadingDeposit(true);
+
+    // 0. Check live KYC verification status with spinning button feedback
+    const kycState = await getLiveKycStatus(user);
+    if (kycState !== "approved") {
+      await new Promise((r) => setTimeout(r, 550));
+      setLoadingDeposit(false);
+      setKycGateStatus(kycState as "not_applied" | "pending" | "rejected");
+      setKycGateOpen(true);
+      return;
+    }
+
     try {
       const depositDesc =
         method === "Credit / Debit Card"
@@ -1028,6 +1046,14 @@ export default function WalletFinancePanel() {
           </button>
         </form>
       </AppModal>
+
+      {/* KYC Status Enforcement Gate Modal */}
+      <KycVerificationGateModal
+        open={kycGateOpen}
+        onClose={() => setKycGateOpen(false)}
+        status={kycGateStatus}
+        role={(user as any)?.role || (user as any)?.accountType}
+      />
     </div>
   );
 }
