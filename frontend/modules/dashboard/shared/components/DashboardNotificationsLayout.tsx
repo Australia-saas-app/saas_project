@@ -191,7 +191,7 @@ export default function DashboardNotificationsLayout({
       {/* Main Notifications Table Card */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         {/* Table Container with custom scrollbar: 4 full notifications visible, then scrollbar scrolls up to 10 per page */}
-        <div className="max-h-[485px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
+        <div className="max-h-[590px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
           <table className="w-full text-left text-sm border-collapse min-w-[650px]">
             {/* Table Header (Sticky) */}
             <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm">
@@ -239,14 +239,14 @@ export default function DashboardNotificationsLayout({
                       }`}
                     >
                       {/* Column 1: Row Number */}
-                      <td className="px-4 py-4 text-center font-mono text-xs font-medium text-muted-foreground">
+                      <td className="px-4 py-3.5 text-center font-mono text-xs font-medium text-muted-foreground">
                         <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-muted/70 px-1.5 text-foreground font-semibold">
                           {rowNumber}
                         </span>
                       </td>
 
                       {/* Column 2: Notification Details */}
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-3.5">
                         <div className="flex items-start gap-3">
                           {/* Status Icon */}
                           <div className="mt-0.5 shrink-0 rounded-lg p-1.5 bg-muted/60">
@@ -290,7 +290,7 @@ export default function DashboardNotificationsLayout({
                       </td>
 
                       {/* Column 3: Date & Timestamp */}
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
                         <p className="text-xs font-semibold text-foreground">
                           {formatFullDate(item.createdAt)}
                         </p>
@@ -300,7 +300,7 @@ export default function DashboardNotificationsLayout({
                       </td>
 
                       {/* Column 4: Delete Trash Icon */}
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-3.5 text-center">
                         <button
                           type="button"
                           onClick={(e) => handleDeleteOne(item.id, e)}

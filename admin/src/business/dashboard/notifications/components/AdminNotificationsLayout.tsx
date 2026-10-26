@@ -314,12 +314,12 @@ export default function AdminNotificationsLayout() {
 
       {/* Main Notifications Table Card */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-        {/* Table Container - Fixed natural view, no vertical scroll */}
-        <div className="overflow-x-auto">
+        {/* Table Container with custom scrollbar: 4 full notifications visible, then scrollbar scrolls up to 10 per page */}
+        <div className="max-h-[590px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
           <table className="w-full text-left text-sm border-collapse min-w-[750px]">
-            {/* Table Header */}
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            {/* Table Header (Sticky) */}
+            <thead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
+              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/90 dark:bg-slate-800/90 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 <th scope="col" className="w-16 px-4 py-3.5 text-center">
                   #
                 </th>
@@ -370,19 +370,19 @@ export default function AdminNotificationsLayout() {
                         }`}
                     >
                       {/* Column 1: Row Number */}
-                      <td className="px-4 py-4 text-center font-mono text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <td className="px-4 py-3.5 text-center font-mono text-xs font-medium text-gray-500 dark:text-gray-400">
                         <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-gray-100 dark:bg-slate-800 px-1.5 text-gray-700 dark:text-gray-300 font-semibold">
                           {rowNumber}
                         </span>
                       </td>
 
                       {/* Column 2: Role Badge */}
-                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         {renderRoleBadge(itemRole)}
                       </td>
 
                       {/* Column 3: Notification Details */}
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-3.5">
                         <div className="flex items-start gap-3">
                           {/* Status Icon */}
                           <div className="mt-0.5 shrink-0 rounded-lg p-1.5 bg-gray-100 dark:bg-slate-800">
@@ -425,7 +425,7 @@ export default function AdminNotificationsLayout() {
                       </td>
 
                       {/* Column 4: Date & Timestamp */}
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
                         <p className="text-xs font-semibold text-gray-900 dark:text-white">
                           {formatFullDate(item.createdAt)}
                         </p>
@@ -435,7 +435,7 @@ export default function AdminNotificationsLayout() {
                       </td>
 
                       {/* Column 5: Delete Trash Icon */}
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-3.5 text-center">
                         <button
                           type="button"
                           onClick={(e) => handleDeleteOne(item.id, e)}
