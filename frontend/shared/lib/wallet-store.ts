@@ -1,5 +1,5 @@
 import type { WithdrawRequestResult } from "@/src/modules/dashboard/shared/components/WithdrawRequestModal"
-import { addAdminTransaction } from "./admin-transactions-store"
+import { addAdminTransaction, removeAdminTransaction } from "./admin-transactions-store"
 
 const WITHDRAWALS_KEY = "platform_wallet_withdrawals"
 
@@ -8,6 +8,7 @@ export interface WalletWithdrawalRecord extends WithdrawRequestResult {
   userName: string
   status: "Pending" | "Processing" | "Complete" | "Failed"
   methodType: string
+  createdAt?: string
 }
 
 function readWithdrawals(): WalletWithdrawalRecord[] {
@@ -52,7 +53,10 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
     return list
       .filter((t: any) => {
         const typeStr = String(t.type || "").toUpperCase();
-        return typeStr === "WITHDRAWAL" || typeStr.includes("WITHDRAW");
+        const desc = String(t.description || "").toLowerCase();
+        const statusRaw = String(t.status || "").toLowerCase();
+        const isReverted = desc.includes("revert") || statusRaw === "reverted";
+        return (typeStr === "WITHDRAWAL" || typeStr.includes("WITHDRAW")) && !isReverted;
       })
       .map((t: any) => {
         const amt = typeof t.amount === "number" ? `$${t.amount.toFixed(2)}` : String(t.amount || "$0.00");
@@ -81,6 +85,7 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
           amount: amt.startsWith("$") ? amt : `$${amt}`,
           method: methodStr,
           date: dateStr,
+          createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
           status,
           userId: String(t.userId || ""),
           userName: String(t.userName || "User"),
@@ -112,13 +117,14 @@ export function submitWithdrawalRequest(input: {
   method?: string
 }): WalletWithdrawalRecord {
   const id = input.id || generateMixedAlphaNumericTxId("WD");
+  const nowIso = new Date().toISOString();
   const date = new Date().toLocaleString("en-US", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  })
+  });
   const amountStr =
     typeof input.amount === "number"
       ? `$${input.amount.toFixed(2)}`
@@ -132,11 +138,12 @@ export function submitWithdrawalRequest(input: {
     amount: amountStr,
     method: methodStr,
     date,
+    createdAt: nowIso,
     userId: input.userId,
     userName: input.userName,
     status: "Pending",
     methodType: input.methodType || "Withdrawal",
-  }
+  };
 
   const filtered = readWithdrawals().filter((r) => r.id !== id);
   writeWithdrawals([record, ...filtered]);
@@ -149,13 +156,57 @@ export function submitWithdrawalRequest(input: {
     method: record.method,
     status: "Pending",
     date,
-  })
+  });
 
-  return record
+  return record;
 }
 
 export function updateWithdrawalStatus(id: string, status: WalletWithdrawalRecord["status"]) {
   writeWithdrawals(
     readWithdrawals().map((r) => (r.id === id ? { ...r, status } : r))
-  )
+  );
+}
+
+export function removeWithdrawalRequest(id: string) {
+  writeWithdrawals(readWithdrawals().filter((r) => r.id !== id));
+}
+
+export async function revertWithdrawalRequest(
+  id: string,
+  amount?: number | string,
+  userId?: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    await axiosInstance.post(`/sso/wallet/withdrawals/${encodeURIComponent(id)}/revert`, { userId });
+  } catch (err: any) {
+    try {
+      await axiosInstance.post(`/sso/wallet/admin/withdrawals/${encodeURIComponent(id)}/revert`, { userId });
+    } catch {}
+  }
+
+  // 1. Remove from user local storage withdrawals
+  removeWithdrawalRequest(id);
+
+  // 2. Remove from admin transactions store
+  removeAdminTransaction(id);
+
+  // 3. Dispatch global sync events across tabs & components
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new Event("wallet_updated"));
+      window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
+
+      if ("BroadcastChannel" in window) {
+        const bc1 = new BroadcastChannel("vero_channel");
+        bc1.postMessage({ type: "vero:withdrawal_updated" });
+        bc1.close();
+
+        const bc2 = new BroadcastChannel("wallet_channel");
+        bc2.postMessage({ type: "wallet_updated" });
+        bc2.close();
+      }
+    } catch {}
+  }
+
+  return { success: true };
 }

@@ -88,6 +88,8 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
 
         // 1. Try Backend API
         const endpoints = [
+          "/sso/wallet/admin/withdrawals",
+          "/sso/wallet/transactions?all=true&type=WITHDRAWAL",
           "/payment/withdrawals/admin/requests",
           "/payment/withdrawals/all",
           "/payment/admin/withdrawals",
@@ -95,12 +97,17 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
 
         for (const ep of endpoints) {
           try {
-            const res = await axiosInstanceClient.get(ep);
-            const data = res.data?.data || res.data?.withdrawals || res.data || [];
-            if (Array.isArray(data)) {
-              count = data.filter((w: any) => String(w.status || "").toLowerCase() === "pending").length;
+            const res = await axiosInstanceClient.get(ep, { timeout: 4000 });
+            const data = res.data?.data?.transactions || res.data?.data || res.data?.withdrawals || res.data || [];
+            if (Array.isArray(data) && data.length > 0) {
+              const pendingRows = data.filter((w: any) => {
+                const s = String(w.status || "").toLowerCase();
+                const t = String(w.type || "").toUpperCase();
+                const isWithdraw = !t || t.includes("WITHDRAW");
+                return isWithdraw && s === "pending";
+              });
+              count = Math.max(count, pendingRows.length);
               fetched = true;
-              break;
             }
           } catch {}
         }

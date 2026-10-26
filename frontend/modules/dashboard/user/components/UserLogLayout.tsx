@@ -187,10 +187,10 @@ export default function UserLogLayout() {
   );
 
   const getActionColor = (action: string) => {
-    if (action.includes("THREAT") || action.includes("BLOCKED") || action.includes("REJECTED") || action.includes("DISABLED")) {
+    if (action.includes("THREAT") || action.includes("BLOCKED") || action.includes("REJECTED") || action.includes("DISABLED") || action.includes("DELETE") || action.includes("REMOVED")) {
       return "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20";
     }
-    if (action.includes("APPROVED") || action.includes("ENABLED") || action.includes("CREATE") || action.includes("LOGIN")) {
+    if (action.includes("APPROVED") || action.includes("ENABLED") || action.includes("CREATE") || action.includes("LOGIN") || action.includes("ADDED")) {
       return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
     }
     if (action.includes("UPDATE") || action.includes("PHOTO")) {

@@ -154,9 +154,61 @@ export class WalletController {
   @ApiOperation({ summary: 'Get transaction history' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getTransactions(@Request() req: any, @Query('page') page: number = 1, @Query('limit') limit: number = 20) {
+  @ApiQuery({ name: 'all', required: false, type: Boolean })
+  @ApiQuery({ name: 'type', required: false, type: String })
+  async getTransactions(
+    @Request() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('all') all?: string,
+    @Query('type') type?: string,
+  ) {
     const userId = req.user?.userId || req.user?.sub || req.user?.id;
-    return await this.walletService.getTransactions(userId, page, limit);
+    const userRole = String(req.user?.role || req.user?.accountType || '').toUpperCase();
+    const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole.includes('ADMIN');
+    const isAll = all === 'true' || all === '1' || (isAdmin && !userId);
+    return await this.walletService.getTransactions(userId, page, limit, isAll, type);
+  }
+
+  @Get('admin/withdrawals')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all withdrawal requests for admin' })
+  async getAdminWithdrawals() {
+    return await this.walletService.getAllWithdrawalRequests();
+  }
+
+  @Post('admin/withdrawals/:id/approve')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Approve withdrawal request' })
+  async approveWithdrawal(@Param('id') id: string) {
+    return await this.walletService.updateWithdrawalStatus(id, 'approve');
+  }
+
+  @Post('admin/withdrawals/:id/reject')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Reject withdrawal request' })
+  async rejectWithdrawal(@Param('id') id: string, @Body() body?: { reason?: string }) {
+    return await this.walletService.updateWithdrawalStatus(id, 'reject', body?.reason);
+  }
+
+  @Post('withdrawals/:id/revert')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Revert pending withdrawal request within 24 hours' })
+  async revertWithdrawal(@Request() req: any, @Param('id') id: string, @Body() body?: any) {
+    const userId = req.user?.userId || req.user?.sub || req.user?.id || body?.userId;
+    return await this.walletService.revertWithdrawal(userId, id);
+  }
+
+  @Post('admin/withdrawals/:id/revert')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Admin revert withdrawal request' })
+  async adminRevertWithdrawal(@Param('id') id: string) {
+    return await this.walletService.revertWithdrawal('admin', id);
   }
 
   @Post('create')

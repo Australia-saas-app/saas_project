@@ -69,13 +69,13 @@ export default function KycQueuePage() {
 
   // Read ?tab= from URL (e.g. from notification click: /admin/kyc-queue?tab=user)
   const tabParam = searchParams.get("tab");
-  const validTabs = ["user", "affiliate", "business"] as const;
-  const initialTab = validTabs.includes(tabParam as any) ? (tabParam as "user" | "affiliate" | "business") : "user";
+  const validTabs = ["all", "user", "affiliate", "business"] as const;
+  const initialTab = validTabs.includes(tabParam as any) ? (tabParam as "all" | "user" | "affiliate" | "business") : "all";
 
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
-  const [activeTab, setActiveTab] = useState<"user" | "affiliate" | "business">(initialTab);
+  const [activeTab, setActiveTab] = useState<"all" | "user" | "affiliate" | "business">(initialTab);
   const [localOverrides, setLocalOverrides] = useState<Record<string, string>>({});
   const [localRejectionReasons, setLocalRejectionReasons] = useState<Record<string, any>>({});
 
@@ -85,7 +85,7 @@ export default function KycQueuePage() {
   // Sync tab when URL param changes (e.g. navigating from a notification)
   useEffect(() => {
     if (tabParam && validTabs.includes(tabParam as any)) {
-      setActiveTab(tabParam as "user" | "affiliate" | "business");
+      setActiveTab(tabParam as "all" | "user" | "affiliate" | "business");
     }
   }, [tabParam]);
 
@@ -257,6 +257,7 @@ export default function KycQueuePage() {
 
   // Calculate counts for tabs — use localOverrides so badge decrements instantly on approve/reject
   const kycCounts = {
+    all: 0,
     user: 0,
     affiliate: 0,
     business: 0
@@ -267,6 +268,7 @@ export default function KycQueuePage() {
       const uid = u.userId || u.id;
       const effectiveStatus = localOverrides[uid] || u.kycStatus;
       if (effectiveStatus === 'pending' || effectiveStatus === 'submitted') {
+        kycCounts.all++;
         if (u.accountType === 'user') kycCounts.user++;
         if (u.accountType === 'agency' || u.accountType === 'affiliate') kycCounts.affiliate++;
         if (u.accountType === 'business') kycCounts.business++;
@@ -345,6 +347,7 @@ export default function KycQueuePage() {
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const tabs = [
+    { id: "all", label: "All" },
     { id: "user", label: "Users" },
     { id: "affiliate", label: "Affiliates" },
     { id: "business", label: "Businesses" }
@@ -354,43 +357,45 @@ export default function KycQueuePage() {
     <div className="p-4 sm:p-6 w-full max-w-full overflow-hidden min-h-[70vh]">
       <div className="flex flex-col gap-6 w-full">
 
-        {/* Tabs */}
-        <div className="flex gap-3 mb-2 flex-wrap">
-          {tabs.map(tab => {
-            const count = kycCounts[tab.id as keyof typeof kycCounts];
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id as any); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors border shadow-sm flex items-center gap-2 ${isActive
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-slate-800"
+        {/* Toolbar: Filter Tabs on Left, Search Bar & Status dropdown on Right */}
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm w-full">
+          {/* Tabs in pill container on Left */}
+          <div className="inline-flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-x-auto self-start xl:self-auto">
+            {tabs.map(tab => {
+              const count = kycCounts[tab.id as keyof typeof kycCounts] || 0;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id as any); setPage(1); }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-slate-700/50"
                   }`}
-              >
-                {tab.label}
-                {count > 0 && (
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? "bg-white text-blue-600" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
-                    }`}>
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isActive ? "bg-white text-blue-600" : "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-gray-300"
+                  }`}>
                     {count}
                   </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm w-full">
-          <div className="w-full xl:w-80 flex-shrink-0">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder="Search by name or email..."
-              className="w-full"
-            />
+                </button>
+              )
+            })}
           </div>
 
+          {/* Search bar beside Status filter on Right */}
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full xl:w-auto xl:ml-auto">
+            <div className="w-full sm:w-72 md:w-80 flex-shrink-0">
+              <SearchInput
+                value={query}
+                onChange={setQuery}
+                placeholder="Search by name or email..."
+                className="w-full"
+              />
+            </div>
+
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="h-10 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm w-full sm:w-[160px] data-[state=open]:ring-2 data-[state=open]:ring-blue-500/50 flex-shrink-0">
                 <SelectValue placeholder="All Statuses" />
@@ -406,18 +411,18 @@ export default function KycQueuePage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeading>
-              <TableColumn isHeader>Application ID</TableColumn>
-              <TableColumn isHeader>Full Name</TableColumn>
-              <TableColumn isHeader>Email</TableColumn>
-              <TableColumn isHeader>Role</TableColumn>
-              <TableColumn isHeader align="center">Status</TableColumn>
-              <TableColumn isHeader align="center">Actions</TableColumn>
-            </TableHeading>
+        {/* KYC Table with internal scrollbar and min-width */}
+        <Table>
+          <TableHeading>
+            <TableColumn isHeader style={{ width: "18%" }}>Application ID</TableColumn>
+            <TableColumn isHeader style={{ width: "24%" }}>Full Name</TableColumn>
+            <TableColumn isHeader style={{ width: "26%" }}>Email</TableColumn>
+            <TableColumn isHeader style={{ width: "12%" }}>Role</TableColumn>
+            <TableColumn isHeader align="center" style={{ width: "10%" }}>Status</TableColumn>
+            <TableColumn isHeader align="center" style={{ width: "10%" }}>Actions</TableColumn>
+          </TableHeading>
 
-            <TableBody isEmpty={!isLoading && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
+          <TableBody isEmpty={!isLoading && pageItems.length === 0} colSpan={6} emptyMessage="No KYC requests yet">
               {isLoading ? (
                 <TableRow>
                   <TableColumn colSpan={6}>
@@ -478,7 +483,6 @@ export default function KycQueuePage() {
               )}
             </TableBody>
           </Table>
-        </div>
 
         {!isLoading && (
           <div className="mt-2 w-full">

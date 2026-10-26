@@ -14,6 +14,12 @@ import {
   isWithdrawalEligible,
   type SavedPaymentMethod,
 } from "@/src/shared/lib/payment-methods-store";
+import { useUser } from "@/src/context/user.provider";
+import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
+import {
+  getUserIdFromAuthUser,
+  getUserEmailFromAuthUser,
+} from "@/src/shared/lib/demo-user";
 
 interface WalletPaymentMethodsCardProps {
   title?: string;
@@ -24,6 +30,7 @@ export default function WalletPaymentMethodsCard({
   title = "Payment methods",
   subtitle = "Manage payout methods used for withdrawals and project payments.",
 }: WalletPaymentMethodsCardProps) {
+  const { user } = useUser();
   const [methods, setMethods] = useState<SavedPaymentMethod[]>([]);
   const [open, setOpen] = useState(false);
   const [editingMethod, setEditingMethod] = useState<SavedPaymentMethod | null>(null);
@@ -47,7 +54,31 @@ export default function WalletPaymentMethodsCard({
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    const removedItem = { ...deleteTarget };
     await deletePaymentMethodDb(deleteTarget.id);
+
+    // Record real activity log for removed payment method
+    try {
+      const uId = getUserIdFromAuthUser(user) || (user as any)?.id || (user as any)?.userId || "user";
+      const uEmail = getUserEmailFromAuthUser(user) || (user as any)?.email || "";
+      const uName = (user as any)?.fullName || (user as any)?.name || `${(user as any)?.firstName || ""} ${(user as any)?.lastName || ""}`.trim() || "User";
+      await recordRealActivity(
+        "PAYMENT_METHOD_DELETED",
+        `Removed ${removedItem.type || "payment"} method (${removedItem.label} · ${removedItem.summary || ""})`,
+        { userId: uId, email: uEmail, name: uName }
+      );
+    } catch {}
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("wallet_updated"));
+      window.dispatchEvent(new CustomEvent("vero:log_added"));
+      try {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({ type: "vero:log_added" });
+        bc.close();
+      } catch {}
+    }
+
     await refresh();
     toast.success("Payment method removed.");
     setDeleteTarget(null);
@@ -89,7 +120,7 @@ export default function WalletPaymentMethodsCard({
             No payment methods saved yet. Add one to enable faster withdrawals.
           </div>
         ) : (
-          <ul className="space-y-2.5">
+          <ul className="space-y-2.5 max-h-[148px] overflow-y-auto pr-1.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
             {methods.map((method) => (
               <li
                 key={method.id}

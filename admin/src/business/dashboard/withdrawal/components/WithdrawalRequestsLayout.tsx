@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import PageHeader from "@/src/shared/ui/ui/PageHeader";
+import { Table } from "@/src/shared/ui/table/Table";
+import { TableHeading } from "@/src/shared/ui/table/TableHeading";
+import { TableBody } from "@/src/shared/ui/table/TableBody";
+import { TableRow } from "@/src/shared/ui/table/TableRow";
+import { TableColumn } from "@/src/shared/ui/table/TableColumn";
+import { Pagination } from "@/src/shared/ui/ui/pagination";
 import { SearchInput } from "@/src/shared/ui/form/search-input";
 import { 
   CheckCircle2, 
@@ -138,46 +143,101 @@ export default function WithdrawalRequestsLayout() {
     setLoading(true);
     let items: WithdrawalRequestItem[] = [];
 
-    // 1. Fetch from Backend API endpoints
+    // Helper to parse any withdrawal / transaction record
+    const parseRecord = (w: any) => {
+      if (!w) return;
+      const rawType = String(w.type || "").toUpperCase();
+      // If type is defined on a general transactions endpoint, only accept WITHDRAWAL
+      if (rawType && !rawType.includes("WITHDRAW")) return;
+
+      const rawRole = String(
+        w.role || w.userRole || w.accountType || w.metadata?.role || ""
+      ).toUpperCase();
+      const uId = String(w.businessUserId || w.userId || "");
+      let resolvedRole: "USER" | "BUSINESS" | "AFFILIATE" = "USER";
+      if (rawRole.includes("BUS") || uId.toUpperCase().startsWith("BUS")) {
+        resolvedRole = "BUSINESS";
+      } else if (rawRole.includes("AFF") || uId.toUpperCase().startsWith("AFF")) {
+        resolvedRole = "AFFILIATE";
+      }
+
+      let cleanAmount = 0;
+      if (typeof w.amount === "number") {
+        cleanAmount = w.amount;
+      } else if (typeof w.amount === "string") {
+        cleanAmount = parseFloat(w.amount.replace(/[^0-9.]/g, "")) || 0;
+      }
+
+      const rawStatus = String(w.status || "pending").toLowerCase();
+      const rawDesc = String(w.description || "").toLowerCase();
+      if (rawStatus === "reverted" || rawStatus.includes("revert") || rawDesc.includes("revert")) {
+        return;
+      }
+
+      const status: "pending" | "paid" | "rejected" =
+        rawStatus === "completed" ||
+        rawStatus === "complete" ||
+        rawStatus === "paid" ||
+        rawStatus === "approved" ||
+        rawStatus === "succeeded"
+          ? "paid"
+          : rawStatus === "failed" ||
+            rawStatus === "rejected" ||
+            rawStatus === "cancelled"
+          ? "rejected"
+          : "pending";
+
+      const txId = String(w.transactionId || w.requestId || w.id || "");
+      const finalId = String(w.id || w.transactionId || w.requestId || txId);
+      const reqId = String(w.requestId || w.transactionId || w.id || txId);
+
+      const resolvedMethod =
+        w.payoutMethod ||
+        w.paymentMethod ||
+        w.method ||
+        w.methodLabel ||
+        w.description ||
+        w.stripeAccountId ||
+        "Bank Transfer";
+
+      items.push({
+        id: finalId,
+        requestId: reqId,
+        businessUserId: uId || "user",
+        userName: w.userName || w.metadata?.userName || w.businessName || undefined,
+        userEmail: w.userEmail || w.email || w.metadata?.userEmail || undefined,
+        role: resolvedRole,
+        amount: cleanAmount,
+        currency: String(w.currency || "USD").toUpperCase(),
+        stripeAccountId: w.stripeAccountId || w.methodId || w.payoutDestination || w.destination || undefined,
+        payoutMethod: resolvedMethod,
+        status,
+        createdAt: w.createdAt || (w.date ? new Date(w.date).toISOString() : new Date().toISOString()),
+        processedAt: w.processedAt || undefined,
+        rejectionReason: w.rejectionReason || undefined,
+        stripeTransferId: w.stripeTransferId || undefined,
+      });
+    };
+
+    // 1. Fetch from All Backend API endpoints (SSO wallet, payment service, admin payments)
     const endpoints = [
+      "/sso/wallet/admin/withdrawals",
+      "/sso/wallet/transactions?all=true&type=WITHDRAWAL",
+      "/sso/wallet/transactions?all=true",
+      "/sso/wallet/transactions",
       "/payment/withdrawals/admin/requests",
-      "/payment/withdrawals/all",
+      "/payments/transactions?type=WITHDRAWAL",
       "/payment/admin/withdrawals",
+      "/payment/withdrawals/all",
+      "/admin/transactions?type=WITHDRAWAL",
     ];
 
     for (const url of endpoints) {
       try {
-        const res = await axiosInstanceClient.get(url);
-        const data = res.data?.data || res.data?.withdrawals || res.data || [];
-        if (Array.isArray(data) && data.length > 0) {
-          data.forEach((w: any) => {
-            const rawRole = String(w.role || w.userRole || w.accountType || w.metadata?.role || "").toUpperCase();
-            let resolvedRole: "USER" | "BUSINESS" | "AFFILIATE" = "USER";
-            if (rawRole.includes("BUS") || String(w.businessUserId || "").toUpperCase().startsWith("BUS")) {
-              resolvedRole = "BUSINESS";
-            } else if (rawRole.includes("AFF") || String(w.businessUserId || "").toUpperCase().startsWith("AFF")) {
-              resolvedRole = "AFFILIATE";
-            }
-
-            items.push({
-              id: String(w.id || w.requestId),
-              requestId: String(w.requestId || w.id || w.transactionId || `WREQ-${Math.random().toString(36).slice(2, 7).toUpperCase()}`),
-              businessUserId: String(w.businessUserId || w.userId || "user"),
-              userName: w.userName || w.metadata?.userName || w.businessName || undefined,
-              userEmail: w.userEmail || w.email || w.metadata?.userEmail || undefined,
-              role: resolvedRole,
-              amount: Number(w.amount || 0),
-              currency: String(w.currency || "USD").toUpperCase(),
-              stripeAccountId: w.stripeAccountId || w.payoutDestination || w.destination || undefined,
-              payoutMethod: w.payoutMethod || w.method || w.stripeAccountId || "Standard Bank Transfer",
-              status: (String(w.status || "pending").toLowerCase() as any) || "pending",
-              createdAt: w.createdAt || new Date().toISOString(),
-              processedAt: w.processedAt || undefined,
-              rejectionReason: w.rejectionReason || undefined,
-              stripeTransferId: w.stripeTransferId || undefined,
-            });
-          });
-          break; // successfully retrieved from backend
+        const res = await axiosInstanceClient.get(url, { timeout: 6000 });
+        const list = res.data?.data?.transactions || res.data?.data || res.data?.withdrawals || res.data || [];
+        if (Array.isArray(list) && list.length > 0) {
+          list.forEach(parseRecord);
         }
       } catch {}
     }
@@ -189,43 +249,7 @@ export default function WithdrawalRequestsLayout() {
         if (rawLocal) {
           const parsed = JSON.parse(rawLocal);
           if (Array.isArray(parsed)) {
-            parsed.forEach((w: any) => {
-              const strId = String(w.id || w.requestId || "");
-              if (!items.some((existing) => existing.id === strId || existing.requestId === strId)) {
-                const uId = String(w.userId || "").toUpperCase();
-                let role: "USER" | "BUSINESS" | "AFFILIATE" = "USER";
-                if (uId.startsWith("BUS") || String(w.role || "").toUpperCase().includes("BUS")) {
-                  role = "BUSINESS";
-                } else if (uId.startsWith("AFF") || String(w.role || "").toUpperCase().includes("AFF")) {
-                  role = "AFFILIATE";
-                }
-
-                let cleanAmount = 0;
-                if (typeof w.amount === "number") {
-                  cleanAmount = w.amount;
-                } else if (typeof w.amount === "string") {
-                  cleanAmount = parseFloat(w.amount.replace(/[^0-9.]/g, "")) || 0;
-                }
-
-                const rawStatus = String(w.status || "Pending").toLowerCase();
-                const status = rawStatus === "complete" || rawStatus === "paid" ? "paid" : rawStatus === "failed" || rawStatus === "rejected" ? "rejected" : "pending";
-
-                items.push({
-                  id: strId,
-                  requestId: strId,
-                  businessUserId: String(w.userId || "User"),
-                  userName: w.userName || undefined,
-                  role,
-                  amount: cleanAmount,
-                  currency: "USD",
-                  payoutMethod: w.method || w.methodLabel || "Bank Transfer",
-                  stripeAccountId: w.methodId || undefined,
-                  status,
-                  createdAt: w.createdAt || (w.date ? new Date(w.date).toISOString() : new Date().toISOString()),
-                  rejectionReason: w.rejectionReason || undefined,
-                });
-              }
-            });
+            parsed.forEach(parseRecord);
           }
         }
       } catch {}
@@ -247,9 +271,13 @@ export default function WithdrawalRequestsLayout() {
       }
     });
 
-    const finalSorted = Array.from(uniqueMap.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const finalSorted = Array.from(uniqueMap.values()).sort((a, b) => {
+      const aPending = a.status === "pending";
+      const bPending = b.status === "pending";
+      if (aPending && !bPending) return -1;
+      if (bPending && !aPending) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
     setWithdrawals(finalSorted);
     const pendingCount = finalSorted.filter((w) => w.status === "pending").length;
@@ -260,12 +288,42 @@ export default function WithdrawalRequestsLayout() {
   useEffect(() => {
     fetchWithdrawals();
 
+    // Auto-refresh in background every 4s so new requests appear immediately with no manual reload
+    const pollInterval = setInterval(() => {
+      fetchWithdrawals();
+    }, 4000);
+
     const handleExternalUpdate = () => {
       fetchWithdrawals();
     };
     window.addEventListener("vero:withdrawal_updated", handleExternalUpdate);
+    window.addEventListener("wallet_updated", handleExternalUpdate);
+    window.addEventListener("storage", handleExternalUpdate);
+
+    let bc1: BroadcastChannel | null = null;
+    let bc2: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc1 = new BroadcastChannel("vero_channel");
+        bc1.onmessage = (e) => {
+          if (e.data?.type === "vero:withdrawal_updated" || e.data?.type === "withdrawal_requested" || e.data?.type === "vero:log_added") {
+            fetchWithdrawals();
+          }
+        };
+        bc2 = new BroadcastChannel("wallet_channel");
+        bc2.onmessage = () => {
+          fetchWithdrawals();
+        };
+      }
+    } catch {}
+
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener("vero:withdrawal_updated", handleExternalUpdate);
+      window.removeEventListener("wallet_updated", handleExternalUpdate);
+      window.removeEventListener("storage", handleExternalUpdate);
+      bc1?.close();
+      bc2?.close();
     };
   }, [fetchWithdrawals]);
 
@@ -289,9 +347,10 @@ export default function WithdrawalRequestsLayout() {
       const q = search.trim().toLowerCase();
       list = list.filter(
         (w) =>
-          w.requestId.toLowerCase().includes(q) ||
-          w.id.toLowerCase().includes(q) ||
-          w.businessUserId.toLowerCase().includes(q) ||
+          (w.requestId && w.requestId.toLowerCase().includes(q)) ||
+          (w.id && w.id.toLowerCase().includes(q)) ||
+          (w.stripeTransferId && w.stripeTransferId.toLowerCase().includes(q)) ||
+          (w.businessUserId && w.businessUserId.toLowerCase().includes(q)) ||
           (w.userName && w.userName.toLowerCase().includes(q)) ||
           (w.userEmail && w.userEmail.toLowerCase().includes(q)) ||
           (w.payoutMethod && w.payoutMethod.toLowerCase().includes(q))
@@ -322,6 +381,13 @@ export default function WithdrawalRequestsLayout() {
           return axiosInstanceClient.post(`/payment/withdrawals/${item.id}/pay`, {
             note: "Approved and executed via Admin Portal",
           });
+        })
+        .catch(() => null);
+
+      await axiosInstanceClient
+        .post(`/sso/wallet/admin/withdrawals/${item.id}/approve`)
+        .catch(async () => {
+          return axiosInstanceClient.post(`/sso/wallet/admin/withdrawals/${item.requestId}/approve`);
         })
         .catch(() => null);
 
@@ -468,6 +534,13 @@ export default function WithdrawalRequestsLayout() {
         .post(`/payment/withdrawals/admin/${item.id}/reject`, { reason: finalReason })
         .catch(async () => {
           return axiosInstanceClient.post(`/payment/withdrawals/${item.id}/reject`, { reason: finalReason });
+        })
+        .catch(() => null);
+
+      await axiosInstanceClient
+        .post(`/sso/wallet/admin/withdrawals/${item.id}/reject`, { reason: finalReason })
+        .catch(async () => {
+          return axiosInstanceClient.post(`/sso/wallet/admin/withdrawals/${item.requestId}/reject`, { reason: finalReason });
         })
         .catch(() => null);
 
@@ -643,39 +716,20 @@ export default function WithdrawalRequestsLayout() {
   const tabs: Array<{ id: "ALL" | "USER" | "BUSINESS" | "AFFILIATE"; label: string }> = [
     { id: "ALL", label: "All" },
     { id: "USER", label: "Users" },
-    { id: "BUSINESS", label: "Business" },
-    { id: "AFFILIATE", label: "Affiliate" },
+    { id: "BUSINESS", label: "Businesses" },
+    { id: "AFFILIATE", label: "Affiliates" },
   ];
 
   return (
     <div className="p-4 sm:p-6 w-full max-w-full overflow-hidden min-h-[70vh]">
       <div className="flex flex-col gap-6 w-full">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <PageHeader title="Withdrawal and Payout Requests" />
-            <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-              Review live pending payout requests, execute payouts, or reject and restore user balances.
-            </p>
-          </div>
-
-          <button
-            onClick={fetchWithdrawals}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm self-start sm:self-auto disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-600" : ""}`} />
-            <span>Refresh Queue</span>
-          </button>
-        </div>
-
-        {/* Toolbar: Filter Tabs & Search Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Tabs: All, Users, Business, Affiliate */}
-          <div className="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-x-auto">
+        {/* Toolbar: Filter Tabs on Left, Search Bar on Right */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm w-full">
+          {/* Tabs in pill container on Left */}
+          <div className="inline-flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-x-auto self-start md:self-auto">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
-              const count = tabCounts[tab.id];
+              const count = tabCounts[tab.id] ?? 0;
 
               return (
                 <button
@@ -686,15 +740,15 @@ export default function WithdrawalRequestsLayout() {
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                     isActive
-                      ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-slate-700/50"
                   }`}
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`text-[11px] font-bold px-1.5 py-0.2 rounded-full ${
+                    className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
                       isActive
-                        ? "bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300"
+                        ? "bg-white text-blue-600"
                         : "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-gray-300"
                     }`}
                   >
@@ -705,254 +759,173 @@ export default function WithdrawalRequestsLayout() {
             })}
           </div>
 
-          {/* Search Bar beside tabs */}
-          <div className="w-full md:w-80">
+          {/* Search bar on Right */}
+          <div className="w-full sm:w-72 md:w-80 flex-shrink-0 md:ml-auto">
             <SearchInput
               value={search}
               onChange={(v) => {
                 setSearch(v);
                 setPage(1);
               }}
-              placeholder="Search Transaction ID..."
+              placeholder="Search by Transaction ID..."
               className="w-full"
             />
           </div>
         </div>
 
-        {/* Main Requests Table Card with 4-item visible view and inside table scrollbar */}
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-          <div className="max-h-[590px] overflow-y-auto overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
-            <table className="w-full text-left text-sm border-collapse min-w-[950px]">
-              {/* Sticky Table Header */}
-              <thead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
-                <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/90 dark:bg-slate-800/90 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  <th scope="col" className="w-14 px-4 py-3.5 text-center">#</th>
-                  <th scope="col" className="w-44 px-4 py-3.5 text-center">Transaction ID</th>
-                  <th scope="col" className="w-28 px-4 py-3.5 text-center">Role</th>
-                  <th scope="col" className="px-5 py-3.5">Requester</th>
-                  <th scope="col" className="w-36 px-4 py-3.5 text-center">Amount</th>
-                  <th scope="col" className="px-5 py-3.5">Payout Destination</th>
-                  <th scope="col" className="w-44 px-4 py-3.5 text-center">Created Date</th>
-                  <th scope="col" className="w-28 px-4 py-3.5 text-center">Status</th>
-                  <th scope="col" className="w-48 px-4 py-3.5 text-center">Admin Actions</th>
-                </tr>
-              </thead>
+        {/* Central Reusable Table */}
+        <Table>
+          <TableHeading>
+            <TableColumn isHeader style={{ width: "5%" }} align="center">#</TableColumn>
+            <TableColumn isHeader style={{ width: "17%" }} align="center">Transaction ID</TableColumn>
+            <TableColumn isHeader style={{ width: "11%" }} align="center">Role</TableColumn>
+            <TableColumn isHeader style={{ width: "20%" }}>Requester</TableColumn>
+            <TableColumn isHeader style={{ width: "12%" }} align="center">Amount</TableColumn>
+            <TableColumn isHeader style={{ width: "14%" }}>Payout Destination</TableColumn>
+            <TableColumn isHeader style={{ width: "11%" }} align="center">Created Date</TableColumn>
+            <TableColumn isHeader style={{ width: "10%" }} align="center">Status</TableColumn>
+            <TableColumn isHeader style={{ width: "6%" }} align="center">Actions</TableColumn>
+          </TableHeading>
 
-              {/* Table Body */}
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {loading ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Loading withdrawal requests...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : paginatedItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-slate-800 text-gray-400 mb-3">
-                        <CheckCircle2 className="h-7 w-7 opacity-60 text-emerald-500" />
-                      </div>
-                      <p className="text-base font-semibold text-gray-900 dark:text-white">
-                        No withdrawal requests found {activeTab !== "ALL" ? `for ${activeTab}` : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                        When users, businesses, or affiliates request wallet payouts, they will appear here in real time.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedItems.map((item, index) => {
-                    const rowNumber = (currentPage - 1) * pageSize + index + 1;
-                    const isPending = item.status === "pending";
-                    const isBusy = actionInProgress === item.id;
-
-                    return (
-                      <tr
-                        key={item.id}
-                        className={`group transition-colors hover:bg-gray-50/80 dark:hover:bg-slate-800/40 ${
-                          isPending ? "bg-amber-500/[0.02] dark:bg-amber-500/[0.04]" : ""
-                        }`}
-                      >
-                        {/* 1. Row Index */}
-                        <td className="px-4 py-3.5 text-center font-mono text-xs font-medium text-gray-500 dark:text-gray-400">
-                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-gray-100 dark:bg-slate-800 px-1.5 text-gray-700 dark:text-gray-300 font-semibold">
-                            {rowNumber}
-                          </span>
-                        </td>
-
-                        {/* 2. Transaction ID */}
-                        <td className="px-4 py-3.5 text-center font-mono text-xs font-bold text-gray-900 dark:text-white">
-                          <span className="bg-gray-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-gray-200 dark:border-slate-700">
-                            {item.requestId}
-                          </span>
-                        </td>
-
-                        {/* 3. Role */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                          {getRoleBadge(item.role)}
-                        </td>
-
-                        {/* 4. User / Requester */}
-                        <td className="px-5 py-3.5">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-gray-900 dark:text-white">
-                              {item.userName || item.businessUserId}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                              ID: {item.businessUserId}
-                            </span>
-                            {item.userEmail && (
-                              <span className="text-[11px] text-gray-400">
-                                {item.userEmail}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 5. Amount */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                          <span className="text-sm font-bold text-gray-900 dark:text-white">
-                            ${item.amount.toFixed(2)} {item.currency}
-                          </span>
-                        </td>
-
-                        {/* 6. Payout Destination */}
-                        <td className="px-5 py-3.5">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
-                              {item.payoutMethod || "Standard Transfer"}
-                            </span>
-                            {item.stripeAccountId && item.stripeAccountId !== item.payoutMethod && (
-                              <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">
-                                {item.stripeAccountId}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 7. Created Date */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap text-xs text-gray-600 dark:text-gray-400">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {new Date(item.createdAt).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "2-digit",
-                              year: "numeric",
-                            })}
-                          </p>
-                          <p className="text-[11px] text-gray-500">
-                            {new Date(item.createdAt).toLocaleTimeString("en-US", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            })}
-                          </p>
-                        </td>
-
-                        {/* 8. Status */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                          {getStatusBadge(item.status)}
-                        </td>
-
-                        {/* 9. Admin Actions: Eye icon like KYC Queue table */}
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                          <div className="flex justify-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setShowRejectInput(false);
-                                setRejectionNote("");
-                              }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Footer */}
-          {totalItems > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-200 dark:border-gray-800 px-5 py-3.5 bg-white dark:bg-slate-900 text-xs text-gray-500 dark:text-gray-400">
-              <p>
-                Showing{" "}
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  {(currentPage - 1) * pageSize + 1}
-                </span>{" "}
-                to{" "}
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  {Math.min(currentPage * pageSize, totalItems)}
-                </span>{" "}
-                of <span className="font-semibold text-gray-900 dark:text-white">{totalItems}</span> requests
-                {totalPages > 1 && (
-                  <span className="ml-1 text-gray-500 dark:text-gray-400">
-                    (Page {currentPage} of {totalPages})
-                  </span>
-                )}
-              </p>
-
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage <= 1}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-2.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    <span>Prev</span>
-                  </button>
-
-                  <div className="flex items-center gap-1 px-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                      .map((p, idx, arr) => {
-                        const prev = arr[idx - 1];
-                        const showEllipsis = prev && p - prev > 1;
-
-                        return (
-                          <div key={p} className="flex items-center">
-                            {showEllipsis && <span className="px-1 text-xs text-gray-400">…</span>}
-                            <button
-                              type="button"
-                              onClick={() => setPage(p)}
-                              className={`h-8 min-w-8 rounded-lg px-2 text-xs font-semibold transition-colors cursor-pointer ${
-                                p === currentPage
-                                  ? "bg-blue-600 text-white shadow-xs"
-                                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800"
-                              }`}
-                            >
-                              {p}
-                            </button>
-                          </div>
-                        );
-                      })}
+          <TableBody
+            isEmpty={!loading && paginatedItems.length === 0}
+            colSpan={9}
+            emptyMessage={activeTab !== "ALL" ? `No withdrawal requests found for ${activeTab}` : "No withdrawal requests yet"}
+          >
+            {loading ? (
+              <TableRow>
+                <TableColumn colSpan={9}>
+                  <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="text-gray-500 font-medium">Fetching withdrawal requests...</span>
                   </div>
+                </TableColumn>
+              </TableRow>
+            ) : (
+              paginatedItems.map((item, index) => {
+                const rowNumber = (currentPage - 1) * pageSize + index + 1;
 
-                  <button
-                    type="button"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage >= totalPages}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 px-2.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs"
-                  >
-                    <span>Next</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                return (
+                  <TableRow key={item.id}>
+                    {/* 1. Row Index */}
+                    <TableColumn align="center">
+                      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-gray-100 dark:bg-slate-800 px-1.5 text-gray-700 dark:text-gray-300 font-semibold text-xs">
+                        {rowNumber}
+                      </span>
+                    </TableColumn>
+
+                    {/* 2. Transaction ID */}
+                    <TableColumn align="center">
+                      <span className="bg-gray-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-gray-200 dark:border-slate-700 font-mono text-xs font-bold text-gray-900 dark:text-white">
+                        {item.requestId}
+                      </span>
+                    </TableColumn>
+
+                    {/* 3. Role */}
+                    <TableColumn align="center">
+                      {getRoleBadge(item.role)}
+                    </TableColumn>
+
+                    {/* 4. Requester */}
+                    <TableColumn>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                          {item.userName || item.businessUserId}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                          ID: {item.businessUserId}
+                        </span>
+                        {item.userEmail && (
+                          <span className="text-[11px] text-gray-400 truncate">
+                            {item.userEmail}
+                          </span>
+                        )}
+                      </div>
+                    </TableColumn>
+
+                    {/* 5. Amount */}
+                    <TableColumn align="center">
+                      <span className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                        ${item.amount.toFixed(2)} {item.currency}
+                      </span>
+                    </TableColumn>
+
+                    {/* 6. Payout Destination */}
+                    <TableColumn>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                          {item.payoutMethod || "Standard Transfer"}
+                        </span>
+                        {item.stripeAccountId && item.stripeAccountId !== item.payoutMethod && (
+                          <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate">
+                            {item.stripeAccountId}
+                          </span>
+                        )}
+                      </div>
+                    </TableColumn>
+
+                    {/* 7. Created Date */}
+                    <TableColumn align="center">
+                      <div className="text-xs whitespace-nowrap">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {new Date(item.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "2-digit",
+                            year: "numeric",
+                          })}
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          {new Date(item.createdAt).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </p>
+                      </div>
+                    </TableColumn>
+
+                    {/* 8. Status */}
+                    <TableColumn align="center">
+                      {getStatusBadge(item.status)}
+                    </TableColumn>
+
+                    {/* 9. Actions */}
+                    <TableColumn align="center">
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedItem(item);
+                            setShowRejectInput(false);
+                            setRejectionNote("");
+                          }}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </TableColumn>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        {/* Pagination below table */}
+        {!loading && (
+          <div className="mt-2 w-full">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(p) => setPage(p)}
+              pageSize={pageSize}
+              totalResults={totalItems}
+              onPageSizeChange={() => {}}
+            />
+          </div>
+        )}
       </div>
 
       {/* Withdrawal Request Details & Action Modal (Matching UserActionModal sizing) */}

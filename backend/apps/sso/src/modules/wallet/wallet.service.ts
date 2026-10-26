@@ -17,7 +17,7 @@ export class WalletService implements OnModuleInit {
     private readonly userRepository: Repository<User>,
     @InjectRepository(PaymentCard)
     private readonly paymentCardRepository: Repository<PaymentCard>,
-  ) {}
+  ) { }
 
   private async findUserSafe(identifier: string): Promise<User | null> {
     if (!identifier) return null;
@@ -30,7 +30,7 @@ export class WalletService implements OnModuleInit {
         where: [{ userId: cleanId }, { email: cleanId }],
       });
       if (user) return user;
-    } catch {}
+    } catch { }
 
     // 2. If it's a valid UUID, query by id
     if (isUuid) {
@@ -39,7 +39,7 @@ export class WalletService implements OnModuleInit {
           where: { id: cleanId },
         });
         if (user) return user;
-      } catch {}
+      } catch { }
     }
 
     return null;
@@ -50,7 +50,7 @@ export class WalletService implements OnModuleInit {
       await this.userRepository.query(
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS "paymentMethods" jsonb DEFAULT '[]'::jsonb;`
       );
-    } catch {}
+    } catch { }
 
     try {
       await this.userRepository.query(`
@@ -75,13 +75,13 @@ export class WalletService implements OnModuleInit {
           "updatedAt" TIMESTAMP DEFAULT NOW()
         );
       `);
-    } catch {}
+    } catch { }
 
     try {
       await this.userRepository.query(
         `ALTER TABLE payment_cards ALTER COLUMN "userId" TYPE varchar(100);`
       );
-    } catch {}
+    } catch { }
   }
 
   async getWallet(userId: string): Promise<Wallet> {
@@ -272,11 +272,11 @@ export class WalletService implements OnModuleInit {
       balanceAfter,
       metadata: savedCard
         ? {
-            cardId: savedCard.id,
-            cardBrand: savedCard.cardBrand,
-            last4: savedCard.last4,
-            cardHolder: savedCard.cardHolderName,
-          }
+          cardId: savedCard.id,
+          cardBrand: savedCard.cardBrand,
+          last4: savedCard.last4,
+          cardHolder: savedCard.cardHolderName,
+        }
         : undefined,
     });
 
@@ -299,8 +299,8 @@ export class WalletService implements OnModuleInit {
     if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
       throw new BadRequestException('Invalid withdrawal amount');
     }
-    if (numAmount < 100) {
-      throw new BadRequestException('Minimum withdrawal amount is $100');
+    if (numAmount < 20) {
+      throw new BadRequestException('Minimum withdrawal amount is $20');
     }
 
     const wallet = await this.getWallet(userId);
@@ -342,51 +342,236 @@ export class WalletService implements OnModuleInit {
     };
   }
 
-  async getTransactions(userId: string, page: any = 1, limit: any = 20): Promise<any> {
-    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-    const limitNum = Math.max(1, parseInt(String(limit), 10) || 20);
-    const skip = (pageNum - 1) * limitNum;
-
-    if (!userId) {
-      return {
-        data: [],
-        pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
-      };
-    }
-
+  async getTransactions(userId: string, page: any = 1, limit?: any, all: boolean = false, type?: string): Promise<any> {
     try {
-      const user = await this.findUserSafe(userId);
-      const searchIds = [userId];
-      if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
-      if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
+      let whereClause: any;
+      if (all) {
+        if (type && type.toLowerCase().includes('withdraw')) {
+          whereClause = [
+            { type: 'withdrawal' },
+            { type: 'WITHDRAWAL' },
+            { type: 'Withdrawal' },
+            { type: TransactionType.WITHDRAWAL },
+          ];
+        } else if (type) {
+          whereClause = [{ type: type.toLowerCase() }, { type: type.toUpperCase() }];
+        } else {
+          whereClause = {};
+        }
+      } else {
+        if (!userId) {
+          return {
+            data: [],
+            pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+          };
+        }
+        const user = await this.findUserSafe(userId);
+        const searchIds = [userId];
+        if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
+        if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
 
-      const [transactions, total] = await this.transactionRepository.findAndCount({
-        where: searchIds.map((id) => ({ userId: id })),
+        if (type && type.toLowerCase().includes('withdraw')) {
+          whereClause = [
+            ...searchIds.map((id) => ({ userId: id, type: 'withdrawal' as any })),
+            ...searchIds.map((id) => ({ userId: id, type: 'WITHDRAWAL' as any })),
+          ];
+        } else {
+          whereClause = searchIds.map((id) => (type ? { userId: id, type: type.toLowerCase() as any } : { userId: id }));
+        }
+      }
+
+      const findOptions: any = {
+        where: whereClause,
         order: { createdAt: 'DESC' },
-        skip,
-        take: limitNum,
-      });
+      };
+
+      if (!all && limit) {
+        const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+        const limitNum = Math.max(1, parseInt(String(limit), 10) || 20);
+        findOptions.skip = (pageNum - 1) * limitNum;
+        findOptions.take = limitNum;
+      }
+
+      const [transactions, total] = await this.transactionRepository.findAndCount(findOptions);
 
       return {
         data: transactions || [],
         pagination: {
-          page: pageNum,
-          limit: limitNum,
+          page: parseInt(String(page), 10) || 1,
+          limit: limit ? parseInt(String(limit), 10) : total,
           total: total || 0,
-          totalPages: Math.ceil((total || 0) / limitNum),
+          totalPages: limit ? Math.ceil((total || 0) / parseInt(String(limit), 10)) : 1,
         },
       };
     } catch {
       return {
         data: [],
         pagination: {
-          page: pageNum,
-          limit: limitNum,
+          page: 1,
+          limit: 0,
           total: 0,
           totalPages: 0,
         },
       };
     }
+  }
+
+  async getAllWithdrawalRequests(): Promise<any> {
+    try {
+      const transactions = await this.transactionRepository.find({
+        where: [
+          { type: 'withdrawal' as any },
+          { type: 'WITHDRAWAL' as any },
+          { type: 'Withdrawal' as any },
+          { type: TransactionType.WITHDRAWAL },
+        ],
+        order: { createdAt: 'DESC' },
+      });
+
+      const userIds = Array.from(new Set(transactions.map((t) => t.userId).filter(Boolean)));
+      const userMap = new Map<string, any>();
+      if (userIds.length > 0) {
+        try {
+          const users = await this.userRepository.find({
+            where: [
+              ...userIds.map((uId) => ({ userId: uId })),
+              ...userIds.map((uId) => ({ id: uId })),
+              ...userIds.map((uId) => ({ email: uId })),
+            ],
+          });
+          users.forEach((u) => {
+            if (u.userId) userMap.set(u.userId, u);
+            if (u.id) userMap.set(u.id, u);
+            if (u.email) userMap.set(u.email, u);
+          });
+        } catch { }
+      }
+
+      const mapped = transactions.map((t) => {
+        const user = userMap.get(t.userId);
+        return {
+          id: t.id,
+          transactionId: t.transactionId,
+          requestId: t.transactionId || t.id,
+          userId: t.userId,
+          businessUserId: t.userId,
+          userName: user?.fullName || user?.name || user?.username || 'User',
+          userEmail: user?.email,
+          role: user?.accountType || user?.role || 'USER',
+          amount: Number(t.amount || 0),
+          currency: t.currency || 'USD',
+          status: t.status,
+          method: t.paymentMethod || 'Wallet Withdrawal',
+          payoutMethod: t.paymentMethod || 'Wallet Withdrawal',
+          description: t.description,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+        };
+      });
+
+      return { success: true, data: mapped };
+    } catch (err: any) {
+      return { success: false, data: [], error: err.message };
+    }
+  }
+
+  async updateWithdrawalStatus(
+    txIdOrId: string,
+    action: 'approve' | 'reject',
+    reason?: string,
+  ): Promise<any> {
+    const cleanId = String(txIdOrId).trim();
+    const tx = await this.transactionRepository.findOne({
+      where: [{ transactionId: cleanId }, { id: cleanId }],
+    });
+
+    if (!tx) {
+      throw new NotFoundException('Withdrawal transaction not found');
+    }
+
+    if (action === 'approve') {
+      tx.status = TransactionStatus.COMPLETED;
+      await this.transactionRepository.save(tx);
+      return { success: true, message: 'Withdrawal approved', transaction: tx };
+    } else {
+      tx.status = TransactionStatus.FAILED;
+      if (reason) {
+        tx.description = `${tx.description || 'Withdrawal'} - Rejected: ${reason}`;
+      }
+      await this.transactionRepository.save(tx);
+
+      try {
+        let wallet: Wallet | null = null;
+        if (tx.walletId) {
+          wallet = await this.walletRepository.findOne({ where: { id: tx.walletId } });
+        }
+        if (!wallet && tx.userId) {
+          wallet = await this.walletRepository.findOne({ where: { userId: tx.userId } });
+        }
+        if (wallet) {
+          const numAmount = Number(tx.amount || 0);
+          wallet.balance = Number((Number(wallet.balance || 0) + numAmount).toFixed(2));
+          await this.walletRepository.save(wallet);
+        }
+      } catch { }
+
+      return { success: true, message: 'Withdrawal rejected and balance restored', transaction: tx };
+    }
+  }
+
+  async revertWithdrawal(
+    userId: string,
+    txIdOrId: string,
+  ): Promise<any> {
+    const cleanId = String(txIdOrId).trim();
+    const tx = await this.transactionRepository.findOne({
+      where: [{ transactionId: cleanId }, { id: cleanId }],
+    });
+
+    if (!tx) {
+      throw new NotFoundException('Withdrawal transaction not found');
+    }
+
+    if (tx.status !== TransactionStatus.PENDING) {
+      throw new BadRequestException('Withdrawal has already been processed and cannot be reverted');
+    }
+
+    const now = Date.now();
+    const txTime = new Date(tx.createdAt).getTime();
+    const diffHours = (now - txTime) / (1000 * 60 * 60);
+    if (diffHours > 24) {
+      throw new BadRequestException('24-hour window has expired. Withdrawal cannot be reverted');
+    }
+
+    const numAmount = Number(tx.amount || 0);
+
+    // Restore balance to user wallet
+    try {
+      let wallet: Wallet | null = null;
+      if (tx.walletId) {
+        wallet = await this.walletRepository.findOne({ where: { id: tx.walletId } });
+      }
+      if (!wallet && (tx.userId || userId)) {
+        wallet = await this.walletRepository.findOne({ where: { userId: tx.userId || userId } });
+      }
+      if (wallet) {
+        wallet.balance = Number((Number(wallet.balance || 0) + numAmount).toFixed(2));
+        await this.walletRepository.save(wallet);
+      }
+    } catch { }
+
+    // Remove the pending transaction completely so it no longer appears in tables
+    try {
+      await this.transactionRepository.delete({ id: tx.id });
+    } catch {
+      tx.status = TransactionStatus.FAILED;
+      tx.description = `${tx.description || 'Withdrawal'} - Reverted by user`;
+      await this.transactionRepository.save(tx);
+    }
+
+    console.log(`[WalletService] Withdrawal ${cleanId} reverted by ${userId || 'user'}, $${numAmount} restored to wallet balance.`);
+
+    return { success: true, message: 'Withdrawal reverted and balance restored', amount: numAmount };
   }
 
   private async createTransaction(
@@ -432,9 +617,9 @@ export class WalletService implements OnModuleInit {
           } else if (typeof rawMethods === 'string') {
             try {
               list = JSON.parse(rawMethods);
-            } catch {}
+            } catch { }
           }
-        } catch {}
+        } catch { }
       }
 
       // If user has saved payment cards in payment_cards table that are not yet in list, include them
@@ -466,7 +651,7 @@ export class WalletService implements OnModuleInit {
             });
           }
         }
-      } catch {}
+      } catch { }
 
       return list;
     } catch {
@@ -495,9 +680,9 @@ export class WalletService implements OnModuleInit {
         } else if (typeof rawVal === 'string') {
           try {
             list = JSON.parse(rawVal);
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
     }
 
     const isDefault = Boolean(data.isDefault);
@@ -526,7 +711,7 @@ export class WalletService implements OnModuleInit {
     // Persist list to database via resilient methods
     try {
       await this.userRepository.update({ id: user.id }, { paymentMethods: list });
-    } catch {}
+    } catch { }
 
     try {
       await this.userRepository.query(
@@ -539,7 +724,7 @@ export class WalletService implements OnModuleInit {
           `UPDATE users SET paymentmethods = $1 WHERE id = $2 OR "userId" = $3`,
           [JSON.stringify(list), user.id, user.userId || user.id]
         );
-      } catch {}
+      } catch { }
     }
 
     // If Credit / Debit card, also sync into payment_cards
@@ -576,13 +761,13 @@ export class WalletService implements OnModuleInit {
 
     try {
       await this.userRepository.update({ id: user.id }, { paymentMethods: filtered });
-    } catch {}
+    } catch { }
     try {
       await this.userRepository.query(
         `UPDATE users SET "paymentMethods" = $1 WHERE id = $2 OR "userId" = $3`,
         [JSON.stringify(filtered), user.id, user.userId || user.id]
       );
-    } catch {}
+    } catch { }
 
     // If methodId starts with CARD-, delete from payment_cards table too
     if (methodId.startsWith('CARD-')) {
@@ -608,13 +793,13 @@ export class WalletService implements OnModuleInit {
 
     try {
       await this.userRepository.update({ id: user.id }, { paymentMethods: list });
-    } catch {}
+    } catch { }
     try {
       await this.userRepository.query(
         `UPDATE users SET "paymentMethods" = $1 WHERE id = $2 OR "userId" = $3`,
         [JSON.stringify(list), user.id, user.userId || user.id]
       );
-    } catch {}
+    } catch { }
 
     // Also update payment_cards default flag if it's a card
     if (methodId.startsWith('CARD-')) {

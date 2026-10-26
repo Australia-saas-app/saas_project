@@ -26,6 +26,7 @@ export interface WithdrawRequestResult {
   method: string;
   id: string;
   date: string;
+  createdAt?: string;
 }
 
 interface WithdrawRequestModalProps {
@@ -53,7 +54,7 @@ function getUserIdentity(user: NonNullable<ReturnType<typeof useUser>["user"]>) 
   return { id, name };
 }
 
-const MIN_WITHDRAWAL = 100;
+const MIN_WITHDRAWAL = 20;
 
 export default function WithdrawRequestModal({
   open,
@@ -306,9 +307,17 @@ export default function WithdrawRequestModal({
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("vero_channel");
           bc.postMessage({ type: "vero:new_notification", payload: adminNotif });
+          bc.postMessage({ type: "vero:withdrawal_updated" });
+          bc.postMessage({ type: "withdrawal_requested" });
           bc.close();
+
+          const bc2 = new BroadcastChannel("wallet_channel");
+          bc2.postMessage({ type: "wallet_updated" });
+          bc2.close();
         }
         window.dispatchEvent(new Event("notifications_updated"));
+        window.dispatchEvent(new Event("wallet_updated"));
+        window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
       } catch {}
     }
 
@@ -454,7 +463,7 @@ export default function WithdrawRequestModal({
                 ) : isBelowMin ? (
                   <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
                     <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
-                    <span>Minimum withdrawal amount is $100.00</span>
+                    <span>Minimum withdrawal amount is ${MIN_WITHDRAWAL}.00</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">

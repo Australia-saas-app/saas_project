@@ -100,3 +100,7 @@ export function updateAdminTransactionStatus(id: string, status: string) {
 export function countPendingTransactions(): number {
   return readAll().filter((t) => t.status === "Pending" || t.status === "Processing").length;
 }
+
+export function removeAdminTransaction(id: string) {
+  writeAll(readAll().filter((r) => r.id !== id));
+}

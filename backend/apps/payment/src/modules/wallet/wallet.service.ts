@@ -1168,7 +1168,7 @@ export class WalletService {
       const currency = (withdrawDto.currency || wallet.currency || 'USD').toLowerCase();
 
       // Validate minimum withdrawal
-      const minWithdrawal = Number(this.configService.get<string>('WALLET_MIN_WITHDRAWAL') || '50.00');
+      const minWithdrawal = Number(this.configService.get<string>('WALLET_MIN_WITHDRAWAL') || '20.00');
       if (withdrawalAmount < minWithdrawal) {
         throw new BadRequestException(`Minimum withdrawal amount is ${minWithdrawal} ${currency}`);
       }

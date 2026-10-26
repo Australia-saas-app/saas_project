@@ -13,7 +13,7 @@ export const TableHeading: React.FC<TableHeadingProps> = ({
   className = "bg-secondary text-base-400",
 }) => {
   return (
-    <thead className={className}>
+    <thead className={`sticky top-0 z-10 ${className}`}>
       <tr className="bg-blue-600 dark:bg-blue-700 border-b border-blue-700 dark:border-blue-800">{children}</tr>
     </thead>
   );

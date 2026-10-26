@@ -14,6 +14,7 @@ import WithdrawRequestModal, {
 } from "@/src/modules/dashboard/shared/components/WithdrawRequestModal";
 import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/WalletPaymentMethodsCard";
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
+import WithdrawalRevertAction from "@/src/modules/dashboard/shared/components/WithdrawalRevertAction";
 import RecordDetailDrawer from "@/src/modules/dashboard/shared/components/RecordDetailDrawer";
 import { withdrawDetailFields } from "@/src/modules/dashboard/shared/utils/withdraw-detail";
 import { useLocale } from "@/src/shared/context/locale.provider";
@@ -65,8 +66,9 @@ export default function BusinessWalletLayout() {
         method: row.method,
         amount: row.amount,
         date: row.date,
+        createdAt: row.createdAt || row.date,
         status: status as any,
-      };
+      } as any;
     });
     const demoRows = isDemo ? WITHDRAW_ROWS.slice(0, 40) : [];
     const map = new Map<string, WithdrawRow>();
@@ -92,8 +94,9 @@ export default function BusinessWalletLayout() {
             method: d.method,
             amount: d.amount,
             date: d.date,
+            createdAt: d.createdAt || d.date,
             status: status as any,
-          });
+          } as any);
         }
         for (const p of prev) {
           if (!merged.has(p.id)) {
@@ -346,7 +349,7 @@ export default function BusinessWalletLayout() {
             <p className="py-8 text-center text-sm text-gray-500">No withdrawals yet.</p>
           ) : (
             <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
-              <table className="w-full text-xs min-w-[540px]">
+              <table className="w-full text-xs min-w-[620px]">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-primary text-white uppercase font-bold text-[11px]">
                     <th className="p-3 text-left">Transaction ID</th>
@@ -378,17 +381,35 @@ export default function BusinessWalletLayout() {
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedWithdraw(row);
-                            setDetailOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-                          title="View withdrawal info"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedWithdraw(row);
+                              setDetailOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                            title="View withdrawal info"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <WithdrawalRevertAction
+                            withdrawal={{
+                              id: row.id,
+                              amount: row.amount,
+                              method: row.method,
+                              date: row.date,
+                              createdAt: (row as any).createdAt || row.date,
+                              status: row.status,
+                              userId,
+                            }}
+                            onReverted={(id) => {
+                              setWithdrawRows((prev) => prev.filter((r) => r.id !== id));
+                              loadWithdrawals();
+                              loadRealBalance();
+                            }}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}

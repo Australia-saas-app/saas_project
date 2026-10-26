@@ -14,6 +14,7 @@ import WithdrawRequestModal, {
   type WithdrawRequestResult,
 } from "@/src/modules/dashboard/shared/components/WithdrawRequestModal";
 import WithdrawalDetailsModal from "@/src/modules/dashboard/shared/components/WithdrawalDetailsModal";
+import WithdrawalRevertAction from "@/src/modules/dashboard/shared/components/WithdrawalRevertAction";
 import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/WalletPaymentMethodsCard";
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
@@ -61,8 +62,9 @@ export default function AffiliateWalletLayout() {
         method: row.method,
         amount: row.amount,
         date: row.date,
+        createdAt: row.createdAt || row.date,
         status: status as any,
-      };
+      } as any;
     });
     const demoRows = isDemo ? WITHDRAW_ROWS.slice(0, 20) : [];
     const map = new Map<string, WithdrawRow>();
@@ -88,8 +90,9 @@ export default function AffiliateWalletLayout() {
             method: d.method,
             amount: d.amount,
             date: d.date,
+            createdAt: d.createdAt || d.date,
             status: status as any,
-          });
+          } as any);
         }
         for (const p of prev) {
           if (!merged.has(p.id)) {
@@ -325,7 +328,7 @@ export default function AffiliateWalletLayout() {
             <p className="p-6 text-center text-gray-500">No withdrawals yet.</p>
           ) : (
             <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
-              <table className="w-full text-left text-xs min-w-[540px]">
+              <table className="w-full text-left text-xs min-w-[620px]">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-primary text-white font-bold uppercase text-[11px]">
                     <th className="p-3">Transaction ID</th>
@@ -357,14 +360,32 @@ export default function AffiliateWalletLayout() {
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedWithdrawal(item)}
-                          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-                          title="View withdrawal info"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWithdrawal(item)}
+                            className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                            title="View withdrawal info"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <WithdrawalRevertAction
+                            withdrawal={{
+                              id: item.id,
+                              amount: item.amount,
+                              method: item.method,
+                              date: item.date,
+                              createdAt: (item as any).createdAt || item.date,
+                              status: item.status,
+                              userId,
+                            }}
+                            onReverted={(id) => {
+                              setWithdrawRows((prev) => prev.filter((r) => r.id !== id));
+                              loadWithdrawals();
+                              loadRealBalance();
+                            }}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
