@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -1620,8 +1621,8 @@ export default function DashboardMessagesLayout({
         </div>
 
       {/* Centered Modal Compose Dialog */}
-      {composeOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
+      {composeOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-[3px] animate-in fade-in duration-150 overflow-y-auto">
           <div
             style={{
               maxWidth: "520px",
@@ -1864,7 +1865,8 @@ export default function DashboardMessagesLayout({
                 </div>
               </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

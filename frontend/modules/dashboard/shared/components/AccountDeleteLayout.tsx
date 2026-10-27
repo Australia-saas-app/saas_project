@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { ShieldAlert, Loader2, Eye, EyeOff, AlertTriangle, DollarSign, Wallet } from "lucide-react"
 import { toast } from "sonner"
@@ -375,8 +376,8 @@ export default function AccountDeleteLayout() {
       />
 
       {/* Beautiful Active Balance Warning Modal */}
-      {activeBalanceModalOpen && activeBalanceData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+      {activeBalanceModalOpen && activeBalanceData && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
           <div
             style={{ maxWidth: "490px", width: "100%" }}
             className="relative w-full rounded-2xl bg-card border border-amber-300/60 dark:border-amber-500/30 shadow-2xl overflow-hidden p-6 sm:p-7 space-y-5 animate-in zoom-in-95 duration-200"
@@ -443,7 +444,8 @@ export default function AccountDeleteLayout() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

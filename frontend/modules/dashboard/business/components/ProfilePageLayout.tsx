@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import {
   BadgeCheck,
@@ -1249,27 +1250,28 @@ export default function ProfilePageLayout() {
         onSuccess={() => setIsKycModalOpen(false)}
       />
 
-      {previewModalOpen && previewDoc && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-fit min-w-[300px] max-w-3xl flex flex-col max-h-[90vh] rounded-2xl bg-white shadow-2xl">
-            <div className="shrink-0 flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      {previewModalOpen && previewDoc && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
+          <div className="w-fit min-w-[300px] max-w-3xl flex flex-col max-h-[90vh] rounded-2xl bg-card border border-border shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-foreground">
+            <div className="shrink-0 flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h3 className="text-base font-bold text-gray-900">{previewDoc.title}</h3>
-                {previewDoc.name && <p className="text-xs text-gray-500 mt-0.5">{previewDoc.name}</p>}
+                <h3 className="text-base font-bold text-foreground">{previewDoc.title}</h3>
+                {previewDoc.name && <p className="text-xs text-muted-foreground mt-0.5">{previewDoc.name}</p>}
               </div>
               <button
                 type="button"
-                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
                 onClick={() => setPreviewModalOpen(false)}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 bg-slate-50 rounded-b-2xl overflow-auto flex justify-center">
-              <img src={previewDoc.url} alt={previewDoc.title} className="max-w-full h-auto object-contain rounded-lg shadow-sm border border-gray-200" />
+            <div className="p-6 bg-muted/30 rounded-b-2xl overflow-auto flex justify-center">
+              <img src={previewDoc.url} alt={previewDoc.title} className="max-w-full h-auto object-contain rounded-lg shadow-sm border border-border" />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

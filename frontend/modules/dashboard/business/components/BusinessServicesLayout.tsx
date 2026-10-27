@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -1255,8 +1256,8 @@ export default function BusinessServicesLayout() {
       </AppModal>
 
       {/* Theme Styled Permanent Delete Confirmation Modal with Spinner */}
-      {deleteTargetId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      {deleteTargetId && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
           <div 
             style={{ maxWidth: '400px' }}
             className="relative w-full max-w-sm rounded-xl bg-card p-6 shadow-xl border border-border space-y-4 animate-in fade-in"
@@ -1278,7 +1279,7 @@ export default function BusinessServicesLayout() {
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setDeleteTargetId(null)}
-                className="rounded-lg border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                className="rounded-lg border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50 cursor-pointer"
               >
                 No, Cancel
               </button>
@@ -1299,7 +1300,7 @@ export default function BusinessServicesLayout() {
                     setIsDeleting(false);
                   }
                 }}
-                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isDeleting ? (
                   <>
@@ -1311,7 +1312,8 @@ export default function BusinessServicesLayout() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Live Public Detail Modal */}
@@ -1412,8 +1414,8 @@ export default function BusinessServicesLayout() {
       )}
 
       {/* Full Assigned Project Detail Modal */}
-      {assignedDetailProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      {assignedDetailProject && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
           <div
             style={{ maxWidth: "560px", width: "100%" }}
             className="w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto"
@@ -1578,7 +1580,8 @@ export default function BusinessServicesLayout() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Business KYC Verification Required Modal */}

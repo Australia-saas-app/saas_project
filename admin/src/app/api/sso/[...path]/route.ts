@@ -4,7 +4,10 @@ export const dynamic = 'force-dynamic';
 async function handleProxy(req: NextRequest, props: { params: Promise<{ path: string[] }> }) {
   const params = await props.params;
   const pathString = params.path.join('/');
-  const backendUrl = process.env.BACKEND_URL || 'http://saas-backend:3001';
+  const backendUrl =
+    process.env.BACKEND_URL ||
+    process.env.SSO_BACKEND_URL ||
+    (process.env.NODE_ENV === 'production' ? 'http://saas-backend-sso:3001' : 'http://localhost:3001');
   
   // Preserve query parameters
   const searchParams = req.nextUrl.search;

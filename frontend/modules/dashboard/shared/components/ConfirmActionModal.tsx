@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Archive, Trash2 } from "lucide-react";
-import AppModal from "./AppModal";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, Archive, Trash2, Loader2 } from "lucide-react";
 
 export type ConfirmVariant = "danger" | "warning" | "neutral";
 
@@ -24,21 +24,21 @@ const VARIANT_STYLES: Record<
 > = {
   danger: {
     icon: Trash2,
-    iconBg: "bg-red-50",
-    iconColor: "text-red-600",
-    button: "bg-red-600 hover:bg-red-700 focus-visible:ring-red-500",
+    iconBg: "bg-red-500/10 dark:bg-red-500/20",
+    iconColor: "text-red-600 dark:text-red-400",
+    button: "bg-red-600 hover:bg-red-700 active:bg-red-800 text-white",
   },
   warning: {
     icon: Archive,
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-600",
-    button: "bg-amber-600 hover:bg-amber-700 focus-visible:ring-amber-500",
+    iconBg: "bg-amber-500/10 dark:bg-amber-500/20",
+    iconColor: "text-amber-600 dark:text-amber-400",
+    button: "bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white",
   },
   neutral: {
     icon: AlertTriangle,
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-600",
-    button: "bg-primary hover:bg-primary/90 focus-visible:ring-primary",
+    iconBg: "bg-blue-500/10 dark:bg-blue-500/20",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    button: "bg-primary hover:bg-primary/90 active:bg-primary/80 text-white",
   },
 };
 
@@ -54,6 +54,25 @@ export default function ConfirmActionModal({
   itemName,
 }: ConfirmActionModalProps) {
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !loading) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, loading, onClose]);
+
+  if (!open || !mounted || typeof document === "undefined") return null;
+
   const styles = VARIANT_STYLES[variant];
   const Icon = styles.icon;
 
@@ -67,19 +86,46 @@ export default function ConfirmActionModal({
     }
   };
 
-  return (
-    <AppModal
-      open={open}
-      onClose={onClose}
-      title={title}
-      size="sm"
-      footer={
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
+      <div
+        style={{ width: "380px", maxWidth: "calc(100vw - 32px)" }}
+        className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
+      >
+        {/* Centered Circular Icon */}
+        <div className={`w-14 h-14 ${styles.iconBg} rounded-full flex items-center justify-center mx-auto mb-5`}>
+          <Icon className={`w-6 h-6 ${styles.iconColor}`} strokeWidth={1.8} />
+        </div>
+
+        {/* Centered Title */}
+        <h3 className="text-lg font-bold text-foreground mb-2">{title}</h3>
+
+        {/* Centered Description */}
+        <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+          {description}
+        </p>
+
+        {/* Item Name pill if present */}
+        {itemName && (
+          <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs font-semibold text-foreground mb-4 truncate text-center">
+            {itemName}
+          </div>
+        )}
+
+        {/* Warning note for danger action */}
+        {variant === "danger" && (
+          <p className="text-xs text-red-500/90 font-medium mb-6">
+            This action cannot be undone.
+          </p>
+        )}
+
+        {/* Centered Side-by-Side Action Buttons */}
+        <div className="flex gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            className="flex-1 py-2.5 bg-muted hover:bg-muted/80 rounded-xl font-semibold text-foreground text-sm transition-colors disabled:opacity-50 cursor-pointer"
           >
             {cancelLabel}
           </button>
@@ -87,27 +133,13 @@ export default function ConfirmActionModal({
             type="button"
             onClick={handleConfirm}
             disabled={loading}
-            className={`rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60 ${styles.button}`}
+            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer ${styles.button}`}
           >
-            {loading ? "Processing..." : confirmLabel}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : confirmLabel}
           </button>
         </div>
-      }
-    >
-      <div className="space-y-4">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${styles.iconBg}`}>
-          <Icon className={`h-6 w-6 ${styles.iconColor}`} />
-        </div>
-        <p className="text-sm leading-relaxed text-gray-600">{description}</p>
-        {itemName && (
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900">
-            {itemName}
-          </div>
-        )}
-        {variant === "danger" && (
-          <p className="text-xs text-red-600">This action cannot be undone.</p>
-        )}
       </div>
-    </AppModal>
+    </div>,
+    document.body
   );
 }

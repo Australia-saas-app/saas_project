@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   Search,
   ArrowRight,
-  Bell,
-  MessageSquare,
+  Eye,
   ShoppingBag,
+  ArrowUp,
+  ArrowDown,
+  Check,
+  Star,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   CartesianGrid,
   Line,
@@ -28,24 +30,356 @@ import {
   type WithdrawRow,
 } from "@/src/modules/dashboard/shared/data/dashboard-demo-data";
 import { DashboardTablePagination } from "@/src/modules/dashboard/shared/components/DashboardTablePagination";
-import { sortByMoney, sortByString } from "@/src/modules/dashboard/shared/utils/sort-rows";
-import RecordDetailDrawer from "@/src/modules/dashboard/shared/components/RecordDetailDrawer";
-import { withdrawDetailFields } from "@/src/modules/dashboard/shared/utils/withdraw-detail";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
+import { useUser } from "@/src/context/user.provider";
+import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
+import { getLogsForUser, LOG_ADDED_EVENT, type RealLogEntry } from "@/src/shared/lib/real-activity-logger";
+import WithdrawalDetailsModal from "@/src/modules/dashboard/shared/components/WithdrawalDetailsModal";
+import WithdrawalRevertAction from "@/src/modules/dashboard/shared/components/WithdrawalRevertAction";
 import { UserStatsRow } from "./UserStatsRow";
-import { USER_RECENT_ACTIVITY, USER_SERVICE_SHORTCUTS, USER_STATS } from "../data/user-demo-data";
+import { USER_RECENT_ACTIVITY, USER_SERVICE_SHORTCUTS, USER_STATS, USER_ORDERS } from "../data/user-demo-data";
+import axiosInstance from "@/src/shared/lib/axiosInstance";
+import { scopedStorageKey } from "@/src/shared/lib/storage-scope";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function UserDashboardLayout() {
   const { t } = useLocale();
-  const { demoOrEmpty } = useIsDemoAccount();
+  const { user } = useUser();
+  const { demoOrEmpty, isDemo, userId } = useIsDemoAccount();
+  const userEmail = user && "email" in user ? String((user as any).email) : "";
   const u = t.userPages.dashboard;
-  const withdrawSource = demoOrEmpty(WITHDRAW_ROWS, [] as typeof WITHDRAW_ROWS);
+  const w = t.userPages.wallet;
+
+  const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>([]);
+  const [realLogs, setRealLogs] = useState<RealLogEntry[]>([]);
+
+  const loadWithdrawals = async () => {
+    try {
+      const stored = getWithdrawalsForUser(userId).map((row) => {
+        const s = String(row.status || "").toLowerCase();
+        const status: "Approved" | "Rejected" | "Pending" =
+          s === "approved" || s === "complete" || s === "paid" || s === "completed"
+            ? "Approved"
+            : s === "rejected" || s === "failed"
+            ? "Rejected"
+            : "Pending";
+        return {
+          id: row.id,
+          method: row.method,
+          amount: row.amount,
+          date: row.date,
+          createdAt: row.createdAt || row.date,
+          status: status as any,
+        } as any;
+      });
+      const demoRows = isDemo ? [...WITHDRAW_ROWS] : [];
+      const map = new Map<string, WithdrawRow>();
+      for (const r of [...stored, ...demoRows]) {
+        if (!map.has(r.id)) map.set(r.id, r);
+      }
+      setWithdrawRows(Array.from(map.values()));
+
+      const dbRows = await fetchWalletWithdrawalsFromDb();
+      if (dbRows.length > 0) {
+        setWithdrawRows((prev) => {
+          const merged = new Map<string, WithdrawRow>();
+          for (const d of dbRows) {
+            const s = String(d.status || "").toLowerCase();
+            const status =
+              s === "approved" || s === "complete" || s === "paid" || s === "completed"
+                ? "Approved"
+                : s === "rejected" || s === "failed"
+                ? "Rejected"
+                : "Pending";
+            merged.set(d.id, {
+              id: d.id,
+              method: d.method,
+              amount: d.amount,
+              date: d.date,
+              createdAt: d.createdAt || d.date,
+              status: status as any,
+            } as any);
+          }
+          for (const p of prev) {
+            if (!merged.has(p.id)) {
+              merged.set(p.id, p);
+            } else {
+              const current = merged.get(p.id)!;
+              merged.set(p.id, { ...p, status: current.status });
+            }
+          }
+          return Array.from(merged.values());
+        });
+      }
+    } catch {}
+  };
+
+  const loadActivities = async () => {
+    try {
+      let logs = await getLogsForUser(userId);
+      if ((!logs || logs.length === 0) && userId !== userEmail && userEmail) {
+        logs = await getLogsForUser(userEmail);
+      }
+      if (Array.isArray(logs)) {
+        const sorted = [...logs].sort((a, b) => {
+          const tA = new Date(a.createdAt).getTime();
+          const tB = new Date(b.createdAt).getTime();
+          return tB - tA;
+        });
+        setRealLogs(sorted);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadWithdrawals();
+    loadActivities();
+
+    const onUpdate = () => {
+      loadWithdrawals();
+      loadActivities();
+    };
+
+    // Instant real-time prepend when any log is recorded without needing reload
+    const onLogAdded = (e: any) => {
+      if (e?.detail) {
+        setRealLogs((prev) => {
+          const updated = [e.detail, ...prev.filter((p) => p.id !== e.detail.id)];
+          return updated.sort((a, b) => {
+            const tA = new Date(a.createdAt).getTime();
+            const tB = new Date(b.createdAt).getTime();
+            return tB - tA;
+          });
+        });
+      } else {
+        loadActivities();
+      }
+    };
+
+    window.addEventListener("wallet_updated", onUpdate);
+    window.addEventListener("vero:withdrawal_updated", onUpdate);
+    window.addEventListener("storage", onUpdate);
+    window.addEventListener("focus", onUpdate);
+    window.addEventListener("activity_logs_updated", onUpdate);
+    window.addEventListener(LOG_ADDED_EVENT, onLogAdded);
+
+    let bcActivity: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bcActivity = new BroadcastChannel("activity_channel");
+        bcActivity.onmessage = onUpdate;
+      }
+    } catch {}
+
+    const interval = setInterval(onUpdate, 4000);
+    return () => {
+      window.removeEventListener("wallet_updated", onUpdate);
+      window.removeEventListener("vero:withdrawal_updated", onUpdate);
+      window.removeEventListener("storage", onUpdate);
+      window.removeEventListener("focus", onUpdate);
+      window.removeEventListener("activity_logs_updated", onUpdate);
+      window.removeEventListener(LOG_ADDED_EVENT, onLogAdded);
+      if (bcActivity) {
+        try {
+          bcActivity.close();
+        } catch {}
+      }
+      clearInterval(interval);
+    };
+  }, [userId, userEmail, isDemo]);
+
+  const withdrawSource = isDemo && withdrawRows.length === 0 ? WITHDRAW_ROWS : withdrawRows;
   const earningSource = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
-  const recentActivity = demoOrEmpty(USER_RECENT_ACTIVITY, [] as typeof USER_RECENT_ACTIVITY);
-  const chartData = demoOrEmpty(CHART_DATA, [] as typeof CHART_DATA);
+  const [selectedYear, setSelectedYear] = useState("2026");
+  const [chartMode, setChartMode] = useState<"financial" | "logs" | "projects">("logs");
+  const [defaultMode, setDefaultMode] = useState<"financial" | "logs" | "projects">("logs");
+
+  useEffect(() => {
+    // 1. Try reading from user remote preferences in DB (synced across devices & relogins)
+    const remotePref = (user as any)?.preferences?.chartDefaultMode;
+    if (remotePref === "financial" || remotePref === "logs" || remotePref === "projects") {
+      setDefaultMode(remotePref);
+      setChartMode(remotePref);
+      return;
+    }
+
+    // 2. Fall back to local user-scoped storage
+    try {
+      const scopedKey = scopedStorageKey("user_overview_default_mode");
+      const saved = (localStorage.getItem(scopedKey) || localStorage.getItem("user_overview_default_mode")) as any;
+      if (saved === "financial" || saved === "logs" || saved === "projects") {
+        setDefaultMode(saved);
+        setChartMode(saved);
+      }
+    } catch {}
+  }, [user]);
+
+  const handleSetDefaultMode = async (mode: "financial" | "logs" | "projects") => {
+    setDefaultMode(mode);
+
+    // 1. Instant local persistence
+    try {
+      const scopedKey = scopedStorageKey("user_overview_default_mode");
+      localStorage.setItem(scopedKey, mode);
+      localStorage.setItem("user_overview_default_mode", mode);
+    } catch {}
+
+    // 2. Persist to backend database (so it follows the account on any device & upon relogin)
+    try {
+      if (!isDemo) {
+        await axiosInstance.patch("/sso/auth/user/preferences", {
+          preferences: { chartDefaultMode: mode },
+          chartDefaultMode: mode,
+        });
+        if (user && typeof user === "object") {
+          (user as any).preferences = {
+            ...((user as any).preferences || {}),
+            chartDefaultMode: mode,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("Could not sync preference to server", err);
+    }
+
+    const modeNames = {
+      logs: "Activity Logs",
+      financial: "Financial (Cashflow)",
+      projects: "Projects & Orders",
+    };
+    toast.success(`Default overview set to ${modeNames[mode]}`);
+  };
+
+  const dynamicChartData = useMemo(() => {
+    const yr = Number(selectedYear);
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const yearFactor = yr === 2026 ? 1.15 : yr === 2025 ? 1 : 0.85;
+
+    if (chartMode === "financial") {
+      const data = months.map((name, i) => {
+        const base = CHART_DATA[i] || { Increase: 20, Decrease: 10 };
+        return {
+          name,
+          Increase: Math.round(base.Increase * yearFactor),
+          Decrease: Math.round(base.Decrease * yearFactor),
+        };
+      });
+
+      for (const w of withdrawSource) {
+        const t = (w as any).createdAt || w.date;
+        if (!t) continue;
+        const d = new Date(t);
+        if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
+          const m = d.getMonth();
+          const amt = Number(String(w.amount).replace(/[^0-9.]/g, "")) || 0;
+          if (m >= 0 && m < 12) {
+            data[m].Decrease += Math.round(amt);
+          }
+        }
+      }
+
+      for (const e of earningSource) {
+        const t = (e as any).createdAt || (e as any).date;
+        if (!t) continue;
+        const d = new Date(t);
+        if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
+          const m = d.getMonth();
+          const comm = Number(String(e.commission).replace(/[^0-9.]/g, "")) || 0;
+          if (m >= 0 && m < 12) {
+            data[m].Increase += Math.round(comm);
+          }
+        }
+      }
+
+      return data;
+    }
+
+    if (chartMode === "logs") {
+      const data = months.map((name, i) => {
+        const baseActions = Math.round((14 + ((i * 7) % 18)) * yearFactor);
+        const baseSystem = Math.round((6 + ((i * 4) % 10)) * yearFactor);
+        return {
+          name,
+          Increase: baseActions,
+          Decrease: baseSystem,
+        };
+      });
+
+      const allLogs = realLogs.length > 0 ? realLogs : [];
+      for (const log of allLogs) {
+        const t = log.createdAt || (log as any).date;
+        if (!t) continue;
+        const d = new Date(t);
+        if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
+          const m = d.getMonth();
+          if (m >= 0 && m < 12) {
+            const isSystem = /withdraw|reject|fail|system|notice|warning|verify/i.test(log.action || "");
+            if (isSystem) {
+              data[m].Decrease += 1;
+            } else {
+              data[m].Increase += 1;
+            }
+          }
+        }
+      }
+
+      return data;
+    }
+
+    // Projects & Orders mode
+    const data = months.map((name, i) => {
+      const baseCompleted = Math.round((6 + ((i * 3) % 8)) * yearFactor);
+      const basePending = Math.round((2 + ((i * 2) % 5)) * yearFactor);
+      return {
+        name,
+        Increase: baseCompleted,
+        Decrease: basePending,
+      };
+    });
+
+    for (const ord of (USER_ORDERS || [])) {
+      if (!ord.date) continue;
+      const d = new Date(ord.date);
+      if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
+        const m = d.getMonth();
+        if (m >= 0 && m < 12) {
+          const isDone = /complete|delivered|shipped/i.test(ord.status || "");
+          if (isDone) {
+            data[m].Increase += 1;
+          } else {
+            data[m].Decrease += 1;
+          }
+        }
+      }
+    }
+
+    return data;
+  }, [selectedYear, chartMode, withdrawSource, earningSource, realLogs]);
+
+  const legendInfo = useMemo(() => {
+    switch (chartMode) {
+      case "financial":
+        return {
+          increaseLabel: `${u.increase} (Earnings)`,
+          decreaseLabel: `${u.decrease} (Withdrawals)`,
+          unit: "$",
+        };
+      case "logs":
+        return {
+          increaseLabel: `${u.increase} (User Actions)`,
+          decreaseLabel: `${u.decrease} (System Events)`,
+          unit: "events",
+        };
+      case "projects":
+        return {
+          increaseLabel: `${u.increase} (Completed)`,
+          decreaseLabel: `${u.decrease} (Pending / Active)`,
+          unit: "items",
+        };
+    }
+  }, [chartMode, u]);
   const userStats = demoOrEmpty(USER_STATS, {
     totalProjects: 0,
     activeProjects: 0,
@@ -57,40 +391,83 @@ export default function UserDashboardLayout() {
     unreadNotices: 0,
     unreadMessages: 0,
   });
+
   const [withdrawSearch, setWithdrawSearch] = useState("");
   const [earningSearch, setEarningSearch] = useState("");
   const [withdrawSort, setWithdrawSort] = useState<"Up" | "Down">("Down");
-  const [earningSort, setEarningSort] = useState<"Up" | "Down">("Up");
+  const [earningSort, setEarningSort] = useState<"Up" | "Down">("Down");
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
-  const [withdrawDetailOpen, setWithdrawDetailOpen] = useState(false);
-  const [selectedWithdraw, setSelectedWithdraw] = useState<WithdrawRow | null>(null);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawRow | null>(null);
 
+  const getWithdrawTime = (r: WithdrawRow): number => {
+    if ((r as any).createdAt) {
+      const t = new Date((r as any).createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (r.date) {
+      const t = new Date(r.date).getTime();
+      if (!isNaN(t) && t > 0) return t;
+      const cleaned = r.date.replace(/\(UTC\)/i, "UTC").trim();
+      const tCleaned = new Date(cleaned).getTime();
+      if (!isNaN(tCleaned) && tCleaned > 0) return tCleaned;
+    }
+    return 0;
+  };
+
+  // Filtered withdrawals matching Wallet page
   const filteredWithdraw = useMemo(() => {
-    let rows = withdrawSearch.trim()
-      ? withdrawSource.filter(
-          (r) =>
-            r.id.toLowerCase().includes(withdrawSearch.toLowerCase()) ||
-            r.method.toLowerCase().includes(withdrawSearch.toLowerCase()) ||
-            r.amount.toLowerCase().includes(withdrawSearch.toLowerCase()) ||
-            r.status.toLowerCase().includes(withdrawSearch.toLowerCase())
-        )
-      : withdrawSource;
-    return sortByMoney(rows, (r) => r.amount, withdrawSort);
-  }, [withdrawSearch, withdrawSort, withdrawSource]);
+    const uniqueMap = new Map<string, WithdrawRow>();
+    for (const r of withdrawSource) {
+      if (!uniqueMap.has(r.id)) {
+        uniqueMap.set(r.id, r);
+      }
+    }
+    let rows = Array.from(uniqueMap.values()).map((row, index) => ({ row, index }));
+    if (withdrawSearch.trim()) {
+      const q = withdrawSearch.toLowerCase();
+      rows = rows.filter(
+        ({ row: r }) =>
+          r.id.toLowerCase().includes(q) ||
+          r.method.toLowerCase().includes(q) ||
+          r.amount.toLowerCase().includes(q) ||
+          r.status.toLowerCase().includes(q)
+      );
+    }
+    rows.sort((a, b) => {
+      const tA = getWithdrawTime(a.row);
+      const tB = getWithdrawTime(b.row);
+      if (tA !== tB && tA > 0 && tB > 0) {
+        return withdrawSort === "Down" ? tB - tA : tA - tB;
+      }
+      return withdrawSort === "Down" ? a.index - b.index : b.index - a.index;
+    });
+    return rows.map((item) => item.row);
+  }, [withdrawSearch, withdrawSource, withdrawSort]);
 
+  // Filtered earnings matching Wallet page
   const filteredEarning = useMemo(() => {
-    let rows = earningSearch.trim()
-      ? earningSource.filter(
-          (r) =>
-            r.id.toLowerCase().includes(earningSearch.toLowerCase()) ||
-            r.subcategory.toLowerCase().includes(earningSearch.toLowerCase()) ||
-            r.commission.toLowerCase().includes(earningSearch.toLowerCase()) ||
-            r.status.toLowerCase().includes(earningSearch.toLowerCase())
-        )
-      : earningSource;
-    return sortByMoney(rows, (r) => r.commission, earningSort);
-  }, [earningSearch, earningSort, earningSource]);
+    let rows = earningSource.map((row, index) => ({ row, index }));
+    if (earningSearch.trim()) {
+      const q = earningSearch.toLowerCase();
+      rows = rows.filter(
+        ({ row: r }) =>
+          r.id.toLowerCase().includes(q) ||
+          r.subcategory.toLowerCase().includes(q) ||
+          r.commission.toLowerCase().includes(q) ||
+          r.status.toLowerCase().includes(q)
+      );
+    }
+    rows.sort((a, b) => {
+      const tA = (a.row as any).date ? new Date((a.row as any).date).getTime() : 0;
+      const tB = (b.row as any).date ? new Date((b.row as any).date).getTime() : 0;
+      if (!isNaN(tA) && !isNaN(tB) && tA > 0 && tB > 0 && tA !== tB) {
+        return earningSort === "Down" ? tB - tA : tA - tB;
+      }
+      return earningSort === "Down" ? a.index - b.index : b.index - a.index;
+    });
+    return rows.map((item) => item.row);
+  }, [earningSearch, earningSource, earningSort]);
 
   const withdrawPages = Math.max(1, Math.ceil(filteredWithdraw.length / PAGE_SIZE));
   const earningPages = Math.max(1, Math.ceil(filteredEarning.length / PAGE_SIZE));
@@ -100,20 +477,58 @@ export default function UserDashboardLayout() {
   );
   const earningData = filteredEarning.slice((earningPage - 1) * PAGE_SIZE, earningPage * PAGE_SIZE);
 
+  // Helper to format date & time stamp cleanly
+  const formatTimestamp = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr || "Recently";
+      const date = d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const time = d.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return `${date}, ${time}`;
+    } catch {
+      return dateStr || "Recently";
+    }
+  };
+
+  // Compute activities for Recent Activity card (top recent Actions)
+  const displayActivities = useMemo(() => {
+    if (realLogs.length > 0) {
+      return realLogs.map((log: RealLogEntry) => ({
+        id: log.id,
+        action: log.action || log.details || "Activity",
+        timestamp: formatTimestamp(log.createdAt),
+      }));
+    }
+    return isDemo
+      ? USER_RECENT_ACTIVITY.map((item, idx) => ({
+          id: `demo-${idx}`,
+          action: item.action,
+          timestamp: item.date,
+        }))
+      : [];
+  }, [realLogs, isDemo]);
+
   const quickLinks = [
-    { label: t.dashboard.user.wallet, href: "/user/wallet", desc: u.walletDesc },
-    { label: t.dashboard.user.earnings, href: "/user/earnings", desc: u.earningsDesc },
-    { label: t.dashboard.user.technical, href: "/user/technical", desc: u.technicalDesc },
-    { label: t.dashboard.user.orders, href: "/user/orders", desc: u.ordersDesc },
+    { label: t.dashboard.user.wallet, href: "/dashboard/user/wallet", desc: u.walletDesc },
+    { label: t.dashboard.user.earnings, href: "/dashboard/user/earnings", desc: u.earningsDesc },
+    { label: t.dashboard.user.applications, href: "/dashboard/user/applications", desc: "Manage Applications" },
+    { label: t.dashboard.user.orders, href: "/dashboard/user/orders", desc: u.ordersDesc },
     {
       label: t.dashboard.user.notices,
-      href: "/user/notices",
+      href: "/dashboard/user/notices",
       desc: u.noticesDesc,
       badge: userStats.unreadNotices,
     },
     {
       label: t.dashboard.user.messages,
-      href: "/user/messages",
+      href: "/dashboard/user/messages",
       desc: u.messagesDesc,
       badge: userStats.unreadMessages,
     },
@@ -128,315 +543,407 @@ export default function UserDashboardLayout() {
 
       <UserStatsRow />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 [&>*]:min-w-0">
-        <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-md font-bold text-gray-900">{u.overview}</h3>
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
-                  <span className="h-3 w-3 rounded-full bg-[#0091ff]" />
-                  {u.increase}
-                </div>
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                  <span className="h-3 w-3 rounded-full bg-gray-400" />
-                  {u.decrease}
-                </div>
-                <div className="relative">
-                  <select className="appearance-none rounded border border-gray-200 bg-white py-1 pr-6 pl-3 text-xs text-gray-600 focus:outline-none">
-                    <option>2025</option>
-                    <option>2024</option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute top-1/2 right-2 h-3 w-3 -translate-y-1/2 text-gray-500" />
-                </div>
-              </div>
-            </div>
-            <div className="h-[220px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Increase"
-                    stroke="#0091ff"
-                    strokeWidth={2}
-                    dot={false}
-                    name={u.increase}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Decrease"
-                    stroke="#94a3b8"
-                    strokeWidth={2}
-                    dot={false}
-                    name={u.decrease}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+      {/* Top Row: Activity Overview (remaining width) & Recent Activity Card (matching height & width) */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 [&>*]:min-w-0 items-stretch">
+        {/* Activity Overview Card */}
+        <div className="lg:col-span-2">
+          <div className="rounded-xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm h-full flex flex-col justify-between">
+            <div>
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="text-md font-bold text-gray-900">{u.overview}</h3>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="h-3 w-3 rounded-full bg-[#0091ff]" />
+                    {legendInfo.increaseLabel}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                    <span className="h-3 w-3 rounded-full bg-gray-400" />
+                    {legendInfo.decreaseLabel}
+                  </div>
+                  {/* Mode Selector & Dynamic Default Button */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="relative">
+                      <select
+                        value={chartMode}
+                        onChange={(e) => setChartMode(e.target.value as any)}
+                        className="appearance-none rounded border border-gray-200 bg-white py-1 pr-6 pl-2.5 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer hover:border-primary/50 transition-colors"
+                      >
+                        <option value="logs">
+                          Activity Logs {defaultMode === "logs" ? "★ (Default)" : ""}
+                        </option>
+                        <option value="financial">
+                          Financial (Cashflow) {defaultMode === "financial" ? "★ (Default)" : ""}
+                        </option>
+                        <option value="projects">
+                          Projects & Orders {defaultMode === "projects" ? "★ (Default)" : ""}
+                        </option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute top-1/2 right-2 h-3 w-3 -translate-y-1/2 text-gray-500" />
+                    </div>
 
-          <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-md font-bold text-gray-900">{u.withdrawHistory}</h3>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder={u.search}
-                    value={withdrawSearch}
-                    onChange={(e) => {
-                      setWithdrawSearch(e.target.value);
-                      setWithdrawPage(1);
-                    }}
-                    className="w-48 rounded border border-gray-200 bg-white py-1.5 pr-3 pl-8 text-xs focus:outline-none"
-                  />
+                    {chartMode === defaultMode ? (
+                      <span className="inline-flex items-center gap-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 text-[11px] font-semibold select-none">
+                        <Check className="h-3 w-3 text-emerald-600" /> Default
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSetDefaultMode(chartMode)}
+                        className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-primary hover:border-primary/40 px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer"
+                        title="Set this view as your permanent default"
+                      >
+                        <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> Set Default
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      className="appearance-none rounded border border-gray-200 bg-white py-1 pr-6 pl-2.5 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer hover:border-primary/50 transition-colors"
+                    >
+                      <option value="2026">2026</option>
+                      <option value="2025">2025</option>
+                      <option value="2024">2024</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute top-1/2 right-2 h-3 w-3 -translate-y-1/2 text-gray-500" />
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setWithdrawSort(withdrawSort === "Up" ? "Down" : "Up")}
-                  className="flex items-center gap-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600"
-                >
-                  {withdrawSort}
-                  {withdrawSort === "Up" ? (
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  )}
-                </button>
+              </div>
+              <div className="h-[220px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dynamicChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                    <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                      formatter={(val: any, name: any) => [
+                        chartMode === "financial" ? `$${val}` : `${val} ${legendInfo.unit}`,
+                        name,
+                      ]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="Increase"
+                      stroke="#0091ff"
+                      strokeWidth={2}
+                      dot={false}
+                      name={legendInfo.increaseLabel}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="Decrease"
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      dot={false}
+                      name={legendInfo.decreaseLabel}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs min-w-[520px]">
-                <thead>
-                  <tr className="bg-primary font-bold text-white uppercase">
-                    <th className="p-3">Transaction ID</th>
-                    <th className="p-3">Method</th>
-                    <th className="p-3">Amount</th>
-                    <th className="p-3">Date &amp; Time</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {withdrawData.map((item, idx) => (
-                    <tr key={`${item.id}-${idx}`} className="text-gray-700 hover:bg-gray-50">
-                      <td className="p-3 font-semibold">{item.id}</td>
-                      <td className="p-3">{item.method}</td>
-                      <td className="p-3">{item.amount}</td>
-                      <td className="p-3 text-gray-500">{item.date}</td>
-                      <td className="p-3">
-                        <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${item.status === "Complete" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedWithdraw(item);
-                            setWithdrawDetailOpen(true);
-                          }}
-                          className="rounded bg-primary px-3 py-1 text-[10px] font-bold text-white hover:bg-primary/90 inline-block"
-                        >
-                          {u.view}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <DashboardTablePagination
-              current={withdrawPage}
-              total={withdrawPages}
-              pageSize={PAGE_SIZE}
-              totalItems={filteredWithdraw.length}
-              onChange={setWithdrawPage}
-            />
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-md font-bold text-gray-900">{u.earningHistory}</h3>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder={u.search}
-                    value={earningSearch}
-                    onChange={(e) => {
-                      setEarningSearch(e.target.value);
-                      setEarningPage(1);
-                    }}
-                    className="w-28 rounded border border-gray-200 bg-white py-1.5 pr-3 pl-8 text-xs focus:outline-none"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEarningSort(earningSort === "Up" ? "Down" : "Up")}
-                  className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs font-bold text-gray-600"
+        {/* Recent Activity Card (strictly matching Activity Overview height, never exceeding) */}
+        <div className="lg:col-span-1">
+          <div className="rounded-xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm h-full flex flex-col justify-between overflow-hidden">
+            <div>
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <h3 className="text-md font-bold text-gray-900">{u.recentActivity}</h3>
+                <Link
+                  href="/dashboard/user/profile/user-log"
+                  className="text-xs font-semibold text-primary hover:underline cursor-pointer"
                 >
-                  {earningSort}
-                  {earningSort === "Up" ? (
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  )}
-                </button>
+                  {u.viewAll}
+                </Link>
+              </div>
+              <div className="max-h-[220px] overflow-y-auto pr-1 space-y-0 divide-y divide-gray-100">
+                {displayActivities.length === 0 ? (
+                  <p className="py-12 text-center text-sm text-gray-400">No recent activity</p>
+                ) : (
+                  displayActivities.slice(0, 6).map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="flex items-center justify-between gap-3 py-2.5 text-xs first:pt-0 last:pb-0"
+                    >
+                      {/* Left side: Action */}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                        <span
+                          className="font-bold text-gray-900 truncate"
+                          title={item.action}
+                        >
+                          {item.action}
+                        </span>
+                      </div>
+
+                      {/* Right side: Date and Time stamp */}
+                      <span className="text-gray-400 shrink-0 text-[11px] whitespace-nowrap font-medium text-right">
+                        {item.timestamp}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs min-w-[320px]">
-                <thead>
-                  <tr className="bg-primary font-bold text-white uppercase">
-                    <th className="p-3">ID</th>
-                    <th className="p-3">Subcategory</th>
-                    <th className="p-3">Commission</th>
-                    <th className="p-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {earningData.map((item, idx) => (
-                    <tr key={`${item.id}-${idx}`} className="text-gray-700 hover:bg-gray-50">
-                      <td className="p-3 font-semibold">{item.id}</td>
-                      <td className="p-3 text-gray-500">{item.subcategory}</td>
-                      <td className="p-3 font-medium">{item.commission}</td>
-                      <td className="p-3">
-                        <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${item.status === "Complete" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <DashboardTablePagination
-              current={earningPage}
-              total={earningPages}
-              pageSize={PAGE_SIZE}
-              totalItems={filteredEarning.length}
-              onChange={setEarningPage}
-              compact
-            />
           </div>
-
-          {(userStats.unreadNotices > 0 || userStats.unreadMessages > 0) && (
-            <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-5 shadow-sm space-y-3">
-              <h3 className="text-sm font-bold text-amber-900">{u.needsAttention}</h3>
-              {userStats.unreadNotices > 0 && (
-                <Link
-                  href="/user/notices"
-                  className="flex items-center gap-2 text-xs font-medium text-amber-800 hover:underline"
-                >
-                  <Bell className="h-4 w-4" /> {userStats.unreadNotices} {u.unreadNotices}
-                </Link>
-              )}
-              {userStats.unreadMessages > 0 && (
-                <Link
-                  href="/user/messages"
-                  className="flex items-center gap-2 text-xs font-medium text-amber-800 hover:underline"
-                >
-                  <MessageSquare className="h-4 w-4" /> {userStats.unreadMessages}{" "}
-                  {u.unreadMessages}
-                </Link>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
+      {/* Full-width Withdrawal History Table (matching Wallet page layout and data) */}
+      <div className="w-full rounded-xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-bold text-gray-900">{w.withdrawHistory}</h2>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-36">
+              <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder={w.search}
+                value={withdrawSearch}
+                onChange={(e) => {
+                  setWithdrawSearch(e.target.value);
+                  setWithdrawPage(1);
+                }}
+                className="w-full rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setWithdrawSort((prev) => (prev === "Up" ? "Down" : "Up"));
+                setWithdrawPage(1);
+              }}
+              className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+              title={withdrawSort === "Down" ? "Newest first (Click for Oldest first)" : "Oldest first (Click for Newest first)"}
+            >
+              {withdrawSort}
+              {withdrawSort === "Up" ? (
+                <ArrowUp className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
+        {withdrawData.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">No withdrawals yet.</p>
+        ) : (
+          <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-gray-100 touch-pan-x [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+            <table className="w-full text-xs min-w-[620px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-primary text-white uppercase font-bold text-[11px]">
+                  <th className="p-3 text-left whitespace-nowrap">Transaction ID</th>
+                  <th className="p-3 text-left whitespace-nowrap">{w.method}</th>
+                  <th className="p-3 text-left whitespace-nowrap">{w.amount}</th>
+                  <th className="p-3 text-left whitespace-nowrap">Date</th>
+                  <th className="p-3 text-left whitespace-nowrap">{w.status}</th>
+                  <th className="p-3 text-right whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {withdrawData.map((row, i) => (
+                  <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50 transition-colors">
+                    <td className="p-3 font-mono font-semibold text-gray-900 text-xs whitespace-nowrap">{row.id}</td>
+                    <td className="p-3 text-gray-700 whitespace-nowrap">{row.method}</td>
+                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">{row.amount}</td>
+                    <td className="p-3 text-gray-500 whitespace-nowrap">{row.date}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                          row.status === "Approved" || row.status === "Complete" || row.status === "Paid"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : row.status === "Rejected" || row.status === "Failed"
+                            ? "bg-rose-100 text-rose-800 border border-rose-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWithdrawal(row)}
+                          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                          title="View withdrawal info"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <WithdrawalRevertAction
+                          withdrawal={{
+                            id: row.id,
+                            amount: row.amount,
+                            method: row.method,
+                            date: row.date,
+                            createdAt: (row as any).createdAt || row.date,
+                            status: row.status,
+                            userId,
+                          }}
+                          onReverted={(id: string) => {
+                            setWithdrawRows((prev) => prev.filter((r) => r.id !== id));
+                            loadWithdrawals();
+                          }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <DashboardTablePagination
+          current={withdrawPage}
+          total={withdrawPages}
+          pageSize={PAGE_SIZE}
+          totalItems={filteredWithdraw.length}
+          onChange={setWithdrawPage}
+          compact
+        />
+      </div>
+
+      {/* Full-width Earning History Table (matching Wallet page layout and data, added below Withdrawal History) */}
+      <div className="w-full rounded-xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-bold text-gray-900">{w.earningHistory}</h2>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-36">
+              <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder={w.search}
+                value={earningSearch}
+                onChange={(e) => {
+                  setEarningSearch(e.target.value);
+                  setEarningPage(1);
+                }}
+                className="w-full rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEarningSort((prev) => (prev === "Up" ? "Down" : "Up"));
+                setEarningPage(1);
+              }}
+              className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+              title={earningSort === "Down" ? "Newest first (Click for Oldest first)" : "Oldest first (Click for Newest first)"}
+            >
+              {earningSort}
+              {earningSort === "Up" ? (
+                <ArrowUp className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
+        {earningData.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">No earnings recorded yet.</p>
+        ) : (
+          <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-gray-100 touch-pan-x [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+            <table className="w-full text-xs min-w-[520px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-primary text-white uppercase font-bold text-[11px]">
+                  <th className="p-3 text-left whitespace-nowrap">ID</th>
+                  <th className="p-3 text-left whitespace-nowrap">{w.category}</th>
+                  <th className="p-3 text-left whitespace-nowrap">{w.commission}</th>
+                  <th className="p-3 text-left whitespace-nowrap">{w.status}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {earningData.map((row, i) => (
+                  <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50 transition-colors">
+                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">{row.id}</td>
+                    <td className="p-3 text-gray-500 whitespace-nowrap">{row.subcategory}</td>
+                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">{row.commission}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                          row.status === "Complete" || row.status === "Approved" || row.status === "Paid"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <DashboardTablePagination
+          current={earningPage}
+          total={earningPages}
+          pageSize={PAGE_SIZE}
+          totalItems={filteredEarning.length}
+          onChange={setEarningPage}
+          compact
+        />
+      </div>
+
+      {/* Quick Links (Wallet, Earnings, Applications, Orders, Notices, Messages) - Commented out */}
+      {/*
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {quickLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
-            className="group relative rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:border-primary/30 hover:shadow-md transition-all"
+            className="group relative rounded-xl border border-gray-100 bg-white p-4 shadow-sm hover:border-primary/30 hover:shadow-md transition-all flex flex-col justify-between"
           >
             {link.badge && link.badge > 0 && (
               <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
                 {link.badge}
               </span>
             )}
-            <p className="font-semibold text-gray-900 text-sm">{link.label}</p>
-            <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{link.desc}</p>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">{link.label}</p>
+              <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{link.desc}</p>
+            </div>
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary mt-2 group-hover:underline">
               {u.open} <ArrowRight className="h-3 w-3" />
             </span>
           </Link>
         ))}
       </div>
+      */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-md font-bold text-gray-900">{u.recentActivity}</h3>
-            <Link
-              href="/user/profile/user-log"
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              {u.viewAll}
-            </Link>
-          </div>
-          <div className="space-y-0">
-            {recentActivity.slice(0, 5).map((item) => (
-              <div
-                key={item.action}
-                className="flex flex-col sm:flex-row sm:justify-between gap-1 py-3 border-b border-gray-100 last:border-0 text-sm"
-              >
-                <div>
-                  <span className="text-gray-700">{item.action}</span>
-                  <span className="ml-2 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                    {item.category}
-                  </span>
-                </div>
-                <span className="text-gray-400 shrink-0 text-xs">{item.date}</span>
-              </div>
-            ))}
-          </div>
+      {/* Explore Services */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="h-5 w-5 text-primary" />
+          <h3 className="text-base font-bold text-gray-900">{u.serviceShortcuts || "Explore Services"}</h3>
         </div>
-
-        <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <ShoppingBag className="h-5 w-5 text-primary" />
-            <h3 className="text-md font-bold text-gray-900">{u.serviceShortcuts}</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {USER_SERVICE_SHORTCUTS.map((svc) => (
-              <Link
-                key={svc.href}
-                href={svc.href}
-                className="rounded-lg border border-gray-100 px-3 py-2.5 text-sm hover:bg-gray-50 transition-colors"
-              >
-                <p className="font-semibold text-gray-800 text-xs">{svc.label}</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">{svc.desc}</p>
-              </Link>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+          {USER_SERVICE_SHORTCUTS.map((svc) => (
+            <Link
+              key={svc.href}
+              href={svc.href}
+              className="group relative rounded-xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm hover:border-primary/30 hover:shadow-md transition-all flex flex-col justify-between"
+            >
+              <div>
+                <p className="font-semibold text-gray-900 text-xs sm:text-sm">{svc.label}</p>
+                <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1 line-clamp-2">{svc.desc}</p>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-primary mt-2 group-hover:underline">
+                {u.open} <ArrowRight className="h-3 w-3" />
+              </span>
+            </Link>
+          ))}
         </div>
       </div>
 
-      <RecordDetailDrawer
-        open={withdrawDetailOpen}
-        onClose={() => setWithdrawDetailOpen(false)}
-        title="Withdrawal Details"
-        subtitle={selectedWithdraw?.id}
-        status={selectedWithdraw?.status}
-        fields={selectedWithdraw ? withdrawDetailFields(selectedWithdraw) : []}
+      {/* Withdrawal Details Modal matching Wallet page */}
+      <WithdrawalDetailsModal
+        open={Boolean(selectedWithdrawal)}
+        onClose={() => setSelectedWithdrawal(null)}
+        withdrawal={selectedWithdrawal}
       />
     </div>
   );

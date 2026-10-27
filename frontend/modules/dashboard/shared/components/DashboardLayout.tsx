@@ -77,8 +77,8 @@ export default function DashboardLayout({
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
           <DashboardTopBar showMenuButton={isMobile} onOpenMenu={() => setMobileOpen(true)} />
 
-          <main className="mx-4 min-h-0 min-w-0 flex-1 overflow-y-auto md:mx-8">
-            <div className="min-w-0 p-4 md:pb-6 text-foreground">
+          <main className="mx-2 sm:mx-4 min-h-0 min-w-0 flex-1 overflow-y-auto md:mx-8">
+            <div className="min-w-0 p-2 sm:p-4 md:pb-6 text-foreground">
               <DashboardVerificationGate>{children}</DashboardVerificationGate>
             </div>
           </main>

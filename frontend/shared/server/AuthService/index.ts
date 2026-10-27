@@ -525,6 +525,7 @@ export const getCurrentUser = async () => {
           merged.publicId = publicId;
         }
         if (internalId !== undefined) merged.internalId = internalId;
+        if (data.data.preferences !== undefined) merged.preferences = data.data.preferences;
       }
     } catch (error: any) {
       if (error?.response?.status === 401 || error?.status === 401) {

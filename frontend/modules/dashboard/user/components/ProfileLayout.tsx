@@ -27,7 +27,14 @@ const ProfileLayout = () => {
   const pathname = usePathname()
 
   const resolveActiveTab = (): ProfileTabId => {
-    const match = ProfileTabs.find((tab) => pathname === tab.url)
+    const match = ProfileTabs.find(
+      (tab) =>
+        pathname === tab.url ||
+        pathname === `/dashboard${tab.url}` ||
+        pathname.endsWith(tab.url) ||
+        pathname.endsWith(`/${tab.id}`) ||
+        pathname.includes(`/${tab.id}`)
+    )
     return match?.id ?? ProfileTabs[0].id
   }
 
@@ -63,7 +70,14 @@ const ProfileLayout = () => {
   }
 
   useEffect(() => {
-    const match = ProfileTabs.find((tab) => pathname === tab.url)
+    const match = ProfileTabs.find(
+      (tab) =>
+        pathname === tab.url ||
+        pathname === `/dashboard${tab.url}` ||
+        pathname.endsWith(tab.url) ||
+        pathname.endsWith(`/${tab.id}`) ||
+        pathname.includes(`/${tab.id}`)
+    )
     setActiveTab(match?.id ?? ProfileTabs[0].id)
   }, [pathname])
 
@@ -71,7 +85,10 @@ const ProfileLayout = () => {
 
   const handleTabClick = (tab: (typeof ProfileTabs)[number]) => {
     setActiveTab(tab.id)
-    router.push(tab.url)
+    const targetUrl = pathname.startsWith("/dashboard")
+      ? `/dashboard${tab.url}`
+      : tab.url
+    router.push(targetUrl)
   }
 
   return (

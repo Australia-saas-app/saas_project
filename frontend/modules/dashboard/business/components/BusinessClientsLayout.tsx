@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Search, Users, Mail, X } from "lucide-react";
 import { toast } from "sonner";
@@ -188,34 +189,35 @@ export default function BusinessClientsLayout() {
         </Link>
       </p>
 
-      {addOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {addOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
           <button
             type="button"
-            className="absolute inset-0 bg-black/50"
+            className="fixed inset-0 -z-10"
             aria-label="Close"
             onClick={() => setAddOpen(false)}
           />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">{p.addClient}</h2>
+          <div className="relative w-full max-w-md rounded-2xl bg-card border border-border shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="text-lg font-bold text-foreground">{p.addClient}</h2>
               <button
                 type="button"
                 onClick={() => setAddOpen(false)}
-                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
+                className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             {(["name", "email", "industry"] as const).map((field) => (
               <div key={field}>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 capitalize">
+                <label className="mb-1.5 block text-xs sm:text-sm font-medium text-muted-foreground capitalize">
                   {field}
                 </label>
                 <input
                   value={newClient[field]}
                   onChange={(e) => setNewClient((v) => ({ ...v, [field]: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-primary"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  placeholder={`Client ${field}`}
                 />
               </div>
             ))}
@@ -243,12 +245,13 @@ export default function BusinessClientsLayout() {
                 setAddOpen(false);
                 toast.success("Client added successfully.");
               }}
-              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
+              className="w-full rounded-xl bg-primary hover:bg-primary/90 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all cursor-pointer"
             >
               Save Client
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

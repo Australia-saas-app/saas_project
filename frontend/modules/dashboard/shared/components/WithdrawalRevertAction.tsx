@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcw, Loader2, AlertCircle } from "lucide-react";
+import { createPortal } from "react-dom";
+import { RotateCcw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import AppModal from "./AppModal";
 import { revertWithdrawalRequest } from "@/src/shared/lib/wallet-store";
 import { recordRealActivity } from "@/src/shared/lib/real-activity-logger";
 import { useUser } from "@/src/context/user.provider";
@@ -52,6 +52,11 @@ export default function WithdrawalRevertAction({
 }: WithdrawalRevertActionProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const startTimeMs = useMemo(() => {
     return parseStartTimeMs(withdrawal.createdAt, withdrawal.date);
@@ -70,6 +75,17 @@ export default function WithdrawalRevertAction({
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [startTimeMs]);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !reverting) {
+        setConfirmOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [confirmOpen, reverting]);
 
   const isPending = String(withdrawal.status || "").toLowerCase() === "pending";
   const isExpired = remainingMs <= 0;
@@ -170,22 +186,22 @@ export default function WithdrawalRevertAction({
   return (
     <>
       <div className="inline-flex flex-col items-center justify-center">
-        {/* Real-time decreasing countdown timer on top of the button (strictly only the timer numbers) */}
+        {/* Real-time decreasing countdown timer on top of the button */}
         {canRevert && (
           <span className="font-mono text-[10px] font-bold leading-none mb-1 tracking-tight select-none text-amber-600 dark:text-amber-400">
             {timerText}
           </span>
         )}
 
-        {/* Revert button */}
+        {/* Revert button with rich responsive hover styling */}
         <button
           type="button"
           disabled={!canRevert}
           onClick={() => setConfirmOpen(true)}
-          className={`inline-flex items-center justify-center rounded px-2.5 py-0.5 text-[11px] font-semibold transition-all select-none ${
+          className={`inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all duration-150 select-none shadow-xs ${
             canRevert
-              ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:border-rose-300 shadow-xs cursor-pointer active:scale-95 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300"
-              : "border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500"
+              ? "border border-rose-300/80 bg-rose-50/90 text-rose-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 hover:shadow-md cursor-pointer active:scale-95 dark:bg-rose-500/15 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white dark:hover:border-rose-600"
+              : "border border-border bg-muted/50 text-muted-foreground/50 cursor-not-allowed opacity-50"
           }`}
           title={
             !isPending
@@ -199,80 +215,88 @@ export default function WithdrawalRevertAction({
         </button>
       </div>
 
-      {/* Confirmation Modal */}
-      <AppModal
-        open={confirmOpen}
-        onClose={() => {
-          if (!reverting) setConfirmOpen(false);
-        }}
-        title="Confirm Revert Withdrawal"
-        description="Are you sure you want to revert this withdrawal request?"
-        size="sm"
-        icon={
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
-            <RotateCcw className="h-5 w-5" />
-          </div>
-        }
-        footer={
-          <div className="flex items-center justify-end gap-2.5 w-full">
-            <button
-              type="button"
-              disabled={reverting}
-              onClick={() => setConfirmOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
-            >
-              No, Keep Request
-            </button>
-            <button
-              type="button"
-              disabled={reverting || !canRevert}
-              onClick={handleConfirmRevert}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {reverting ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Reverting...</span>
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Yes, Revert</span>
-                </>
-              )}
-            </button>
-          </div>
-        }
-      >
-        <div className="space-y-3 py-1">
-          <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-            By reverting, request <span className="font-mono font-bold text-gray-900 dark:text-white">{withdrawal.id}</span> will be removed, and <span className="font-bold text-emerald-600 dark:text-emerald-400">{withdrawal.amount}</span> will be immediately refunded back to your wallet balance.
-          </p>
+      {/* Confirmation Modal styled exactly like the centered Logout confirmation modal */}
+      {confirmOpen && mounted && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-3.5 sm:p-4 overflow-y-auto">
+          <div
+            style={{ width: "380px", maxWidth: "calc(100vw - 28px)" }}
+            className="bg-card rounded-2xl shadow-2xl p-5 sm:p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
+          >
+            {/* Centered Circular Icon */}
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-rose-500/10 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-5">
+              <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6 text-rose-600 dark:text-rose-400" strokeWidth={1.8} />
+            </div>
 
-          <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3 text-xs space-y-1.5 dark:bg-gray-800/50 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 dark:text-gray-400">Transaction ID:</span>
-              <span className="font-mono font-semibold text-gray-900 dark:text-gray-200">{withdrawal.id}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500 dark:text-gray-400">Amount to Refund:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{withdrawal.amount}</span>
-            </div>
-            {withdrawal.method && (
+            {/* Centered Title */}
+            <h3 className="text-base sm:text-lg font-bold text-foreground mb-1.5 sm:mb-2">
+              Confirm Revert Withdrawal
+            </h3>
+
+            {/* Centered Subtitle */}
+            <p className="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">
+              Are you sure you want to revert this withdrawal request?<br />
+              <span className="text-[11px] sm:text-xs text-muted-foreground/90">
+                The request will be removed, and <strong className="font-semibold text-emerald-600 dark:text-emerald-400">{withdrawal.amount}</strong> will be refunded to your balance.
+              </span>
+            </p>
+
+            {/* Structured Info Card (visible, styled with theme variables) */}
+            <div className="rounded-xl border border-border bg-muted/40 p-3 sm:p-3.5 text-xs space-y-2 mb-5 sm:mb-6 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-gray-400">Method:</span>
-                <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[200px]">{withdrawal.method}</span>
+                <span className="text-muted-foreground">Transaction ID:</span>
+                <span className="font-mono font-semibold text-foreground">{withdrawal.id}</span>
               </div>
-            )}
-            {canRevert && (
-              <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 dark:border-gray-700">
-                <span className="text-gray-500 dark:text-gray-400">Timer:</span>
-                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{timerText}</span>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Amount to Refund:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{withdrawal.amount}</span>
               </div>
-            )}
+              {withdrawal.method && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Method:</span>
+                  <span className="font-medium text-foreground truncate max-w-[190px]">{withdrawal.method}</span>
+                </div>
+              )}
+              {canRevert && (
+                <div className="flex items-center justify-between pt-1 border-t border-border">
+                  <span className="text-muted-foreground">Timer:</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{timerText}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Centered Side-by-Side Action Buttons */}
+            <div className="flex gap-2.5 sm:gap-3">
+              <button
+                type="button"
+                disabled={reverting}
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 py-2 sm:py-2.5 px-2 bg-muted hover:bg-muted/80 rounded-xl font-semibold text-foreground text-xs sm:text-sm transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              >
+                No, Keep
+              </button>
+              <button
+                type="button"
+                disabled={reverting || !canRevert}
+                onClick={handleConfirmRevert}
+                className="flex-1 py-2 sm:py-2.5 px-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-xl font-semibold text-white text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              >
+                {reverting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                    <span>Reverting...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Yes, Revert</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
-      </AppModal>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

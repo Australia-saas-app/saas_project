@@ -1053,6 +1053,7 @@ export class AuthService implements OnModuleInit {
         businessType: user.businessType,
         percentageRate: user.percentageRate,
         businessInfo: user.businessInfo,
+        preferences: user.preferences ?? null,
       },
     };
   }

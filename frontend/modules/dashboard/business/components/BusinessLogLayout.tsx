@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   FileText,
   Search,
@@ -265,8 +266,8 @@ export default function BusinessLogLayout() {
   return (
     <div className="w-full space-y-6">
       {/* Delete ALL Logs Modal */}
-      {showDeleteAllConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4">
+      {showDeleteAllConfirm && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
           <div
             style={{ width: "360px", maxWidth: "calc(100vw - 32px)" }}
             className="bg-card rounded-2xl shadow-2xl p-7 text-center mx-auto border border-border animate-in fade-in zoom-in-95 duration-200"
@@ -284,7 +285,7 @@ export default function BusinessLogLayout() {
                 type="button"
                 disabled={isDeletingAll}
                 onClick={() => setShowDeleteAllConfirm(false)}
-                className="flex-1 py-2.5 bg-muted hover:bg-muted/80 rounded-xl font-semibold text-foreground text-sm transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-muted hover:bg-muted/80 rounded-xl font-semibold text-foreground text-sm transition-colors disabled:opacity-50 cursor-pointer"
               >
                 No, Cancel
               </button>
@@ -292,13 +293,14 @@ export default function BusinessLogLayout() {
                 type="button"
                 disabled={isDeletingAll}
                 onClick={handleDeleteAllLogs}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl font-semibold text-white text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 rounded-xl font-semibold text-white text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isDeletingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Delete All"}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Header Section */}

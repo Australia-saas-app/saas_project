@@ -407,7 +407,7 @@ export default function WithdrawRequestModal({
               Amount (USD)
             </label>
             <span className="text-xs text-muted-foreground">
-              Min. withdraw: <span className="font-semibold text-foreground">$100.00</span>
+              Min. withdraw: <span className="font-semibold text-foreground">${MIN_WITHDRAWAL}.00</span>
             </span>
           </div>
 
@@ -480,7 +480,6 @@ export default function WithdrawRequestModal({
           ) : (
             <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground px-1">
               <span>Total Balance: <strong className="text-foreground">${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
-              <span>Minimum: <strong className="text-foreground">$100.00</strong></span>
             </div>
           )}
         </div>

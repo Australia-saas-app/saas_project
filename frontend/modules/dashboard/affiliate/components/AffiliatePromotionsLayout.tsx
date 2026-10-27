@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Search, Copy, Link2, MousePointerClick } from "lucide-react";
 import { toast } from "sonner";
@@ -146,21 +147,21 @@ export default function AffiliatePromotionsLayout() {
         </div>
       </div>
 
-      {createOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {createOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-[3px] p-4 overflow-y-auto">
           <button
             type="button"
-            className="absolute inset-0 bg-black/50"
+            className="fixed inset-0 -z-10"
             aria-label="Close"
             onClick={() => setCreateOpen(false)}
           />
-          <div className="relative w-full max-w-md rounded-xl bg-white shadow-2xl p-6 space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">{p.createLink}</h2>
+          <div className="relative w-full max-w-md rounded-2xl bg-card border border-border shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 text-foreground">
+            <h2 className="text-lg font-bold text-foreground">{p.createLink}</h2>
             <input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Promotion title"
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-primary"
+              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
             />
             <button
               type="button"
@@ -186,12 +187,13 @@ export default function AffiliatePromotionsLayout() {
                 setCreateOpen(false);
                 toast.success("Promotion link created.");
               }}
-              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
+              className="w-full rounded-xl bg-primary hover:bg-primary/90 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all cursor-pointer"
             >
               Create Link
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

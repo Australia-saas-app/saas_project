@@ -219,22 +219,41 @@ export default function WithdrawalRequestsLayout() {
       });
     };
 
-    // 1. Fetch from All Backend API endpoints (SSO wallet, payment service, admin payments)
-    const endpoints = [
-      "/sso/wallet/admin/withdrawals",
-      "/sso/wallet/transactions?all=true&type=WITHDRAWAL",
-      "/sso/wallet/transactions?all=true",
-      "/sso/wallet/transactions",
-      "/payment/withdrawals/admin/requests",
-      "/payments/transactions?type=WITHDRAWAL",
-      "/payment/admin/withdrawals",
-      "/payment/withdrawals/all",
-      "/admin/transactions?type=WITHDRAWAL",
+    // 1. Fetch from SSO backend via Next.js proxy (same mechanism as KYC queue)
+    const authHeaders: Record<string, string> = {
+      ...(token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {})
+    };
+
+    const ssoProxyEndpoints = [
+      "/admin/api/sso/wallet/admin/withdrawals",
+      "/admin/api/sso/wallet/transactions?all=true&type=WITHDRAWAL",
+      "/api/sso/wallet/admin/withdrawals",
+      "/api/sso/wallet/transactions?all=true&type=WITHDRAWAL",
     ];
 
-    for (const url of endpoints) {
+    for (const url of ssoProxyEndpoints) {
       try {
-        const res = await axiosInstanceClient.get(url, { timeout: 6000 });
+        const res = await fetch(url, { headers: authHeaders, cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            list.forEach(parseRecord);
+          }
+        }
+      } catch {}
+    }
+
+    // Fallback: Query via Kong gateway routes
+    const kongEndpoints = [
+      "/api/v1/sso/wallet/admin/withdrawals",
+      "/api/v1/sso/wallet/transactions?all=true&type=WITHDRAWAL",
+      "/api/v1/payment/withdrawals/admin/requests",
+    ];
+
+    for (const url of kongEndpoints) {
+      try {
+        const res = await axiosInstanceClient.get(url, { timeout: 4000 });
         const list = res.data?.data?.transactions || res.data?.data || res.data?.withdrawals || res.data || [];
         if (Array.isArray(list) && list.length > 0) {
           list.forEach(parseRecord);
@@ -373,21 +392,27 @@ export default function WithdrawalRequestsLayout() {
   const handleApprove = async (item: WithdrawalRequestItem) => {
     setActionInProgress("approve");
     try {
-      await axiosInstanceClient
-        .post(`/payment/withdrawals/admin/${item.id}/pay`, {
-          note: "Approved and executed via Admin Portal",
-        })
+      // Approve via SSO /admin/api/sso proxy (same as KYC queue)
+      const actionHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {})
+      };
+
+      await fetch(`/admin/api/sso/wallet/admin/withdrawals/${encodeURIComponent(item.id)}/approve`, {
+        method: "POST",
+        headers: actionHeaders,
+      })
         .catch(async () => {
-          return axiosInstanceClient.post(`/payment/withdrawals/${item.id}/pay`, {
-            note: "Approved and executed via Admin Portal",
+          return fetch(`/admin/api/sso/wallet/admin/withdrawals/${encodeURIComponent(item.requestId)}/approve`, {
+            method: "POST",
+            headers: actionHeaders,
           });
         })
         .catch(() => null);
 
       await axiosInstanceClient
-        .post(`/sso/wallet/admin/withdrawals/${item.id}/approve`)
-        .catch(async () => {
-          return axiosInstanceClient.post(`/sso/wallet/admin/withdrawals/${item.requestId}/approve`);
+        .post(`/api/v1/payment/withdrawals/admin/${item.id}/pay`, {
+          note: "Approved and executed via Admin Portal",
         })
         .catch(() => null);
 
@@ -530,18 +555,28 @@ export default function WithdrawalRequestsLayout() {
     const finalReason = rejectionNote.trim() || "Documentation verification required - funds restored to balance";
     setActionInProgress("reject");
     try {
-      await axiosInstanceClient
-        .post(`/payment/withdrawals/admin/${item.id}/reject`, { reason: finalReason })
+      // Reject via SSO /admin/api/sso proxy (same as KYC queue)
+      const rejectHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {})
+      };
+
+      await fetch(`/admin/api/sso/wallet/admin/withdrawals/${encodeURIComponent(item.id)}/reject`, {
+        method: "POST",
+        headers: rejectHeaders,
+        body: JSON.stringify({ reason: finalReason }),
+      })
         .catch(async () => {
-          return axiosInstanceClient.post(`/payment/withdrawals/${item.id}/reject`, { reason: finalReason });
+          return fetch(`/admin/api/sso/wallet/admin/withdrawals/${encodeURIComponent(item.requestId)}/reject`, {
+            method: "POST",
+            headers: rejectHeaders,
+            body: JSON.stringify({ reason: finalReason }),
+          });
         })
         .catch(() => null);
 
       await axiosInstanceClient
-        .post(`/sso/wallet/admin/withdrawals/${item.id}/reject`, { reason: finalReason })
-        .catch(async () => {
-          return axiosInstanceClient.post(`/sso/wallet/admin/withdrawals/${item.requestId}/reject`, { reason: finalReason });
-        })
+        .post(`/api/v1/payment/withdrawals/admin/${item.id}/reject`, { reason: finalReason })
         .catch(() => null);
 
       const updatedItem: WithdrawalRequestItem = {

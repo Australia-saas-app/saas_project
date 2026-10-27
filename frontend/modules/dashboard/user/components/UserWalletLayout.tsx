@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Loader2, Eye } from "lucide-react";
+import { Search, Loader2, Eye, ArrowUp, ArrowDown } from "lucide-react";
 import {
   WITHDRAW_ROWS,
   EARNING_ROWS,
@@ -40,6 +40,8 @@ export default function UserWalletLayout() {
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawRow | null>(null);
   const [withdrawSearch, setWithdrawSearch] = useState("");
   const [earningSearch, setEarningSearch] = useState("");
+  const [withdrawSort, setWithdrawSort] = useState<"Up" | "Down">("Down");
+  const [earningSort, setEarningSort] = useState<"Up" | "Down">("Down");
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
 
@@ -169,6 +171,21 @@ export default function UserWalletLayout() {
     { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 
+  const getWithdrawTime = (r: WithdrawRow): number => {
+    if ((r as any).createdAt) {
+      const t = new Date((r as any).createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (r.date) {
+      const t = new Date(r.date).getTime();
+      if (!isNaN(t) && t > 0) return t;
+      const cleaned = r.date.replace(/\(UTC\)/i, "UTC").trim();
+      const tCleaned = new Date(cleaned).getTime();
+      if (!isNaN(tCleaned) && tCleaned > 0) return tCleaned;
+    }
+    return 0;
+  };
+
   const filteredWithdraw = useMemo(() => {
     const uniqueMap = new Map<string, WithdrawRow>();
     for (const r of withdrawRows) {
@@ -176,46 +193,48 @@ export default function UserWalletLayout() {
         uniqueMap.set(r.id, r);
       }
     }
-    let rows = Array.from(uniqueMap.values());
+    let rows = Array.from(uniqueMap.values()).map((row, index) => ({ row, index }));
     if (withdrawSearch.trim()) {
       const q = withdrawSearch.toLowerCase();
       rows = rows.filter(
-        (r) =>
+        ({ row: r }) =>
           r.id.toLowerCase().includes(q) ||
           r.method.toLowerCase().includes(q) ||
           r.amount.toLowerCase().includes(q)
       );
     }
-    return rows.sort((a, b) => {
-      const tA = new Date(a.date).getTime();
-      const tB = new Date(b.date).getTime();
-      if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
-        return tB - tA;
+    rows.sort((a, b) => {
+      const tA = getWithdrawTime(a.row);
+      const tB = getWithdrawTime(b.row);
+      if (tA !== tB && tA > 0 && tB > 0) {
+        return withdrawSort === "Down" ? tB - tA : tA - tB;
       }
-      return 0;
+      return withdrawSort === "Down" ? a.index - b.index : b.index - a.index;
     });
-  }, [withdrawSearch, withdrawRows]);
+    return rows.map((item) => item.row);
+  }, [withdrawSearch, withdrawRows, withdrawSort]);
 
   const filteredEarning = useMemo(() => {
-    let rows = earningRows;
+    let rows = earningRows.map((row, index) => ({ row, index }));
     if (earningSearch.trim()) {
       const q = earningSearch.toLowerCase();
       rows = rows.filter(
-        (r) =>
+        ({ row: r }) =>
           r.id.toLowerCase().includes(q) ||
           r.subcategory.toLowerCase().includes(q) ||
           r.commission.toLowerCase().includes(q)
       );
     }
-    return [...rows].sort((a: any, b: any) => {
-      const tA = a.date ? new Date(a.date).getTime() : NaN;
-      const tB = b.date ? new Date(b.date).getTime() : NaN;
-      if (!isNaN(tA) && !isNaN(tB) && tA !== tB) {
-        return tB - tA;
+    rows.sort((a, b) => {
+      const tA = (a.row as any).date ? new Date((a.row as any).date).getTime() : 0;
+      const tB = (b.row as any).date ? new Date((b.row as any).date).getTime() : 0;
+      if (!isNaN(tA) && !isNaN(tB) && tA > 0 && tB > 0 && tA !== tB) {
+        return earningSort === "Down" ? tB - tA : tA - tB;
       }
-      return 0;
+      return earningSort === "Down" ? a.index - b.index : b.index - a.index;
     });
-  }, [earningSearch, earningRows]);
+    return rows.map((item) => item.row);
+  }, [earningSearch, earningRows, earningSort]);
 
   const withdrawPages = Math.max(1, Math.ceil(filteredWithdraw.length / PAGE_SIZE));
   const earningPages = Math.max(1, Math.ceil(filteredEarning.length / PAGE_SIZE));
@@ -303,24 +322,42 @@ export default function UserWalletLayout() {
         <div className="w-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-bold text-gray-900">{w.withdrawHistory}</h2>
-            <div className="relative">
-              <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder={w.search}
-                value={withdrawSearch}
-                onChange={(e) => {
-                  setWithdrawSearch(e.target.value);
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder={w.search}
+                  value={withdrawSearch}
+                  onChange={(e) => {
+                    setWithdrawSearch(e.target.value);
+                    setWithdrawPage(1);
+                  }}
+                  className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setWithdrawSort((prev) => (prev === "Up" ? "Down" : "Up"));
                   setWithdrawPage(1);
                 }}
-                className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
-              />
+                className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+                title={withdrawSort === "Down" ? "Newest first (Click for Oldest first)" : "Oldest first (Click for Newest first)"}
+              >
+                {withdrawSort}
+                {withdrawSort === "Up" ? (
+                  <ArrowUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ArrowDown className="h-3.5 w-3.5" />
+                )}
+              </button>
             </div>
           </div>
           {withdrawData.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500">No withdrawals yet.</p>
           ) : (
-            <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
+            <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-gray-100 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
               <table className="w-full text-xs min-w-[620px]">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-primary text-white uppercase font-bold text-[11px]">
@@ -405,42 +442,64 @@ export default function UserWalletLayout() {
         <div className="w-full rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-bold text-gray-900">{w.earningHistory}</h2>
-            <div className="relative">
-              <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder={w.search}
-                value={earningSearch}
-                onChange={(e) => {
-                  setEarningSearch(e.target.value);
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder={w.search}
+                  value={earningSearch}
+                  onChange={(e) => {
+                    setEarningSearch(e.target.value);
+                    setEarningPage(1);
+                  }}
+                  className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEarningSort((prev) => (prev === "Up" ? "Down" : "Up"));
                   setEarningPage(1);
                 }}
-                className="w-full sm:w-36 rounded border border-gray-200 py-1.5 pr-3 pl-8 text-xs focus:outline-none"
-              />
+                className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+                title={earningSort === "Down" ? "Newest first (Click for Oldest first)" : "Oldest first (Click for Newest first)"}
+              >
+                {earningSort}
+                {earningSort === "Up" ? (
+                  <ArrowUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ArrowDown className="h-3.5 w-3.5" />
+                )}
+              </button>
             </div>
           </div>
           {earningData.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500">No earnings recorded yet.</p>
           ) : (
-            <div className="max-h-[195px] overflow-y-auto overflow-x-auto rounded border border-gray-100">
-              <table className="w-full text-xs min-w-[360px]">
+            <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-gray-100 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+              <table className="w-full text-xs min-w-[520px]">
                 <thead className="sticky top-0 z-10">
-                  <tr className="bg-primary text-white uppercase font-bold">
-                    <th className="p-2.5 text-left">ID</th>
-                    <th className="p-2.5 text-left">{w.category}</th>
-                    <th className="p-2.5 text-left">{w.commission}</th>
-                    <th className="p-2.5 text-left">{w.status}</th>
+                  <tr className="bg-primary text-white uppercase font-bold text-[11px]">
+                    <th className="p-3 text-left">ID</th>
+                    <th className="p-3 text-left">{w.category}</th>
+                    <th className="p-3 text-left">{w.commission}</th>
+                    <th className="p-3 text-left">{w.status}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {earningData.map((row, i) => (
-                    <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50">
-                      <td className="p-2.5 font-semibold">{row.id}</td>
-                      <td className="p-2.5 text-gray-500">{row.subcategory}</td>
-                      <td className="p-2.5 font-medium">{row.commission}</td>
-                      <td className="p-2.5">
+                    <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50 transition-colors">
+                      <td className="p-3 font-semibold text-gray-900">{row.id}</td>
+                      <td className="p-3 text-gray-500">{row.subcategory}</td>
+                      <td className="p-3 font-semibold text-gray-900">{row.commission}</td>
+                      <td className="p-3">
                         <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${row.status === "Complete" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                            row.status === "Complete" || row.status === "Approved" || row.status === "Paid"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              : "bg-amber-100 text-amber-800 border border-amber-200"
+                          }`}
                         >
                           {row.status}
                         </span>

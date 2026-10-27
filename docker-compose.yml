@@ -69,6 +69,8 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_BACKEND_URL=http://kong:8000
+      - BACKEND_URL=http://saas-backend-sso:3001
+      - SSO_BACKEND_URL=http://saas-backend-sso:3001
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
