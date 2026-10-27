@@ -169,6 +169,25 @@ export async function dispatchAdminNotification(notif: {
   } catch {}
 }
 
+export function getCachedWalletBalance(): {
+  balance: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  pendingEscrow: number;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("platform_wallet_cached_balance");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.balance === "number") {
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export const fetchWalletBalance = async (userParam?: any): Promise<{
   balance: number;
   totalEarned: number;
@@ -179,12 +198,18 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
   try {
     const ssoRes = await axiosInstance.get('/sso/wallet/balance');
     if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null && !isNaN(Number(ssoRes.data.balance))) {
-      return {
+      const resData = {
         balance: Number(ssoRes.data.balance),
-        totalEarned: Number(ssoRes.data.totalEarned ?? ssoRes.data.balance),
+        totalEarned: Number(ssoRes.data.totalEarned ?? 0),
         totalWithdrawn: Number(ssoRes.data.totalWithdrawn ?? 0),
         pendingEscrow: Number(ssoRes.data.pendingEscrow ?? 0),
       };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("platform_wallet_cached_balance", JSON.stringify(resData));
+        } catch {}
+      }
+      return resData;
     }
   } catch {}
 

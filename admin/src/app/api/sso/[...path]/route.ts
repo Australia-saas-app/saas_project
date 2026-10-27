@@ -23,6 +23,18 @@ async function handleProxy(req: NextRequest, props: { params: Promise<{ path: st
       }
     });
 
+    // Ensure Authorization header is present - fallback to accessToken cookie if not explicitly provided
+    if (!headers.has('authorization') || !headers.get('authorization')?.trim()) {
+      const cookieToken =
+        req.cookies.get('accessToken')?.value ||
+        req.cookies.get('token')?.value ||
+        req.cookies.get('auth_token')?.value;
+      if (cookieToken) {
+        const authVal = cookieToken.startsWith('Bearer ') ? cookieToken : `Bearer ${cookieToken}`;
+        headers.set('authorization', authVal);
+      }
+    }
+
     // Forward the real IP
     const clientIp = req.headers.get('x-forwarded-for') || (req as any).ip || '127.0.0.1';
     if (!headers.has('x-forwarded-for')) {

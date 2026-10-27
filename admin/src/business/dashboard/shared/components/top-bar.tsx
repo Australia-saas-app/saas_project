@@ -80,7 +80,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           {/* Icons */}
           <div className="flex items-center gap-2">
             {/* Notification Dropdown */}
-            <NotificationBell variant="light" />
+            <NotificationBell />
 
             {/* Chat Icon (Routing only) */}
             <button 

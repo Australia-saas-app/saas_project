@@ -24,7 +24,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  CHART_DATA,
   EARNING_ROWS,
   WITHDRAW_ROWS,
   type WithdrawRow,
@@ -34,7 +33,8 @@ import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { useUser } from "@/src/context/user.provider";
 import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
-import { getLogsForUser, LOG_ADDED_EVENT, type RealLogEntry } from "@/src/shared/lib/real-activity-logger";
+import { getLogsForUser, getStoredLogs, LOG_ADDED_EVENT, type RealLogEntry } from "@/src/shared/lib/real-activity-logger";
+import { readLocalProjects, fetchMyProjects, isProjectCompleted } from "@/src/modules/technical/services/technical.services";
 import WithdrawalDetailsModal from "@/src/modules/dashboard/shared/components/WithdrawalDetailsModal";
 import WithdrawalRevertAction from "@/src/modules/dashboard/shared/components/WithdrawalRevertAction";
 import { UserStatsRow } from "./UserStatsRow";
@@ -52,12 +52,10 @@ export default function UserDashboardLayout() {
   const u = t.userPages.dashboard;
   const w = t.userPages.wallet;
 
-  const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>([]);
-  const [realLogs, setRealLogs] = useState<RealLogEntry[]>([]);
-
-  const loadWithdrawals = async () => {
+  const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>(() => {
+    if (typeof window === "undefined") return [];
     try {
-      const stored = getWithdrawalsForUser(userId).map((row) => {
+      const stored = getWithdrawalsForUser(userId, [userEmail]).map((row) => {
         const s = String(row.status || "").toLowerCase();
         const status: "Approved" | "Rejected" | "Pending" =
           s === "approved" || s === "complete" || s === "paid" || s === "completed"
@@ -74,45 +72,138 @@ export default function UserDashboardLayout() {
           status: status as any,
         } as any;
       });
-      const demoRows = isDemo ? [...WITHDRAW_ROWS] : [];
-      const map = new Map<string, WithdrawRow>();
-      for (const r of [...stored, ...demoRows]) {
-        if (!map.has(r.id)) map.set(r.id, r);
-      }
-      setWithdrawRows(Array.from(map.values()));
+      return stored;
+    } catch {
+      return [];
+    }
+  });
+  const [realLogs, setRealLogs] = useState<RealLogEntry[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return getStoredLogs();
+    } catch {
+      return [];
+    }
+  });
 
+  const [userProjects, setUserProjects] = useState<any[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return readLocalProjects();
+    } catch {
+      return [];
+    }
+  });
+
+  const filterUserProjects = (projectsList: any[]) => {
+    if (!Array.isArray(projectsList)) return [];
+    if (!user && !userId) return projectsList;
+
+    const uid = String(
+      (user as any)?.id ||
+        (user as any)?.userId ||
+        (user as any)?.sub ||
+        userId ||
+        ""
+    ).toLowerCase();
+    const email = String((user as any)?.email || "").toLowerCase();
+    const name = String(
+      (user as any)?.name || (user as any)?.fullName || ""
+    ).toLowerCase();
+
+    return projectsList.filter((p: any) => {
+      const pClientId = String(p.clientId || "").toLowerCase();
+      const pCreatedBy = String(p.createdBy || "").toLowerCase();
+      const pEmail = String(p.clientEmail || "").toLowerCase();
+      const pName = String(p.clientName || "").toLowerCase();
+
+      if (!pClientId && !pCreatedBy && !pEmail && !pName) return true;
+
+      return (
+        (uid && (pClientId === uid || pCreatedBy === uid)) ||
+        (email &&
+          (pEmail === email || pClientId === email || pCreatedBy === email)) ||
+        (name && pName === name)
+      );
+    });
+  };
+
+  const loadProjects = async () => {
+    try {
+      const res = await fetchMyProjects();
+      const list = res?.projects || readLocalProjects();
+      setUserProjects(list);
+    } catch {
+      setUserProjects(readLocalProjects());
+    }
+  };
+
+  const loadWithdrawals = async () => {
+    try {
+      // 1. Fetch from DB
       const dbRows = await fetchWalletWithdrawalsFromDb();
-      if (dbRows.length > 0) {
-        setWithdrawRows((prev) => {
-          const merged = new Map<string, WithdrawRow>();
-          for (const d of dbRows) {
-            const s = String(d.status || "").toLowerCase();
-            const status =
-              s === "approved" || s === "complete" || s === "paid" || s === "completed"
-                ? "Approved"
-                : s === "rejected" || s === "failed"
-                ? "Rejected"
-                : "Pending";
-            merged.set(d.id, {
-              id: d.id,
-              method: d.method,
-              amount: d.amount,
-              date: d.date,
-              createdAt: d.createdAt || d.date,
-              status: status as any,
-            } as any);
-          }
-          for (const p of prev) {
-            if (!merged.has(p.id)) {
-              merged.set(p.id, p);
-            } else {
-              const current = merged.get(p.id)!;
-              merged.set(p.id, { ...p, status: current.status });
-            }
-          }
-          return Array.from(merged.values());
-        });
+
+      // 2. Read local submissions
+      const localStored = getWithdrawalsForUser(userId, [
+        userEmail,
+        (user as any)?.id,
+        (user as any)?.userId,
+        (user as any)?.sub,
+      ]).map((row) => {
+        const s = String(row.status || "").toLowerCase();
+        const status: "Approved" | "Rejected" | "Pending" =
+          s === "approved" || s === "complete" || s === "paid" || s === "completed"
+            ? "Approved"
+            : s === "rejected" || s === "failed"
+            ? "Rejected"
+            : "Pending";
+        return {
+          id: row.id,
+          method: row.method,
+          amount: row.amount,
+          date: row.date,
+          createdAt: row.createdAt || row.date,
+          status: status as any,
+        } as any;
+      });
+
+      // 3. ATOMIC MERGE - No intermediate resets or vanishing records
+      const merged = new Map<string, WithdrawRow>();
+
+      // DB rows take precedence
+      for (const d of dbRows) {
+        const s = String(d.status || "").toLowerCase();
+        const status: "Approved" | "Rejected" | "Pending" =
+          s === "approved" || s === "complete" || s === "paid" || s === "completed"
+            ? "Approved"
+            : s === "rejected" || s === "failed"
+            ? "Rejected"
+            : "Pending";
+        merged.set(d.id, {
+          id: d.id,
+          method: d.method,
+          amount: d.amount,
+          date: d.date,
+          createdAt: d.createdAt || d.date,
+          status: status as any,
+        } as any);
       }
+
+      // Add local submissions
+      for (const l of localStored) {
+        if (!merged.has(l.id)) {
+          merged.set(l.id, l);
+        }
+      }
+
+      // If demo account and no real rows, include demo rows
+      if (isDemo && merged.size === 0) {
+        for (const r of WITHDRAW_ROWS) {
+          if (!merged.has(r.id)) merged.set(r.id, r);
+        }
+      }
+
+      setWithdrawRows(Array.from(merged.values()));
     } catch {}
   };
 
@@ -136,10 +227,14 @@ export default function UserDashboardLayout() {
   useEffect(() => {
     loadWithdrawals();
     loadActivities();
+    loadProjects();
+  }, [userId, userEmail, isDemo]);
 
+  useEffect(() => {
     const onUpdate = () => {
       loadWithdrawals();
       loadActivities();
+      loadProjects();
     };
 
     // Instant real-time prepend when any log is recorded without needing reload
@@ -160,32 +255,40 @@ export default function UserDashboardLayout() {
 
     window.addEventListener("wallet_updated", onUpdate);
     window.addEventListener("vero:withdrawal_updated", onUpdate);
+    window.addEventListener("technical_projects_updated", onUpdate);
+    window.addEventListener("platform_projects_updated", onUpdate);
+    window.addEventListener("applied_projects_updated", onUpdate);
+    window.addEventListener("project_milestones_updated", onUpdate);
     window.addEventListener("storage", onUpdate);
     window.addEventListener("focus", onUpdate);
     window.addEventListener("activity_logs_updated", onUpdate);
     window.addEventListener(LOG_ADDED_EVENT, onLogAdded);
 
     let bcActivity: BroadcastChannel | null = null;
+    let bcWallet: BroadcastChannel | null = null;
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         bcActivity = new BroadcastChannel("activity_channel");
         bcActivity.onmessage = onUpdate;
+        bcWallet = new BroadcastChannel("wallet_channel");
+        bcWallet.onmessage = onUpdate;
       }
     } catch {}
 
-    const interval = setInterval(onUpdate, 4000);
+    const interval = setInterval(onUpdate, 15000);
     return () => {
       window.removeEventListener("wallet_updated", onUpdate);
       window.removeEventListener("vero:withdrawal_updated", onUpdate);
+      window.removeEventListener("technical_projects_updated", onUpdate);
+      window.removeEventListener("platform_projects_updated", onUpdate);
+      window.removeEventListener("applied_projects_updated", onUpdate);
+      window.removeEventListener("project_milestones_updated", onUpdate);
       window.removeEventListener("storage", onUpdate);
       window.removeEventListener("focus", onUpdate);
       window.removeEventListener("activity_logs_updated", onUpdate);
       window.removeEventListener(LOG_ADDED_EVENT, onLogAdded);
-      if (bcActivity) {
-        try {
-          bcActivity.close();
-        } catch {}
-      }
+      if (bcActivity) try { bcActivity.close(); } catch {}
+      if (bcWallet) try { bcWallet.close(); } catch {}
       clearInterval(interval);
     };
   }, [userId, userEmail, isDemo]);
@@ -255,19 +358,35 @@ export default function UserDashboardLayout() {
   const dynamicChartData = useMemo(() => {
     const yr = Number(selectedYear);
     const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    const yearFactor = yr === 2026 ? 1.15 : yr === 2025 ? 1 : 0.85;
+
+    // Clean zero-initialized data array for all 12 months - NO dummy baseline data
+    const data = months.map((name) => ({
+      name,
+      Increase: 0,
+      Decrease: 0,
+    }));
 
     if (chartMode === "financial") {
-      const data = months.map((name, i) => {
-        const base = CHART_DATA[i] || { Increase: 20, Decrease: 10 };
-        return {
-          name,
-          Increase: Math.round(base.Increase * yearFactor),
-          Decrease: Math.round(base.Decrease * yearFactor),
-        };
-      });
+      // 1. Only count real earnings
+      for (const e of earningSource) {
+        const t = (e as any).createdAt || (e as any).date;
+        if (!t) continue;
+        const d = new Date(t);
+        if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
+          const m = d.getMonth();
+          const comm = Number(String((e as any).commission || (e as any).amount || 0).replace(/[^0-9.]/g, "")) || 0;
+          if (m >= 0 && m < 12) {
+            data[m].Increase += Math.round(comm);
+          }
+        }
+      }
 
+      // 2. Only count APPROVED / COMPLETED withdrawals (pending withdrawals do NOT count as realized decrease)
       for (const w of withdrawSource) {
+        const s = String(w.status || "").toLowerCase();
+        const isApproved = s === "approved" || s === "complete" || s === "completed" || s === "paid";
+        if (!isApproved) continue;
+
         const t = (w as any).createdAt || w.date;
         if (!t) continue;
         const d = new Date(t);
@@ -280,42 +399,21 @@ export default function UserDashboardLayout() {
         }
       }
 
-      for (const e of earningSource) {
-        const t = (e as any).createdAt || (e as any).date;
-        if (!t) continue;
-        const d = new Date(t);
-        if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
-          const m = d.getMonth();
-          const comm = Number(String(e.commission).replace(/[^0-9.]/g, "")) || 0;
-          if (m >= 0 && m < 12) {
-            data[m].Increase += Math.round(comm);
-          }
-        }
-      }
-
       return data;
     }
 
     if (chartMode === "logs") {
-      const data = months.map((name, i) => {
-        const baseActions = Math.round((14 + ((i * 7) % 18)) * yearFactor);
-        const baseSystem = Math.round((6 + ((i * 4) % 10)) * yearFactor);
-        return {
-          name,
-          Increase: baseActions,
-          Decrease: baseSystem,
-        };
-      });
-
-      const allLogs = realLogs.length > 0 ? realLogs : [];
-      for (const log of allLogs) {
-        const t = log.createdAt || (log as any).date;
+      // Real logs only from DB & local storage
+      for (const log of realLogs) {
+        const t = log.createdAt || (log as any).date || (log as any).timestamp;
         if (!t) continue;
         const d = new Date(t);
         if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
           const m = d.getMonth();
           if (m >= 0 && m < 12) {
-            const isSystem = /withdraw|reject|fail|system|notice|warning|verify/i.test(log.action || "");
+            const isSystem = /withdraw|reject|fail|system|notice|warning|verify|security|error/i.test(
+              `${log.action || ""} ${log.details || ""}`
+            );
             if (isSystem) {
               data[m].Decrease += 1;
             } else {
@@ -328,27 +426,18 @@ export default function UserDashboardLayout() {
       return data;
     }
 
-    // Projects & Orders mode
-    const data = months.map((name, i) => {
-      const baseCompleted = Math.round((6 + ((i * 3) % 8)) * yearFactor);
-      const basePending = Math.round((2 + ((i * 2) % 5)) * yearFactor);
-      return {
-        name,
-        Increase: baseCompleted,
-        Decrease: basePending,
-      };
-    });
-
-    for (const ord of (USER_ORDERS || [])) {
-      if (!ord.date) continue;
-      const d = new Date(ord.date);
+    // Projects & Orders mode - 100% REAL from user projects, NO dummy baseline
+    const myProjects = filterUserProjects(userProjects);
+    for (const p of myProjects) {
+      const t = p.createdAt || p.date || p.startDate || p.updatedAt;
+      if (!t) continue;
+      const d = new Date(t);
       if (!isNaN(d.getTime()) && d.getFullYear() === yr) {
         const m = d.getMonth();
         if (m >= 0 && m < 12) {
-          const isDone = /complete|delivered|shipped/i.test(ord.status || "");
-          if (isDone) {
+          if (isProjectCompleted(p)) {
             data[m].Increase += 1;
-          } else {
+          } else if (p.submissionStatus !== "rejected" && p.status !== "rejected") {
             data[m].Decrease += 1;
           }
         }
@@ -356,7 +445,7 @@ export default function UserDashboardLayout() {
     }
 
     return data;
-  }, [selectedYear, chartMode, withdrawSource, earningSource, realLogs]);
+  }, [selectedYear, chartMode, withdrawSource, earningSource, realLogs, userProjects, user, userId]);
 
   const legendInfo = useMemo(() => {
     switch (chartMode) {
@@ -613,13 +702,25 @@ export default function UserDashboardLayout() {
               <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={dynamicChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca3af" axisLine={false} tickLine={false} />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      stroke="#9ca3af"
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      domain={[0, (dataMax: number) => (dataMax && dataMax > 0 ? Math.ceil(dataMax * 1.25) : 5)]}
+                    />
                     <Tooltip
-                      contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                        fontSize: 12,
+                      }}
                       formatter={(val: any, name: any) => [
-                        chartMode === "financial" ? `$${val}` : `${val} ${legendInfo.unit}`,
+                        chartMode === "financial" ? `$${Number(val).toLocaleString()}` : `${val} ${legendInfo.unit}`,
                         name,
                       ]}
                     />
@@ -627,16 +728,52 @@ export default function UserDashboardLayout() {
                       type="monotone"
                       dataKey="Increase"
                       stroke="#0091ff"
-                      strokeWidth={2}
-                      dot={false}
+                      strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        if (!payload || payload.Increase === 0) return <circle key={`dot-inc-${props.index}`} r={0} />;
+                        return (
+                          <circle
+                            key={`dot-inc-${props.index}`}
+                            cx={cx}
+                            cy={cy}
+                            r={3.5}
+                            fill="#0091ff"
+                            stroke="#ffffff"
+                            strokeWidth={2}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 5, fill: "#0091ff", stroke: "#ffffff", strokeWidth: 2 }}
+                      isAnimationActive={true}
+                      animationDuration={600}
+                      animationEasing="ease-in-out"
                       name={legendInfo.increaseLabel}
                     />
                     <Line
                       type="monotone"
                       dataKey="Decrease"
                       stroke="#94a3b8"
-                      strokeWidth={2}
-                      dot={false}
+                      strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        if (!payload || payload.Decrease === 0) return <circle key={`dot-dec-${props.index}`} r={0} />;
+                        return (
+                          <circle
+                            key={`dot-dec-${props.index}`}
+                            cx={cx}
+                            cy={cy}
+                            r={3.5}
+                            fill="#94a3b8"
+                            stroke="#ffffff"
+                            strokeWidth={2}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 5, fill: "#94a3b8", stroke: "#ffffff", strokeWidth: 2 }}
+                      isAnimationActive={true}
+                      animationDuration={600}
+                      animationEasing="ease-in-out"
                       name={legendInfo.decreaseLabel}
                     />
                   </LineChart>

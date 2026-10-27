@@ -40,8 +40,15 @@ import axiosInstance from "./axiosInstance";
 export function getWithdrawalsForUser(userId?: string, extraIds?: string[]): WalletWithdrawalRecord[] {
   const all = readWithdrawals();
   if (!userId) return all;
-  const matchSet = new Set([userId, ...(extraIds || [])].filter(Boolean).map((s) => s.toLowerCase()));
-  return all.filter((r) => matchSet.has((r.userId || "").toLowerCase()));
+  const matchSet = new Set(
+    [userId, ...(extraIds || [])]
+      .filter(Boolean)
+      .map((s) => String(s).trim().toLowerCase())
+  );
+  return all.filter((r) => {
+    const rUid = String(r.userId || "").trim().toLowerCase();
+    return !rUid || matchSet.has(rUid);
+  });
 }
 
 export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRecord[]> {
@@ -50,7 +57,7 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
     const list = res?.data?.data || res?.data || [];
     if (!Array.isArray(list)) return [];
 
-    return list
+    const mapped = list
       .filter((t: any) => {
         const typeStr = String(t.type || "").toUpperCase();
         const desc = String(t.description || "").toLowerCase();
@@ -74,7 +81,7 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
 
         const statusRaw = String(t.status || "").toUpperCase();
         const status =
-          statusRaw === "COMPLETED" || statusRaw === "COMPLETE"
+          statusRaw === "COMPLETED" || statusRaw === "COMPLETE" || statusRaw === "APPROVED" || statusRaw === "PAID"
             ? "Complete"
             : statusRaw === "FAILED" || statusRaw === "REJECTED"
               ? "Failed"
@@ -92,6 +99,21 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
           methodType: "Withdrawal",
         } as WalletWithdrawalRecord;
       });
+
+    // Sync into localStorage cache so immediate render on reload has these without delay
+    if (mapped.length > 0 && typeof window !== "undefined") {
+      try {
+        const existing = readWithdrawals();
+        const map = new Map<string, WalletWithdrawalRecord>();
+        mapped.forEach((m) => map.set(m.id, m));
+        existing.forEach((e) => {
+          if (!map.has(e.id)) map.set(e.id, e);
+        });
+        writeWithdrawals(Array.from(map.values()));
+      } catch {}
+    }
+
+    return mapped;
   } catch {
     return [];
   }
@@ -158,6 +180,18 @@ export function submitWithdrawalRequest(input: {
     date,
   });
 
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new Event("wallet_updated"));
+      window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("wallet_channel");
+        bc.postMessage({ type: "wallet_updated" });
+        bc.close();
+      }
+    } catch {}
+  }
+
   return record;
 }
 
@@ -165,10 +199,32 @@ export function updateWithdrawalStatus(id: string, status: WalletWithdrawalRecor
   writeWithdrawals(
     readWithdrawals().map((r) => (r.id === id ? { ...r, status } : r))
   );
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new Event("wallet_updated"));
+      window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("wallet_channel");
+        bc.postMessage({ type: "wallet_updated" });
+        bc.close();
+      }
+    } catch {}
+  }
 }
 
 export function removeWithdrawalRequest(id: string) {
   writeWithdrawals(readWithdrawals().filter((r) => r.id !== id));
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new Event("wallet_updated"));
+      window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("wallet_channel");
+        bc.postMessage({ type: "wallet_updated" });
+        bc.close();
+      }
+    } catch {}
+  }
 }
 
 export async function revertWithdrawalRequest(

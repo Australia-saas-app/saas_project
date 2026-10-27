@@ -38,14 +38,50 @@ function formatBackendLog(log: any): RealLogEntry {
   };
 }
 
-export async function getLogsForUser(_userId?: string): Promise<RealLogEntry[]> {
+const LOGS_STORAGE_KEY = "platform_user_activity_logs";
+
+export function getStoredLogs(): RealLogEntry[] {
   if (typeof window === "undefined") return [];
   try {
-    const activities = await getLogsFromServer();
-    return activities.map(formatBackendLog);
-  } catch (error) {
-    console.error("Failed to fetch activity logs", error);
+    const raw = localStorage.getItem(LOGS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
     return [];
+  }
+}
+
+export function saveStoredLogs(logs: RealLogEntry[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs.slice(0, 100)));
+  } catch {}
+}
+
+export async function getLogsForUser(_userId?: string): Promise<RealLogEntry[]> {
+  if (typeof window === "undefined") return [];
+  const local = getStoredLogs();
+  try {
+    const activities = await getLogsFromServer();
+    const mapped = (activities || []).map(formatBackendLog);
+    const map = new Map<string, RealLogEntry>();
+    for (const m of mapped) {
+      if (m && m.id) map.set(m.id, m);
+    }
+    for (const l of local) {
+      if (l && l.id && !map.has(l.id)) map.set(l.id, l);
+    }
+    const combined = Array.from(map.values()).sort((a, b) => {
+      const tA = new Date(a.createdAt).getTime();
+      const tB = new Date(b.createdAt).getTime();
+      return tB - tA;
+    });
+    saveStoredLogs(combined);
+    return combined;
+  } catch (error) {
+    console.warn("Using locally cached activity logs", error);
+    return local;
   }
 }
 
@@ -122,7 +158,7 @@ export async function recordRealActivity(
     await logActivityToServer(payload);
 
     const localLog: RealLogEntry = {
-      id: "pending",
+      id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       userId,
       username,
       email,
@@ -133,7 +169,18 @@ export async function recordRealActivity(
     };
 
     if (typeof window !== "undefined") {
+      const current = getStoredLogs();
+      saveStoredLogs([localLog, ...current]);
       window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT, { detail: localLog }));
+      window.dispatchEvent(new Event("activity_logs_updated"));
+
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("activity_channel");
+          bc.postMessage({ type: "activity_logs_updated", detail: localLog });
+          bc.close();
+        }
+      } catch {}
     }
     return localLog;
   } catch (e) {

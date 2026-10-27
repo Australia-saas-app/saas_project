@@ -24,13 +24,14 @@ import {
   ChevronRight,
   Eye,
   X,
-  CreditCard
+  CreditCard,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import axiosInstanceClient from "@/src/infra/lib/axiosInstance/client";
 import { toast } from "sonner";
 import { useAppSelector } from "@/src/core/store/hooks";
 import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger";
+import { getCookie } from "@/src/shared/utils/cookie-utils";
 
 export interface WithdrawalRequestItem {
   id: string;
@@ -110,6 +111,18 @@ const getRoleBadge = (role: string) => {
 export default function WithdrawalRequestsLayout() {
   const token = useAppSelector((state: any) => state.auth?.token);
   const adminUser = useAppSelector((state: any) => state.auth?.user);
+
+  const getEffectiveToken = useCallback(() => {
+    if (token) return token;
+    if (typeof window !== "undefined") {
+      const c = getCookie("accessToken") || getCookie("token") || getCookie("auth_token");
+      if (c) return c;
+      const ls = localStorage.getItem("accessToken") || localStorage.getItem("token");
+      if (ls) return ls;
+    }
+    return "";
+  }, [token]);
+
   const [activeTab, setActiveTab] = useState<"ALL" | "USER" | "BUSINESS" | "AFFILIATE">("ALL");
   const [search, setSearch] = useState("");
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequestItem[]>([]);
@@ -140,7 +153,6 @@ export default function WithdrawalRequestsLayout() {
 
   // Fetch real withdrawals from DB & localStorage
   const fetchWithdrawals = useCallback(async () => {
-    setLoading(true);
     let items: WithdrawalRequestItem[] = [];
 
     // Helper to parse any withdrawal / transaction record
@@ -219,44 +231,41 @@ export default function WithdrawalRequestsLayout() {
       });
     };
 
-    // 1. Fetch from SSO backend via Next.js proxy (same mechanism as KYC queue)
+    // 1. Fetch from SSO backend via Next.js proxy with full Bearer token
+    const activeToken = getEffectiveToken();
     const authHeaders: Record<string, string> = {
-      ...(token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {})
+      ...(activeToken ? { Authorization: activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}` } : {})
     };
 
-    const ssoProxyEndpoints = [
-      "/admin/api/sso/wallet/admin/withdrawals",
-      "/admin/api/sso/wallet/transactions?all=true&type=WITHDRAWAL",
-      "/api/sso/wallet/admin/withdrawals",
-      "/api/sso/wallet/transactions?all=true&type=WITHDRAWAL",
-    ];
+    let fetchSuccess = false;
+    try {
+      const res = await fetch("/admin/api/sso/wallet/admin/withdrawals", {
+        headers: authHeaders,
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
+        if (Array.isArray(list) && list.length > 0) {
+          list.forEach(parseRecord);
+          fetchSuccess = true;
+        }
+      }
+    } catch {}
 
-    for (const url of ssoProxyEndpoints) {
+    // Fallback: Query transactions from SSO backend if primary endpoint returned empty
+    if (!fetchSuccess) {
       try {
-        const res = await fetch(url, { headers: authHeaders, cache: "no-store" });
+        const res = await fetch("/admin/api/sso/wallet/transactions?all=true&type=WITHDRAWAL", {
+          headers: authHeaders,
+          cache: "no-store",
+        });
         if (res.ok) {
           const json = await res.json();
           const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
           if (Array.isArray(list) && list.length > 0) {
             list.forEach(parseRecord);
           }
-        }
-      } catch {}
-    }
-
-    // Fallback: Query via Kong gateway routes
-    const kongEndpoints = [
-      "/api/v1/sso/wallet/admin/withdrawals",
-      "/api/v1/sso/wallet/transactions?all=true&type=WITHDRAWAL",
-      "/api/v1/payment/withdrawals/admin/requests",
-    ];
-
-    for (const url of kongEndpoints) {
-      try {
-        const res = await axiosInstanceClient.get(url, { timeout: 4000 });
-        const list = res.data?.data?.transactions || res.data?.data || res.data?.withdrawals || res.data || [];
-        if (Array.isArray(list) && list.length > 0) {
-          list.forEach(parseRecord);
         }
       } catch {}
     }
@@ -393,9 +402,10 @@ export default function WithdrawalRequestsLayout() {
     setActionInProgress("approve");
     try {
       // Approve via SSO /admin/api/sso proxy (same as KYC queue)
+      const activeToken = getEffectiveToken();
       const actionHeaders: Record<string, string> = {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {})
+        ...(activeToken ? { Authorization: activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}` } : {})
       };
 
       await fetch(`/admin/api/sso/wallet/admin/withdrawals/${encodeURIComponent(item.id)}/approve`, {
@@ -556,9 +566,10 @@ export default function WithdrawalRequestsLayout() {
     setActionInProgress("reject");
     try {
       // Reject via SSO /admin/api/sso proxy (same as KYC queue)
+      const activeToken = getEffectiveToken();
       const rejectHeaders: Record<string, string> = {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}` } : {})
+        ...(activeToken ? { Authorization: activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}` } : {})
       };
 
       await fetch(`/admin/api/sso/wallet/admin/withdrawals/${encodeURIComponent(item.id)}/reject`, {
@@ -663,8 +674,8 @@ export default function WithdrawalRequestsLayout() {
         } catch {}
 
         // 5. Record Real Activity Log on Requester's Side (User / Business / Affiliate)
-        if (token) {
-          logAdminActivity(token, {
+        if (activeToken) {
+          logAdminActivity(activeToken, {
             action: "WITHDRAWAL_REJECTED",
             resource: `Withdrawal request of $${item.amount.toFixed(2)} USD was rejected by administrator: ${finalReason}. Funds refunded. (ID: ${item.requestId})`,
             targetUserId: item.businessUserId,

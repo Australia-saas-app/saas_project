@@ -10,6 +10,7 @@ import {
   fetchMyProjects,
   isProjectCompleted,
   fetchWalletBalance,
+  getCachedWalletBalance,
 } from "@/src/modules/technical/services/technical.services";
 import {
   getWithdrawalsForUser,
@@ -106,14 +107,20 @@ export function UserStatsRow() {
         }
       }
 
+      // Read pre-cached wallet balance for instant 0ms render
+      const cached = getCachedWalletBalance();
+      const currentBalance = cached ? Number(cached.balance || 0) : 0;
+      const totalEarnings = cached ? Number(cached.totalEarned || 0) : 0;
+      const totalWithdrawn = cached ? Math.max(localApprovedWithdrawn, Number(cached.totalWithdrawn || 0)) : localApprovedWithdrawn;
+
       return {
         totalProjects,
         activeProjects,
         completedProjects,
-        totalEarnings: 0,
-        totalWithdrawn: localApprovedWithdrawn,
-        currentBalance: 0,
-        loaded: false,
+        totalEarnings,
+        totalWithdrawn,
+        currentBalance,
+        loaded: Boolean(cached),
       };
     } catch {
       return {
@@ -132,19 +139,22 @@ export function UserStatsRow() {
 
   const syncStats = useCallback(async () => {
     try {
-      // 1. Projects sync (database + persistent cache)
+      // Run projects, wallet balance, and withdrawals concurrently in parallel
+      const [projectsResult, balRes, dbRows] = await Promise.allSettled([
+        fetchMyProjects().catch(() => ({ projects: readLocalProjects() })),
+        fetchWalletBalance(user),
+        fetchWalletWithdrawalsFromDb(),
+      ]);
+
       let projectList: any[] = [];
-      try {
-        const res = await fetchMyProjects();
-        projectList = res?.projects || readLocalProjects();
-      } catch {
+      if (projectsResult.status === "fulfilled" && projectsResult.value?.projects) {
+        projectList = projectsResult.value.projects;
+      } else {
         projectList = readLocalProjects();
       }
       const myProjects = filterUserProjects(projectList);
       const totalProjects = myProjects.length;
-      const completedProjects = myProjects.filter((p) =>
-        isProjectCompleted(p)
-      ).length;
+      const completedProjects = myProjects.filter((p) => isProjectCompleted(p)).length;
       const activeProjects = myProjects.filter(
         (p) =>
           !isProjectCompleted(p) &&
@@ -153,64 +163,36 @@ export function UserStatsRow() {
           p.status !== "rejected"
       ).length;
 
-      // 2. Wallet balance & earnings sync
-      let currentBalance = 0;
-      let totalEarned = 0;
-      let walletWithdrawn = 0;
-      try {
-        const balRes = await fetchWalletBalance(user);
-        if (balRes) {
-          currentBalance = Number(balRes.balance || 0);
-          totalEarned = Number(balRes.totalEarned || 0);
-          walletWithdrawn = Number(balRes.totalWithdrawn || 0);
-        }
-      } catch {}
+      let currentBalance = stats.currentBalance;
+      let totalEarned = stats.totalEarnings;
+      let walletWithdrawn = stats.totalWithdrawn;
 
-      // 3. Withdrawals sync (shows total withdrawal after request approve by admin)
+      if (balRes.status === "fulfilled" && balRes.value) {
+        currentBalance = Number(balRes.value.balance ?? currentBalance);
+        totalEarned = Number(balRes.value.totalEarned ?? 0);
+        walletWithdrawn = Number(balRes.value.totalWithdrawn ?? 0);
+      }
+
+      // Withdrawals: sum approved / completed from DB and local store
       let approvedWithdrawalSum = 0;
       try {
-        const uniqueWithdrawals = new Map<
-          string,
-          { amount: any; status: string }
-        >();
-
-        // Gather from local storage store
+        const uniqueWithdrawals = new Map<string, { amount: any; status: string }>();
         const localList = getWithdrawalsForUser(userId);
         for (const item of localList) {
-          if (item?.id) {
-            uniqueWithdrawals.set(String(item.id), {
-              amount: item.amount,
-              status: item.status,
-            });
+          if (item?.id) uniqueWithdrawals.set(String(item.id), { amount: item.amount, status: item.status });
+        }
+        if (dbRows.status === "fulfilled" && Array.isArray(dbRows.value)) {
+          for (const item of dbRows.value) {
+            if (item?.id) uniqueWithdrawals.set(String(item.id), { amount: item.amount, status: item.status });
           }
         }
-
-        // Gather fresh from database
-        const dbList = await fetchWalletWithdrawalsFromDb();
-        for (const item of dbList) {
-          if (item?.id) {
-            uniqueWithdrawals.set(String(item.id), {
-              amount: item.amount,
-              status: item.status,
-            });
-          }
-        }
-
-        // Sum only withdrawals approved / completed by admin
         uniqueWithdrawals.forEach((record) => {
           const s = String(record.status || "").toLowerCase();
-          if (
-            s === "approved" ||
-            s === "complete" ||
-            s === "completed" ||
-            s === "paid"
-          ) {
+          if (s === "approved" || s === "complete" || s === "completed" || s === "paid") {
             const amt =
               typeof record.amount === "number"
                 ? record.amount
-                : parseFloat(
-                    String(record.amount || "").replace(/[^0-9.]/g, "")
-                  ) || 0;
+                : parseFloat(String(record.amount || "").replace(/[^0-9.]/g, "")) || 0;
             approvedWithdrawalSum += amt;
           }
         });
@@ -228,7 +210,7 @@ export function UserStatsRow() {
         loaded: true,
       });
     } catch {}
-  }, [filterUserProjects, user, userId]);
+  }, [filterUserProjects, user, userId, stats.currentBalance, stats.totalEarnings, stats.totalWithdrawn]);
 
   useEffect(() => {
     // Initial fetch on mount or user ready
@@ -261,8 +243,8 @@ export function UserStatsRow() {
       }
     } catch {}
 
-    // 4-second heartbeat background poller so admin approvals reflect without refresh
-    const interval = setInterval(syncStats, 4000);
+    // Poller so background changes reflect without refresh
+    const interval = setInterval(syncStats, 10000);
 
     return () => {
       window.removeEventListener("wallet_updated", handleUpdate);
@@ -290,9 +272,8 @@ export function UserStatsRow() {
   }, [syncStats]);
 
   // Formatter for currency cards
-  const formatMoney = (val: number, demoFallback: string) => {
-    if (isDemo && !stats.loaded && val === 0) return demoFallback;
-    if (val === 0) return "$0";
+  const formatMoney = (val: number) => {
+    if (!val || val === 0) return "$0";
     return val % 1 === 0
       ? `$${val.toLocaleString()}`
       : `$${val.toLocaleString(undefined, {
@@ -304,36 +285,27 @@ export function UserStatsRow() {
   const statItems = [
     {
       label: u.totalProjects,
-      value:
-        isDemo && !stats.loaded && stats.totalProjects === 0
-          ? String(USER_STATS.totalProjects)
-          : String(stats.totalProjects),
+      value: String(stats.totalProjects),
     },
     {
       label: u.activeProjects,
-      value:
-        isDemo && !stats.loaded && stats.activeProjects === 0
-          ? String(USER_STATS.activeProjects)
-          : String(stats.activeProjects),
+      value: String(stats.activeProjects),
     },
     {
       label: u.completedProjects,
-      value:
-        isDemo && !stats.loaded && stats.completedProjects === 0
-          ? String(USER_STATS.completedProjects)
-          : String(stats.completedProjects),
+      value: String(stats.completedProjects),
     },
     {
       label: u.totalEarnings,
-      value: formatMoney(stats.totalEarnings, USER_STATS.totalEarnings),
+      value: formatMoney(stats.totalEarnings),
     },
     {
       label: u.totalWithdrawn,
-      value: formatMoney(stats.totalWithdrawn, USER_STATS.totalWithdrawn),
+      value: formatMoney(stats.totalWithdrawn),
     },
     {
       label: u.currentBalance,
-      value: formatMoney(stats.currentBalance, USER_STATS.currentBalance),
+      value: formatMoney(stats.currentBalance),
       highlight: true,
     },
   ];

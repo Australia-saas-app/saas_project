@@ -18,6 +18,7 @@ import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
+import { useUser } from "@/src/context/user.provider";
 import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
 import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { USER_STATS } from "../data/user-demo-data";
@@ -33,9 +34,35 @@ const EMPTY_STATS = {
 export default function UserWalletLayout() {
   const { t } = useLocale();
   const { userId, isDemo, isReady, demoOrEmpty } = useIsDemoAccount();
+  const { user } = useUser();
+  const userEmail = user && "email" in user ? String((user as any).email) : "";
   const w = t.userPages.wallet;
   const stats = demoOrEmpty(USER_STATS, { ...USER_STATS, ...EMPTY_STATS });
-  const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>([]);
+  const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = getWithdrawalsForUser(userId).map((row) => {
+        const s = String(row.status || "").toLowerCase();
+        const status: "Approved" | "Rejected" | "Pending" =
+          s === "approved" || s === "complete" || s === "paid"
+            ? "Approved"
+            : s === "rejected" || s === "failed"
+            ? "Rejected"
+            : "Pending";
+        return {
+          id: row.id,
+          method: row.method,
+          amount: row.amount,
+          date: row.date,
+          createdAt: row.createdAt || row.date,
+          status: status as any,
+        } as any;
+      });
+      return stored;
+    } catch {
+      return [];
+    }
+  });
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawRow | null>(null);
   const [withdrawSearch, setWithdrawSearch] = useState("");
@@ -46,70 +73,78 @@ export default function UserWalletLayout() {
   const [earningPage, setEarningPage] = useState(1);
 
   const loadWithdrawals = async () => {
-    // 1. Instant local render
-    const stored = getWithdrawalsForUser(userId).map((row) => {
-      const s = String(row.status || "").toLowerCase();
-      const status: "Approved" | "Rejected" | "Pending" =
-        s === "approved" || s === "complete" || s === "paid"
-          ? "Approved"
-          : s === "rejected" || s === "failed"
-          ? "Rejected"
-          : "Pending";
-      return {
-        id: row.id,
-        method: row.method,
-        amount: row.amount,
-        date: row.date,
-        createdAt: row.createdAt || row.date,
-        status: status as any,
-      } as any;
-    });
-    const demoRows = isDemo ? [...WITHDRAW_ROWS] : [];
-    const map = new Map<string, WithdrawRow>();
-    for (const r of [...stored, ...demoRows]) {
-      if (!map.has(r.id)) map.set(r.id, r);
-    }
-    setWithdrawRows(Array.from(map.values()));
+    try {
+      // 1. Fresh sync from database
+      const dbRows = await fetchWalletWithdrawalsFromDb();
 
-    // 2. Fresh sync from database
-    const dbRows = await fetchWalletWithdrawalsFromDb();
-    if (dbRows.length > 0) {
-      setWithdrawRows((prev) => {
-        const merged = new Map<string, WithdrawRow>();
-        for (const d of dbRows) {
-          const s = String(d.status || "").toLowerCase();
-          const status =
-            s === "approved" || s === "complete" || s === "paid"
-              ? "Approved"
-              : s === "rejected" || s === "failed"
-              ? "Rejected"
-              : "Pending";
-          merged.set(d.id, {
-            id: d.id,
-            method: d.method,
-            amount: d.amount,
-            date: d.date,
-            createdAt: d.createdAt || d.date,
-            status: status as any,
-          } as any);
-        }
-        for (const p of prev) {
-          if (!merged.has(p.id)) {
-            merged.set(p.id, p);
-          } else {
-            const current = merged.get(p.id)!;
-            merged.set(p.id, { ...p, status: current.status });
-          }
-        }
-        return Array.from(merged.values());
+      // 2. Read local submissions
+      const localStored = getWithdrawalsForUser(userId, [
+        userEmail,
+        (user as any)?.id,
+        (user as any)?.userId,
+        (user as any)?.sub,
+      ]).map((row) => {
+        const s = String(row.status || "").toLowerCase();
+        const status: "Approved" | "Rejected" | "Pending" =
+          s === "approved" || s === "complete" || s === "paid"
+            ? "Approved"
+            : s === "rejected" || s === "failed"
+            ? "Rejected"
+            : "Pending";
+        return {
+          id: row.id,
+          method: row.method,
+          amount: row.amount,
+          date: row.date,
+          createdAt: row.createdAt || row.date,
+          status: status as any,
+        } as any;
       });
-    }
+
+      // 3. ATOMIC MERGE - No intermediate resets or vanishing records
+      const merged = new Map<string, WithdrawRow>();
+
+      // DB rows take highest precedence
+      for (const d of dbRows) {
+        const s = String(d.status || "").toLowerCase();
+        const status: "Approved" | "Rejected" | "Pending" =
+          s === "approved" || s === "complete" || s === "paid"
+            ? "Approved"
+            : s === "rejected" || s === "failed"
+            ? "Rejected"
+            : "Pending";
+        merged.set(d.id, {
+          id: d.id,
+          method: d.method,
+          amount: d.amount,
+          date: d.date,
+          createdAt: d.createdAt || d.date,
+          status: status as any,
+        } as any);
+      }
+
+      // Merge local submissions
+      for (const l of localStored) {
+        if (!merged.has(l.id)) {
+          merged.set(l.id, l);
+        }
+      }
+
+      // If demo account and no real rows, include demo rows
+      if (isDemo && merged.size === 0) {
+        for (const r of WITHDRAW_ROWS) {
+          if (!merged.has(r.id)) merged.set(r.id, r);
+        }
+      }
+
+      setWithdrawRows(Array.from(merged.values()));
+    } catch {}
   };
 
   useEffect(() => {
     if (!isReady) return;
     loadWithdrawals();
-  }, [isReady, userId, isDemo]);
+  }, [isReady, userId, userEmail, isDemo]);
 
   const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
 
@@ -521,6 +556,7 @@ export default function UserWalletLayout() {
         </div>
       </div>
 
+      {/* Quick Actions - Commented out
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <h3 className="text-sm font-bold text-gray-900 mb-3">{w.quickActions}</h3>
         <div className="flex flex-wrap gap-2">
@@ -544,6 +580,7 @@ export default function UserWalletLayout() {
           </Link>
         </div>
       </div>
+      */}
     </div>
   );
 }
