@@ -122,7 +122,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
           // If admin endpoint fails, try transactions fallback
           try {
             const res = await axiosInstanceClient.get(
-              "/sso/wallet/transactions?all=true&type=WITHDRAWAL",
+              "/sso/wallet/transactions?all=true&type=withdrawal",
               {
                 headers: { Authorization: authHeader },
                 timeout: 5000,
@@ -143,6 +143,37 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
               });
               count = pendingRows.length;
               fetched = true;
+            }
+          } catch {}
+        }
+
+        // 1b. If count is still 0, try unfiltered transactions
+        if (count === 0) {
+          try {
+            const res = await axiosInstanceClient.get(
+              "/sso/wallet/transactions?all=true",
+              {
+                headers: { Authorization: authHeader },
+                timeout: 5000,
+              }
+            );
+            const data =
+              res.data?.data?.transactions ||
+              res.data?.data ||
+              res.data?.withdrawals ||
+              res.data ||
+              [];
+            if (Array.isArray(data)) {
+              const pendingRows = data.filter((w: any) => {
+                const s = String(w.status || "").toLowerCase();
+                const t = String(w.type || "").toUpperCase();
+                const isWithdraw = !t || t.includes("WITHDRAW");
+                return isWithdraw && s === "pending";
+              });
+              if (pendingRows.length > 0) {
+                count = pendingRows.length;
+                fetched = true;
+              }
             }
           } catch {}
         }
@@ -406,7 +437,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
             <nav className="space-y-0.5">
               {group.items.filter((item: any) => item.permission ? hasPermission(role, item.permission) : true).map((item, index) => {
                 const active = isActive(item.href)
-                const badgeCount = (item as any).badge
+                const badgeCount = Number((item as any).badge || 0)
                 return (
                   <Link key={item.label} href={item.href} title={!isOpen ? item.label : undefined}>
                     <div 
@@ -415,7 +446,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0 flex items-center justify-center">
                           <item.icon size={18} className={`${active ? "text-white" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"} shrink-0 transition-colors`} />
-                          {!isOpen && typeof badgeCount === 'number' && badgeCount > 0 && (
+                          {!isOpen && badgeCount > 0 && (
                             <span className="absolute -top-2 -right-2.5 bg-amber-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full shadow-sm min-w-[15px] h-[15px] flex items-center justify-center leading-none">
                               {badgeCount > 99 ? '99+' : badgeCount}
                             </span>
@@ -428,8 +459,8 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
                         )}
                       </div>
 
-                      {isOpen && typeof badgeCount === 'number' && badgeCount > 0 && (
-                        <span className="bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm shrink-0">
+                      {isOpen && badgeCount > 0 && (
+                        <span className="bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm shrink-0 min-w-[20px] text-center">
                           {badgeCount}
                         </span>
                       )}

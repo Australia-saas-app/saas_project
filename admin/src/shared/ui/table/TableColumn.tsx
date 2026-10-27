@@ -34,8 +34,8 @@ export const TableColumn: React.FC<TableColumnProps> = ({
   const dividerClass = "border-r border-slate-200 dark:border-slate-700 last:border-r-0";
 
   const baseClass = isHeader
-    ? `px-4 py-3 ${alignClass} text-xs font-semibold text-white tracking-wide break-words overflow-hidden ${dividerClass} ${width}`
-    : `px-4 py-3 ${alignClass} text-sm text-gray-700 dark:text-gray-300 break-words ${dividerClass} ${width}`;
+    ? `px-3.5 py-3 ${alignClass} text-xs font-semibold text-white tracking-wide whitespace-nowrap overflow-hidden ${dividerClass} ${width}`
+    : `px-3.5 py-3 ${alignClass} text-sm text-gray-700 dark:text-gray-300 break-words ${dividerClass} ${width}`;
 
   if (isHeader) {
     return (

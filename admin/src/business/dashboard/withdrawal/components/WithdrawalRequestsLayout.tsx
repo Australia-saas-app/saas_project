@@ -260,15 +260,30 @@ export default function WithdrawalRequestsLayout() {
         if (res.ok) {
           const json = await res.json();
           const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
-          if (Array.isArray(list)) {
+          if (Array.isArray(list) && list.length > 0) {
             return list;
           }
         }
       } catch {}
 
-      // 2. Secondary fallback: SSO Transactions with type=WITHDRAWAL
+      // 2. Secondary fallback: SSO Transactions with type=withdrawal
       try {
-        const res = await fetch("/admin/api/sso/wallet/transactions?all=true&type=WITHDRAWAL", {
+        const res = await fetch("/admin/api/sso/wallet/transactions?all=true&type=withdrawal", {
+          headers: { Authorization: authHeader },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            return list;
+          }
+        }
+      } catch {}
+
+      // 3. Resilient fallback: All transactions unfiltered by enum, client-side filtered
+      try {
+        const res = await fetch("/admin/api/sso/wallet/transactions?all=true", {
           headers: { Authorization: authHeader },
           cache: "no-store",
         });
@@ -276,7 +291,13 @@ export default function WithdrawalRequestsLayout() {
           const json = await res.json();
           const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
           if (Array.isArray(list)) {
-            return list;
+            const withdrawOnly = list.filter((t: any) => {
+              const ty = String(t.type || "").toUpperCase();
+              return ty.includes("WITHDRAW");
+            });
+            if (withdrawOnly.length > 0) {
+              return withdrawOnly;
+            }
           }
         }
       } catch {}
@@ -880,15 +901,15 @@ export default function WithdrawalRequestsLayout() {
         {/* Central Reusable Table */}
         <Table>
           <TableHeading>
-            <TableColumn isHeader style={{ width: "5%" }} align="center">#</TableColumn>
-            <TableColumn isHeader style={{ width: "17%" }} align="center">Transaction ID</TableColumn>
-            <TableColumn isHeader style={{ width: "11%" }} align="center">Role</TableColumn>
-            <TableColumn isHeader style={{ width: "20%" }}>Requester</TableColumn>
-            <TableColumn isHeader style={{ width: "12%" }} align="center">Amount</TableColumn>
-            <TableColumn isHeader style={{ width: "14%" }}>Payout Destination</TableColumn>
-            <TableColumn isHeader style={{ width: "11%" }} align="center">Created Date</TableColumn>
-            <TableColumn isHeader style={{ width: "10%" }} align="center">Status</TableColumn>
-            <TableColumn isHeader style={{ width: "6%" }} align="center">Actions</TableColumn>
+            <TableColumn isHeader style={{ width: "4%", minWidth: "48px" }} align="center">#</TableColumn>
+            <TableColumn isHeader style={{ width: "16%", minWidth: "150px" }} align="center">Transaction ID</TableColumn>
+            <TableColumn isHeader style={{ width: "10%", minWidth: "105px" }} align="center">Role</TableColumn>
+            <TableColumn isHeader style={{ width: "18%", minWidth: "170px" }}>Requester</TableColumn>
+            <TableColumn isHeader style={{ width: "11%", minWidth: "110px" }} align="center">Amount</TableColumn>
+            <TableColumn isHeader style={{ width: "16%", minWidth: "160px" }}>Payout Destination</TableColumn>
+            <TableColumn isHeader style={{ width: "11%", minWidth: "125px" }} align="center">Created Date</TableColumn>
+            <TableColumn isHeader style={{ width: "8%", minWidth: "95px" }} align="center">Status</TableColumn>
+            <TableColumn isHeader style={{ width: "6%", minWidth: "85px" }} align="center" className="whitespace-nowrap">Actions</TableColumn>
           </TableHeading>
 
           <TableBody
@@ -920,7 +941,7 @@ export default function WithdrawalRequestsLayout() {
 
                     {/* 2. Transaction ID */}
                     <TableColumn align="center">
-                      <span className="bg-gray-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-gray-200 dark:border-slate-700 font-mono text-xs font-bold text-gray-900 dark:text-white">
+                      <span className="bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-gray-200 dark:border-slate-700 font-mono text-xs font-bold text-gray-900 dark:text-white break-all inline-block">
                         {item.requestId}
                       </span>
                     </TableColumn>
@@ -931,16 +952,16 @@ export default function WithdrawalRequestsLayout() {
                     </TableColumn>
 
                     {/* 4. Requester */}
-                    <TableColumn>
+                    <TableColumn className="break-words">
                       <div className="flex flex-col min-w-0">
-                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                        <span className="text-sm font-bold text-gray-900 dark:text-white break-words leading-tight">
                           {item.userName || item.businessUserId}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-mono break-all mt-0.5">
                           ID: {item.businessUserId}
                         </span>
                         {item.userEmail && (
-                          <span className="text-[11px] text-gray-400 truncate">
+                          <span className="text-[11px] text-gray-400 break-all mt-0.5">
                             {item.userEmail}
                           </span>
                         )}
@@ -955,13 +976,13 @@ export default function WithdrawalRequestsLayout() {
                     </TableColumn>
 
                     {/* 6. Payout Destination */}
-                    <TableColumn>
+                    <TableColumn className="break-words">
                       <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 break-words leading-relaxed">
                           {item.payoutMethod || "Standard Transfer"}
                         </span>
                         {item.stripeAccountId && item.stripeAccountId !== item.payoutMethod && (
-                          <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate">
+                          <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400 break-all mt-0.5">
                             {item.stripeAccountId}
                           </span>
                         )}
@@ -994,7 +1015,7 @@ export default function WithdrawalRequestsLayout() {
                     </TableColumn>
 
                     {/* 9. Actions */}
-                    <TableColumn align="center">
+                    <TableColumn align="center" className="whitespace-nowrap">
                       <div className="flex justify-center">
                         <button
                           type="button"

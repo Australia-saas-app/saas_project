@@ -345,16 +345,11 @@ export class WalletService implements OnModuleInit {
   async getTransactions(userId: string, page: any = 1, limit?: any, all: boolean = false, type?: string): Promise<any> {
     try {
       let whereClause: any;
-      if (all) {
+      if (all && !userId) {
         if (type && type.toLowerCase().includes('withdraw')) {
-          whereClause = [
-            { type: 'withdrawal' },
-            { type: 'WITHDRAWAL' },
-            { type: 'Withdrawal' },
-            { type: TransactionType.WITHDRAWAL },
-          ];
+          whereClause = { type: TransactionType.WITHDRAWAL };
         } else if (type) {
-          whereClause = [{ type: type.toLowerCase() }, { type: type.toUpperCase() }];
+          whereClause = { type: type.toLowerCase() as any };
         } else {
           whereClause = {};
         }
@@ -371,10 +366,7 @@ export class WalletService implements OnModuleInit {
         if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
 
         if (type && type.toLowerCase().includes('withdraw')) {
-          whereClause = [
-            ...searchIds.map((id) => ({ userId: id, type: 'withdrawal' as any })),
-            ...searchIds.map((id) => ({ userId: id, type: 'WITHDRAWAL' as any })),
-          ];
+          whereClause = searchIds.map((id) => ({ userId: id, type: TransactionType.WITHDRAWAL }));
         } else {
           whereClause = searchIds.map((id) => (type ? { userId: id, type: type.toLowerCase() as any } : { userId: id }));
         }
@@ -385,7 +377,7 @@ export class WalletService implements OnModuleInit {
         order: { createdAt: 'DESC' },
       };
 
-      if (!all && limit) {
+      if (!all && limit && limit !== 'all') {
         const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
         const limitNum = Math.max(1, parseInt(String(limit), 10) || 20);
         findOptions.skip = (pageNum - 1) * limitNum;
@@ -418,25 +410,31 @@ export class WalletService implements OnModuleInit {
 
   async getAllWithdrawalRequests(): Promise<any> {
     try {
-      const transactions = await this.transactionRepository.find({
-        where: [
-          { type: 'withdrawal' as any },
-          { type: 'WITHDRAWAL' as any },
-          { type: 'Withdrawal' as any },
-          { type: TransactionType.WITHDRAWAL },
-        ],
-        order: { createdAt: 'DESC' },
-      });
+      let transactions: Transaction[] = [];
+      try {
+        transactions = await this.transactionRepository
+          .createQueryBuilder('t')
+          .where("t.type::text ILIKE :w", { w: '%withdraw%' })
+          .orderBy('t.createdAt', 'DESC')
+          .getMany();
+      } catch {
+        transactions = await this.transactionRepository.find({
+          where: { type: TransactionType.WITHDRAWAL },
+          order: { createdAt: 'DESC' },
+        });
+      }
 
       const userIds = Array.from(new Set(transactions.map((t) => t.userId).filter(Boolean)));
       const userMap = new Map<string, any>();
       if (userIds.length > 0) {
         try {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const validUuids = userIds.filter((uId) => uuidRegex.test(uId));
           const users = await this.userRepository.find({
             where: [
               ...userIds.map((uId) => ({ userId: uId })),
-              ...userIds.map((uId) => ({ id: uId })),
               ...userIds.map((uId) => ({ email: uId })),
+              ...(validUuids.length > 0 ? validUuids.map((uId) => ({ id: uId })) : []),
             ],
           });
           users.forEach((u) => {
@@ -458,6 +456,7 @@ export class WalletService implements OnModuleInit {
           userName: user?.fullName || user?.name || user?.username || 'User',
           userEmail: user?.email,
           role: user?.accountType || user?.role || 'USER',
+          type: t.type || 'WITHDRAWAL',
           amount: Number(t.amount || 0),
           currency: t.currency || 'USD',
           status: t.status,
@@ -481,8 +480,9 @@ export class WalletService implements OnModuleInit {
     reason?: string,
   ): Promise<any> {
     const cleanId = String(txIdOrId).trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
     const tx = await this.transactionRepository.findOne({
-      where: [{ transactionId: cleanId }, { id: cleanId }],
+      where: isUuid ? [{ transactionId: cleanId }, { id: cleanId }] : [{ transactionId: cleanId }],
     });
 
     if (!tx) {
@@ -524,8 +524,9 @@ export class WalletService implements OnModuleInit {
     txIdOrId: string,
   ): Promise<any> {
     const cleanId = String(txIdOrId).trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
     const tx = await this.transactionRepository.findOne({
-      where: [{ transactionId: cleanId }, { id: cleanId }],
+      where: isUuid ? [{ transactionId: cleanId }, { id: cleanId }] : [{ transactionId: cleanId }],
     });
 
     if (!tx) {

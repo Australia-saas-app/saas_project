@@ -53,7 +53,7 @@ export function getWithdrawalsForUser(userId?: string, extraIds?: string[]): Wal
 
 export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRecord[]> {
   try {
-    const res = await axiosInstance.get("/sso/wallet/transactions?limit=50");
+    const res = await axiosInstance.get("/sso/wallet/transactions?all=true");
     const list = res?.data?.data || res?.data || [];
     if (!Array.isArray(list)) return [];
 

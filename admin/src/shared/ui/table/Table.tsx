@@ -20,7 +20,7 @@ export const Table: React.FC<TableProps> = ({
       <div className="overflow-x-auto overflow-y-auto max-h-[620px] w-full custom-scrollbar">
         <table
           style={{ tableLayout: 'fixed' }}
-          className="w-full text-left border-collapse min-w-[850px]"
+          className="w-full text-left border-collapse min-w-[1050px]"
         >
           {children}
         </table>
