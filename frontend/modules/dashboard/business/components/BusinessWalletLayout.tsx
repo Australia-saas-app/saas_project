@@ -149,7 +149,10 @@ export default function BusinessWalletLayout() {
       }
     } catch {}
 
+    const poller = setInterval(onWalletUpdated, 4000);
+
     return () => {
+      clearInterval(poller);
       window.removeEventListener("wallet_updated", onWalletUpdated);
       window.removeEventListener("vero:withdrawal_updated", onWalletUpdated);
       window.removeEventListener("storage", onWalletUpdated);

@@ -189,9 +189,16 @@ export default function UserWalletLayout() {
       }
     } catch {}
 
+    window.addEventListener("focus", onWalletUpdated);
+
+    // Auto-poll every 4s so admin status changes on port 8001 reflect immediately without page refresh
+    const poller = setInterval(onWalletUpdated, 4000);
+
     return () => {
+      clearInterval(poller);
       window.removeEventListener("wallet_updated", onWalletUpdated);
       window.removeEventListener("vero:withdrawal_updated", onWalletUpdated);
+      window.removeEventListener("focus", onWalletUpdated);
       if (bc1) try { bc1.close(); } catch {}
       if (bc2) try { bc2.close(); } catch {}
     };

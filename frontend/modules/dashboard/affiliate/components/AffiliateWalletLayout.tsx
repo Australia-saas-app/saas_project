@@ -133,7 +133,10 @@ export default function AffiliateWalletLayout() {
       }
     } catch {}
 
+    const poller = setInterval(onWalletUpdated, 4000);
+
     return () => {
+      clearInterval(poller);
       window.removeEventListener("wallet_updated", onWalletUpdated);
       window.removeEventListener("vero:withdrawal_updated", onWalletUpdated);
       if (bc1) try { bc1.close(); } catch {}

@@ -30,6 +30,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import axiosInstanceClient from "@/src/infra/lib/axiosInstance/client";
 import { toast } from "sonner";
 import { useAppSelector } from "@/src/core/store/hooks";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger";
 import { getCookie } from "@/src/shared/utils/cookie-utils";
 
@@ -108,25 +109,102 @@ const getRoleBadge = (role: string) => {
   );
 };
 
+function parseWithdrawalRecord(w: any): WithdrawalRequestItem | null {
+  if (!w) return null;
+  const rawType = String(w.type || "").toUpperCase();
+  // If type is defined on a general transactions endpoint, only accept WITHDRAWAL
+  if (rawType && !rawType.includes("WITHDRAW")) return null;
+
+  const rawRole = String(
+    w.role || w.userRole || w.accountType || w.metadata?.role || ""
+  ).toUpperCase();
+  const uId = String(w.businessUserId || w.userId || "");
+  let resolvedRole: "USER" | "BUSINESS" | "AFFILIATE" = "USER";
+  if (rawRole.includes("BUS") || uId.toUpperCase().startsWith("BUS")) {
+    resolvedRole = "BUSINESS";
+  } else if (rawRole.includes("AFF") || uId.toUpperCase().startsWith("AFF")) {
+    resolvedRole = "AFFILIATE";
+  }
+
+  let cleanAmount = 0;
+  if (typeof w.amount === "number") {
+    cleanAmount = w.amount;
+  } else if (typeof w.amount === "string") {
+    cleanAmount = parseFloat(w.amount.replace(/[^0-9.]/g, "")) || 0;
+  }
+
+  const rawStatus = String(w.status || "pending").toLowerCase();
+  const rawDesc = String(w.description || "").toLowerCase();
+  if (rawStatus === "reverted" || rawStatus.includes("revert") || rawDesc.includes("revert")) {
+    return null;
+  }
+
+  const status: "pending" | "paid" | "rejected" =
+    rawStatus === "completed" ||
+    rawStatus === "complete" ||
+    rawStatus === "paid" ||
+    rawStatus === "approved" ||
+    rawStatus === "succeeded"
+      ? "paid"
+      : rawStatus === "failed" ||
+        rawStatus === "rejected" ||
+        rawStatus === "cancelled"
+      ? "rejected"
+      : "pending";
+
+  const txId = String(w.transactionId || w.requestId || w.id || "");
+  const finalId = String(w.id || w.transactionId || w.requestId || txId);
+  const reqId = String(w.requestId || w.transactionId || w.id || txId);
+
+  const resolvedMethod =
+    w.payoutMethod ||
+    w.paymentMethod ||
+    w.method ||
+    w.methodLabel ||
+    w.description ||
+    w.stripeAccountId ||
+    "Bank Transfer";
+
+  return {
+    id: finalId,
+    requestId: reqId,
+    businessUserId: uId || "user",
+    userName: w.userName || w.metadata?.userName || w.businessName || undefined,
+    userEmail: w.userEmail || w.email || w.metadata?.userEmail || undefined,
+    role: resolvedRole,
+    amount: cleanAmount,
+    currency: String(w.currency || "USD").toUpperCase(),
+    stripeAccountId: w.stripeAccountId || w.methodId || w.payoutDestination || w.destination || undefined,
+    payoutMethod: resolvedMethod,
+    status,
+    createdAt: w.createdAt || (w.date ? new Date(w.date).toISOString() : new Date().toISOString()),
+    processedAt: w.processedAt || undefined,
+    rejectionReason: w.rejectionReason || undefined,
+    stripeTransferId: w.stripeTransferId || undefined,
+  };
+}
+
 export default function WithdrawalRequestsLayout() {
-  const token = useAppSelector((state: any) => state.auth?.token);
+  const queryClient = useQueryClient();
+  const reduxToken = useAppSelector((state: any) => state.auth?.token);
   const adminUser = useAppSelector((state: any) => state.auth?.user);
 
   const getEffectiveToken = useCallback(() => {
-    if (token) return token;
+    if (reduxToken) return reduxToken;
     if (typeof window !== "undefined") {
       const c = getCookie("accessToken") || getCookie("token") || getCookie("auth_token");
       if (c) return c;
-      const ls = localStorage.getItem("accessToken") || localStorage.getItem("token");
+      const ls = localStorage.getItem("token") || localStorage.getItem("accessToken");
       if (ls) return ls;
     }
     return "";
-  }, [token]);
+  }, [reduxToken]);
+
+  const activeToken = getEffectiveToken();
 
   const [activeTab, setActiveTab] = useState<"ALL" | "USER" | "BUSINESS" | "AFFILIATE">("ALL");
   const [search, setSearch] = useState("");
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequestItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [localOverrides, setLocalOverrides] = useState<Record<string, { status: "paid" | "rejected"; rejectionReason?: string }>>({});
   const [actionInProgress, setActionInProgress] = useState<"approve" | "reject" | null>(null);
   const [selectedItem, setSelectedItem] = useState<WithdrawalRequestItem | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
@@ -151,178 +229,128 @@ export default function WithdrawalRequestsLayout() {
     } catch {}
   }, []);
 
-  // Fetch real withdrawals from DB & localStorage
-  const fetchWithdrawals = useCallback(async () => {
-    let items: WithdrawalRequestItem[] = [];
+  // Fetch real withdrawals using React Query with enabled check matching KycQueuePage
+  const { data: serverRawList = [], isLoading: isServerLoading, refetch } = useQuery<any[]>({
+    queryKey: ["admin-withdrawals", activeToken],
+    queryFn: async () => {
+      if (!activeToken) return [];
+      const authHeader = activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}`;
 
-    // Helper to parse any withdrawal / transaction record
-    const parseRecord = (w: any) => {
-      if (!w) return;
-      const rawType = String(w.type || "").toUpperCase();
-      // If type is defined on a general transactions endpoint, only accept WITHDRAWAL
-      if (rawType && !rawType.includes("WITHDRAW")) return;
-
-      const rawRole = String(
-        w.role || w.userRole || w.accountType || w.metadata?.role || ""
-      ).toUpperCase();
-      const uId = String(w.businessUserId || w.userId || "");
-      let resolvedRole: "USER" | "BUSINESS" | "AFFILIATE" = "USER";
-      if (rawRole.includes("BUS") || uId.toUpperCase().startsWith("BUS")) {
-        resolvedRole = "BUSINESS";
-      } else if (rawRole.includes("AFF") || uId.toUpperCase().startsWith("AFF")) {
-        resolvedRole = "AFFILIATE";
-      }
-
-      let cleanAmount = 0;
-      if (typeof w.amount === "number") {
-        cleanAmount = w.amount;
-      } else if (typeof w.amount === "string") {
-        cleanAmount = parseFloat(w.amount.replace(/[^0-9.]/g, "")) || 0;
-      }
-
-      const rawStatus = String(w.status || "pending").toLowerCase();
-      const rawDesc = String(w.description || "").toLowerCase();
-      if (rawStatus === "reverted" || rawStatus.includes("revert") || rawDesc.includes("revert")) {
-        return;
-      }
-
-      const status: "pending" | "paid" | "rejected" =
-        rawStatus === "completed" ||
-        rawStatus === "complete" ||
-        rawStatus === "paid" ||
-        rawStatus === "approved" ||
-        rawStatus === "succeeded"
-          ? "paid"
-          : rawStatus === "failed" ||
-            rawStatus === "rejected" ||
-            rawStatus === "cancelled"
-          ? "rejected"
-          : "pending";
-
-      const txId = String(w.transactionId || w.requestId || w.id || "");
-      const finalId = String(w.id || w.transactionId || w.requestId || txId);
-      const reqId = String(w.requestId || w.transactionId || w.id || txId);
-
-      const resolvedMethod =
-        w.payoutMethod ||
-        w.paymentMethod ||
-        w.method ||
-        w.methodLabel ||
-        w.description ||
-        w.stripeAccountId ||
-        "Bank Transfer";
-
-      items.push({
-        id: finalId,
-        requestId: reqId,
-        businessUserId: uId || "user",
-        userName: w.userName || w.metadata?.userName || w.businessName || undefined,
-        userEmail: w.userEmail || w.email || w.metadata?.userEmail || undefined,
-        role: resolvedRole,
-        amount: cleanAmount,
-        currency: String(w.currency || "USD").toUpperCase(),
-        stripeAccountId: w.stripeAccountId || w.methodId || w.payoutDestination || w.destination || undefined,
-        payoutMethod: resolvedMethod,
-        status,
-        createdAt: w.createdAt || (w.date ? new Date(w.date).toISOString() : new Date().toISOString()),
-        processedAt: w.processedAt || undefined,
-        rejectionReason: w.rejectionReason || undefined,
-        stripeTransferId: w.stripeTransferId || undefined,
-      });
-    };
-
-    // 1. Fetch from SSO backend via Next.js proxy with full Bearer token
-    const activeToken = getEffectiveToken();
-    const authHeaders: Record<string, string> = {
-      ...(activeToken ? { Authorization: activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}` } : {})
-    };
-
-    let fetchSuccess = false;
-    try {
-      const res = await fetch("/admin/api/sso/wallet/admin/withdrawals", {
-        headers: authHeaders,
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
-        if (Array.isArray(list) && list.length > 0) {
-          list.forEach(parseRecord);
-          fetchSuccess = true;
-        }
-      }
-    } catch {}
-
-    // Fallback: Query transactions from SSO backend if primary endpoint returned empty
-    if (!fetchSuccess) {
+      // 1. Primary: SSO Admin withdrawals
       try {
-        const res = await fetch("/admin/api/sso/wallet/transactions?all=true&type=WITHDRAWAL", {
-          headers: authHeaders,
+        const res = await fetch("/admin/api/sso/wallet/admin/withdrawals", {
+          headers: { Authorization: authHeader },
           cache: "no-store",
         });
         if (res.ok) {
           const json = await res.json();
           const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
           if (Array.isArray(list) && list.length > 0) {
-            list.forEach(parseRecord);
+            return list;
           }
         }
       } catch {}
-    }
 
-    // 2. Merge with real submissions stored in localStorage
-    if (typeof window !== "undefined") {
+      // 2. Secondary fallback: SSO Transactions with type=WITHDRAWAL
       try {
-        const rawLocal = localStorage.getItem("platform_wallet_withdrawals");
-        if (rawLocal) {
-          const parsed = JSON.parse(rawLocal);
-          if (Array.isArray(parsed)) {
-            parsed.forEach(parseRecord);
+        const res = await fetch("/admin/api/sso/wallet/transactions?all=true&type=WITHDRAWAL", {
+          headers: { Authorization: authHeader },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            return list;
           }
         }
       } catch {}
-    }
 
-    // 3. Deduplicate by requestId and ID, and sort newest on top
+      return [];
+    },
+    enabled: !!activeToken,
+    staleTime: 2000,
+    refetchInterval: 4000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Merge server records, local storage fallback submissions, and instant local overrides
+  const withdrawals = useMemo(() => {
     const uniqueMap = new Map<string, WithdrawalRequestItem>();
-    items.forEach((item) => {
-      // filter out test placeholders
+
+    // 1. Server records
+    serverRawList.forEach((raw) => {
+      const item = parseWithdrawalRecord(raw);
+      if (!item) return;
       if (
         item.id === "w-demo-1" ||
         item.id === "w-demo-2" ||
         item.requestId === "WREQ-2025-001" ||
         item.requestId === "WREQ-2025-002"
       ) return;
+
       const key = item.requestId || item.id;
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, item);
+      let effectiveItem = item;
+      const ov = localOverrides[key] || localOverrides[item.id];
+      if (ov) {
+        effectiveItem = { ...item, status: ov.status, rejectionReason: ov.rejectionReason || item.rejectionReason };
       }
+      uniqueMap.set(key, effectiveItem);
     });
 
-    const finalSorted = Array.from(uniqueMap.values()).sort((a, b) => {
+    // 2. Local storage records (offline/instant local sync)
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("platform_wallet_withdrawals");
+        if (rawLocal) {
+          const parsed = JSON.parse(rawLocal);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((raw) => {
+              const item = parseWithdrawalRecord(raw);
+              if (!item) return;
+              if (
+                item.id === "w-demo-1" ||
+                item.id === "w-demo-2" ||
+                item.requestId === "WREQ-2025-001" ||
+                item.requestId === "WREQ-2025-002"
+              ) return;
+
+              const key = item.requestId || item.id;
+              if (!uniqueMap.has(key)) {
+                let effectiveItem = item;
+                const ov = localOverrides[key] || localOverrides[item.id];
+                if (ov) {
+                  effectiveItem = { ...item, status: ov.status, rejectionReason: ov.rejectionReason || item.rejectionReason };
+                }
+                uniqueMap.set(key, effectiveItem);
+              }
+            });
+          }
+        }
+      } catch {}
+    }
+
+    return Array.from(uniqueMap.values()).sort((a, b) => {
       const aPending = a.status === "pending";
       const bPending = b.status === "pending";
       if (aPending && !bPending) return -1;
       if (bPending && !aPending) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
+  }, [serverRawList, localOverrides]);
 
-    setWithdrawals(finalSorted);
-    const pendingCount = finalSorted.filter((w) => w.status === "pending").length;
-    notifyWithdrawalUpdated(pendingCount);
-    setLoading(false);
-  }, [notifyWithdrawalUpdated]);
+  const loading = isServerLoading && withdrawals.length === 0;
 
+  // Keep sidebar count in sync
   useEffect(() => {
-    fetchWithdrawals();
+    const pendingCount = withdrawals.filter((w) => w.status === "pending").length;
+    notifyWithdrawalUpdated(pendingCount);
+  }, [withdrawals, notifyWithdrawalUpdated]);
 
-    // Auto-refresh in background every 4s so new requests appear immediately with no manual reload
-    const pollInterval = setInterval(() => {
-      fetchWithdrawals();
-    }, 4000);
-
+  // Real-time broadcast and event triggers
+  useEffect(() => {
     const handleExternalUpdate = () => {
-      fetchWithdrawals();
+      refetch();
     };
     window.addEventListener("vero:withdrawal_updated", handleExternalUpdate);
     window.addEventListener("wallet_updated", handleExternalUpdate);
@@ -334,26 +362,29 @@ export default function WithdrawalRequestsLayout() {
       if ("BroadcastChannel" in window) {
         bc1 = new BroadcastChannel("vero_channel");
         bc1.onmessage = (e) => {
-          if (e.data?.type === "vero:withdrawal_updated" || e.data?.type === "withdrawal_requested" || e.data?.type === "vero:log_added") {
-            fetchWithdrawals();
+          if (
+            e.data?.type === "vero:withdrawal_updated" ||
+            e.data?.type === "withdrawal_requested" ||
+            e.data?.type === "vero:log_added"
+          ) {
+            refetch();
           }
         };
         bc2 = new BroadcastChannel("wallet_channel");
         bc2.onmessage = () => {
-          fetchWithdrawals();
+          refetch();
         };
       }
     } catch {}
 
     return () => {
-      clearInterval(pollInterval);
       window.removeEventListener("vero:withdrawal_updated", handleExternalUpdate);
       window.removeEventListener("wallet_updated", handleExternalUpdate);
       window.removeEventListener("storage", handleExternalUpdate);
       bc1?.close();
       bc2?.close();
     };
-  }, [fetchWithdrawals]);
+  }, [refetch]);
 
   // Tab counts
   const tabCounts = useMemo(() => {
@@ -433,15 +464,21 @@ export default function WithdrawalRequestsLayout() {
         stripeTransferId: item.stripeTransferId || `TR-${Date.now().toString().slice(-8)}`,
       };
 
-      // 1. Update state locally immediately
-      setWithdrawals((prev) => {
-        const next = prev.map((w) =>
-          w.id === item.id || w.requestId === item.requestId ? updatedItem : w
+      // 1. Update state locally immediately via localOverrides & queryClient cache like KycQueuePage
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [item.id]: { status: "paid" },
+        [item.requestId]: { status: "paid" },
+      }));
+      queryClient.setQueryData(["admin-withdrawals", activeToken], (oldData: any[] | undefined) => {
+        if (!oldData || !Array.isArray(oldData)) return oldData;
+        return oldData.map((w: any) =>
+          w.id === item.id || w.requestId === item.requestId || w.transactionId === item.requestId
+            ? { ...w, status: "COMPLETED" }
+            : w
         );
-        const remainingPending = next.filter((w) => w.status === "pending").length;
-        notifyWithdrawalUpdated(remainingPending);
-        return next;
       });
+      refetch();
 
       // Update selected item so open modal instantly reflects status change
       setSelectedItem(updatedItem);
@@ -476,8 +513,8 @@ export default function WithdrawalRequestsLayout() {
         } catch {}
 
         // 4. Record Real Activity Log on Requester's Side (User / Business / Affiliate)
-        if (token) {
-          logAdminActivity(token, {
+        if (activeToken) {
+          logAdminActivity(activeToken, {
             action: "WITHDRAWAL_APPROVED",
             resource: `Withdrawal payout of $${item.amount.toFixed(2)} USD was approved by administrator (ID: ${item.requestId})`,
             targetUserId: item.businessUserId,
@@ -597,15 +634,21 @@ export default function WithdrawalRequestsLayout() {
         processedAt: new Date().toISOString(),
       };
 
-      // 1. Update state locally immediately
-      setWithdrawals((prev) => {
-        const next = prev.map((w) =>
-          w.id === item.id || w.requestId === item.requestId ? updatedItem : w
+      // 1. Update state locally immediately via localOverrides & queryClient cache like KycQueuePage
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [item.id]: { status: "rejected", rejectionReason: finalReason },
+        [item.requestId]: { status: "rejected", rejectionReason: finalReason },
+      }));
+      queryClient.setQueryData(["admin-withdrawals", activeToken], (oldData: any[] | undefined) => {
+        if (!oldData || !Array.isArray(oldData)) return oldData;
+        return oldData.map((w: any) =>
+          w.id === item.id || w.requestId === item.requestId || w.transactionId === item.requestId
+            ? { ...w, status: "FAILED", description: `${w.description || "Withdrawal"} - Rejected: ${finalReason}` }
+            : w
         );
-        const remainingPending = next.filter((w) => w.status === "pending").length;
-        notifyWithdrawalUpdated(remainingPending);
-        return next;
       });
+      refetch();
 
       // Update selected item so open modal instantly reflects status change
       setSelectedItem(updatedItem);

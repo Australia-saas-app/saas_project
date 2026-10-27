@@ -123,10 +123,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     let remoteNotifs: NotificationItem[] = [];
     let fetchSuccess = false;
 
+    const effectiveToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("token") || localStorage.getItem("accessToken")
+        : "");
+    if (!effectiveToken) return;
+
     try {
       const res = await fetch(notifApiBase, {
-        credentials: "omit",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: effectiveToken.startsWith("Bearer ") ? effectiveToken : `Bearer ${effectiveToken}` },
       }).catch(() => null);
 
       if (res && res.ok) {

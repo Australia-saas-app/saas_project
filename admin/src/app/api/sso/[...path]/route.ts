@@ -25,13 +25,19 @@ async function handleProxy(req: NextRequest, props: { params: Promise<{ path: st
 
     // Ensure Authorization header is present - fallback to accessToken cookie if not explicitly provided
     if (!headers.has('authorization') || !headers.get('authorization')?.trim()) {
-      const cookieToken =
+      const rawCookieToken =
         req.cookies.get('accessToken')?.value ||
         req.cookies.get('token')?.value ||
         req.cookies.get('auth_token')?.value;
-      if (cookieToken) {
-        const authVal = cookieToken.startsWith('Bearer ') ? cookieToken : `Bearer ${cookieToken}`;
-        headers.set('authorization', authVal);
+      if (rawCookieToken) {
+        try {
+          const cookieToken = decodeURIComponent(rawCookieToken).trim();
+          const authVal = cookieToken.startsWith('Bearer ') ? cookieToken : `Bearer ${cookieToken}`;
+          headers.set('authorization', authVal);
+        } catch {
+          const authVal = rawCookieToken.startsWith('Bearer ') ? rawCookieToken : `Bearer ${rawCookieToken}`;
+          headers.set('authorization', authVal);
+        }
       }
     }
 

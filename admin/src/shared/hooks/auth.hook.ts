@@ -92,7 +92,10 @@ export const useUserLogin = () => {
             try {
                 // Persist token only in a client cookie (do not store user payload client-side)
                 if (data?.data?.token && typeof window !== 'undefined') {
-                    document.cookie = `accessToken=${encodeURIComponent(data.data.token)}; path=/; max-age=${604800}; Secure; SameSite=Lax`;
+                    const isHttps = window.location.protocol === 'https:';
+                    document.cookie = `accessToken=${encodeURIComponent(data.data.token)}; path=/; max-age=604800; SameSite=Lax${isHttps ? '; Secure' : ''}`;
+                    localStorage.setItem('token', data.data.token);
+                    localStorage.setItem('accessToken', data.data.token);
                 }
             } catch {
                 // ignore

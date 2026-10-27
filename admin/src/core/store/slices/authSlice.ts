@@ -60,12 +60,16 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     hydrate: (state) => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('accessToken') : null;
       const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       if (token && user) {
         state.isAuthenticated = true;
         state.token = token;
         state.user = JSON.parse(user);
+        if (typeof window !== 'undefined') {
+          document.cookie = `accessToken=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+          localStorage.setItem('accessToken', token);
+        }
       }
     },
     logout: (state) => {
@@ -74,7 +78,9 @@ const authSlice = createSlice({
       state.user = null;
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
+        document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
       }
     },
     clearError: (state) => {
@@ -94,7 +100,9 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         if (typeof window !== 'undefined') {
           localStorage.setItem('token', action.payload.token);
+          localStorage.setItem('accessToken', action.payload.token);
           localStorage.setItem('user', JSON.stringify(action.payload.user));
+          document.cookie = `accessToken=${encodeURIComponent(action.payload.token)}; path=/; max-age=604800; SameSite=Lax`;
         }
       })
       .addCase(loginUser.rejected, (state, action) => {

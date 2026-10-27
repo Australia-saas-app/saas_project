@@ -884,48 +884,70 @@ export const createProject = async (payload: any, _token?: string) => {
   return { success: true, projectId: createdProject.projectId, data: createdProject };
 };
 
+let inFlightMyProjectsPromise: Promise<{ projects: any[] }> | null = null;
+let lastMyProjectsFetchTime = 0;
+let lastMyProjectsResult: { projects: any[] } = { projects: [] };
+
 export const fetchMyProjects = async (_token?: string) => {
-  try {
-    const res = await axiosInstance.get('/technology/projects/mine');
-    const data = res?.data;
-    const rawList =
-      data?.data?.projects ||
-      data?.projects ||
-      data?.data ||
-      (Array.isArray(data) ? data : []);
-
-    if (Array.isArray(rawList) && rawList.length >= 0) {
-      const local = readLocalProjects();
-      const dbMap = new Map<string, any>();
-
-      // DB is always the source of truth
-      rawList.forEach((p: any) => {
-        if (p?.projectId) {
-          // Map acceptedAt → assignedAt for frontend compatibility
-          const mapped = {
-            ...p,
-            assignedAt: p.assignedAt || p.acceptedAt || null,
-          };
-          dbMap.set(p.projectId, mapped);
-        }
-      });
-
-      // Only add local-only projects not yet in DB (e.g. offline-created)
-      local.forEach((p: any) => {
-        if (p?.projectId && !dbMap.has(p.projectId)) {
-          dbMap.set(p.projectId, p);
-        }
-      });
-
-      const merged = Array.from(dbMap.values());
-      writeLocalProjects(merged);
-      return { projects: merged };
-    }
-  } catch (e: any) {
-    console.warn("fetchMyProjects axios fallback:", e?.message || e);
+  const now = Date.now();
+  if (now - lastMyProjectsFetchTime < 6000 && lastMyProjectsResult.projects.length > 0) {
+    return lastMyProjectsResult;
+  }
+  if (inFlightMyProjectsPromise) {
+    return inFlightMyProjectsPromise;
   }
 
-  return { projects: readLocalProjects() };
+  inFlightMyProjectsPromise = (async () => {
+    try {
+      const res = await axiosInstance.get('/technology/projects/mine', { timeout: 4000 });
+      const data = res?.data;
+      const rawList =
+        data?.data?.projects ||
+        data?.projects ||
+        data?.data ||
+        (Array.isArray(data) ? data : []);
+
+      if (Array.isArray(rawList) && rawList.length >= 0) {
+        const local = readLocalProjects();
+        const dbMap = new Map<string, any>();
+
+        // DB is always the source of truth
+        rawList.forEach((p: any) => {
+          if (p?.projectId) {
+            // Map acceptedAt → assignedAt for frontend compatibility
+            const mapped = {
+              ...p,
+              assignedAt: p.assignedAt || p.acceptedAt || null,
+            };
+            dbMap.set(p.projectId, mapped);
+          }
+        });
+
+        // Only add local-only projects not yet in DB (e.g. offline-created)
+        local.forEach((p: any) => {
+          if (p?.projectId && !dbMap.has(p.projectId)) {
+            dbMap.set(p.projectId, p);
+          }
+        });
+
+        const merged = Array.from(dbMap.values());
+        writeLocalProjects(merged);
+        lastMyProjectsResult = { projects: merged };
+        lastMyProjectsFetchTime = Date.now();
+        return lastMyProjectsResult;
+      }
+    } catch {
+      // Quiet fallback without blocking network sockets
+    } finally {
+      inFlightMyProjectsPromise = null;
+    }
+
+    lastMyProjectsResult = { projects: readLocalProjects() };
+    lastMyProjectsFetchTime = Date.now();
+    return lastMyProjectsResult;
+  })();
+
+  return inFlightMyProjectsPromise;
 };
 
 export const fetchPublicProjects = async (params?: Record<string, string>) => {

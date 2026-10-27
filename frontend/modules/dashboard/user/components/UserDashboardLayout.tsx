@@ -275,7 +275,8 @@ export default function UserDashboardLayout() {
       }
     } catch {}
 
-    const interval = setInterval(onUpdate, 15000);
+    // Auto-poll withdrawals from database every 4s without spamming project requests
+    const interval = setInterval(loadWithdrawals, 4000);
     return () => {
       window.removeEventListener("wallet_updated", onUpdate);
       window.removeEventListener("vero:withdrawal_updated", onUpdate);
@@ -638,53 +639,54 @@ export default function UserDashboardLayout() {
         <div className="lg:col-span-2">
           <div className="rounded-xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm h-full flex flex-col justify-between">
             <div>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="text-md font-bold text-gray-900">{u.overview}</h3>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
-                    <span className="h-3 w-3 rounded-full bg-[#0091ff]" />
-                    {legendInfo.increaseLabel}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                    <span className="h-3 w-3 rounded-full bg-gray-400" />
-                    {legendInfo.decreaseLabel}
-                  </div>
-                  {/* Mode Selector & Dynamic Default Button */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <div className="relative">
-                      <select
-                        value={chartMode}
-                        onChange={(e) => setChartMode(e.target.value as any)}
-                        className="appearance-none rounded border border-gray-200 bg-white py-1 pr-6 pl-2.5 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer hover:border-primary/50 transition-colors"
-                      >
-                        <option value="logs">
-                          Activity Logs {defaultMode === "logs" ? "★ (Default)" : ""}
-                        </option>
-                        <option value="financial">
-                          Financial (Cashflow) {defaultMode === "financial" ? "★ (Default)" : ""}
-                        </option>
-                        <option value="projects">
-                          Projects & Orders {defaultMode === "projects" ? "★ (Default)" : ""}
-                        </option>
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute top-1/2 right-2 h-3 w-3 -translate-y-1/2 text-gray-500" />
+              <div className="mb-6 flex flex-col gap-3">
+                {/* Top Row: Title on Left, Legend on Right */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-md font-bold text-gray-900">{u.overview}</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                      <span className="h-3 w-3 rounded-full bg-[#0091ff]" />
+                      {legendInfo.increaseLabel}
                     </div>
-
-                    {chartMode === defaultMode ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 text-[11px] font-semibold select-none">
-                        <Check className="h-3 w-3 text-emerald-600" /> Default
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSetDefaultMode(chartMode)}
-                        className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-primary hover:border-primary/40 px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer"
-                        title="Set this view as your permanent default"
-                      >
-                        <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> Set Default
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                      <span className="h-3 w-3 rounded-full bg-gray-400" />
+                      {legendInfo.decreaseLabel}
+                    </div>
                   </div>
+                </div>
+
+                {/* Second Row: Mode Dropdown, Set Default (if not default), and Year Selector */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <select
+                      value={chartMode}
+                      onChange={(e) => setChartMode(e.target.value as any)}
+                      className="appearance-none rounded border border-gray-200 bg-white py-1 pr-6 pl-2.5 text-xs font-medium text-gray-700 focus:outline-none cursor-pointer hover:border-primary/50 transition-colors"
+                    >
+                      <option value="logs">
+                        Activity Logs {defaultMode === "logs" ? "★ (Default)" : ""}
+                      </option>
+                      <option value="financial">
+                        Financial (Cashflow) {defaultMode === "financial" ? "★ (Default)" : ""}
+                      </option>
+                      <option value="projects">
+                        Projects & Orders {defaultMode === "projects" ? "★ (Default)" : ""}
+                      </option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute top-1/2 right-2 h-3 w-3 -translate-y-1/2 text-gray-500" />
+                  </div>
+
+                  {chartMode !== defaultMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleSetDefaultMode(chartMode)}
+                      className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-primary hover:border-primary/40 px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer"
+                      title="Set this view as your permanent default"
+                    >
+                      <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> Set Default
+                    </button>
+                  )}
+
                   <div className="relative">
                     <select
                       value={selectedYear}
@@ -787,7 +789,7 @@ export default function UserDashboardLayout() {
         <div className="lg:col-span-1">
           <div className="rounded-xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm h-full flex flex-col justify-between overflow-hidden">
             <div>
-              <div className="flex items-center justify-between mb-4 shrink-0">
+              <div className="flex items-center justify-between mb-3 shrink-0">
                 <h3 className="text-md font-bold text-gray-900">{u.recentActivity}</h3>
                 <Link
                   href="/dashboard/user/profile/user-log"
@@ -796,14 +798,14 @@ export default function UserDashboardLayout() {
                   {u.viewAll}
                 </Link>
               </div>
-              <div className="max-h-[220px] overflow-y-auto pr-1 space-y-0 divide-y divide-gray-100">
+              <div className="max-h-[280px] overflow-y-auto pr-1 space-y-0 divide-y divide-gray-100">
                 {displayActivities.length === 0 ? (
                   <p className="py-12 text-center text-sm text-gray-400">No recent activity</p>
                 ) : (
-                  displayActivities.slice(0, 6).map((item, idx) => (
+                  displayActivities.slice(0, 8).map((item, idx) => (
                     <div
                       key={item.id || idx}
-                      className="flex items-center justify-between gap-3 py-2.5 text-xs first:pt-0 last:pb-0"
+                      className="flex items-center justify-between gap-3 py-2 text-xs first:pt-0 last:pb-0"
                     >
                       {/* Left side: Action */}
                       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -869,25 +871,25 @@ export default function UserDashboardLayout() {
           <p className="py-8 text-center text-sm text-gray-500">No withdrawals yet.</p>
         ) : (
           <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-gray-100 touch-pan-x [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
-            <table className="w-full text-xs min-w-[620px]">
+            <table className="w-full text-xs min-w-[720px] table-auto">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-primary text-white uppercase font-bold text-[11px]">
-                  <th className="p-3 text-left whitespace-nowrap">Transaction ID</th>
-                  <th className="p-3 text-left whitespace-nowrap">{w.method}</th>
-                  <th className="p-3 text-left whitespace-nowrap">{w.amount}</th>
-                  <th className="p-3 text-left whitespace-nowrap">Date</th>
-                  <th className="p-3 text-left whitespace-nowrap">{w.status}</th>
-                  <th className="p-3 text-right whitespace-nowrap">Action</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[130px]">Transaction ID</th>
+                  <th className="p-3 text-left min-w-[190px] max-w-[260px]">{w.method}</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[90px]">{w.amount}</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[140px]">Date</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[90px]">{w.status}</th>
+                  <th className="p-3 text-right whitespace-nowrap min-w-[110px]">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {withdrawData.map((row, i) => (
                   <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50 transition-colors">
-                    <td className="p-3 font-mono font-semibold text-gray-900 text-xs whitespace-nowrap">{row.id}</td>
-                    <td className="p-3 text-gray-700 whitespace-nowrap">{row.method}</td>
-                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">{row.amount}</td>
-                    <td className="p-3 text-gray-500 whitespace-nowrap">{row.date}</td>
-                    <td className="p-3 whitespace-nowrap">
+                    <td className="p-3 font-mono font-semibold text-gray-900 text-xs whitespace-nowrap min-w-[130px]">{row.id}</td>
+                    <td className="p-3 text-gray-700 break-words min-w-[190px] max-w-[260px] leading-relaxed">{row.method}</td>
+                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap min-w-[90px]">{row.amount}</td>
+                    <td className="p-3 text-gray-500 whitespace-nowrap min-w-[140px]">{row.date}</td>
+                    <td className="p-3 whitespace-nowrap min-w-[90px]">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
                           row.status === "Approved" || row.status === "Complete" || row.status === "Paid"
@@ -900,7 +902,7 @@ export default function UserDashboardLayout() {
                         {row.status}
                       </span>
                     </td>
-                    <td className="p-3 text-right whitespace-nowrap">
+                    <td className="p-3 text-right whitespace-nowrap min-w-[110px]">
                       <div className="flex items-center justify-end gap-2.5">
                         <button
                           type="button"
@@ -983,22 +985,22 @@ export default function UserDashboardLayout() {
           <p className="py-8 text-center text-sm text-gray-500">No earnings recorded yet.</p>
         ) : (
           <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-gray-100 touch-pan-x [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
-            <table className="w-full text-xs min-w-[520px]">
+            <table className="w-full text-xs min-w-[640px] table-auto">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-primary text-white uppercase font-bold text-[11px]">
-                  <th className="p-3 text-left whitespace-nowrap">ID</th>
-                  <th className="p-3 text-left whitespace-nowrap">{w.category}</th>
-                  <th className="p-3 text-left whitespace-nowrap">{w.commission}</th>
-                  <th className="p-3 text-left whitespace-nowrap">{w.status}</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[120px]">ID</th>
+                  <th className="p-3 text-left min-w-[200px] max-w-[320px]">{w.category}</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[100px]">{w.commission}</th>
+                  <th className="p-3 text-left whitespace-nowrap min-w-[90px]">{w.status}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {earningData.map((row, i) => (
                   <tr key={`${row.id}-${i}`} className="text-gray-700 hover:bg-gray-50 transition-colors">
-                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">{row.id}</td>
-                    <td className="p-3 text-gray-500 whitespace-nowrap">{row.subcategory}</td>
-                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">{row.commission}</td>
-                    <td className="p-3 whitespace-nowrap">
+                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap min-w-[120px]">{row.id}</td>
+                    <td className="p-3 text-gray-700 break-words min-w-[200px] max-w-[320px] leading-relaxed">{row.subcategory}</td>
+                    <td className="p-3 font-semibold text-gray-900 whitespace-nowrap min-w-[100px]">{row.commission}</td>
+                    <td className="p-3 whitespace-nowrap min-w-[90px]">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
                           row.status === "Complete" || row.status === "Approved" || row.status === "Paid"
