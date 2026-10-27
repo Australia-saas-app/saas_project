@@ -62,10 +62,14 @@ const authSlice = createSlice({
     hydrate: (state) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('accessToken') : null;
       const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-      if (token && user) {
+      if (token) {
         state.isAuthenticated = true;
         state.token = token;
-        state.user = JSON.parse(user);
+        if (user) {
+          try {
+            state.user = JSON.parse(user);
+          } catch {}
+        }
         if (typeof window !== 'undefined') {
           document.cookie = `accessToken=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
           localStorage.setItem('accessToken', token);

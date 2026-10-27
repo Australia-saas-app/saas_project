@@ -189,6 +189,21 @@ export default function WithdrawalRequestsLayout() {
   const reduxToken = useAppSelector((state: any) => state.auth?.token);
   const adminUser = useAppSelector((state: any) => state.auth?.user);
 
+  const [mountedToken, setMountedToken] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const t =
+        reduxToken ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        getCookie("accessToken") ||
+        getCookie("token") ||
+        "";
+      if (t) setMountedToken(t);
+    }
+  }, [reduxToken]);
+
   const getEffectiveToken = useCallback(() => {
     if (reduxToken) return reduxToken;
     if (typeof window !== "undefined") {
@@ -200,7 +215,7 @@ export default function WithdrawalRequestsLayout() {
     return "";
   }, [reduxToken]);
 
-  const activeToken = getEffectiveToken();
+  const activeToken = reduxToken || mountedToken || getEffectiveToken();
 
   const [activeTab, setActiveTab] = useState<"ALL" | "USER" | "BUSINESS" | "AFFILIATE">("ALL");
   const [search, setSearch] = useState("");
@@ -245,7 +260,7 @@ export default function WithdrawalRequestsLayout() {
         if (res.ok) {
           const json = await res.json();
           const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
-          if (Array.isArray(list) && list.length > 0) {
+          if (Array.isArray(list)) {
             return list;
           }
         }
@@ -260,7 +275,7 @@ export default function WithdrawalRequestsLayout() {
         if (res.ok) {
           const json = await res.json();
           const list = json?.data?.transactions || json?.data?.withdrawals || json?.data || [];
-          if (Array.isArray(list) && list.length > 0) {
+          if (Array.isArray(list)) {
             return list;
           }
         }

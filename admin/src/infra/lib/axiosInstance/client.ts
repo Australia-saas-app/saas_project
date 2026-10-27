@@ -13,10 +13,14 @@ if (process.env.NODE_ENV === 'development') {
 
 axiosInstanceClient.interceptors.request.use(
     function (config) {
-        const accessToken = getCookie("accessToken");
+        let accessToken = getCookie("accessToken") || getCookie("token") || getCookie("auth_token");
+        if (!accessToken && typeof window !== 'undefined') {
+            accessToken = localStorage.getItem("accessToken") || localStorage.getItem("token");
+        }
         // Only attach Authorization if it isn't already explicitly set
         if (accessToken && !(config.headers && "Authorization" in config.headers)) {
-            config.headers.Authorization = accessToken.startsWith("Bearer ") ? accessToken : `Bearer ${accessToken}`;
+            const tokenClean = accessToken.trim();
+            config.headers.Authorization = tokenClean.startsWith("Bearer ") ? tokenClean : `Bearer ${tokenClean}`;
         }
         return config;
     },

@@ -83,30 +83,65 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
 
     const fetchPendingWithdrawals = async () => {
       try {
+        const effectiveToken =
+          token ||
+          (typeof window !== "undefined"
+            ? localStorage.getItem("accessToken") || localStorage.getItem("token")
+            : null);
+        if (!effectiveToken) return;
+
         let count = 0;
         let fetched = false;
+        const authHeader = effectiveToken.startsWith("Bearer ")
+          ? effectiveToken
+          : `Bearer ${effectiveToken}`;
 
-        // 1. Try Backend API
-        const endpoints = [
-          "/sso/wallet/admin/withdrawals",
-          "/sso/wallet/transactions?all=true&type=WITHDRAWAL",
-          "/payment/withdrawals/admin/requests",
-          "/payment/withdrawals/all",
-          "/payment/admin/withdrawals",
-        ];
-
-        for (const ep of endpoints) {
+        // 1. Fetch real withdrawals from SSO backend
+        try {
+          const res = await axiosInstanceClient.get("/sso/wallet/admin/withdrawals", {
+            headers: { Authorization: authHeader },
+            timeout: 5000,
+          });
+          const data =
+            res.data?.data?.transactions ||
+            res.data?.data ||
+            res.data?.withdrawals ||
+            res.data ||
+            [];
+          if (Array.isArray(data)) {
+            const pendingRows = data.filter((w: any) => {
+              const s = String(w.status || "").toLowerCase();
+              const t = String(w.type || "").toUpperCase();
+              const isWithdraw = !t || t.includes("WITHDRAW");
+              return isWithdraw && s === "pending";
+            });
+            count = pendingRows.length;
+            fetched = true;
+          }
+        } catch (err: any) {
+          // If admin endpoint fails, try transactions fallback
           try {
-            const res = await axiosInstanceClient.get(ep, { timeout: 4000 });
-            const data = res.data?.data?.transactions || res.data?.data || res.data?.withdrawals || res.data || [];
-            if (Array.isArray(data) && data.length > 0) {
+            const res = await axiosInstanceClient.get(
+              "/sso/wallet/transactions?all=true&type=WITHDRAWAL",
+              {
+                headers: { Authorization: authHeader },
+                timeout: 5000,
+              }
+            );
+            const data =
+              res.data?.data?.transactions ||
+              res.data?.data ||
+              res.data?.withdrawals ||
+              res.data ||
+              [];
+            if (Array.isArray(data)) {
               const pendingRows = data.filter((w: any) => {
                 const s = String(w.status || "").toLowerCase();
                 const t = String(w.type || "").toUpperCase();
                 const isWithdraw = !t || t.includes("WITHDRAW");
                 return isWithdraw && s === "pending";
               });
-              count = Math.max(count, pendingRows.length);
+              count = pendingRows.length;
               fetched = true;
             }
           } catch {}
@@ -138,7 +173,7 @@ const AccountSidebarChildren = ({ isOpen, onToggle }: { isOpen: boolean, onToggl
     };
 
     fetchPendingWithdrawals();
-    const interval = setInterval(fetchPendingWithdrawals, 4000);
+    const interval = setInterval(fetchPendingWithdrawals, 5000);
 
     const handleWithdrawalUpdated = (e: Event) => {
       const detail = (e as CustomEvent)?.detail;
