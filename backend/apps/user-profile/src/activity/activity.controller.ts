@@ -39,7 +39,9 @@ export class ActivityController {
     description: 'Activities retrieved successfully',
   })
   getActivities(@Request() req: UserRequest, @Query() query: ActivityQueryDto) {
-    return this.activityService.getActivities(req.user.userId, query);
+    const userId = req.user?.userId || (req.user as any)?.id;
+    const email = req.user?.email;
+    return this.activityService.getActivities(userId, query, email);
   }
 
   @Post('internal')
@@ -56,6 +58,13 @@ export class ActivityController {
       body.ipAddress || '127.0.0.1',
       body.userAgent || 'Internal-Backend'
     );
+  }
+
+  @Delete('internal/single/:id')
+  @ApiOperation({ summary: 'Internal backend-to-backend single activity deletion' })
+  async deleteInternalSingleActivity(@Param('id') id: string) {
+    await this.activityService.deleteActivity('', id);
+    return { success: true };
   }
 
   @Delete('internal/:userId')
@@ -103,7 +112,9 @@ export class ActivityController {
     description: 'Activity deleted successfully',
   })
   async deleteActivity(@Request() req: UserRequest, @Param('id') id: string) {
-    await this.activityService.deleteActivity(req.user.userId, id);
+    const userId = req.user?.userId || (req.user as any)?.id;
+    const email = req.user?.email;
+    await this.activityService.deleteActivity(userId, id, email);
     return { success: true };
   }
 
@@ -116,7 +127,9 @@ export class ActivityController {
     description: 'All activities deleted successfully',
   })
   async deleteAllActivities(@Request() req: UserRequest) {
-    await this.activityService.deleteAllActivities(req.user.userId);
+    const userId = req.user?.userId || (req.user as any)?.id;
+    const email = req.user?.email;
+    await this.activityService.deleteAllActivities(userId, email);
     return { success: true };
   }
 

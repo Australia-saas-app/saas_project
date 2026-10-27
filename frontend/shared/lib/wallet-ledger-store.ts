@@ -17,7 +17,7 @@ export interface WalletLedgerRecord {
   amount: string
   method: string
   note?: string
-  status: "Pending" | "Processing" | "Complete" | "Held" | "Released" | "Failed"
+  status: "Pending" | "Processing" | "Complete" | "Completed" | "Held" | "Released" | "Failed" | "Rejected" | "Reject"
   date: string
 }
 

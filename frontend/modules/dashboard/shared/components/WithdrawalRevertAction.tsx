@@ -98,29 +98,60 @@ export default function WithdrawalRevertAction({
     try {
       await revertWithdrawalRequest(withdrawal.id, withdrawal.amount, withdrawal.userId);
 
-      // Record activity log with user metadata
-      const uEmail = user && "email" in user && user.email ? String(user.email).trim() : "";
-      const uName =
-        user && "name" in user && user.name
+      // Format amount cleanly
+      const amtStr = typeof withdrawal.amount === "number"
+        ? `$${withdrawal.amount.toFixed(2)}`
+        : String(withdrawal.amount).startsWith("$")
+        ? withdrawal.amount
+        : `$${withdrawal.amount}`;
+
+      // Resolve user metadata
+      let effectiveUserId = withdrawal.userId && withdrawal.userId !== "user" ? withdrawal.userId : "";
+      let effectiveEmail = user && "email" in user && user.email ? String(user.email).trim() : "";
+      let effectiveName =
+        user && "firstName" in user && user.firstName
+          ? `${user.firstName} ${(user as any).lastName || ""}`.trim()
+          : user && "name" in user && user.name
           ? String(user.name).trim()
           : user && "fullName" in user && user.fullName
           ? String(user.fullName).trim()
-          : "User";
-      const uId = withdrawal.userId || (user && "id" in user ? String(user.id) : "") || uEmail || "user";
+          : "";
+
+      if (!effectiveUserId && user) {
+        effectiveUserId = (user as any).id || (user as any).userId || (user as any)._id || (user as any).sub || "";
+      }
+
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+          if (stored) {
+            const u = JSON.parse(stored);
+            if (!effectiveUserId) effectiveUserId = u.id || u.userId || u._id || u.sub || "";
+            if (!effectiveEmail && u.email) effectiveEmail = u.email;
+            if (!effectiveName) {
+              effectiveName = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "";
+            }
+          }
+        } catch {}
+      }
+
+      if (!effectiveName) effectiveName = effectiveEmail || "User";
+      if (!effectiveUserId) effectiveUserId = effectiveEmail || "user";
       const uRole = String((user as any)?.role || (user as any)?.accountType || "USER").toUpperCase();
 
       try {
         await recordRealActivity(
           "WITHDRAWAL_REVERTED",
-          `Reverted withdrawal request ${withdrawal.id} (${withdrawal.amount}). Funds restored to wallet balance.`,
+          `Reverted withdrawal request ${withdrawal.id} (${amtStr}). Funds restored to wallet balance.`,
           {
-            userId: uId,
-            email: uEmail,
-            name: uName,
-            id: withdrawal.id,
+            userId: effectiveUserId,
+            email: effectiveEmail,
+            name: effectiveName,
           }
         );
-      } catch {}
+      } catch (logErr) {
+        console.error("Failed to record WITHDRAWAL_REVERTED log:", logErr);
+      }
 
       // Add revert notification for user and admin
       if (typeof window !== "undefined") {
@@ -136,12 +167,12 @@ export default function WithdrawalRevertAction({
             data: {
               requestId: withdrawal.id,
               amount: withdrawal.amount,
-              userId: uId,
+              userId: effectiveUserId,
             },
           };
 
-          const storageKeys = ["app_notifs_all", `app_notifs_${uId}`, `app_notifs_${uRole.toLowerCase()}`];
-          if (uEmail) storageKeys.push(`app_notifs_${uEmail}`);
+          const storageKeys = ["app_notifs_all", `app_notifs_${effectiveUserId}`, `app_notifs_${uRole.toLowerCase()}`];
+          if (effectiveEmail) storageKeys.push(`app_notifs_${effectiveEmail}`);
           storageKeys.forEach((key) => {
             try {
               const existing = JSON.parse(localStorage.getItem(key) || "[]");

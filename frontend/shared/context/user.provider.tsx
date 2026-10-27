@@ -72,13 +72,18 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
         bc.onmessage = (ev) => {
           if (ev.data?.type === "USER_LOGGED_OUT") {
             setUser(null);
-          } else if (ev.data?.type === "vero:user_status_updated" || ev.data?.type === "vero:account_changed") {
+          } else if (
+            ev.data?.type === "vero:user_status_updated" ||
+            ev.data?.type === "vero:account_changed" ||
+            ev.data?.type === "vero:kyc_updated"
+          ) {
             handleStatusSync();
           }
         };
       }
       window.addEventListener("vero:user_status_updated", handleStatusSync);
       window.addEventListener("vero:account_changed", handleStatusSync);
+      window.addEventListener("vero:kyc_updated", handleStatusSync);
     } catch {}
 
     return () => {
@@ -87,6 +92,7 @@ const UserProvider = ({ children }: { children: ReactNode }) => {
       if (typeof window !== "undefined") {
         window.removeEventListener("vero:user_status_updated", handleStatusSync);
         window.removeEventListener("vero:account_changed", handleStatusSync);
+        window.removeEventListener("vero:kyc_updated", handleStatusSync);
       }
     };
   }, []);

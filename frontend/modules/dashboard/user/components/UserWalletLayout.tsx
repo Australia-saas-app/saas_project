@@ -56,6 +56,7 @@ export default function UserWalletLayout() {
           date: row.date,
           createdAt: row.createdAt || row.date,
           status: status as any,
+          rejectionReason: (row as any).rejectionReason || (row as any).failureReason,
         } as any;
       });
       return stored;
@@ -98,6 +99,7 @@ export default function UserWalletLayout() {
           date: row.date,
           createdAt: row.createdAt || row.date,
           status: status as any,
+          rejectionReason: (row as any).rejectionReason || (row as any).failureReason,
         } as any;
       });
 
@@ -120,6 +122,7 @@ export default function UserWalletLayout() {
           date: d.date,
           createdAt: d.createdAt || d.date,
           status: status as any,
+          rejectionReason: (d as any).rejectionReason || (d as any).failureReason,
         } as any);
       }
 

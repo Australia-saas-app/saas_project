@@ -27,15 +27,12 @@ const ProfileLayout = () => {
   const pathname = usePathname()
 
   const resolveActiveTab = (): ProfileTabId => {
-    const match = ProfileTabs.find(
-      (tab) =>
-        pathname === tab.url ||
-        pathname === `/dashboard${tab.url}` ||
-        pathname.endsWith(tab.url) ||
-        pathname.endsWith(`/${tab.id}`) ||
-        pathname.includes(`/${tab.id}`)
-    )
-    return match?.id ?? ProfileTabs[0].id
+    const cleanPath = (pathname || "").toLowerCase().replace(/\/+$/, "")
+    const normalized = cleanPath.replace(/^\/dashboard/, "")
+    if (normalized.endsWith("/user-log") || cleanPath.endsWith("/user-log") || cleanPath.includes("/user-log")) {
+      return "user-log"
+    }
+    return "profile"
   }
 
   const [activeTab, setActiveTab] = useState<ProfileTabId>(resolveActiveTab)
@@ -70,15 +67,7 @@ const ProfileLayout = () => {
   }
 
   useEffect(() => {
-    const match = ProfileTabs.find(
-      (tab) =>
-        pathname === tab.url ||
-        pathname === `/dashboard${tab.url}` ||
-        pathname.endsWith(tab.url) ||
-        pathname.endsWith(`/${tab.id}`) ||
-        pathname.includes(`/${tab.id}`)
-    )
-    setActiveTab(match?.id ?? ProfileTabs[0].id)
+    setActiveTab(resolveActiveTab())
   }, [pathname])
 
   const ActiveComponent = TAB_COMPONENTS[activeTab] ?? TAB_COMPONENTS.profile

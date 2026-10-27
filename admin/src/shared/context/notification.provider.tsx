@@ -164,14 +164,71 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     if (fetchSuccess) {
       let hasNewUnread = false;
+
+      // Gather any locally queued admin notifications (e.g. from user withdrawal submissions)
+      const localAdminItems: NotificationItem[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          ["admin_notifications", "app_notifs_admin"].forEach((key) => {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((n: any) => {
+                  if (n && n.id) {
+                    localAdminItems.push({
+                      id: String(n.id),
+                      title: n.title,
+                      message: n.message || n.description || "",
+                      createdAt: n.createdAt || new Date().toISOString(),
+                      time: n.time || formatNotificationTime(n.createdAt),
+                      read: Boolean(n.read),
+                      href: n.href,
+                      role: n.role || "admin",
+                      targetRole: n.targetRole || "admin",
+                      type: n.type || "withdrawal_request",
+                      data: n.data,
+                    });
+                  }
+                });
+              }
+            }
+          });
+        } catch {}
+      }
+
+      // Merge remote + local, deduplicated by id or title/message
+      const map = new Map<string, NotificationItem>();
       remoteNotifs.forEach((item) => {
+        if (item && item.id) map.set(String(item.id), item);
+      });
+      localAdminItems.forEach((item) => {
+        if (item && item.id) {
+          const isDup = Array.from(map.values()).some((existing) => {
+            if (existing.id === item.id) return true;
+            if (existing.title === item.title && existing.message === item.message) {
+              return true;
+            }
+            return false;
+          });
+          if (!isDup) {
+            map.set(String(item.id), item);
+          }
+        }
+      });
+
+      const mergedList = Array.from(map.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+
+      mergedList.forEach((item) => {
         if (triggerToast && !knownAdminIdsRef.has(String(item.id)) && !item.read) {
           hasNewUnread = true;
         }
         knownAdminIdsRef.add(String(item.id));
       });
 
-      setItems(remoteNotifs);
+      setItems(mergedList);
 
       if (hasNewUnread) {
         toast.info("You have received a new notification", { duration: 5000 });
@@ -182,10 +239,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (typeof window !== "undefined") {
         try {
           if (userId) {
-            localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(remoteNotifs));
+            localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(mergedList));
           }
-          localStorage.removeItem("admin_notifications");
-          localStorage.removeItem("app_notifs_admin");
         } catch {}
       }
       return;
@@ -241,6 +296,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (userId) {
         try { localStorage.setItem(`admin_notifs_${userId}`, JSON.stringify(next)); } catch {}
       }
+      try {
+        const existingAdmin = JSON.parse(localStorage.getItem("admin_notifications") || "[]");
+        const deduped = [entry, ...existingAdmin.filter((x: any) => String(x.id) !== String(entry.id))].slice(0, 50);
+        localStorage.setItem("admin_notifications", JSON.stringify(deduped));
+      } catch {}
       return next;
     });
 
@@ -274,6 +334,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         bc.onmessage = (event) => {
           if (event.data?.type === "vero:new_notification" && event.data.payload) {
             const p = event.data.payload;
+            const targetRole = String(p.targetRole || p.role || event.data.targetRole || "").toLowerCase();
+            const targetUserId = String(p.targetUserId || event.data.targetUserId || "").toLowerCase();
+            // Filter out notifications strictly addressed to non-admin end users
+            if ((targetRole.includes("user") || targetRole.includes("business") || targetRole.includes("affiliate")) && !targetRole.includes("admin")) {
+              return;
+            }
+            if (targetUserId && targetUserId !== "admin" && userId && targetUserId !== String(userId).toLowerCase()) {
+              return;
+            }
             if (!knownAdminIdsRef.has(String(p.id))) {
               notify(p, false);
             }
@@ -291,8 +360,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (e.key === "vero_notif_sync" && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          if (parsed.item && !knownAdminIdsRef.has(String(parsed.item.id))) {
-            notify(parsed.item, false);
+          if (parsed.item) {
+            const p = parsed.item;
+            const targetRole = String(p.targetRole || p.role || parsed.targetRole || "").toLowerCase();
+            const targetUserId = String(p.targetUserId || parsed.targetUserId || "").toLowerCase();
+            if ((targetRole.includes("user") || targetRole.includes("business") || targetRole.includes("affiliate")) && !targetRole.includes("admin")) {
+              return;
+            }
+            if (targetUserId && targetUserId !== "admin" && userId && targetUserId !== String(userId).toLowerCase()) {
+              return;
+            }
+            if (!knownAdminIdsRef.has(String(p.id))) {
+              notify(p, false);
+            }
           }
         } catch {}
       }

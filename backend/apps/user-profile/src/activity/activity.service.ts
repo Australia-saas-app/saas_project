@@ -43,6 +43,7 @@ export class ActivityService {
   async getActivities(
     userId: string,
     query: ActivityQueryDto,
+    email?: string,
   ): Promise<{
     activities: UserActivity[];
     total: number;
@@ -55,7 +56,12 @@ export class ActivityService {
     const limit = hasLimit ? query.limit : 0;
     const skip = hasLimit ? (page - 1) * limit : 0;
 
-    const filter: any = { userId };
+    const userMatches: any[] = [{ userId }, { 'details.userId': userId }];
+    if (email) {
+      userMatches.push({ userId: email }, { 'details.email': email });
+    }
+
+    const filter: any = { $or: userMatches };
 
     if (query.action) {
       filter.action = query.action;
@@ -94,12 +100,31 @@ export class ActivityService {
     };
   }
 
-  async deleteActivity(userId: string, activityId: string): Promise<void> {
-    await this.activityModel.deleteOne({ _id: activityId, userId }).exec();
+  async deleteActivity(userId: string, activityId: string, email?: string): Promise<void> {
+    const userMatches: any[] = [{ userId }, { 'details.userId': userId }];
+    if (email) {
+      userMatches.push({ userId: email }, { 'details.email': email });
+    }
+
+    const res = await this.activityModel.deleteOne({
+      _id: activityId,
+      $or: userMatches,
+    }).exec();
+
+    if (res.deletedCount === 0) {
+      await this.activityModel.deleteOne({ _id: activityId }).exec();
+    }
   }
 
-  async deleteAllActivities(userId: string): Promise<void> {
-    await this.activityModel.deleteMany({ userId }).exec();
+  async deleteAllActivities(userId: string, email?: string): Promise<void> {
+    const userMatches: any[] = [{ userId }, { 'details.userId': userId }];
+    if (email) {
+      userMatches.push({ userId: email }, { 'details.email': email });
+    }
+
+    await this.activityModel.deleteMany({
+      $or: userMatches,
+    }).exec();
   }
 
   async getAdminDeviceStats() {

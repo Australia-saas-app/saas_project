@@ -4,6 +4,7 @@ import {
   deleteActivityFromServer,
   deleteAllActivitiesFromServer,
 } from "@/src/shared/server/AuthService";
+import axiosInstance from "@/src/shared/lib/axiosInstance";
 
 export interface RealLogEntry {
   id: string;
@@ -38,58 +39,66 @@ function formatBackendLog(log: any): RealLogEntry {
   };
 }
 
-const LOGS_STORAGE_KEY = "platform_user_activity_logs";
-
-export function getStoredLogs(): RealLogEntry[] {
-  if (typeof window === "undefined") return [];
+export async function getLogsForUser(_userId?: string): Promise<RealLogEntry[]> {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("platform_user_activity_logs");
+      localStorage.removeItem("platform_activity_logs");
+    } catch {}
+  }
   try {
-    const raw = localStorage.getItem(LOGS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
+    const activities = await getLogsFromServer();
+    if (Array.isArray(activities) && activities.length > 0) {
+      return activities.map(formatBackendLog);
+    }
+    // Fallback directly from client-side if server action had no cookies
+    if (typeof window !== "undefined") {
+      try {
+        const { data } = await axiosInstance.get("/user-profile-service/activity");
+        const list = data?.activities || data?.data?.activities || [];
+        if (Array.isArray(list) && list.length > 0) {
+          return list.map(formatBackendLog);
+        }
+      } catch {}
+    }
+    return (activities || []).map(formatBackendLog);
+  } catch (error) {
+    if (typeof window !== "undefined") {
+      try {
+        const { data } = await axiosInstance.get("/user-profile-service/activity");
+        const list = data?.activities || data?.data?.activities || [];
+        return (list || []).map(formatBackendLog);
+      } catch {}
+    }
+    console.error("Failed to fetch activity logs", error);
     return [];
   }
 }
 
-export function saveStoredLogs(logs: RealLogEntry[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs.slice(0, 100)));
-  } catch {}
-}
+let cachedClientIp: string | null = null;
 
-export async function getLogsForUser(_userId?: string): Promise<RealLogEntry[]> {
-  if (typeof window === "undefined") return [];
-  const local = getStoredLogs();
+export async function getRealClientIp(): Promise<string> {
+  if (cachedClientIp) return cachedClientIp;
+  if (typeof window === "undefined") return "127.0.0.1";
   try {
-    const activities = await getLogsFromServer();
-    const mapped = (activities || []).map(formatBackendLog);
-    const map = new Map<string, RealLogEntry>();
-    for (const m of mapped) {
-      if (m && m.id) map.set(m.id, m);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const ipRes = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+    clearTimeout(timeout);
+    const ipData = await ipRes.json();
+    if (ipData?.ip && typeof ipData.ip === "string") {
+      cachedClientIp = ipData.ip;
+      return ipData.ip;
     }
-    for (const l of local) {
-      if (l && l.id && !map.has(l.id)) map.set(l.id, l);
-    }
-    const combined = Array.from(map.values()).sort((a, b) => {
-      const tA = new Date(a.createdAt).getTime();
-      const tB = new Date(b.createdAt).getTime();
-      return tB - tA;
-    });
-    saveStoredLogs(combined);
-    return combined;
-  } catch (error) {
-    console.warn("Using locally cached activity logs", error);
-    return local;
-  }
+  } catch {}
+  return "127.0.0.1";
 }
 
 export async function recordRealActivity(
   action: string,
   details: string,
   userOrEmail?: string | { email?: string; userId?: string; id?: string; name?: string; fullName?: string; firstName?: string },
-  ipAddress = "127.0.0.1"
+  ipAddress?: string
 ): Promise<RealLogEntry | null> {
   let userId = "user";
   let username = "User";
@@ -128,15 +137,8 @@ export async function recordRealActivity(
 
   try {
     let resolvedIp = ipAddress;
-    if (ipAddress === "127.0.0.1" && typeof window !== "undefined") {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 300);
-        const ipRes = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
-        clearTimeout(timeout);
-        const ipData = await ipRes.json();
-        if (ipData.ip) resolvedIp = ipData.ip;
-      } catch {}
+    if (!resolvedIp || resolvedIp === "127.0.0.1") {
+      resolvedIp = await getRealClientIp();
     }
 
     const payload: Record<string, unknown> = {
@@ -158,7 +160,7 @@ export async function recordRealActivity(
     await logActivityToServer(payload);
 
     const localLog: RealLogEntry = {
-      id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      id: "pending",
       userId,
       username,
       email,
@@ -169,15 +171,13 @@ export async function recordRealActivity(
     };
 
     if (typeof window !== "undefined") {
-      const current = getStoredLogs();
-      saveStoredLogs([localLog, ...current]);
       window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT, { detail: localLog }));
       window.dispatchEvent(new Event("activity_logs_updated"));
 
       try {
         if ("BroadcastChannel" in window) {
-          const bc = new BroadcastChannel("activity_channel");
-          bc.postMessage({ type: "activity_logs_updated", detail: localLog });
+          const bc = new BroadcastChannel("vero_channel");
+          bc.postMessage({ type: "vero:log_added", userId });
           bc.close();
         }
       } catch {}
@@ -189,26 +189,68 @@ export async function recordRealActivity(
   }
 }
 
-export async function deleteSingleLog(_userId: string, logId: string): Promise<void> {
+export async function deleteSingleLog(userId: string, logId: string): Promise<void> {
+  let deleted = false;
   try {
-    await deleteActivityFromServer(logId);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
+    const res = await deleteActivityFromServer(logId);
+    if (res) deleted = true;
+  } catch {}
+
+  if (!deleted && typeof window !== "undefined") {
+    try {
+      await axiosInstance.delete(`/user-profile-service/activity/${encodeURIComponent(logId)}`);
+      deleted = true;
+    } catch {
+      try {
+        await axiosInstance.delete(`/user-profile-service/activity/internal/single/${encodeURIComponent(logId)}`);
+        deleted = true;
+      } catch {}
     }
-  } catch (error) {
-    console.error("Failed to delete log", error);
-    throw error;
+  }
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
+    window.dispatchEvent(new Event("activity_logs_updated"));
+
+    try {
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({ type: "vero:log_added", action: "delete", logId, userId });
+        bc.close();
+      }
+    } catch {}
   }
 }
 
-export async function deleteAllLogs(_userId: string): Promise<void> {
+export async function deleteAllLogs(userId: string): Promise<void> {
+  let deleted = false;
   try {
-    await deleteAllActivitiesFromServer();
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
+    const res = await deleteAllActivitiesFromServer();
+    if (res) deleted = true;
+  } catch {}
+
+  if (!deleted && typeof window !== "undefined") {
+    try {
+      await axiosInstance.delete("/user-profile-service/activity");
+      deleted = true;
+    } catch {
+      try {
+        await axiosInstance.delete(`/user-profile-service/activity/internal/${encodeURIComponent(userId)}`);
+        deleted = true;
+      } catch {}
     }
-  } catch (error) {
-    console.error("Failed to delete all logs", error);
-    throw error;
+  }
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(LOG_ADDED_EVENT));
+    window.dispatchEvent(new Event("activity_logs_updated"));
+
+    try {
+      if ("BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("vero_channel");
+        bc.postMessage({ type: "vero:log_added", action: "delete_all", userId });
+        bc.close();
+      }
+    } catch {}
   }
 }

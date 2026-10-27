@@ -53,6 +53,27 @@ export class NotificationsService {
       href: savedNotification.data?.href,
     });
 
+    if (
+      userId === 'admin' ||
+      (createNotificationDto as any).targetRole === 'admin' ||
+      (createNotificationDto as any).role === 'admin'
+    ) {
+      this.notificationsGateway.sendToRole('admin', {
+        id: savedNotification.id,
+        title: savedNotification.title,
+        message: savedNotification.message,
+        type: savedNotification.type,
+        href: savedNotification.data?.href,
+      });
+      this.notificationsGateway.sendToRole('ADMIN', {
+        id: savedNotification.id,
+        title: savedNotification.title,
+        message: savedNotification.message,
+        type: savedNotification.type,
+        href: savedNotification.data?.href,
+      });
+    }
+
     return {
       success: true,
       data: savedNotification,

@@ -376,9 +376,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         let hasNewUnread = false;
 
+        // Gather any locally cached notifications for the user
+        const localCached: NotificationItem[] = [];
+        if (typeof window !== "undefined") {
+          try {
+            const keys = ["app_notifs_all"];
+            if (userId) keys.push(`app_notifs_${userId}`);
+            if (userEmail) {
+              keys.push(`app_notifs_${userEmail}`);
+              keys.push(`app_notifs_${userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
+            }
+            keys.forEach((k) => {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach((item: any) => {
+                    if (item && item.id) localCached.push(item);
+                  });
+                }
+              }
+            });
+          } catch {}
+        }
+
         setItems((prev) => {
           const map = new Map<string, NotificationItem>();
-          [...fetchedItems, ...prev].forEach((item) => {
+          [...fetchedItems, ...localCached, ...prev].forEach((item) => {
             if (item && item.id && !deletedIds.has(String(item.id))) {
               const itemTime = new Date(item.createdAt || item.time || 0).getTime();
               if (clearedTs && itemTime && itemTime <= clearedTs) return;
@@ -423,7 +447,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Resilient background poll
     const pollInterval = setInterval(() => {
       fetchNotifications(true);
-    }, 12000);
+    }, 4000);
 
     const handleFocus = () => fetchNotifications(true);
     window.addEventListener("focus", handleFocus);
@@ -452,8 +476,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         bc.onmessage = (event) => {
           if (event.data?.type === "vero:new_notification" && event.data.payload) {
             const p = event.data.payload;
-            const targetE = (event.data.targetEmail || p.recipientEmail || "").trim().toLowerCase();
-            if (targetE && userEmail && targetE !== userEmail) return;
+            const targetRole = String(p.targetRole || p.role || event.data.targetRole || "").toLowerCase();
+            if (targetRole === "admin" && (!role || role.toLowerCase() !== "admin")) return;
+
+            const targetE = (event.data.targetEmail || p.recipientEmail || p.targetEmail || "").trim().toLowerCase();
+            const targetU = String(event.data.targetUserId || p.targetUserId || p.userId || "").trim();
+            const myU = String(userId || "").trim();
+            const myE = String(userEmail || "").trim().toLowerCase();
+
+            if (targetE && myE && targetE !== myE) {
+              if (!targetU || !myU || targetU !== myU) return;
+            }
+            if (targetU && myU && targetU !== myU) {
+              if (!targetE || !myE || targetE !== myE) return;
+            }
+
             const deletedIds = getDeletedIds(userEmail);
             if (!deletedIds.has(String(p.id)) && !knownIdsRef.has(String(p.id))) {
               notify(p, false);
@@ -474,11 +511,27 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (e.key === "vero_notif_sync" && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          const targetE = (parsed.targetEmail || parsed.item?.recipientEmail || "").trim().toLowerCase();
-          if (targetE && userEmail && targetE !== userEmail) return;
-          const deletedIds = getDeletedIds(userEmail);
-          if (parsed.item && !deletedIds.has(String(parsed.item.id)) && !knownIdsRef.has(String(parsed.item.id))) {
-            notify(parsed.item, false);
+          if (parsed.item) {
+            const p = parsed.item;
+            const targetRole = String(p.targetRole || p.role || parsed.targetRole || "").toLowerCase();
+            if (targetRole === "admin" && (!role || role.toLowerCase() !== "admin")) return;
+
+            const targetE = (parsed.targetEmail || p.recipientEmail || p.targetEmail || "").trim().toLowerCase();
+            const targetU = String(parsed.targetUserId || p.targetUserId || p.userId || "").trim();
+            const myU = String(userId || "").trim();
+            const myE = String(userEmail || "").trim().toLowerCase();
+
+            if (targetE && myE && targetE !== myE) {
+              if (!targetU || !myU || targetU !== myU) return;
+            }
+            if (targetU && myU && targetU !== myU) {
+              if (!targetE || !myE || targetE !== myE) return;
+            }
+
+            const deletedIds = getDeletedIds(userEmail);
+            if (!deletedIds.has(String(p.id)) && !knownIdsRef.has(String(p.id))) {
+              notify(p, false);
+            }
           }
         } catch {}
       }
@@ -487,10 +540,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const handleCustomEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) {
-        const targetE = (detail.targetEmail || detail.recipientEmail || "").trim().toLowerCase();
-        if (targetE && userEmail && targetE !== userEmail) return;
+        const targetRole = String(detail.targetRole || detail.role || "").toLowerCase();
+        if (targetRole === "admin" && (!role || role.toLowerCase() !== "admin")) return;
+
+        const targetE = (detail.targetEmail || detail.recipientEmail || detail.targetEmail || "").trim().toLowerCase();
+        const targetU = String(detail.targetUserId || detail.userId || "").trim();
+        const myU = String(userId || "").trim();
+        const myE = String(userEmail || "").trim().toLowerCase();
+
+        if (targetE && myE && targetE !== myE) {
+          if (!targetU || !myU || targetU !== myU) return;
+        }
+        if (targetU && myU && targetU !== myU) {
+          if (!targetE || !myE || targetE !== myE) return;
+        }
+
         const deletedIds = getDeletedIds(userEmail);
-        if (!deletedIds.has(String(detail.id))) {
+        if (!deletedIds.has(String(detail.id)) && !knownIdsRef.has(String(detail.id))) {
           notify(detail, false);
         }
       }
@@ -506,7 +572,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("vero:new_notification", handleCustomEvent);
       if (bc) bc.close();
     };
-  }, [notify, knownIdsRef, userEmail]);
+  }, [notify, knownIdsRef, userEmail, userId, role]);
 
   // Connect to Notification WebSocket for live instant notifications
   useEffect(() => {

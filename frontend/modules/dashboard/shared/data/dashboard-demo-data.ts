@@ -32,6 +32,10 @@ export interface WithdrawRow {
   amount: string
   date: string
   status: string
+  rejectionReason?: string
+  failureReason?: string
+  createdAt?: string
+  userId?: string
 }
 
 export interface EarningRow {

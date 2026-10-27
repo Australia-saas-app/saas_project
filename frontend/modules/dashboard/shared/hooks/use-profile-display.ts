@@ -467,8 +467,16 @@ export function useProfileDisplay() {
           recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
         }
 
+        const KYC_EXCLUDED_KEYS = new Set([
+          'avatarUrl', 'documentUrl', 'documentFrontUrl', 'documentBackUrl',
+          'governmentIdType', 'nationalIdentity', 'kycStatus', 'twoFactorEnabled',
+          'twoFactorMethod', 'resubmitted', 'unverifiedByAdmin', 'permanentAddress',
+          'kycApplicationData', 'kycRejectionReasons', 'kycRejectionReason',
+          'rejectionReasons', 'rejectionReason', 'verifiedAt'
+        ]);
+
         const hasAddressUpdates = patch.permanentAddress !== undefined;
-        const hasPersonalUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'nationalIdentity' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted' && k !== 'permanentAddress');
+        const hasPersonalUpdates = Object.keys(patch).some(k => !KYC_EXCLUDED_KEYS.has(k));
         
         if (hasAddressUpdates) {
           recordRealActivity("PROFILE_UPDATED", "User updated account address information", { userId: rawUserId, email, name: fullName });
@@ -481,8 +489,16 @@ export function useProfileDisplay() {
           recordRealActivity("PHOTO_UPLOADED", "User updated profile photo", { userId: rawUserId, email, name: fullName });
         }
 
+        const KYC_EXCLUDED_KEYS = new Set([
+          'avatarUrl', 'documentUrl', 'documentFrontUrl', 'documentBackUrl',
+          'governmentIdType', 'nationalIdentity', 'kycStatus', 'twoFactorEnabled',
+          'twoFactorMethod', 'resubmitted', 'unverifiedByAdmin', 'permanentAddress',
+          'kycApplicationData', 'kycRejectionReasons', 'kycRejectionReason',
+          'rejectionReasons', 'rejectionReason', 'verifiedAt'
+        ]);
+
         const hasAddressUpdates = patch.permanentAddress !== undefined;
-        const hasPersonalUpdates = Object.keys(patch).some(k => k !== 'avatarUrl' && k !== 'documentUrl' && k !== 'governmentIdType' && k !== 'nationalIdentity' && k !== 'kycStatus' && k !== 'twoFactorEnabled' && k !== 'twoFactorMethod' && k !== 'resubmitted' && k !== 'permanentAddress');
+        const hasPersonalUpdates = Object.keys(patch).some(k => !KYC_EXCLUDED_KEYS.has(k));
         
         if (hasAddressUpdates) {
           recordRealActivity("PROFILE_UPDATED", "User updated account address information", { userId: rawUserId, email, name: fullName });

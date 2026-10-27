@@ -7,7 +7,7 @@
 /** Cached real IP so we don't hammer ipify on every action */
 let cachedIp: string | null = null;
 
-async function getRealIp(): Promise<string> {
+export async function getRealIp(): Promise<string> {
   if (cachedIp) return cachedIp;
   try {
     const controller = new AbortController();

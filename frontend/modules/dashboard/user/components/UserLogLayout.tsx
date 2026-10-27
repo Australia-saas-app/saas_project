@@ -95,14 +95,17 @@ export default function UserLogLayout() {
 
   const confirmDeleteLog = async (id: string) => {
     setIsDeletingSingle(id);
+    const prevLogs = logs;
+    // Optimistic removal for instant responsiveness
+    setLogs((prev) => prev.filter((l) => l.id !== id));
     try {
-      await new Promise((res) => setTimeout(res, 400));
       await deleteSingleLog(userId, id);
       const updated = await getLogsForUser(userId);
       setLogs(updated);
       toast.success("Log entry deleted successfully");
     } catch {
       toast.error("Failed to delete log entry");
+      setLogs(prevLogs);
     } finally {
       setIsDeletingSingle(null);
     }
@@ -110,17 +113,21 @@ export default function UserLogLayout() {
 
   const handleDeleteAllLogs = async () => {
     setIsDeletingAll(true);
+    const prevLogs = logs;
+    // Optimistic removal for instant responsiveness
+    setLogs([]);
+    setShowDeleteAllConfirm(false);
     try {
-      await new Promise((res) => setTimeout(res, 500));
       await deleteAllLogs(userId);
-      if (userId !== userEmail) {
+      if (userId !== userEmail && userEmail) {
         await deleteAllLogs(userEmail);
       }
-      setLogs([]);
-      setShowDeleteAllConfirm(false);
+      const updated = await getLogsForUser(userId);
+      setLogs(updated);
       toast.success("All activity logs deleted successfully");
     } catch {
       toast.error("Failed to delete all logs");
+      setLogs(prevLogs);
     } finally {
       setIsDeletingAll(false);
     }
@@ -197,7 +204,7 @@ export default function UserLogLayout() {
     if (action.includes("UPDATE") || action.includes("PHOTO")) {
       return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
     }
-    if (action.includes("SUBMITTED") || action.includes("KYC") || action.includes("PASSWORD")) {
+    if (action.includes("SUBMITTED") || action.includes("KYC") || action.includes("PASSWORD") || action.includes("REVERT") || action.includes("WITHDRAW")) {
       return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
     }
     return "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20";

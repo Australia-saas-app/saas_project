@@ -808,7 +808,15 @@ export const deleteActivityFromServer = async (logId: string) => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   if (!token) throw new Error("Not authenticated");
-  const { data } = await axiosInstance.delete(`/user-profile-service/activity/${logId}`, {
+  const userProfileBase = process.env.USER_PROFILE_BACKEND_URL;
+  if (userProfileBase) {
+    const res = await fetch(`${userProfileBase}/activity/${encodeURIComponent(logId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.ok ? await res.json().catch(() => ({ success: true })) : null;
+  }
+  const { data } = await axiosInstance.delete(`/user-profile-service/activity/${encodeURIComponent(logId)}`, {
     headers: { Authorization: `Bearer ${token}` },
     timeout: 15000,
   });
@@ -819,6 +827,14 @@ export const deleteAllActivitiesFromServer = async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get("accessToken")?.value;
   if (!token) throw new Error("Not authenticated");
+  const userProfileBase = process.env.USER_PROFILE_BACKEND_URL;
+  if (userProfileBase) {
+    const res = await fetch(`${userProfileBase}/activity`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.ok ? await res.json().catch(() => ({ success: true })) : null;
+  }
   const { data } = await axiosInstance.delete("/user-profile-service/activity", {
     headers: { Authorization: `Bearer ${token}` },
     timeout: 15000,

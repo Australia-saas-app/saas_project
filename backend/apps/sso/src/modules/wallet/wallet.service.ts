@@ -463,6 +463,8 @@ export class WalletService implements OnModuleInit {
           method: t.paymentMethod || 'Wallet Withdrawal',
           payoutMethod: t.paymentMethod || 'Wallet Withdrawal',
           description: t.description,
+          failureReason: t.failureReason || t.metadata?.rejectionReason,
+          rejectionReason: t.failureReason || t.metadata?.rejectionReason || (t.description?.includes('Rejected:') ? t.description.split('Rejected:')[1]?.trim() : undefined),
           createdAt: t.createdAt,
           updatedAt: t.updatedAt,
         };
@@ -496,7 +498,9 @@ export class WalletService implements OnModuleInit {
     } else {
       tx.status = TransactionStatus.FAILED;
       if (reason) {
+        tx.failureReason = reason;
         tx.description = `${tx.description || 'Withdrawal'} - Rejected: ${reason}`;
+        tx.metadata = { ...(tx.metadata || {}), rejectionReason: reason };
       }
       await this.transactionRepository.save(tx);
 

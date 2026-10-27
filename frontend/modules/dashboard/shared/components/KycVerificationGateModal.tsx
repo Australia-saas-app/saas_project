@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { ShieldAlert, Clock, XCircle, ArrowRight } from "lucide-react";
 import axiosInstance from "@/src/shared/lib/axiosInstance";
 
+import { getProfileOverrides } from "@/src/shared/utils/profile-storage";
+import { getUserIdFromAuthUser } from "@/src/shared/lib/demo-user";
+
 export type KycGateStatus = "approved" | "pending" | "rejected" | "not_applied";
 
 interface KycVerificationGateModalProps {
@@ -16,54 +19,156 @@ interface KycVerificationGateModalProps {
 }
 
 /**
- * Fetch fresh real-time KYC status from server and local storage overrides
+ * Fetch fresh real-time KYC status from server and local storage overrides.
+ * Accurately determines:
+ * - "approved": KYC is verified/approved by admin (deposit/withdraw allowed)
+ * - "rejected": KYC application was rejected by admin
+ * - "pending": User has applied and application is under review
+ * - "not_applied": User has not applied for KYC verification yet
  */
 export async function getLiveKycStatus(user: any): Promise<KycGateStatus> {
-  let dbKyc = "";
+  const primaryUid = getUserIdFromAuthUser(user) || (user as any)?.id || (user as any)?.userId;
+  const candidateUids = [
+    primaryUid,
+    (user as any)?.userId,
+    (user as any)?.id,
+    (user as any)?.publicId,
+    (user as any)?.internalId,
+    (user as any)?.sub,
+  ].filter(Boolean) as string[];
 
-  // 1. Fetch latest state from backend server
+  // 1. Fetch latest real-time user record from backend SSO database (/sso/auth/me)
+  let serverKyc = "";
+  let serverStatus = "";
   try {
-    const res = await axiosInstance.get("/users/me").catch(() => null);
-    const latestUser = res?.data?.data?.user || res?.data?.user || res?.data;
-    if (latestUser?.kycStatus) {
-      dbKyc = String(latestUser.kycStatus).toLowerCase().trim();
+    const res = await axiosInstance.get(`/sso/auth/me?t=${Date.now()}`, {
+      timeout: 4000,
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    }).catch(() => null);
+
+    const latestUser = res?.data?.data?.user || res?.data?.user || res?.data?.data || res?.data;
+    if (latestUser) {
+      if (latestUser.kycStatus) {
+        serverKyc = String(latestUser.kycStatus).toLowerCase().trim();
+      }
+      if (latestUser.status) {
+        serverStatus = String(latestUser.status).toLowerCase().trim();
+      }
+      const sId = latestUser.userId || latestUser.id || latestUser.internalId || latestUser.publicId;
+      if (sId && !candidateUids.includes(sId)) {
+        candidateUids.push(sId);
+      }
     }
   } catch {}
 
-  // 2. Fallback to auth session user
-  if (!dbKyc && user && "kycStatus" in user && user.kycStatus) {
-    dbKyc = String(user.kycStatus).toLowerCase().trim();
+  // 2. Collect Local Storage Overrides (saved when admin approves/rejects or user applies)
+  let localKyc = "";
+  let localStatus = "";
+  for (const uid of candidateUids) {
+    const ov = getProfileOverrides(uid);
+    if (ov.kycStatus) {
+      localKyc = String(ov.kycStatus).toLowerCase().trim();
+    }
+    if (ov.status) {
+      localStatus = String(ov.status).toLowerCase().trim();
+    }
+    if (localKyc) break;
   }
 
-  // 3. Check persistent localStorage overrides
+  // Cross-check real-time sync broadcast keys in localStorage
   if (typeof window !== "undefined") {
     try {
-      const uid = (user as any)?.id || (user as any)?.userId;
-      if (uid) {
-        const raw = localStorage.getItem(`user_profile_overrides_${uid}`);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.kycStatus) {
-            const overrideKyc = String(parsed.kycStatus).toLowerCase().trim();
-            if (overrideKyc === "approved" || overrideKyc === "rejected" || overrideKyc === "pending") {
-              dbKyc = overrideKyc;
-            }
-          }
-        }
-      }
       const syncKyc = localStorage.getItem("vero_kyc_sync");
       if (syncKyc) {
         const parsed = JSON.parse(syncKyc);
-        if (parsed?.kycStatus) {
-          dbKyc = String(parsed.kycStatus).toLowerCase().trim();
+        const matchesUser =
+          !parsed.userId ||
+          candidateUids.length === 0 ||
+          candidateUids.includes(parsed.userId);
+        if (matchesUser && parsed.kycStatus) {
+          const sk = String(parsed.kycStatus).toLowerCase().trim();
+          if (sk === "approved" || sk === "rejected" || sk === "pending" || sk === "submitted") {
+            localKyc = sk;
+          }
+        }
+      }
+
+      const accSync = localStorage.getItem("vero_account_sync");
+      if (accSync) {
+        const parsed = JSON.parse(accSync);
+        const matchesUser =
+          !parsed.userId ||
+          candidateUids.length === 0 ||
+          candidateUids.includes(parsed.userId);
+        if (matchesUser && parsed.action) {
+          const act = String(parsed.action).toLowerCase().trim();
+          if (act === "approved" || act === "rejected") {
+            localKyc = act;
+          }
         }
       }
     } catch {}
   }
 
-  if (dbKyc === "approved" || dbKyc === "verified") return "approved";
-  if (dbKyc === "pending" || dbKyc === "submitted" || dbKyc === "under_review") return "pending";
-  if (dbKyc === "rejected") return "rejected";
+  // 3. Check auth session user
+  const sessionKyc = user && "kycStatus" in user && user.kycStatus ? String(user.kycStatus).toLowerCase().trim() : "";
+  const sessionStatus = user && "status" in user && user.status ? String(user.status).toLowerCase().trim() : "";
+  const isKycVerifiedFlag = Boolean((user as any)?.isKycVerified);
+
+  // 4. STEP 1: APPROVAL CHECK (Highest Priority)
+  // If ANY definitive indicator says approved or verified, the user is APPROVED!
+  if (
+    serverKyc === "approved" ||
+    serverKyc === "verified" ||
+    serverStatus === "verified" ||
+    localKyc === "approved" ||
+    localKyc === "verified" ||
+    localStatus === "verified" ||
+    sessionKyc === "approved" ||
+    sessionKyc === "verified" ||
+    sessionStatus === "verified" ||
+    isKycVerifiedFlag
+  ) {
+    return "approved";
+  }
+
+  // 5. STEP 2: REJECTION CHECK
+  // If explicitly rejected by administrator
+  if (serverKyc === "rejected" || localKyc === "rejected" || sessionKyc === "rejected") {
+    return "rejected";
+  }
+
+  // 6. STEP 3: PENDING APPLICATION CHECK
+  // User applied for KYC and it's under review
+  const isPendingVal = (val: string) =>
+    val === "pending" || val === "submitted" || val === "under_review" || val === "review";
+
+  let hasApplicationData = false;
+  for (const uid of candidateUids) {
+    const ov = getProfileOverrides(uid);
+    if (ov.kycApplicationData) {
+      hasApplicationData = true;
+      break;
+    }
+  }
+  if (!hasApplicationData && (user as any)?.kycApplicationData) {
+    hasApplicationData = true;
+  }
+
+  if (
+    isPendingVal(serverKyc) ||
+    isPendingVal(localKyc) ||
+    isPendingVal(sessionKyc) ||
+    (hasApplicationData && serverKyc !== "none" && localKyc !== "none")
+  ) {
+    return "pending";
+  }
+
+  // 7. STEP 4: NOT APPLIED (Default)
   return "not_applied";
 }
 

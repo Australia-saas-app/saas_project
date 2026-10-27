@@ -31,7 +31,7 @@ import axiosInstanceClient from "@/src/infra/lib/axiosInstance/client";
 import { toast } from "sonner";
 import { useAppSelector } from "@/src/core/store/hooks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { logAdminActivity } from "@/src/shared/lib/admin-activity-logger";
+import { logAdminActivity, getRealIp } from "@/src/shared/lib/admin-activity-logger";
 import { getCookie } from "@/src/shared/utils/cookie-utils";
 
 export interface WithdrawalRequestItem {
@@ -59,24 +59,24 @@ const getStatusBadge = (status: string) => {
     case "approved":
     case "complete":
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
-          <CheckCircle2 className="w-3 h-3" />
+        <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
           PAID
         </span>
       );
     case "rejected":
     case "failed":
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
-          <XCircle className="w-3 h-3" />
+        <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
+          <XCircle className="w-3.5 h-3.5 flex-shrink-0" />
           REJECTED
         </span>
       );
     case "pending":
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
-          <Clock className="w-3 h-3" />
+        <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+          <Clock className="w-3.5 h-3.5 flex-shrink-0" />
           PENDING
         </span>
       );
@@ -516,8 +516,8 @@ export default function WithdrawalRequestsLayout() {
       });
       refetch();
 
-      // Update selected item so open modal instantly reflects status change
-      setSelectedItem(updatedItem);
+      // Keep item in sync
+      const finalUpdatedItem = updatedItem;
 
       // 2. Update local storage if present
       if (typeof window !== "undefined") {
@@ -576,17 +576,21 @@ export default function WithdrawalRequestsLayout() {
         const userNotif = {
           id: `with-appr-${item.requestId}-${Date.now()}`,
           title: "Withdrawal Request Approved",
-          message: `Your withdrawal payout of $${item.amount.toFixed(2)} USD (ID: ${item.requestId}) has been approved and processed.`,
+          message: `Your withdrawal request of $${item.amount.toFixed(2)} USD (ID: ${item.requestId}) via ${item.payoutMethod || "payout method"} has been approved and processed.`,
           time: "Just now",
           createdAt: new Date().toISOString(),
           read: false,
           href: targetWalletHref,
           type: "withdrawal_approved",
           data: { href: targetWalletHref, requestId: item.requestId, amount: item.amount },
+          userId: item.businessUserId,
+          targetUserId: item.businessUserId,
+          targetEmail: item.userEmail,
         };
 
         axiosInstanceClient
           .post("/notifications", {
+            targetUserId: item.businessUserId,
             userId: item.businessUserId,
             targetEmail: item.userEmail,
             title: userNotif.title,
@@ -596,6 +600,29 @@ export default function WithdrawalRequestsLayout() {
             data: userNotif.data,
           })
           .catch(() => {});
+
+        // Record User Activity Log for Approval
+        const clientIp = await getRealIp().catch(() => "127.0.0.1");
+        const userLogEntry = {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          userId: item.businessUserId,
+          username: item.userName || "User",
+          email: item.userEmail || "",
+          action: "WITHDRAWAL_APPROVED",
+          details: `Withdrawal request of $${item.amount.toFixed(2)} USD (ID: ${item.requestId}) via ${item.payoutMethod || "payout method"} was approved.`,
+          ipAddress: clientIp,
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          axiosInstanceClient.post("/user-profile-service/activity/internal", {
+            action: userLogEntry.action,
+            resource: userLogEntry.details,
+            ipAddress: clientIp,
+            details: { name: userLogEntry.username, email: userLogEntry.email, userId: item.businessUserId },
+            userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Admin Console",
+          }).catch(() => {});
+        } catch {}
 
         try {
           const roleKey = String(item.role || "user").toLowerCase();
@@ -612,20 +639,31 @@ export default function WithdrawalRequestsLayout() {
             } catch {}
           });
 
-          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: userNotif, targetEmail: item.userEmail, timestamp: Date.now() }));
+          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail, timestamp: Date.now() }));
 
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
-            bc.postMessage({ type: "vero:new_notification", payload: userNotif, targetEmail: item.userEmail });
-            bc.postMessage({ type: "vero:log_added", userId: item.businessUserId });
+            bc.postMessage({ type: "vero:new_notification", payload: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail });
+            bc.postMessage({ type: "vero:log_added", detail: userLogEntry, userId: item.businessUserId });
             bc.close();
+
+            const bc2 = new BroadcastChannel("activity_channel");
+            bc2.postMessage({ type: "activity_logs_updated", detail: userLogEntry, userId: item.businessUserId });
+            bc2.close();
           }
+          window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: userNotif }));
           window.dispatchEvent(new Event("notifications_updated"));
-          window.dispatchEvent(new CustomEvent("vero:log_added"));
+          window.dispatchEvent(new CustomEvent("vero:log_added", { detail: userLogEntry }));
+          window.dispatchEvent(new Event("activity_logs_updated"));
         } catch {}
       }
 
       toast.success(`Withdrawal payout of $${item.amount.toFixed(2)} USD approved!`);
+
+      // Auto-close modal after successful process completion
+      setSelectedItem(null);
+      setShowRejectInput(false);
+      setRejectionNote("");
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Failed to process approval");
     } finally {
@@ -686,10 +724,8 @@ export default function WithdrawalRequestsLayout() {
       });
       refetch();
 
-      // Update selected item so open modal instantly reflects status change
-      setSelectedItem(updatedItem);
-      setShowRejectInput(false);
-      setRejectionNote("");
+      // Keep state in sync while action processes
+      const finalRejectedItem = updatedItem;
 
       // 2. Update local storage platform_wallet_withdrawals
       if (typeof window !== "undefined") {
@@ -788,10 +824,14 @@ export default function WithdrawalRequestsLayout() {
           href: targetWalletHref,
           type: "withdrawal_rejected",
           data: { href: targetWalletHref, requestId: item.requestId, amount: item.amount, reason: finalReason },
+          userId: item.businessUserId,
+          targetUserId: item.businessUserId,
+          targetEmail: item.userEmail,
         };
 
         axiosInstanceClient
           .post("/notifications", {
+            targetUserId: item.businessUserId,
             userId: item.businessUserId,
             targetEmail: item.userEmail,
             title: userNotif.title,
@@ -801,6 +841,29 @@ export default function WithdrawalRequestsLayout() {
             data: userNotif.data,
           })
           .catch(() => {});
+
+        // Record User Activity Log for Rejection
+        const clientIp = await getRealIp().catch(() => "127.0.0.1");
+        const userLogEntry = {
+          id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          userId: item.businessUserId,
+          username: item.userName || "User",
+          email: item.userEmail || "",
+          action: "WITHDRAWAL_REJECTED",
+          details: `Withdrawal request of $${item.amount.toFixed(2)} USD (ID: ${item.requestId}) was rejected: ${finalReason}.`,
+          ipAddress: clientIp,
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          axiosInstanceClient.post("/user-profile-service/activity/internal", {
+            action: userLogEntry.action,
+            resource: userLogEntry.details,
+            ipAddress: clientIp,
+            details: { name: userLogEntry.username, email: userLogEntry.email, userId: item.businessUserId },
+            userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Admin Console",
+          }).catch(() => {});
+        } catch {}
 
         try {
           const roleKey = String(item.role || "user").toLowerCase();
@@ -817,20 +880,31 @@ export default function WithdrawalRequestsLayout() {
             } catch {}
           });
 
-          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: userNotif, targetEmail: item.userEmail, timestamp: Date.now() }));
+          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail, timestamp: Date.now() }));
 
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
-            bc.postMessage({ type: "vero:new_notification", payload: userNotif, targetEmail: item.userEmail });
-            bc.postMessage({ type: "vero:log_added", userId: item.businessUserId });
+            bc.postMessage({ type: "vero:new_notification", payload: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail });
+            bc.postMessage({ type: "vero:log_added", detail: userLogEntry, userId: item.businessUserId });
             bc.close();
+
+            const bc2 = new BroadcastChannel("activity_channel");
+            bc2.postMessage({ type: "activity_logs_updated", detail: userLogEntry, userId: item.businessUserId });
+            bc2.close();
           }
+          window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: userNotif }));
           window.dispatchEvent(new Event("notifications_updated"));
-          window.dispatchEvent(new CustomEvent("vero:log_added"));
+          window.dispatchEvent(new CustomEvent("vero:log_added", { detail: userLogEntry }));
+          window.dispatchEvent(new Event("activity_logs_updated"));
         } catch {}
       }
 
       toast.success("Withdrawal rejected. Funds successfully restored to user balance.");
+
+      // Auto-close modal after successful process completion
+      setSelectedItem(null);
+      setShowRejectInput(false);
+      setRejectionNote("");
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || "Failed to reject withdrawal");
     } finally {
@@ -901,14 +975,14 @@ export default function WithdrawalRequestsLayout() {
         {/* Central Reusable Table */}
         <Table>
           <TableHeading>
-            <TableColumn isHeader style={{ width: "4%", minWidth: "48px" }} align="center">#</TableColumn>
-            <TableColumn isHeader style={{ width: "16%", minWidth: "150px" }} align="center">Transaction ID</TableColumn>
-            <TableColumn isHeader style={{ width: "10%", minWidth: "105px" }} align="center">Role</TableColumn>
-            <TableColumn isHeader style={{ width: "18%", minWidth: "170px" }}>Requester</TableColumn>
+            <TableColumn isHeader style={{ width: "4%", minWidth: "46px" }} align="center">#</TableColumn>
+            <TableColumn isHeader style={{ width: "15%", minWidth: "150px" }} align="center">Transaction ID</TableColumn>
+            <TableColumn isHeader style={{ width: "9%", minWidth: "95px" }} align="center">Role</TableColumn>
+            <TableColumn isHeader style={{ width: "17%", minWidth: "160px" }}>Requester</TableColumn>
             <TableColumn isHeader style={{ width: "11%", minWidth: "110px" }} align="center">Amount</TableColumn>
-            <TableColumn isHeader style={{ width: "16%", minWidth: "160px" }}>Payout Destination</TableColumn>
+            <TableColumn isHeader style={{ width: "15%", minWidth: "150px" }}>Payout Destination</TableColumn>
             <TableColumn isHeader style={{ width: "11%", minWidth: "125px" }} align="center">Created Date</TableColumn>
-            <TableColumn isHeader style={{ width: "8%", minWidth: "95px" }} align="center">Status</TableColumn>
+            <TableColumn isHeader style={{ width: "12%", minWidth: "130px" }} align="center" className="whitespace-nowrap">Status</TableColumn>
             <TableColumn isHeader style={{ width: "6%", minWidth: "85px" }} align="center" className="whitespace-nowrap">Actions</TableColumn>
           </TableHeading>
 
@@ -1010,8 +1084,10 @@ export default function WithdrawalRequestsLayout() {
                     </TableColumn>
 
                     {/* 8. Status */}
-                    <TableColumn align="center">
-                      {getStatusBadge(item.status)}
+                    <TableColumn align="center" className="whitespace-nowrap">
+                      <div className="flex items-center justify-center">
+                        {getStatusBadge(item.status)}
+                      </div>
                     </TableColumn>
 
                     {/* 9. Actions */}
@@ -1201,17 +1277,17 @@ export default function WithdrawalRequestsLayout() {
 
                 {/* Rejection Input when confirming reject */}
                 {selectedItem.status === "pending" && showRejectInput && (
-                  <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 p-3.5 bg-rose-50/60 dark:bg-rose-950/20 space-y-2 animate-in fade-in duration-200">
-                    <label className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center justify-between">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50 dark:bg-slate-800/40 space-y-2 animate-in fade-in duration-200">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
                       <span>Reason for Rejection</span>
-                      <span className="text-[10px] font-normal text-rose-600 dark:text-rose-400">Funds restored to balance</span>
+                      <span className="text-[10px] font-normal text-slate-500">Funds restored to balance</span>
                     </label>
                     <textarea
                       rows={2}
                       value={rejectionNote}
                       onChange={(e) => setRejectionNote(e.target.value)}
                       placeholder="Reason for rejection (funds will return to wallet balance)..."
-                      className="w-full text-xs p-2.5 rounded-lg border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                 )}
@@ -1237,7 +1313,7 @@ export default function WithdrawalRequestsLayout() {
                         type="button"
                         onClick={() => setShowRejectInput(true)}
                         disabled={actionInProgress !== null}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                       >
                         <XCircle className="w-3.5 h-3.5" />
                         <span>Reject</span>
@@ -1256,7 +1332,7 @@ export default function WithdrawalRequestsLayout() {
                           type="button"
                           onClick={() => handleReject(selectedItem)}
                           disabled={actionInProgress !== null}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                         >
                           {actionInProgress === "reject" ? (
                             <>
@@ -1278,7 +1354,7 @@ export default function WithdrawalRequestsLayout() {
                         type="button"
                         onClick={() => handleApprove(selectedItem)}
                         disabled={actionInProgress !== null}
-                        className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {actionInProgress === "approve" ? (
                           <>

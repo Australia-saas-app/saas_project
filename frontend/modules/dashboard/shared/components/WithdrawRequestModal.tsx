@@ -211,7 +211,7 @@ export default function WithdrawRequestModal({
     const userRole = String((user as any)?.role || (user as any)?.accountType || "USER").toUpperCase();
     const userEmail = "email" in user && user.email ? String(user.email).trim() : "";
     try {
-      recordRealActivity(
+      await recordRealActivity(
         "WITHDRAWAL_REQUESTED",
         `Requested withdrawal of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id})`,
         {
@@ -269,6 +269,7 @@ export default function WithdrawRequestModal({
       read: false,
       targetRole: "admin",
       role: "admin",
+      targetUserId: "admin",
       href: "/withdrawal-requests",
       type: "withdrawal_request",
       data: {
@@ -285,6 +286,7 @@ export default function WithdrawRequestModal({
       .post("/notifications", {
         targetRole: "admin",
         role: "admin",
+        targetUserId: "admin",
         title: adminNotif.title,
         message: adminNotif.message,
         type: "withdrawal_request",
@@ -302,11 +304,11 @@ export default function WithdrawRequestModal({
           } catch {}
         });
 
-        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: adminNotif, timestamp: Date.now() }));
+        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: adminNotif, targetRole: "admin", timestamp: Date.now() }));
 
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("vero_channel");
-          bc.postMessage({ type: "vero:new_notification", payload: adminNotif });
+          bc.postMessage({ type: "vero:new_notification", payload: adminNotif, targetRole: "admin" });
           bc.postMessage({ type: "vero:withdrawal_updated" });
           bc.postMessage({ type: "withdrawal_requested" });
           bc.close();
@@ -315,6 +317,7 @@ export default function WithdrawRequestModal({
           bc2.postMessage({ type: "wallet_updated" });
           bc2.close();
         }
+        window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: adminNotif }));
         window.dispatchEvent(new Event("notifications_updated"));
         window.dispatchEvent(new Event("wallet_updated"));
         window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
@@ -491,7 +494,10 @@ export default function WithdrawRequestModal({
     </AppModal>
     <KycVerificationGateModal
       open={kycGateOpen}
-      onClose={() => setKycGateOpen(false)}
+      onClose={() => {
+        setKycGateOpen(false);
+        onClose();
+      }}
       status={kycGateStatus}
       role={(user as any)?.role || (user as any)?.accountType}
     />

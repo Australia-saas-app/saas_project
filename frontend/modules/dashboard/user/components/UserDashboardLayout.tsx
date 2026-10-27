@@ -33,7 +33,7 @@ import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { useUser } from "@/src/context/user.provider";
 import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
-import { getLogsForUser, getStoredLogs, LOG_ADDED_EVENT, type RealLogEntry } from "@/src/shared/lib/real-activity-logger";
+import { getLogsForUser, LOG_ADDED_EVENT, type RealLogEntry } from "@/src/shared/lib/real-activity-logger";
 import { readLocalProjects, fetchMyProjects, isProjectCompleted } from "@/src/modules/technical/services/technical.services";
 import WithdrawalDetailsModal from "@/src/modules/dashboard/shared/components/WithdrawalDetailsModal";
 import WithdrawalRevertAction from "@/src/modules/dashboard/shared/components/WithdrawalRevertAction";
@@ -77,14 +77,7 @@ export default function UserDashboardLayout() {
       return [];
     }
   });
-  const [realLogs, setRealLogs] = useState<RealLogEntry[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return getStoredLogs();
-    } catch {
-      return [];
-    }
-  });
+  const [realLogs, setRealLogs] = useState<RealLogEntry[]>([]);
 
   const [userProjects, setUserProjects] = useState<any[]>(() => {
     if (typeof window === "undefined") return [];
@@ -164,6 +157,7 @@ export default function UserDashboardLayout() {
           date: row.date,
           createdAt: row.createdAt || row.date,
           status: status as any,
+          rejectionReason: (row as any).rejectionReason || (row as any).failureReason,
         } as any;
       });
 
@@ -186,6 +180,7 @@ export default function UserDashboardLayout() {
           date: d.date,
           createdAt: d.createdAt || d.date,
           status: status as any,
+          rejectionReason: (d as any).rejectionReason || (d as any).failureReason,
         } as any);
       }
 
@@ -220,8 +215,12 @@ export default function UserDashboardLayout() {
           return tB - tA;
         });
         setRealLogs(sorted);
+      } else {
+        setRealLogs([]);
       }
-    } catch {}
+    } catch {
+      setRealLogs([]);
+    }
   };
 
   useEffect(() => {
@@ -239,7 +238,7 @@ export default function UserDashboardLayout() {
 
     // Instant real-time prepend when any log is recorded without needing reload
     const onLogAdded = (e: any) => {
-      if (e?.detail) {
+      if (e?.detail && e.detail.id && e.detail.id !== "pending") {
         setRealLogs((prev) => {
           const updated = [e.detail, ...prev.filter((p) => p.id !== e.detail.id)];
           return updated.sort((a, b) => {
@@ -264,10 +263,20 @@ export default function UserDashboardLayout() {
     window.addEventListener("activity_logs_updated", onUpdate);
     window.addEventListener(LOG_ADDED_EVENT, onLogAdded);
 
+    let bcVero: BroadcastChannel | null = null;
     let bcActivity: BroadcastChannel | null = null;
     let bcWallet: BroadcastChannel | null = null;
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bcVero = new BroadcastChannel("vero_channel");
+        bcVero.onmessage = (e) => {
+          if (e.data?.type === "vero:log_added") {
+            loadActivities();
+          }
+          if (e.data?.type === "vero:withdrawal_updated") {
+            loadWithdrawals();
+          }
+        };
         bcActivity = new BroadcastChannel("activity_channel");
         bcActivity.onmessage = onUpdate;
         bcWallet = new BroadcastChannel("wallet_channel");
@@ -288,6 +297,7 @@ export default function UserDashboardLayout() {
       window.removeEventListener("focus", onUpdate);
       window.removeEventListener("activity_logs_updated", onUpdate);
       window.removeEventListener(LOG_ADDED_EVENT, onLogAdded);
+      if (bcVero) try { bcVero.close(); } catch {}
       if (bcActivity) try { bcActivity.close(); } catch {}
       if (bcWallet) try { bcWallet.close(); } catch {}
       clearInterval(interval);

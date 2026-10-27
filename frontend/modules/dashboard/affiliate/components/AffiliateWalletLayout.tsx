@@ -64,6 +64,7 @@ export default function AffiliateWalletLayout() {
         date: row.date,
         createdAt: row.createdAt || row.date,
         status: status as any,
+        rejectionReason: (row as any).rejectionReason || (row as any).failureReason,
       } as any;
     });
     const demoRows = isDemo ? WITHDRAW_ROWS.slice(0, 20) : [];
@@ -92,6 +93,7 @@ export default function AffiliateWalletLayout() {
             date: d.date,
             createdAt: d.createdAt || d.date,
             status: status as any,
+            rejectionReason: (d as any).rejectionReason || (d as any).failureReason,
           } as any);
         }
         for (const p of prev) {
@@ -99,7 +101,7 @@ export default function AffiliateWalletLayout() {
             merged.set(p.id, p);
           } else {
             const current = merged.get(p.id)!;
-            merged.set(p.id, { ...p, status: current.status });
+            merged.set(p.id, { ...p, status: current.status, rejectionReason: current.rejectionReason });
           }
         }
         return Array.from(merged.values());

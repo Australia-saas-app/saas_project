@@ -9,6 +9,9 @@ export interface WalletWithdrawalRecord extends WithdrawRequestResult {
   status: "Pending" | "Processing" | "Complete" | "Failed"
   methodType: string
   createdAt?: string
+  rejectionReason?: string
+  failureReason?: string
+  description?: string
 }
 
 function readWithdrawals(): WalletWithdrawalRecord[] {
@@ -83,9 +86,18 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
         const status =
           statusRaw === "COMPLETED" || statusRaw === "COMPLETE" || statusRaw === "APPROVED" || statusRaw === "PAID"
             ? "Complete"
-            : statusRaw === "FAILED" || statusRaw === "REJECTED"
+            : statusRaw === "FAILED" || statusRaw === "REJECTED" || desc.includes("rejected")
               ? "Failed"
               : "Pending";
+
+        let rejectionReason =
+          t.rejectionReason ||
+          t.failureReason ||
+          t.metadata?.rejectionReason ||
+          "";
+        if (!rejectionReason && t.description && t.description.includes("Rejected:")) {
+          rejectionReason = t.description.split("Rejected:")[1]?.trim() || "";
+        }
 
         return {
           id: txId,
@@ -97,6 +109,9 @@ export async function fetchWalletWithdrawalsFromDb(): Promise<WalletWithdrawalRe
           userId: String(t.userId || ""),
           userName: String(t.userName || "User"),
           methodType: "Withdrawal",
+          description: t.description || undefined,
+          failureReason: t.failureReason || undefined,
+          rejectionReason: rejectionReason || undefined,
         } as WalletWithdrawalRecord;
       });
 
@@ -246,7 +261,21 @@ export async function revertWithdrawalRequest(
   // 2. Remove from admin transactions store
   removeAdminTransaction(id);
 
-  // 3. Dispatch global sync events across tabs & components
+  // 3. Remove from local ledger store if present
+  if (typeof window !== "undefined") {
+    try {
+      const rawLedger = localStorage.getItem("platform_wallet_ledger");
+      if (rawLedger) {
+        const parsed = JSON.parse(rawLedger);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter((r: any) => r.id !== id && r.transactionId !== id);
+          localStorage.setItem("platform_wallet_ledger", JSON.stringify(cleaned));
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Dispatch global sync events across tabs & components
   if (typeof window !== "undefined") {
     try {
       window.dispatchEvent(new Event("wallet_updated"));

@@ -31,7 +31,13 @@ export class NotificationsController {
     @Body() createNotificationDto: CreateNotificationDto,
     @Request() req: any,
   ) {
-    return this.notificationsService.createNotification(createNotificationDto, req.user.userId);
+    const rawTarget =
+      (createNotificationDto as any).targetUserId ||
+      ((createNotificationDto as any).targetRole === 'admin' ? 'admin' : undefined) ||
+      ((createNotificationDto as any).role === 'admin' ? 'admin' : undefined) ||
+      (createNotificationDto as any).userId;
+    const targetUserId = rawTarget || req.user.userId;
+    return this.notificationsService.createNotification(createNotificationDto, targetUserId);
   }
 
   @Post('generate')

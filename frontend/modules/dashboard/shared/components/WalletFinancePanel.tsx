@@ -97,6 +97,29 @@ const DEPOSIT_METHODS = [
   { label: "Stripe Online Payment Gateway", value: "Stripe Gateway" },
 ];
 
+const getLedgerStatusBadge = (status: string) => {
+  const s = String(status || "").toLowerCase();
+  if (s === "complete" || s === "completed" || s === "approved" || s === "paid") {
+    return (
+      <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap inline-flex items-center gap-1">
+        Complete
+      </span>
+    );
+  }
+  if (s === "rejected" || s === "reject" || s === "failed") {
+    return (
+      <span className="rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap inline-flex items-center gap-1">
+        Reject
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap inline-flex items-center gap-1">
+      Pending
+    </span>
+  );
+};
+
 export default function WalletFinancePanel() {
   const { user } = useUser();
   const { userId, isDemo, isReady } = useIsDemoAccount();
@@ -168,28 +191,146 @@ export default function WalletFinancePanel() {
         : [];
 
         if (rawList && rawList.length > 0) {
-          dbRows = rawList.map((tx: any) => ({
-            id: tx.transactionId || (tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`),
-            userId: tx.userId || userId || "user",
-            userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Account"),
-            amount: `$${Number(tx.amount || 0).toFixed(2)}`,
-            kind:
-              tx.type?.toLowerCase() === "deposit"
-                ? "deposit"
-                : tx.type?.toLowerCase() === "security_deposit"
-                ? "security_deposit"
-                : tx.type?.toLowerCase() === "refund"
-                ? "refund"
-                : tx.type?.toLowerCase() === "withdrawal" || tx.type?.toLowerCase() === "withdraw_hold"
-                ? "withdraw_hold"
-                : "deposit",
-            method: tx.description || (tx.paymentMethod ? `Deposit via ${tx.paymentMethod}` : "Wallet Transaction"),
-            date: new Date(tx.createdAt || Date.now()).toLocaleDateString(),
-            status: tx.status === "completed" || tx.status === "COMPLETED" ? "Complete" : "Pending",
-          }));
+          dbRows = rawList.map((tx: any) => {
+            const rawStatus = String(tx.status || "").toLowerCase();
+            const desc = String(tx.description || "").toLowerCase();
+            const typeStr = String(tx.type || "").toLowerCase();
+
+            const isWithdraw =
+              typeStr === "withdrawal" ||
+              typeStr === "withdraw_hold" ||
+              desc.includes("withdraw");
+            const isReverted =
+              rawStatus === "reverted" ||
+              rawStatus === "cancelled" ||
+              desc.includes("revert");
+            const isRej =
+              rawStatus === "failed" ||
+              rawStatus === "rejected" ||
+              rawStatus === "reject" ||
+              desc.includes("rejected");
+            const isComp =
+              rawStatus === "completed" ||
+              rawStatus === "complete" ||
+              rawStatus === "approved" ||
+              rawStatus === "paid";
+
+            const status: "Complete" | "Reject" | "Pending" =
+              isComp ? "Complete" : (isRej || isReverted) ? "Reject" : "Pending";
+
+            return {
+              id: tx.transactionId || (tx.id ? `TX-${String(tx.id).slice(0, 8)}` : `TX-${Date.now().toString().slice(-6)}`),
+              userId: tx.userId || userId || "user",
+              userName: (user && "name" in user ? String(user.name) : (user as any)?.firstName || "Account"),
+              amount: `$${Number(tx.amount || 0).toFixed(2)}`,
+              kind:
+                typeStr === "deposit"
+                  ? "deposit"
+                  : typeStr === "security_deposit"
+                  ? "security_deposit"
+                  : typeStr === "refund"
+                  ? "refund"
+                  : isWithdraw
+                  ? "withdraw_hold"
+                  : "deposit",
+              method: tx.description || (tx.paymentMethod ? `Deposit via ${tx.paymentMethod}` : "Wallet Transaction"),
+              date: new Date(tx.createdAt || Date.now()).toLocaleDateString(),
+              status,
+            };
+          });
         }
     } catch {
       // fallback to stored/demo
+    }
+
+    // Cross-check localStorage withdrawals for real-time overrides without overriding DB terminal states
+    if (typeof window !== "undefined") {
+      try {
+        const rawW = localStorage.getItem("platform_wallet_withdrawals");
+        if (rawW) {
+          const wList = JSON.parse(rawW);
+          if (Array.isArray(wList)) {
+            const wMap = new Map<string, "Complete" | "Reject" | "Pending">();
+            let changed = false;
+
+            wList.forEach((w: any) => {
+              const st = String(w.status || "").toLowerCase();
+              const desc = String(w.description || "").toLowerCase();
+              const isRej =
+                st === "rejected" ||
+                st === "reject" ||
+                st === "failed" ||
+                desc.includes("rejected");
+              const isComp =
+                st === "approved" ||
+                st === "complete" ||
+                st === "completed" ||
+                st === "paid";
+              const resolved: "Complete" | "Reject" | "Pending" = isComp
+                ? "Complete"
+                : isRej
+                ? "Reject"
+                : "Pending";
+              if (w.id) wMap.set(w.id, resolved);
+              if (w.requestId) wMap.set(w.requestId, resolved);
+            });
+
+            dbRows = dbRows.map((r) => {
+              if (r.kind === "withdraw_hold") {
+                // If DB or description already indicates rejected or completed, keep that definitive status
+                if (
+                  r.status === "Reject" ||
+                  r.status === "Complete" ||
+                  String(r.method || "").toLowerCase().includes("rejected")
+                ) {
+                  return {
+                    ...r,
+                    status: r.status === "Complete" ? "Complete" : "Reject",
+                  };
+                }
+                // Only let local storage override if local storage has a terminal status (Reject or Complete)
+                if (wMap.has(r.id)) {
+                  const ov = wMap.get(r.id)!;
+                  if (ov === "Reject" || ov === "Complete") {
+                    return { ...r, status: ov };
+                  }
+                }
+              }
+              return r;
+            });
+
+            // Synchronize any DB rejections/approvals back to localStorage platform_wallet_withdrawals
+            const updatedWList = wList.map((w: any) => {
+              const matchingDb = dbRows.find(
+                (d) => d.id === w.id || d.id === w.requestId
+              );
+              if (matchingDb) {
+                if (
+                  matchingDb.status === "Reject" &&
+                  String(w.status).toLowerCase() === "pending"
+                ) {
+                  changed = true;
+                  return { ...w, status: "Rejected" };
+                }
+                if (
+                  matchingDb.status === "Complete" &&
+                  String(w.status).toLowerCase() === "pending"
+                ) {
+                  changed = true;
+                  return { ...w, status: "Approved" };
+                }
+              }
+              return w;
+            });
+            if (changed) {
+              localStorage.setItem(
+                "platform_wallet_withdrawals",
+                JSON.stringify(updatedWList)
+              );
+            }
+          }
+        }
+      } catch {}
     }
 
     const resolvedUserId = String(userId || (user as any)?.id || (user as any)?.userId || "user");
@@ -272,17 +413,40 @@ export default function WalletFinancePanel() {
     };
 
     window.addEventListener("wallet_updated", handleUpdate);
+    window.addEventListener("vero:withdrawal_updated", handleUpdate);
     window.addEventListener("platform_projects_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    window.addEventListener("focus", handleUpdate);
 
-    // Silent background poll to fetch newly added backend records every 12 seconds
+    let bc1: BroadcastChannel | null = null;
+    let bc2: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc1 = new BroadcastChannel("wallet_channel");
+        bc1.onmessage = () => {
+          handleUpdate();
+        };
+        bc2 = new BroadcastChannel("vero_channel");
+        bc2.onmessage = () => {
+          handleUpdate();
+        };
+      }
+    } catch {}
+
+    // Active real-time poll so admin status changes on port 8001 reflect immediately without page refresh
     const interval = setInterval(() => {
       refresh(false);
-    }, 12000);
+    }, 3000);
 
     return () => {
-      window.removeEventListener("wallet_updated", handleUpdate);
-      window.removeEventListener("platform_projects_updated", handleUpdate);
       clearInterval(interval);
+      window.removeEventListener("wallet_updated", handleUpdate);
+      window.removeEventListener("vero:withdrawal_updated", handleUpdate);
+      window.removeEventListener("platform_projects_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("focus", handleUpdate);
+      if (bc1) try { bc1.close(); } catch {}
+      if (bc2) try { bc2.close(); } catch {}
     };
   }, [userId, isDemo]);
 
@@ -297,12 +461,29 @@ export default function WalletFinancePanel() {
   const stats = useMemo(() => {
     const sum = (kind: WalletLedgerRecord["kind"]) =>
       rows
-        .filter((r) => r.kind === kind)
+        .filter((r) => r.kind === kind && (r.status === "Complete" || r.status === "Completed" || kind === "security_deposit"))
         .reduce((acc, r) => acc + (parseFloat(r.amount.replace(/[^0-9.]/g, "")) || 0), 0);
     return {
       deposits: sum("deposit"),
       security: sum("security_deposit"),
-      holds: sum("withdraw_hold"),
+      holds: rows
+        .filter((r) => {
+          if (r.kind !== "withdraw_hold") return false;
+          const s = String(r.status || "").toLowerCase();
+          const isPending = s === "pending" || s === "held" || s === "processing";
+          const isRejectedOrFailed =
+            s === "reject" ||
+            s === "rejected" ||
+            s === "failed" ||
+            String(r.method || "").toLowerCase().includes("rejected") ||
+            String((r as any).note || "").toLowerCase().includes("rejected");
+          const isReverted =
+            s === "reverted" ||
+            s === "cancelled" ||
+            String(r.method || "").toLowerCase().includes("revert");
+          return isPending && !isRejectedOrFailed && !isReverted;
+        })
+        .reduce((acc, r) => acc + (parseFloat(r.amount.replace(/[^0-9.]/g, "")) || 0), 0),
       refunds: sum("refund"),
     };
   }, [rows]);
@@ -459,11 +640,20 @@ export default function WalletFinancePanel() {
     }
   };
 
-  const handleSecurity = (e: React.FormEvent) => {
+  const handleSecurity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return toast.error("Sign in required");
     const value = parseFloat(amount);
     if (!value || value <= 0) return toast.error("Enter a valid amount");
+
+    // Check KYC status before allowing security deposit hold
+    const kycState = await getLiveKycStatus(user);
+    if (kycState !== "approved") {
+      setKycGateStatus(kycState as "not_applied" | "pending" | "rejected");
+      setKycGateOpen(true);
+      return;
+    }
+
     const { id, name } = identity(user);
     submitSecurityDeposit({
       userId: id,
@@ -595,9 +785,7 @@ export default function WalletFinancePanel() {
                   <td className="px-2 py-2 text-muted-foreground">{row.method}</td>
                   <td className="px-2 py-2 font-semibold text-foreground">{row.amount}</td>
                   <td className="px-2 py-2">
-                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-xs font-semibold">
-                      {row.status}
-                    </span>
+                    {getLedgerStatusBadge(row.status)}
                   </td>
                   <td className="px-2 py-2 text-muted-foreground text-xs">{row.date}</td>
                 </tr>
@@ -1050,7 +1238,11 @@ export default function WalletFinancePanel() {
       {/* KYC Status Enforcement Gate Modal */}
       <KycVerificationGateModal
         open={kycGateOpen}
-        onClose={() => setKycGateOpen(false)}
+        onClose={() => {
+          setKycGateOpen(false);
+          setDepositOpen(false);
+          setSecurityOpen(false);
+        }}
         status={kycGateStatus}
         role={(user as any)?.role || (user as any)?.accountType}
       />
