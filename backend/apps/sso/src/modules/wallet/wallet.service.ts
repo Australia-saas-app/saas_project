@@ -130,6 +130,79 @@ export class WalletService implements OnModuleInit {
     return +wallet.balance;
   }
 
+  async getWalletSummary(userId: string): Promise<{
+    balance: number;
+    totalWithdrawn: number;
+    pendingPayout: number;
+    totalEarned: number;
+    currency: string;
+  }> {
+    const wallet = await this.getWallet(userId);
+    const user = await this.findUserSafe(userId);
+    const searchIds = [userId];
+    if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
+    if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
+    if (user?.email && !searchIds.includes(user.email)) searchIds.push(user.email);
+
+    let totalWithdrawn = 0;
+    let pendingPayout = 0;
+    let totalEarned = 0;
+
+    try {
+      const txs = await this.transactionRepository.find({
+        where: searchIds.map((id) => ({ userId: id })),
+      });
+
+      for (const t of txs) {
+        const amt = Number(t.amount || 0);
+        const typeStr = String(t.type || '').toLowerCase();
+        const statusStr = String(t.status || '').toLowerCase();
+        const desc = String(t.description || '').toLowerCase();
+        const isReverted = desc.includes('revert') || statusStr === 'reverted';
+
+        if (isReverted) continue;
+
+        if (typeStr.includes('withdraw')) {
+          if (
+            statusStr === 'completed' ||
+            statusStr === 'approved' ||
+            statusStr === 'complete' ||
+            statusStr === 'paid'
+          ) {
+            totalWithdrawn += amt;
+          } else if (statusStr === 'pending' || statusStr === 'processing') {
+            pendingPayout += amt;
+          }
+        } else if (
+          typeStr === 'deposit' ||
+          typeStr === 'payment' ||
+          typeStr === 'transfer' ||
+          typeStr.includes('earn') ||
+          typeStr.includes('commission') ||
+          typeStr.includes('milestone') ||
+          typeStr.includes('project')
+        ) {
+          if (
+            statusStr === 'completed' ||
+            statusStr === 'approved' ||
+            statusStr === 'complete' ||
+            statusStr === 'paid'
+          ) {
+            totalEarned += amt;
+          }
+        }
+      }
+    } catch {}
+
+    return {
+      balance: +wallet.balance,
+      totalWithdrawn: Number(totalWithdrawn.toFixed(2)),
+      pendingPayout: Number(pendingPayout.toFixed(2)),
+      totalEarned: Number(totalEarned.toFixed(2)),
+      currency: wallet.currency || 'USD',
+    };
+  }
+
   async addCard(
     userId: string,
     data: {

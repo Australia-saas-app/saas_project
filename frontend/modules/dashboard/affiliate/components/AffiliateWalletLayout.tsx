@@ -18,6 +18,7 @@ import WithdrawalRevertAction from "@/src/modules/dashboard/shared/components/Wi
 import WalletPaymentMethodsCard from "@/src/modules/dashboard/shared/components/WalletPaymentMethodsCard";
 import WalletFinancePanel from "@/src/modules/dashboard/shared/components/WalletFinancePanel";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
+import { useUser } from "@/src/context/user.provider";
 import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
 import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
 import { EMPTY_AFFILIATE_STATS } from "@/src/shared/lib/dashboard-empty-stats";
@@ -27,6 +28,7 @@ const PAGE_SIZE = 10;
 
 export default function AffiliateWalletLayout() {
   const { t } = useLocale();
+  const { user } = useUser();
   const { userId, isDemo, isReady, demoOrEmpty } = useIsDemoAccount();
   const w = t.affiliatePages.wallet;
   const stats = demoOrEmpty(AFFILIATE_STATS, EMPTY_AFFILIATE_STATS);
@@ -38,12 +40,31 @@ export default function AffiliateWalletLayout() {
   const [withdrawPage, setWithdrawPage] = useState(1);
   const [earningPage, setEarningPage] = useState(1);
   const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [financialStats, setFinancialStats] = useState<{
+    balance: number;
+    totalEarned: number;
+    totalWithdrawn: number;
+    pendingPayout: number;
+  }>({
+    balance: 0,
+    totalEarned: 0,
+    totalWithdrawn: 0,
+    pendingPayout: 0,
+  });
 
   const loadRealBalance = async () => {
     try {
-      const res = await fetchWalletBalance();
-      if (res?.balance !== undefined && res.balance !== null) {
-        setRealBalance(res.balance);
+      const res = await fetchWalletBalance(user);
+      if (res) {
+        setFinancialStats({
+          balance: Number(res.balance ?? 0),
+          totalEarned: Number(res.totalEarned ?? 0),
+          totalWithdrawn: Number(res.totalWithdrawn ?? 0),
+          pendingPayout: Number(res.pendingPayout ?? res.pendingEscrow ?? 0),
+        });
+        if (res.balance !== undefined && res.balance !== null) {
+          setRealBalance(Number(res.balance));
+        }
       }
     } catch {}
   };
@@ -153,12 +174,81 @@ export default function AffiliateWalletLayout() {
 
   const earningRows = demoOrEmpty(EARNING_ROWS.slice(0, 20), [] as typeof EARNING_ROWS);
 
+  // 1. Live approved / completed withdrawals sum from database & local records
+  const totalApprovedWithdrawn = useMemo(() => {
+    let sum = 0;
+    for (const r of withdrawRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "approved" || s === "complete" || s === "completed" || s === "paid") {
+        const amt =
+          typeof r.amount === "number"
+            ? r.amount
+            : parseFloat(String(r.amount || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.totalWithdrawn);
+  }, [withdrawRows, financialStats.totalWithdrawn]);
+
+  // 2. Live pending withdrawal payout (funds on hold awaiting admin review)
+  const pendingPayoutSum = useMemo(() => {
+    let sum = 0;
+    for (const r of withdrawRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "pending" || s === "hold" || s === "processing") {
+        const amt =
+          typeof r.amount === "number"
+            ? r.amount
+            : parseFloat(String(r.amount || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.pendingPayout);
+  }, [withdrawRows, financialStats.pendingPayout]);
+
+  // 3. Live total earnings from earning rows and database
+  const totalEarningsSum = useMemo(() => {
+    let sum = 0;
+    for (const r of earningRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "complete" || s === "completed" || s === "approved" || s === "paid") {
+        const amt =
+          typeof r.commission === "number"
+            ? r.commission
+            : parseFloat(String(r.commission || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.totalEarned);
+  }, [earningRows, financialStats.totalEarned]);
+
   const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
 
+  const displayCommission =
+    totalEarningsSum > 0
+      ? `$${totalEarningsSum.toFixed(2)}`
+      : isDemo
+      ? stats.totalCommission
+      : "$0.00";
+
+  const displayWithdrawn =
+    totalApprovedWithdrawn > 0
+      ? `$${totalApprovedWithdrawn.toFixed(2)}`
+      : isDemo
+      ? stats.totalWithdrawn
+      : "$0.00";
+
+  const displayPending =
+    pendingPayoutSum > 0
+      ? `$${pendingPayoutSum.toFixed(2)}`
+      : isDemo
+      ? stats.pendingPayout
+      : "$0.00";
+
   const walletStats = [
-    { label: w.totalCommission, value: stats.totalCommission },
-    { label: w.totalWithdrawn, value: stats.totalWithdrawn },
-    { label: w.pendingPayout, value: stats.pendingPayout },
+    { label: w.totalCommission, value: displayCommission },
+    { label: w.totalWithdrawn, value: displayWithdrawn },
+    { label: w.pendingPayout, value: displayPending },
     { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 

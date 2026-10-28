@@ -37,20 +37,44 @@ interface WithdrawRequestModalProps {
 }
 
 function getUserIdentity(user: NonNullable<ReturnType<typeof useUser>["user"]>) {
-  const id =
+  let id =
     "id" in user && user.id
       ? String(user.id)
+      : (user as any)?.userId
+      ? String((user as any).userId)
+      : (user as any)?.sub
+      ? String((user as any).sub)
       : "email" in user && user.email
-        ? user.email
-        : "guest";
-  const name =
-    "firstName" in user && user.firstName
-      ? `${user.firstName} ${"lastName" in user && user.lastName ? user.lastName : ""}`.trim()
-      : "name" in user && user.name
-        ? user.name
-        : "email" in user && user.email
-          ? user.email
-          : "Account";
+      ? String(user.email)
+      : "guest";
+
+  let name = "";
+  if ("fullName" in user && (user as any).fullName) {
+    name = String((user as any).fullName).trim();
+  } else if ("firstName" in user && user.firstName) {
+    name = `${user.firstName} ${"lastName" in user && user.lastName ? user.lastName : ""}`.trim();
+  } else if ("name" in user && user.name) {
+    name = String(user.name).trim();
+  }
+
+  if (!name || name.includes("@")) {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (!id || id === "guest") id = u.id || u.userId || u.sub || id;
+          const fullName = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+          if (fullName) name = fullName;
+        }
+      } catch {}
+    }
+  }
+
+  if (!name || name.includes("@")) {
+    name = "email" in user && user.email ? String(user.email) : "User";
+  }
+
   return { id, name };
 }
 
@@ -218,52 +242,17 @@ export default function WithdrawRequestModal({
           userId: identity.id,
           email: userEmail,
           name: identity.name,
+          fullName: identity.name,
         }
       );
     } catch {}
 
-    // 5. Add Notification for User / Business / Affiliate in their Notification Bell
-    const userWalletHref = userRole.includes("BUS")
-      ? "/dashboard/business/wallet"
-      : userRole.includes("AFF")
-      ? "/dashboard/affiliate/wallet"
-      : "/dashboard/user/wallet";
-
-    const userNotif = {
-      id: `notif-with-${record.id}-${Date.now()}`,
-      title: "Withdrawal Request Submitted",
-      message: `Your withdrawal request of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id}) has been submitted and is pending review.`,
-      time: "Just now",
-      createdAt: new Date().toISOString(),
-      read: false,
-      href: userWalletHref,
-      type: "withdrawal_requested",
-    };
-
-    if (typeof window !== "undefined") {
-      try {
-        const uEmail = userEmail.toLowerCase();
-        const roleKey = userRole.toLowerCase();
-        const storageKeys = ["app_notifs_all", `app_notifs_${identity.id}`, `app_notifs_${roleKey}`];
-        if (uEmail) {
-          storageKeys.push(`app_notifs_${uEmail}`);
-          storageKeys.push(`app_notifs_${uEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
-        }
-        storageKeys.forEach((key) => {
-          try {
-            const existing = JSON.parse(localStorage.getItem(key) || "[]");
-            localStorage.setItem(key, JSON.stringify([userNotif, ...existing]));
-          } catch {}
-        });
-        window.dispatchEvent(new Event("notifications_updated"));
-      } catch {}
-    }
-
-    // 6. Send Notification to Admin (Notification Bell & Toast Alert on Admin Side)
+    // 5. Send Notification to Admin (Notification Bell & Toast Alert on Admin Side)
+    // NOTE: Requester user does NOT receive a self-notification in their bell (only Activity Log added).
     const adminNotif = {
       id: `adm-with-${record.id}-${Date.now()}`,
       title: "New Withdrawal Request",
-      message: `${identity.name} (${userRole}) requested a withdrawal of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id}).`,
+      message: `${identity.name} requested a withdrawal of $${enteredAmount.toFixed(2)} via ${selectedMethod.label} (ID: ${record.id}).`,
       time: "Just now",
       createdAt: new Date().toISOString(),
       read: false,
@@ -282,6 +271,7 @@ export default function WithdrawRequestModal({
       },
     };
 
+    // Permanently write Admin Notification to database
     axiosInstance
       .post("/notifications", {
         targetRole: "admin",
@@ -304,11 +294,11 @@ export default function WithdrawRequestModal({
           } catch {}
         });
 
-        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: adminNotif, targetRole: "admin", timestamp: Date.now() }));
+        localStorage.setItem("vero_notif_sync", JSON.stringify({ item: adminNotif, targetRole: "admin", targetUserId: "admin", timestamp: Date.now() }));
 
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("vero_channel");
-          bc.postMessage({ type: "vero:new_notification", payload: adminNotif, targetRole: "admin" });
+          bc.postMessage({ type: "vero:new_notification", payload: adminNotif, targetRole: "admin", targetUserId: "admin" });
           bc.postMessage({ type: "vero:withdrawal_updated" });
           bc.postMessage({ type: "withdrawal_requested" });
           bc.close();
@@ -317,8 +307,6 @@ export default function WithdrawRequestModal({
           bc2.postMessage({ type: "wallet_updated" });
           bc2.close();
         }
-        window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: adminNotif }));
-        window.dispatchEvent(new Event("notifications_updated"));
         window.dispatchEvent(new Event("wallet_updated"));
         window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
       } catch {}

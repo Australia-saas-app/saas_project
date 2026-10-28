@@ -566,12 +566,14 @@ export default function WithdrawalRequestsLayout() {
           }).catch(() => {});
         }
 
-        // 5. Send Notification to User / Business / Affiliate (Notification Bell & Toast Alert)
+        // 5. Send Notification to User / Business / Affiliate (Notification Bell & Toast Alert on User Side)
         const targetWalletHref = item.role === "BUSINESS"
           ? "/dashboard/business/wallet"
           : item.role === "AFFILIATE"
           ? "/dashboard/affiliate/wallet"
           : "/dashboard/user/wallet";
+
+        const userRole = String(item.role || "user").toLowerCase();
 
         const userNotif = {
           id: `with-appr-${item.requestId}-${Date.now()}`,
@@ -581,6 +583,8 @@ export default function WithdrawalRequestsLayout() {
           createdAt: new Date().toISOString(),
           read: false,
           href: targetWalletHref,
+          role: userRole,
+          targetRole: userRole,
           type: "withdrawal_approved",
           data: { href: targetWalletHref, requestId: item.requestId, amount: item.amount },
           userId: item.businessUserId,
@@ -588,11 +592,14 @@ export default function WithdrawalRequestsLayout() {
           targetEmail: item.userEmail,
         };
 
+        // Persist notification into DB for the target user
         axiosInstanceClient
           .post("/notifications", {
             targetUserId: item.businessUserId,
             userId: item.businessUserId,
             targetEmail: item.userEmail,
+            targetRole: userRole,
+            role: userRole,
             title: userNotif.title,
             message: userNotif.message,
             type: userNotif.type,
@@ -600,6 +607,27 @@ export default function WithdrawalRequestsLayout() {
             data: userNotif.data,
           })
           .catch(() => {});
+
+        try {
+          fetch("/admin/api/notifications", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(activeToken ? { Authorization: activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}` } : {}),
+            },
+            body: JSON.stringify({
+              userId: item.businessUserId,
+              targetUserId: item.businessUserId,
+              targetRole: userRole,
+              role: userRole,
+              title: userNotif.title,
+              message: userNotif.message,
+              type: userNotif.type,
+              priority: "high",
+              data: userNotif.data,
+            }),
+          }).catch(() => {});
+        } catch {}
 
         // Record User Activity Log for Approval
         const clientIp = await getRealIp().catch(() => "127.0.0.1");
@@ -625,9 +653,9 @@ export default function WithdrawalRequestsLayout() {
         } catch {}
 
         try {
-          const roleKey = String(item.role || "user").toLowerCase();
+          const roleKey = userRole;
           const uEmail = (item.userEmail || "").trim().toLowerCase();
-          const cacheKeys = ["app_notifs_all", `app_notifs_${item.businessUserId}`, `app_notifs_${roleKey}`];
+          const cacheKeys = [`app_notifs_${item.businessUserId}`, `app_notifs_${roleKey}`];
           if (uEmail) {
             cacheKeys.push(`app_notifs_${uEmail}`);
             cacheKeys.push(`app_notifs_${uEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
@@ -639,22 +667,40 @@ export default function WithdrawalRequestsLayout() {
             } catch {}
           });
 
-          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail, timestamp: Date.now() }));
+          localStorage.setItem(
+            "vero_notif_sync",
+            JSON.stringify({
+              item: userNotif,
+              targetUserId: item.businessUserId,
+              targetEmail: item.userEmail,
+              targetRole: userRole,
+              timestamp: Date.now(),
+            })
+          );
 
+          // Broadcast in real-time across browser tabs/windows to user
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
-            bc.postMessage({ type: "vero:new_notification", payload: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail });
+            bc.postMessage({
+              type: "vero:new_notification",
+              payload: userNotif,
+              targetUserId: item.businessUserId,
+              targetEmail: item.userEmail,
+              targetRole: userRole,
+            });
             bc.postMessage({ type: "vero:log_added", detail: userLogEntry, userId: item.businessUserId });
+            bc.postMessage({ type: "vero:withdrawal_updated" });
             bc.close();
 
             const bc2 = new BroadcastChannel("activity_channel");
             bc2.postMessage({ type: "activity_logs_updated", detail: userLogEntry, userId: item.businessUserId });
             bc2.close();
+
+            const bc3 = new BroadcastChannel("wallet_channel");
+            bc3.postMessage({ type: "wallet_updated" });
+            bc3.close();
           }
-          window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: userNotif }));
-          window.dispatchEvent(new Event("notifications_updated"));
-          window.dispatchEvent(new CustomEvent("vero:log_added", { detail: userLogEntry }));
-          window.dispatchEvent(new Event("activity_logs_updated"));
+          // Do NOT dispatch notification events on Admin's own window (admin receives only action toast)
         } catch {}
       }
 
@@ -807,12 +853,14 @@ export default function WithdrawalRequestsLayout() {
           }).catch(() => {});
         }
 
-        // 6. Send Notification to User / Business / Affiliate (Notification Bell & Toast Alert)
+        // 6. Send Notification to User / Business / Affiliate (Notification Bell & Toast Alert on User Side)
         const targetWalletHref = item.role === "BUSINESS"
           ? "/dashboard/business/wallet"
           : item.role === "AFFILIATE"
           ? "/dashboard/affiliate/wallet"
           : "/dashboard/user/wallet";
+
+        const userRole = String(item.role || "user").toLowerCase();
 
         const userNotif = {
           id: `with-rej-${item.requestId}-${Date.now()}`,
@@ -822,6 +870,8 @@ export default function WithdrawalRequestsLayout() {
           createdAt: new Date().toISOString(),
           read: false,
           href: targetWalletHref,
+          role: userRole,
+          targetRole: userRole,
           type: "withdrawal_rejected",
           data: { href: targetWalletHref, requestId: item.requestId, amount: item.amount, reason: finalReason },
           userId: item.businessUserId,
@@ -829,11 +879,14 @@ export default function WithdrawalRequestsLayout() {
           targetEmail: item.userEmail,
         };
 
+        // Persist rejection notification to DB for the target user
         axiosInstanceClient
           .post("/notifications", {
             targetUserId: item.businessUserId,
             userId: item.businessUserId,
             targetEmail: item.userEmail,
+            targetRole: userRole,
+            role: userRole,
             title: userNotif.title,
             message: userNotif.message,
             type: userNotif.type,
@@ -841,6 +894,27 @@ export default function WithdrawalRequestsLayout() {
             data: userNotif.data,
           })
           .catch(() => {});
+
+        try {
+          fetch("/admin/api/notifications", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(activeToken ? { Authorization: activeToken.startsWith("Bearer ") ? activeToken : `Bearer ${activeToken}` } : {}),
+            },
+            body: JSON.stringify({
+              userId: item.businessUserId,
+              targetUserId: item.businessUserId,
+              targetRole: userRole,
+              role: userRole,
+              title: userNotif.title,
+              message: userNotif.message,
+              type: userNotif.type,
+              priority: "high",
+              data: userNotif.data,
+            }),
+          }).catch(() => {});
+        } catch {}
 
         // Record User Activity Log for Rejection
         const clientIp = await getRealIp().catch(() => "127.0.0.1");
@@ -866,9 +940,9 @@ export default function WithdrawalRequestsLayout() {
         } catch {}
 
         try {
-          const roleKey = String(item.role || "user").toLowerCase();
+          const roleKey = userRole;
           const uEmail = (item.userEmail || "").trim().toLowerCase();
-          const cacheKeys = ["app_notifs_all", `app_notifs_${item.businessUserId}`, `app_notifs_${roleKey}`];
+          const cacheKeys = [`app_notifs_${item.businessUserId}`, `app_notifs_${roleKey}`];
           if (uEmail) {
             cacheKeys.push(`app_notifs_${uEmail}`);
             cacheKeys.push(`app_notifs_${uEmail.replace(/[^a-zA-Z0-9]/g, "_")}`);
@@ -880,22 +954,40 @@ export default function WithdrawalRequestsLayout() {
             } catch {}
           });
 
-          localStorage.setItem("vero_notif_sync", JSON.stringify({ item: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail, timestamp: Date.now() }));
+          localStorage.setItem(
+            "vero_notif_sync",
+            JSON.stringify({
+              item: userNotif,
+              targetUserId: item.businessUserId,
+              targetEmail: item.userEmail,
+              targetRole: userRole,
+              timestamp: Date.now(),
+            })
+          );
 
+          // Broadcast in real-time across browser tabs/windows to user
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
-            bc.postMessage({ type: "vero:new_notification", payload: userNotif, targetUserId: item.businessUserId, targetEmail: item.userEmail });
+            bc.postMessage({
+              type: "vero:new_notification",
+              payload: userNotif,
+              targetUserId: item.businessUserId,
+              targetEmail: item.userEmail,
+              targetRole: userRole,
+            });
             bc.postMessage({ type: "vero:log_added", detail: userLogEntry, userId: item.businessUserId });
+            bc.postMessage({ type: "vero:withdrawal_updated" });
             bc.close();
 
             const bc2 = new BroadcastChannel("activity_channel");
             bc2.postMessage({ type: "activity_logs_updated", detail: userLogEntry, userId: item.businessUserId });
             bc2.close();
+
+            const bc3 = new BroadcastChannel("wallet_channel");
+            bc3.postMessage({ type: "wallet_updated" });
+            bc3.close();
           }
-          window.dispatchEvent(new CustomEvent("vero:new_notification", { detail: userNotif }));
-          window.dispatchEvent(new Event("notifications_updated"));
-          window.dispatchEvent(new CustomEvent("vero:log_added", { detail: userLogEntry }));
-          window.dispatchEvent(new Event("activity_logs_updated"));
+          // Do NOT dispatch notification events on Admin's own window (admin receives only action toast)
         } catch {}
       }
 

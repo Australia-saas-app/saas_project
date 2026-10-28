@@ -20,11 +20,10 @@ export class WalletController {
   @Get('balance')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get wallet balance' })
+  @ApiOperation({ summary: 'Get wallet balance and summary' })
   async getBalance(@Request() req: any) {
     const userId = req.user?.userId || req.user?.sub || req.user?.id;
-    const balance = await this.walletService.getBalance(userId);
-    return { balance };
+    return await this.walletService.getWalletSummary(userId);
   }
 
   @Get('payment-methods')

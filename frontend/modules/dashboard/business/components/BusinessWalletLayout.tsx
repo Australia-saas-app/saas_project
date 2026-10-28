@@ -50,6 +50,7 @@ export default function BusinessWalletLayout() {
     totalEarned: 0,
     totalWithdrawn: 0,
     pendingEscrow: 0,
+    pendingPayout: 0,
   });
 
   const loadWithdrawals = async () => {
@@ -189,26 +190,81 @@ export default function BusinessWalletLayout() {
     return demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
   }, [realTransactions, demoOrEmpty]);
 
+  // 1. Live approved / completed withdrawals sum from database & local records
+  const totalApprovedWithdrawn = useMemo(() => {
+    let sum = 0;
+    for (const r of withdrawRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "approved" || s === "complete" || s === "completed" || s === "paid") {
+        const amt =
+          typeof r.amount === "number"
+            ? r.amount
+            : parseFloat(String(r.amount || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.totalWithdrawn || 0);
+  }, [withdrawRows, financialStats.totalWithdrawn]);
+
+  // 2. Live pending withdrawal payout (funds on hold awaiting admin review)
+  const pendingPayoutSum = useMemo(() => {
+    let sum = 0;
+    for (const r of withdrawRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "pending" || s === "hold" || s === "processing") {
+        const amt =
+          typeof r.amount === "number"
+            ? r.amount
+            : parseFloat(String(r.amount || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.pendingPayout || 0, financialStats.pendingEscrow || 0);
+  }, [withdrawRows, financialStats.pendingPayout, financialStats.pendingEscrow]);
+
+  // 3. Live total earnings from earning rows and database
+  const totalEarningsSum = useMemo(() => {
+    let sum = 0;
+    for (const r of earningRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "complete" || s === "completed" || s === "approved" || s === "paid") {
+        const amt =
+          typeof r.commission === "number"
+            ? r.commission
+            : parseFloat(String(r.commission || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.totalEarned || 0);
+  }, [earningRows, financialStats.totalEarned]);
+
   const displayBalance =
     financialStats.balance > 0
       ? `$${financialStats.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : stats.currentBalance;
 
   const displayCommission =
-    financialStats.totalEarned > 0
-      ? `$${financialStats.totalEarned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    totalEarningsSum > 0
+      ? `$${totalEarningsSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : stats.totalCommission;
 
+  const displayWithdrawn =
+    totalApprovedWithdrawn > 0
+      ? `$${totalApprovedWithdrawn.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : isDemo
+      ? stats.totalWithdrawn
+      : "$0.00";
+
   const displayPending =
-    financialStats.pendingEscrow > 0
-      ? `$${financialStats.pendingEscrow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    pendingPayoutSum > 0
+      ? `$${pendingPayoutSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : isDemo
       ? "$640"
-      : "$0";
+      : "$0.00";
 
   const walletStats = [
     { label: w.totalCommission, value: displayCommission },
-    { label: w.totalWithdrawn, value: stats.totalWithdrawn },
+    { label: w.totalWithdrawn, value: displayWithdrawn },
     { label: w.pendingPayout, value: displayPending },
     { label: w.availableBalance, value: displayBalance, highlight: true },
   ];

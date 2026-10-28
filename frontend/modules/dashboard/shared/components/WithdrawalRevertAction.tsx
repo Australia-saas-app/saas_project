@@ -153,49 +153,23 @@ export default function WithdrawalRevertAction({
         console.error("Failed to record WITHDRAWAL_REVERTED log:", logErr);
       }
 
-      // Add revert notification for user and admin
+      // NOTE: On revert, NO bell notifications are generated (only Activity Log added).
       if (typeof window !== "undefined") {
         try {
-          const revertNotif = {
-            id: `rev-with-${withdrawal.id}-${Date.now()}`,
-            title: "Withdrawal Request Reverted",
-            message: `Withdrawal request ${withdrawal.id} (${withdrawal.amount}) has been reverted and funds returned to wallet balance.`,
-            time: "Just now",
-            createdAt: new Date().toISOString(),
-            read: false,
-            type: "withdrawal_reverted",
-            data: {
-              requestId: withdrawal.id,
-              amount: withdrawal.amount,
-              userId: effectiveUserId,
-            },
-          };
-
-          const storageKeys = ["app_notifs_all", `app_notifs_${effectiveUserId}`, `app_notifs_${uRole.toLowerCase()}`];
-          if (effectiveEmail) storageKeys.push(`app_notifs_${effectiveEmail}`);
-          storageKeys.forEach((key) => {
-            try {
-              const existing = JSON.parse(localStorage.getItem(key) || "[]");
-              localStorage.setItem(key, JSON.stringify([revertNotif, ...existing]));
-            } catch {}
-          });
-
-          // Also notify admin
-          ["admin_notifications", "app_notifs_admin"].forEach((key) => {
-            try {
-              const existing = JSON.parse(localStorage.getItem(key) || "[]");
-              localStorage.setItem(key, JSON.stringify([revertNotif, ...existing]));
-            } catch {}
-          });
-
-          window.dispatchEvent(new Event("notifications_updated"));
+          window.dispatchEvent(new Event("wallet_updated"));
+          window.dispatchEvent(new CustomEvent("vero:withdrawal_updated"));
           window.dispatchEvent(new CustomEvent("vero:log_added"));
+          window.dispatchEvent(new Event("activity_logs_updated"));
 
           if ("BroadcastChannel" in window) {
             const bc = new BroadcastChannel("vero_channel");
             bc.postMessage({ type: "vero:log_added" });
             bc.postMessage({ type: "vero:withdrawal_updated" });
             bc.close();
+
+            const bc2 = new BroadcastChannel("wallet_channel");
+            bc2.postMessage({ type: "wallet_updated" });
+            bc2.close();
           }
         } catch {}
       }

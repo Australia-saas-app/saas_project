@@ -20,7 +20,7 @@ import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import { useUser } from "@/src/context/user.provider";
 import { getWithdrawalsForUser, fetchWalletWithdrawalsFromDb } from "@/src/shared/lib/wallet-store";
-import { fetchWalletBalance } from "@/src/modules/technical/services/technical.services";
+import { fetchWalletBalance, fetchBusinessTransactions } from "@/src/modules/technical/services/technical.services";
 import { USER_STATS } from "../data/user-demo-data";
 
 const PAGE_SIZE = 10;
@@ -47,8 +47,8 @@ export default function UserWalletLayout() {
           s === "approved" || s === "complete" || s === "paid"
             ? "Approved"
             : s === "rejected" || s === "failed"
-            ? "Rejected"
-            : "Pending";
+              ? "Rejected"
+              : "Pending";
         return {
           id: row.id,
           method: row.method,
@@ -90,8 +90,8 @@ export default function UserWalletLayout() {
           s === "approved" || s === "complete" || s === "paid"
             ? "Approved"
             : s === "rejected" || s === "failed"
-            ? "Rejected"
-            : "Pending";
+              ? "Rejected"
+              : "Pending";
         return {
           id: row.id,
           method: row.method,
@@ -113,8 +113,8 @@ export default function UserWalletLayout() {
           s === "approved" || s === "complete" || s === "paid"
             ? "Approved"
             : s === "rejected" || s === "failed"
-            ? "Rejected"
-            : "Pending";
+              ? "Rejected"
+              : "Pending";
         merged.set(d.id, {
           id: d.id,
           method: d.method,
@@ -141,7 +141,7 @@ export default function UserWalletLayout() {
       }
 
       setWithdrawRows(Array.from(merged.values()));
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => {
@@ -149,16 +149,55 @@ export default function UserWalletLayout() {
     loadWithdrawals();
   }, [isReady, userId, userEmail, isDemo]);
 
-  const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
+  const earningRows = useMemo(() => {
+    const bizTxs = fetchBusinessTransactions(user).filter(
+      (tx) => tx.type === "milestone_release" || tx.type === "project_release" || tx.type === "deposit"
+    );
+    if (bizTxs.length > 0) {
+      return bizTxs.map((tx) => ({
+        id: tx.id,
+        category: "Technical Services",
+        subcategory: tx.milestoneInfo || tx.title || "Project Milestone",
+        commission:
+          typeof (tx as any).amount === "number"
+            ? `$${Number(tx.amount).toFixed(2)}`
+            : typeof tx.rawAmount === "number"
+              ? `$${tx.rawAmount.toFixed(2)}`
+              : String(tx.amount || "$0.00"),
+        date: tx.date || new Date().toISOString().split("T")[0],
+        status: (tx.status === "Released" ? "Complete" : tx.status) as any,
+      }));
+    }
+    return demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
+  }, [user, demoOrEmpty]);
 
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [financialStats, setFinancialStats] = useState<{
+    balance: number;
+    totalEarned: number;
+    totalWithdrawn: number;
+    pendingPayout: number;
+  }>({
+    balance: 0,
+    totalEarned: 0,
+    totalWithdrawn: 0,
+    pendingPayout: 0,
+  });
 
   const loadRealBalance = async () => {
     try {
-      const res = await fetchWalletBalance();
-      if (res?.balance !== undefined && res.balance !== null) {
-        setRealBalance(res.balance);
+      const res = await fetchWalletBalance(user);
+      if (res) {
+        setFinancialStats({
+          balance: Number(res.balance ?? 0),
+          totalEarned: Number(res.totalEarned ?? 0),
+          totalWithdrawn: Number(res.totalWithdrawn ?? 0),
+          pendingPayout: Number(res.pendingPayout ?? res.pendingEscrow ?? 0),
+        });
+        if (res.balance !== undefined && res.balance !== null) {
+          setRealBalance(Number(res.balance));
+        }
       }
     } catch {
     } finally {
@@ -190,7 +229,7 @@ export default function UserWalletLayout() {
           loadWithdrawals();
         };
       }
-    } catch {}
+    } catch { }
 
     window.addEventListener("focus", onWalletUpdated);
 
@@ -199,20 +238,90 @@ export default function UserWalletLayout() {
 
     return () => {
       clearInterval(poller);
-      window.removeEventListener("wallet_updated", onWalletUpdated);
+      window.removeEventListener("wallet_updated", onWalletUpdated
+      );
       window.removeEventListener("vero:withdrawal_updated", onWalletUpdated);
       window.removeEventListener("focus", onWalletUpdated);
-      if (bc1) try { bc1.close(); } catch {}
-      if (bc2) try { bc2.close(); } catch {}
+      if (bc1) try { bc1.close(); } catch { }
+      if (bc2) try { bc2.close(); } catch { }
     };
-  }, [userId]);
+  }, [userId, user]);
 
   const displayBalance = realBalance !== null ? `$${realBalance.toFixed(2)}` : stats.currentBalance;
 
+  // 1. Live approved / completed withdrawals sum from database & local records
+  const totalApprovedWithdrawn = useMemo(() => {
+    let sum = 0;
+    for (const r of withdrawRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "approved" || s === "complete" || s === "completed" || s === "paid") {
+        const amt =
+          typeof r.amount === "number"
+            ? r.amount
+            : parseFloat(String(r.amount || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.totalWithdrawn);
+  }, [withdrawRows, financialStats.totalWithdrawn]);
+
+  // 2. Live pending withdrawal payout (funds on hold awaiting admin review)
+  const pendingPayoutSum = useMemo(() => {
+    let sum = 0;
+    for (const r of withdrawRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "pending" || s === "hold" || s === "processing") {
+        const amt =
+          typeof r.amount === "number"
+            ? r.amount
+            : parseFloat(String(r.amount || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.pendingPayout);
+  }, [withdrawRows, financialStats.pendingPayout]);
+
+  // 3. Live total earnings from earning rows and database
+  const totalEarningsSum = useMemo(() => {
+    let sum = 0;
+    for (const r of earningRows) {
+      const s = String(r.status || "").toLowerCase();
+      if (s === "complete" || s === "completed" || s === "approved" || s === "paid") {
+        const amt =
+          typeof r.commission === "number"
+            ? r.commission
+            : parseFloat(String(r.commission || "").replace(/[^0-9.]/g, "")) || 0;
+        sum += amt;
+      }
+    }
+    return Math.max(sum, financialStats.totalEarned);
+  }, [earningRows, financialStats.totalEarned]);
+
+  const displayEarnings =
+    totalEarningsSum > 0
+      ? `$${totalEarningsSum.toFixed(2)}`
+      : isDemo
+        ? stats.totalEarnings
+        : "$0.00";
+
+  const displayWithdrawn =
+    totalApprovedWithdrawn > 0
+      ? `$${totalApprovedWithdrawn.toFixed(2)}`
+      : isDemo
+        ? stats.totalWithdrawn
+        : "$0.00";
+
+  const displayPending =
+    pendingPayoutSum > 0
+      ? `$${pendingPayoutSum.toFixed(2)}`
+      : isDemo
+        ? "$12.00"
+        : "$0.00";
+
   const walletStats = [
-    { label: w.totalEarnings, value: stats.totalEarnings },
-    { label: w.totalWithdrawn, value: stats.totalWithdrawn },
-    { label: w.pendingPayout, value: isDemo ? "$12" : "$0" },
+    { label: w.totalEarnings, value: displayEarnings },
+    { label: w.totalWithdrawn, value: displayWithdrawn },
+    { label: w.pendingPayout, value: displayPending },
     { label: w.availableBalance, value: displayBalance, highlight: true },
   ];
 
@@ -343,9 +452,8 @@ export default function UserWalletLayout() {
         {walletStats.map((stat) => (
           <div
             key={stat.label}
-            className={`rounded-xl p-4 md:p-5 shadow-sm border ${
-              stat.highlight ? "bg-primary text-white border-primary" : "bg-white border-gray-100"
-            }`}
+            className={`rounded-xl p-4 md:p-5 shadow-sm border ${stat.highlight ? "bg-primary text-white border-primary" : "bg-white border-gray-100"
+              }`}
           >
             <p
               className={`text-xs font-semibold mb-1 ${stat.highlight ? "text-white/80" : "text-gray-500"}`}
@@ -423,13 +531,12 @@ export default function UserWalletLayout() {
                       <td className="p-3 text-gray-500 whitespace-nowrap">{row.date}</td>
                       <td className="p-3">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                            row.status === "Approved" || row.status === "Complete" || row.status === "Paid"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                              : row.status === "Rejected" || row.status === "Failed"
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${row.status === "Approved" || row.status === "Complete" || row.status === "Paid"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : row.status === "Rejected" || row.status === "Failed"
                               ? "bg-rose-100 text-rose-800 border border-rose-200"
                               : "bg-amber-100 text-amber-800 border border-amber-200"
-                          }`}
+                            }`}
                         >
                           {row.status}
                         </span>
@@ -540,11 +647,10 @@ export default function UserWalletLayout() {
                       <td className="p-3 font-semibold text-gray-900">{row.commission}</td>
                       <td className="p-3">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                            row.status === "Complete" || row.status === "Approved" || row.status === "Paid"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                              : "bg-amber-100 text-amber-800 border border-amber-200"
-                          }`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${row.status === "Complete" || row.status === "Approved" || row.status === "Paid"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                            }`}
                         >
                           {row.status}
                         </span>

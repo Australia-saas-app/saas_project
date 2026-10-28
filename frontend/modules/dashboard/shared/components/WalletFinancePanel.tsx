@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import AppModal from "./AppModal";
 import { EmptyState } from "@/src/components/ui/EmptyState";
+import { DashboardTablePagination } from "./DashboardTablePagination";
 import { useUser } from "@/src/context/user.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
 import {
@@ -120,10 +121,13 @@ const getLedgerStatusBadge = (status: string) => {
   );
 };
 
+const PAGE_SIZE = 10;
+
 export default function WalletFinancePanel() {
   const { user } = useUser();
   const { userId, isDemo, isReady } = useIsDemoAccount();
   const [tab, setTab] = useState<TabId>("overview");
+  const [currentPage, setCurrentPage] = useState(1);
   const [rows, setRows] = useState<WalletLedgerRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
   const [depositOpen, setDepositOpen] = useState(false);
@@ -458,6 +462,18 @@ export default function WalletFinancePanel() {
     return rows.filter((r) => r.kind === "refund");
   }, [rows, tab]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
   const stats = useMemo(() => {
     const sum = (kind: WalletLedgerRecord["kind"]) =>
       rows
@@ -684,6 +700,7 @@ export default function WalletFinancePanel() {
             type="button"
             onClick={() => {
               setTab("deposit");
+              setCurrentPage(1);
               setDepositOpen(true);
             }}
             className="rounded-lg bg-primary px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary/90 transition-all cursor-pointer flex items-center gap-1.5"
@@ -695,6 +712,7 @@ export default function WalletFinancePanel() {
             type="button"
             onClick={() => {
               setTab("security");
+              setCurrentPage(1);
               setSecurityOpen(true);
             }}
             className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
@@ -728,7 +746,10 @@ export default function WalletFinancePanel() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setTab(item.id)}
+              onClick={() => {
+                setTab(item.id);
+                setCurrentPage(1);
+              }}
               className={[
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer",
                 active ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted",
@@ -741,16 +762,16 @@ export default function WalletFinancePanel() {
         })}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="max-h-[216px] overflow-y-auto overflow-x-auto rounded border border-border/60 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
         <table className="min-w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase text-muted-foreground">
-              <th className="px-2 py-2 font-semibold">ID</th>
-              <th className="px-2 py-2 font-semibold">Type</th>
-              <th className="px-2 py-2 font-semibold">Method / Project</th>
-              <th className="px-2 py-2 font-semibold">Amount</th>
-              <th className="px-2 py-2 font-semibold">Status</th>
-              <th className="px-2 py-2 font-semibold">Date</th>
+          <thead className="sticky top-0 z-10 bg-card border-b border-border shadow-sm">
+            <tr className="border-b border-border text-xs uppercase text-muted-foreground bg-card">
+              <th className="px-3 py-2.5 font-semibold bg-card">ID</th>
+              <th className="px-3 py-2.5 font-semibold bg-card">Type</th>
+              <th className="px-3 py-2.5 font-semibold bg-card">Method / Project</th>
+              <th className="px-3 py-2.5 font-semibold bg-card">Amount</th>
+              <th className="px-3 py-2.5 font-semibold bg-card">Status</th>
+              <th className="px-3 py-2.5 font-semibold bg-card">Date</th>
             </tr>
           </thead>
           <tbody>
@@ -776,24 +797,35 @@ export default function WalletFinancePanel() {
                 </td>
               </tr>
             ) : (
-              filtered.map((row) => (
-                <tr key={row.id} className="border-b border-border/60">
-                  <td className="px-2 py-2 font-medium text-foreground font-mono text-xs">{row.id}</td>
-                  <td className="px-2 py-2 capitalize text-muted-foreground">
+              paginatedRows.map((row) => (
+                <tr key={row.id} className="border-b border-border/60 hover:bg-muted/30 transition-colors">
+                  <td className="px-3 py-2.5 font-medium text-foreground font-mono text-xs">{row.id}</td>
+                  <td className="px-3 py-2.5 capitalize text-muted-foreground text-xs">
                     {row.kind.replace(/_/g, " ")}
                   </td>
-                  <td className="px-2 py-2 text-muted-foreground">{row.method}</td>
-                  <td className="px-2 py-2 font-semibold text-foreground">{row.amount}</td>
-                  <td className="px-2 py-2">
+                  <td className="px-3 py-2.5 text-muted-foreground text-xs">{row.method}</td>
+                  <td className="px-3 py-2.5 font-semibold text-foreground text-xs">{row.amount}</td>
+                  <td className="px-3 py-2.5">
                     {getLedgerStatusBadge(row.status)}
                   </td>
-                  <td className="px-2 py-2 text-muted-foreground text-xs">{row.date}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground text-xs whitespace-nowrap">{row.date}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {filtered.length > 0 && (
+        <DashboardTablePagination
+          current={currentPage}
+          total={totalPages}
+          pageSize={PAGE_SIZE}
+          totalItems={filtered.length}
+          onChange={setCurrentPage}
+          compact
+        />
+      )}
 
       {/* New Deposit Modal */}
       <AppModal

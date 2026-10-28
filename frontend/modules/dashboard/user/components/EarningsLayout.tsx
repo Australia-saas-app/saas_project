@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Search } from "lucide-react";
 import { UserStatsRow } from "./UserStatsRow";
 import { DashboardTablePagination } from "@/src/modules/dashboard/shared/components/DashboardTablePagination";
 import { EARNING_ROWS } from "@/src/modules/dashboard/shared/data/dashboard-demo-data";
 import { useLocale } from "@/src/shared/context/locale.provider";
 import { useIsDemoAccount } from "@/src/shared/hooks/use-is-demo-account";
+import { useUser } from "@/src/context/user.provider";
+import {
+  fetchWalletBalance,
+  fetchBusinessTransactions,
+} from "@/src/modules/technical/services/technical.services";
 
 const PAGE_SIZE = 8;
 
@@ -26,13 +31,90 @@ const EMPTY_EARNING_SUMMARY = [
 
 export default function UserEarningsLayout() {
   const { t } = useLocale();
-  const { demoOrEmpty } = useIsDemoAccount();
-  const earningRows = demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
-  const summaryValues = demoOrEmpty(DEMO_EARNING_SUMMARY, EMPTY_EARNING_SUMMARY);
+  const { user } = useUser();
+  const { isDemo, demoOrEmpty } = useIsDemoAccount();
   const p = t.userPages.earnings;
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"Up" | "Down">("Down");
   const [page, setPage] = useState(1);
+  const [financialStats, setFinancialStats] = useState({
+    totalEarned: 0,
+    pendingPayout: 0,
+  });
+
+  const loadFinancials = async () => {
+    try {
+      const res = await fetchWalletBalance(user);
+      if (res) {
+        setFinancialStats({
+          totalEarned: Number(res.totalEarned ?? 0),
+          pendingPayout: Number(res.pendingPayout ?? res.pendingEscrow ?? 0),
+        });
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadFinancials();
+    const onUpdated = () => loadFinancials();
+    window.addEventListener("wallet_updated", onUpdated);
+    window.addEventListener("vero:withdrawal_updated", onUpdated);
+    window.addEventListener("platform_projects_updated", onUpdated);
+    window.addEventListener("focus", onUpdated);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("wallet_channel");
+        bc.onmessage = () => loadFinancials();
+      }
+    } catch {}
+
+    const interval = setInterval(onUpdated, 4000);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("wallet_updated", onUpdated);
+      window.removeEventListener("vero:withdrawal_updated", onUpdated);
+      window.removeEventListener("platform_projects_updated", onUpdated);
+      window.removeEventListener("focus", onUpdated);
+      if (bc) try { bc.close(); } catch {}
+    };
+  }, [user]);
+
+  const earningRows = useMemo(() => {
+    const bizTxs = fetchBusinessTransactions(user).filter(
+      (tx) => tx.type === "milestone_release" || tx.type === "project_release" || tx.type === "deposit"
+    );
+    if (bizTxs.length > 0) {
+      return bizTxs.map((tx) => ({
+        id: tx.id,
+        category: "Technical Services",
+        subcategory: tx.milestoneInfo || tx.title || "Project Milestone",
+        commission:
+          typeof (tx as any).amount === "number"
+            ? `$${Number(tx.amount).toFixed(2)}`
+            : typeof tx.rawAmount === "number"
+            ? `$${tx.rawAmount.toFixed(2)}`
+            : String(tx.amount || "$0.00"),
+        date: tx.date || new Date().toISOString().split("T")[0],
+        status: (tx.status === "Released" ? "Complete" : tx.status) as any,
+      }));
+    }
+    return demoOrEmpty(EARNING_ROWS, [] as typeof EARNING_ROWS);
+  }, [user, demoOrEmpty]);
+
+  const summaryValues = useMemo(() => {
+    const fallback = demoOrEmpty(DEMO_EARNING_SUMMARY, EMPTY_EARNING_SUMMARY);
+    if (financialStats.totalEarned > 0 || financialStats.pendingPayout > 0) {
+      return [
+        { key: "thisMonth" as const, value: `$${financialStats.totalEarned.toFixed(2)}` },
+        { key: "lastMonth" as const, value: "$0.00" },
+        { key: "totalEarned" as const, value: `$${financialStats.totalEarned.toFixed(2)}` },
+        { key: "pending" as const, value: `$${financialStats.pendingPayout.toFixed(2)}` },
+      ];
+    }
+    return fallback;
+  }, [financialStats, demoOrEmpty]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return earningRows;

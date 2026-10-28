@@ -27,11 +27,34 @@ export function formatLogCount(count: number): string {
 }
 
 function formatBackendLog(log: any): RealLogEntry {
+  let username =
+    log.details?.fullName ||
+    log.details?.name ||
+    log.details?.userName ||
+    log.username ||
+    "";
+
+  // If username is missing, generic "User", or an email address, resolve real user name from localStorage auth user
+  if (!username || username.includes("@") || username === "User") {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          const fullName = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+          if (fullName) username = fullName;
+        }
+      } catch {}
+    }
+  }
+
+  if (!username) username = "User";
+
   return {
     id: log._id || log.id,
     userId: log.userId,
-    username: log.details?.fullName || log.details?.name || "User",
-    email: log.details?.email || "",
+    username,
+    email: log.details?.email || (typeof log.userId === "string" && log.userId.includes("@") ? log.userId : ""),
     action: log.action,
     details: log.resource || log.details?.message || "",
     ipAddress: log.ipAddress || "",
@@ -144,7 +167,7 @@ export async function recordRealActivity(
     const payload: Record<string, unknown> = {
       action,
       resource: details,
-      details: { name: username, email, userId },
+      details: { name: username, fullName: username, email, userId },
       userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Unknown",
     };
 

@@ -169,40 +169,46 @@ export async function dispatchAdminNotification(notif: {
   } catch {}
 }
 
-export function getCachedWalletBalance(): {
+export interface WalletBalanceSummary {
   balance: number;
   totalEarned: number;
   totalWithdrawn: number;
   pendingEscrow: number;
-} | null {
+  pendingPayout: number;
+}
+
+export function getCachedWalletBalance(): WalletBalanceSummary | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem("platform_wallet_cached_balance");
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed.balance === "number") {
-        return parsed;
+        return {
+          balance: Number(parsed.balance || 0),
+          totalEarned: Number(parsed.totalEarned || 0),
+          totalWithdrawn: Number(parsed.totalWithdrawn || 0),
+          pendingEscrow: Number(parsed.pendingEscrow || 0),
+          pendingPayout: Number(parsed.pendingPayout || parsed.pendingEscrow || 0),
+        };
       }
     }
   } catch {}
   return null;
 }
 
-export const fetchWalletBalance = async (userParam?: any): Promise<{
-  balance: number;
-  totalEarned: number;
-  totalWithdrawn: number;
-  pendingEscrow: number;
-}> => {
+export const fetchWalletBalance = async (userParam?: any): Promise<WalletBalanceSummary> => {
   // 1. Try server API
   try {
     const ssoRes = await axiosInstance.get('/sso/wallet/balance');
     if (ssoRes?.data?.balance !== undefined && ssoRes.data.balance !== null && !isNaN(Number(ssoRes.data.balance))) {
-      const resData = {
+      const pendingVal = Number(ssoRes.data.pendingPayout ?? ssoRes.data.pendingEscrow ?? 0);
+      const resData: WalletBalanceSummary = {
         balance: Number(ssoRes.data.balance),
         totalEarned: Number(ssoRes.data.totalEarned ?? 0),
         totalWithdrawn: Number(ssoRes.data.totalWithdrawn ?? 0),
-        pendingEscrow: Number(ssoRes.data.pendingEscrow ?? 0),
+        pendingEscrow: Number(ssoRes.data.pendingEscrow ?? pendingVal),
+        pendingPayout: pendingVal,
       };
       if (typeof window !== "undefined") {
         try {
@@ -413,11 +419,12 @@ export const fetchWalletBalance = async (userParam?: any): Promise<{
         totalEarned,
         totalWithdrawn,
         pendingEscrow,
+        pendingPayout: pendingEscrow,
       };
     } catch {}
   }
 
-  return { balance: 0, totalEarned: 0, totalWithdrawn: 0, pendingEscrow: 0 };
+  return { balance: 0, totalEarned: 0, totalWithdrawn: 0, pendingEscrow: 0, pendingPayout: 0 };
 };
 
 export interface BusinessTransactionRecord {

@@ -36,6 +36,25 @@ export default function UserLogLayout() {
   const userEmail = getUserEmailFromAuthUser(user) || "User";
   const userId = getUserIdFromAuthUser(user) || userEmail || "user";
 
+  const currentUserName = useMemo(() => {
+    if (user && "fullName" in user && (user as any).fullName) return String((user as any).fullName).trim();
+    if (user && "name" in user && (user as any).name) return String((user as any).name).trim();
+    if (user && "firstName" in user && (user as any).firstName) {
+      return `${(user as any).firstName} ${(user as any).lastName || ""}`.trim();
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user") || localStorage.getItem("user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          const fullName = u.fullName || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+          if (fullName) return fullName;
+        }
+      } catch {}
+    }
+    return "";
+  }, [user]);
+
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -478,7 +497,9 @@ export default function UserLogLayout() {
                           </div>
                           <div className="flex flex-col">
                             <span className="text-foreground font-medium text-sm">
-                              {log.username || "System/Unknown"}
+                              {(!log.username || log.username.includes("@") || log.username === "User")
+                                ? (currentUserName || log.username || "System/Unknown")
+                                : log.username}
                             </span>
                           </div>
                         </div>
