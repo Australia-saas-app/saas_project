@@ -32,8 +32,12 @@ jobs:
             # Set the remote URL to authenticate with GitHub using the automatically provided Action token
             git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
             
-            # Make sure deploy script is executable
-            chmod +x deploy.sh
+            # Fetch latest commit so the server immediately has the new deploy scripts
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Make sure deploy scripts are executable
+            chmod +x deploy.sh clean-rebuild.sh
             
             # Run the deployment script
             ./deploy.sh
