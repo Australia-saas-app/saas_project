@@ -445,11 +445,12 @@ export class AuthService implements OnModuleInit {
       const actualIp = clientIp.split(',')[0].trim();
       const deviceIdentifier = loginDto.deviceId || 'unknown-device';
 
-      // Pure device-level identification: do not rely on dynamic network IPs
+      // Multi-layer device & IP identification: check either deviceId OR known IP
       const isKnownDevice = Boolean(
-        user.trustedIps &&
-        deviceIdentifier !== 'unknown-device' &&
-        user.trustedIps.includes(deviceIdentifier)
+        user.trustedIps && (
+          (deviceIdentifier !== 'unknown-device' && user.trustedIps.includes(deviceIdentifier)) ||
+          (actualIp && actualIp !== 'Unknown IP' && user.trustedIps.includes(actualIp))
+        )
       );
 
       if (!isKnownDevice) {
@@ -460,10 +461,11 @@ export class AuthService implements OnModuleInit {
           if (!isValid) {
             throw new BadRequestException('Invalid or expired OTP for new device authentication');
           }
-          // Store this authorized device in user's trusted device list
+          // Store both authorized deviceId and IP in user's trusted list
           user.trustedIps = Array.from(new Set([
             ...(user.trustedIps || []),
-            deviceIdentifier !== 'unknown-device' ? deviceIdentifier : actualIp,
+            deviceIdentifier !== 'unknown-device' ? deviceIdentifier : null,
+            actualIp && actualIp !== 'Unknown IP' ? actualIp : null,
           ].filter(Boolean) as string[]));
           await this.userRepository.save(user);
         } else {
@@ -1011,8 +1013,14 @@ export class AuthService implements OnModuleInit {
       throw new NotFoundException('User not found');
     }
 
-    // Load KYC application data from separate table
-    const kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+    // Load KYC application data from separate table (robust match across userId, id, email)
+    const kycRecord = await this.kycApplicationRepository.findOne({
+      where: [
+        { userId: user.userId },
+        ...(user.id ? [{ userId: user.id }] : []),
+        ...(user.email ? [{ userId: user.email }] : []),
+      ],
+    });
     const kycApplicationData = kycRecord?.applicationData ?? null;
 
     let permanentAddress = user.permanentAddress;
@@ -1022,6 +1030,13 @@ export class AuthService implements OnModuleInit {
     if (typeof permanentAddress === 'string') {
       try { permanentAddress = JSON.parse(permanentAddress); } catch {}
     }
+
+    const effectiveKycStatus = (user.kycStatus && user.kycStatus !== 'none')
+      ? user.kycStatus
+      : ((kycApplicationData as any)?.status || (kycRecord ? 'pending' : 'none'));
+    const governmentIdType = user.governmentIdType || (kycApplicationData as any)?.governmentIdType || 'NID';
+    const governmentId = user.governmentId || (kycApplicationData as any)?.governmentId || (user as any).nationalIdentity || null;
+    const idDocument = user.idDocument || (kycApplicationData as any)?.idDocument || (kycApplicationData as any)?.documentFrontUrl || null;
 
     return {
       success: true,
@@ -1033,15 +1048,15 @@ export class AuthService implements OnModuleInit {
         email: user.email,
         phone: user.phone,
         status: user.status,
-        kycStatus: user.kycStatus,
+        kycStatus: effectiveKycStatus,
         currency: user.currency,
         profilePhoto: user.profilePhoto,
-        idDocument: user.idDocument,
+        idDocument: idDocument,
         nationality: user.nationality,
         gender: user.gender,
         dateOfBirth: user.dateOfBirth,
-        governmentId: user.governmentId,
-        governmentIdType: user.governmentIdType,
+        governmentId: governmentId,
+        governmentIdType: governmentIdType,
         permanentAddress: permanentAddress ?? null,
         kycApplicationData: kycApplicationData,
         kycRejectionReasons: (kycApplicationData as any)?.rejectionReasons ?? null,
@@ -1633,8 +1648,15 @@ export class AuthService implements OnModuleInit {
         (user as any).kycRejectionReason = JSON.stringify(rejectionReasons);
       }
     } else if (kycStatus === 'approved') {
-      if (kycRecord && kycRecord.applicationData?.rejectionReasons) {
-        delete (kycRecord.applicationData as any).rejectionReasons;
+      if (kycRecord) {
+        if (kycRecord.applicationData?.rejectionReasons) {
+          delete (kycRecord.applicationData as any).rejectionReasons;
+        }
+        kycRecord.applicationData = {
+          ...(kycRecord.applicationData || {}),
+          status: 'approved',
+          approvedAt: new Date().toISOString(),
+        };
         await this.kycApplicationRepository.save(kycRecord);
       }
       (user as any).kycRejectionReason = null;

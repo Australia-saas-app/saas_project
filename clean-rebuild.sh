@@ -26,13 +26,19 @@ docker builder prune -f || true
 echo "🔨 3/5 Building all containers fresh..."
 docker compose --progress=plain up -d --build --remove-orphans
 
-# 4. Self-healing database check: ensure constraints never block SSO startup
-echo "🔒 4/5 Verifying database schema safety..."
+# 4. Self-healing database check: ensure constraints and user links are intact
+echo "🔒 4/5 Verifying database schema and user records..."
 sleep 4
 docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
   ALTER TABLE transactions ALTER COLUMN \"userId\" DROP NOT NULL;
   ALTER TABLE wallets ALTER COLUMN \"userId\" DROP NOT NULL;
-  DELETE FROM wallets WHERE \"userId\" IS NULL;
+  -- Relate orphan transactions dynamically to their respective wallet's owner
+  UPDATE transactions t
+  SET \"userId\" = w.\"userId\"
+  FROM wallets w
+  WHERE t.\"walletId\" = w.id
+    AND (t.\"userId\" IS NULL OR t.\"userId\" = '')
+    AND w.\"userId\" IS NOT NULL AND w.\"userId\" != '';
 " 2>/dev/null || true
 
 # 5. Restart Kong to establish fresh upstream connections

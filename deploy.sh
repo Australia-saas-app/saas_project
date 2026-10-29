@@ -16,6 +16,10 @@ git reset --hard origin/main
 NEW_COMMIT=$(git rev-parse HEAD)
 
 CHANGED_FILES=$(git diff --name-only "$OLD_COMMIT" "$NEW_COMMIT" 2>/dev/null || true)
+if [ -z "$CHANGED_FILES" ] || [ "$OLD_COMMIT" = "$NEW_COMMIT" ]; then
+  # If already reset or no diff between old and new, check files modified in the latest commit
+  CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+fi
 
 SERVICES_TO_BUILD=()
 
@@ -75,12 +79,19 @@ else
   docker compose up -d --remove-orphans
 fi
 
-# 3. Self-healing database check: ensure constraints never block SSO startup
-echo "🔒 Verifying database schema safety..."
+# 3. Self-healing database check: ensure constraints and user links are intact
+echo "🔒 Verifying database schema and user records..."
 sleep 3
 docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
   ALTER TABLE transactions ALTER COLUMN \"userId\" DROP NOT NULL;
   ALTER TABLE wallets ALTER COLUMN \"userId\" DROP NOT NULL;
+  -- Relate orphan transactions dynamically to their respective wallet's owner
+  UPDATE transactions t
+  SET \"userId\" = w.\"userId\"
+  FROM wallets w
+  WHERE t.\"walletId\" = w.id
+    AND (t.\"userId\" IS NULL OR t.\"userId\" = '')
+    AND w.\"userId\" IS NOT NULL AND w.\"userId\" != '';
 " 2>/dev/null || true
 
 # 4. Verify running services

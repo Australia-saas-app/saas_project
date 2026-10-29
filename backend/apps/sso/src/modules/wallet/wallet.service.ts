@@ -149,10 +149,15 @@ export class WalletService implements OnModuleInit {
     let totalEarned = 0;
 
     try {
+      const summaryWhere: any[] = searchIds.map((id) => ({ userId: id }));
+      if (wallet?.id) {
+        summaryWhere.push({ walletId: wallet.id });
+      }
       const txs = await this.transactionRepository.find({
-        where: searchIds.map((id) => ({ userId: id })),
+        where: summaryWhere,
       });
 
+      let netComputedBalance = 0;
       for (const t of txs) {
         const amt = Number(t.amount || 0);
         const typeStr = String(t.type || '').toLowerCase();
@@ -161,6 +166,14 @@ export class WalletService implements OnModuleInit {
         const isReverted = desc.includes('revert') || statusStr === 'reverted';
 
         if (isReverted) continue;
+
+        if (statusStr === 'completed' || statusStr === 'approved' || statusStr === 'complete' || statusStr === 'paid') {
+          if (typeStr === 'deposit' || typeStr.includes('deposit') || typeStr.includes('earn')) {
+            netComputedBalance += amt;
+          } else if (typeStr === 'withdrawal' || typeStr.includes('withdraw')) {
+            netComputedBalance -= amt;
+          }
+        }
 
         if (typeStr.includes('withdraw')) {
           if (
@@ -191,6 +204,12 @@ export class WalletService implements OnModuleInit {
             totalEarned += amt;
           }
         }
+      }
+
+      // If wallet balance in DB is 0 but completed transactions exist, restore the computed balance
+      if (Number(wallet.balance) === 0 && netComputedBalance > 0) {
+        wallet.balance = Number(netComputedBalance.toFixed(2));
+        await this.walletRepository.save(wallet).catch(() => {});
       }
     } catch {}
 
@@ -438,10 +457,21 @@ export class WalletService implements OnModuleInit {
         if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
         if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
 
+        let walletId: string | null = null;
+        try {
+          const userWallet = await this.getWallet(userId);
+          walletId = userWallet?.id || null;
+        } catch {}
+
+        const baseTargets: any[] = searchIds.map((id) => ({ userId: id }));
+        if (walletId) {
+          baseTargets.push({ walletId });
+        }
+
         if (type && type.toLowerCase().includes('withdraw')) {
-          whereClause = searchIds.map((id) => ({ userId: id, type: TransactionType.WITHDRAWAL }));
+          whereClause = baseTargets.map((cond) => ({ ...cond, type: TransactionType.WITHDRAWAL }));
         } else {
-          whereClause = searchIds.map((id) => (type ? { userId: id, type: type.toLowerCase() as any } : { userId: id }));
+          whereClause = baseTargets.map((cond) => (type ? { ...cond, type: type.toLowerCase() as any } : cond));
         }
       }
 
@@ -458,6 +488,18 @@ export class WalletService implements OnModuleInit {
       }
 
       const [transactions, total] = await this.transactionRepository.findAndCount(findOptions);
+
+      // Dynamically auto-heal any orphan transactions belonging to this wallet
+      try {
+        const user = await this.findUserSafe(userId);
+        const userWallet = await this.getWallet(userId);
+        if (user?.userId && userWallet?.id) {
+          this.transactionRepository.query(
+            `UPDATE transactions SET "userId" = $1 WHERE "walletId" = $2 AND ("userId" IS NULL OR "userId" = '')`,
+            [user.userId, userWallet.id]
+          ).catch(() => {});
+        }
+      } catch {}
 
       return {
         data: transactions || [],
