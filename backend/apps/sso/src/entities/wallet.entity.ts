@@ -19,10 +19,11 @@ export class Wallet {
   id: string;
 
   // FK → users.userId (ULID / varchar)
-  @Column({ type: 'varchar', length: 26 })
-  userId: string;
+  @Column({ type: 'varchar', length: 26, nullable: true })
+  userId: string | null;
 
   @OneToOne(() => User, {
+    nullable: true,
     onDelete: 'CASCADE', // deleting user deletes wallet
   })
   @JoinColumn({
