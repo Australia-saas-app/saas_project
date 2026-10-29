@@ -42,10 +42,11 @@ export class Transaction {
   @Column({ type: 'varchar', length: 50, nullable: true })
   transactionId: string;
   // FK → users.userId (ULID / varchar)
-  @Column({ type: 'varchar', length: 26 })
-  userId: string;
+  @Column({ type: 'varchar', length: 26, nullable: true })
+  userId: string | null;
 
   @ManyToOne(() => User, {
+    nullable: true,
     onDelete: 'SET NULL', // keeps transaction history safe
   })
   @JoinColumn({
@@ -57,7 +58,7 @@ export class Transaction {
   // FK → wallets.id (UUID)
   @Column({ type: 'uuid', nullable: true })
   walletId: string | null;
-  
+
   @ManyToOne(() => Wallet, {
     nullable: true,
     onDelete: 'SET NULL',

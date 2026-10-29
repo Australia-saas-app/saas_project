@@ -497,7 +497,7 @@ export class WalletService implements OnModuleInit {
         });
       }
 
-      const userIds = Array.from(new Set(transactions.map((t) => t.userId).filter(Boolean)));
+      const userIds = Array.from(new Set(transactions.map((t) => t.userId).filter((id): id is string => Boolean(id))));
       const userMap = new Map<string, any>();
       if (userIds.length > 0) {
         try {
@@ -519,7 +519,7 @@ export class WalletService implements OnModuleInit {
       }
 
       const mapped = transactions.map((t) => {
-        const user = userMap.get(t.userId);
+        const user = t.userId ? userMap.get(t.userId) : null;
         return {
           id: t.id,
           transactionId: t.transactionId,

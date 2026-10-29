@@ -19,15 +19,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USERNAME }}
+          host: ${{ secrets.SERVER_HOST || secrets.SERVER_IP || vars.SERVER_HOST || vars.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER || secrets.SERVER_USERNAME || vars.SERVER_USER || vars.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 120m
           envs: GITHUB_TOKEN
           script: |
             # Navigate to the project directory
-            cd ${{ secrets.PROJECT_PATH }}
+            cd ${{ secrets.SERVER_PATH || secrets.PROJECT_PATH || vars.SERVER_PATH || vars.PROJECT_PATH }}
             
             # Set the remote URL to authenticate with GitHub using the automatically provided Action token
             git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
