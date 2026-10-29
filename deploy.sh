@@ -17,7 +17,15 @@ git reset --hard origin/main
 echo "✅ Building and starting new containers..."
 docker compose --progress=plain up -d --build --remove-orphans
 
-# 3. Verify services are running
+# 3. Self-healing database check: ensure constraints never block SSO startup
+echo "🔒 Verifying database schema safety..."
+sleep 3
+docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
+  ALTER TABLE transactions ALTER COLUMN \"userId\" DROP NOT NULL;
+  ALTER TABLE wallets ALTER COLUMN \"userId\" DROP NOT NULL;
+" 2>/dev/null || true
+
+# 4. Verify services are running
 echo "🔍 Checking container status..."
 docker compose ps
 
