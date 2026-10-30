@@ -190,12 +190,13 @@ export class AppModule implements OnModuleInit {
       `ALTER TABLE wallets ALTER COLUMN "userId" DROP NOT NULL;`,
       `UPDATE users SET "recoveryKey" = recoverykey WHERE "recoveryKey" IS NULL AND recoverykey IS NOT NULL;`,
       `UPDATE users SET recoverykey = "recoveryKey" WHERE recoverykey IS NULL AND "recoveryKey" IS NOT NULL;`,
-      `UPDATE transactions t SET "userId" = w."userId" FROM wallets w WHERE t."walletId" = w.id AND (t."userId" IS NULL OR t."userId" = '') AND w."userId" IS NOT NULL AND w."userId" != '';`,
+      `UPDATE transactions t SET "userId" = w."userId" FROM wallets w WHERE t."walletId" = w.id AND (t."userId" IS NULL OR t."userId" = '' OR t."userId" = 'user') AND w."userId" IS NOT NULL AND w."userId" != '' AND w."userId" != 'user';`,
       `UPDATE users SET "kycStatus" = kycstatus WHERE ("kycStatus" IS NULL OR "kycStatus" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';`,
       `UPDATE users SET kycstatus = "kycStatus" WHERE (kycstatus IS NULL OR kycstatus = 'none') AND "kycStatus" IS NOT NULL AND "kycStatus" != 'none';`,
-      `UPDATE users u SET "kycStatus" = 'approved', kycstatus = 'approved' FROM kyc_application k WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (k."applicationData"->>'status' = 'approved' OR k."applicationData"->>'kycStatus' = 'approved');`,
-      `UPDATE users u SET "kycStatus" = 'pending', kycstatus = 'pending' FROM kyc_application k WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (u."kycStatus" IS NULL OR u."kycStatus" = 'none') AND (k."applicationData"->>'status' = 'pending' OR k."applicationData"->>'appliedAt' IS NOT NULL);`,
-      `UPDATE kyc_application k SET "applicationData" = jsonb_set(COALESCE(k."applicationData", '{}'::jsonb), '{status}', '"approved"'::jsonb, true) FROM users u WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (u."kycStatus" = 'approved' OR u.kycstatus = 'approved') AND (k."applicationData"->>'status' IS NULL OR k."applicationData"->>'status' != 'approved');`,
+      `UPDATE users u SET "kycStatus" = (k."applicationData"->>'status')::varchar, kycstatus = (k."applicationData"->>'status')::varchar FROM kyc_application k WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (u."kycStatus" IS NULL OR u."kycStatus" = 'none') AND k."applicationData"->>'status' IS NOT NULL AND k."applicationData"->>'status' != 'none';`,
+      `UPDATE kyc_application k SET "applicationData" = jsonb_set(COALESCE(k."applicationData", '{}'::jsonb), '{status}', to_jsonb(u."kycStatus"), true) FROM users u WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND u."kycStatus" IS NOT NULL AND u."kycStatus" != 'none' AND (k."applicationData"->>'status' IS NULL OR k."applicationData"->>'status' = 'none');`,
+      `UPDATE users SET "paymentMethods" = paymentmethods WHERE ("paymentMethods" IS NULL OR "paymentMethods" = '[]'::jsonb) AND paymentmethods IS NOT NULL AND paymentmethods != '[]'::jsonb;`,
+      `UPDATE users SET paymentmethods = "paymentMethods" WHERE (paymentmethods IS NULL OR paymentmethods = '[]'::jsonb) AND "paymentMethods" IS NOT NULL AND "paymentMethods" != '[]'::jsonb;`,
     ];
 
     for (const sql of columnStatements) {

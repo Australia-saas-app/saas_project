@@ -68,7 +68,7 @@ services:
         strip_path: true
 
   - name: wallet-service
-    url: http://saas-backend-wallet:3015/wallet-service/wallet
+    url: http://saas-backend-sso:3001/sso/wallet
     routes:
       - name: wallet-route
         paths:

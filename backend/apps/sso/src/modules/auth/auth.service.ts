@@ -1051,15 +1051,26 @@ export class AuthService implements OnModuleInit {
       try { permanentAddress = JSON.parse(permanentAddress); } catch {}
     }
 
+    // Read the real KYC status from the database without any forced hardcoding
     let effectiveKycStatus = (user.kycStatus && user.kycStatus !== 'none')
       ? user.kycStatus
       : ((user as any).kycstatus && (user as any).kycstatus !== 'none'
           ? (user as any).kycstatus
-          : ((kycApplicationData as any)?.status || (kycRecord ? 'pending' : 'none')));
+          : null);
 
-    // If separate table snapshot indicates approval, honor it as approved
-    if ((kycApplicationData as any)?.status === 'approved' || (kycApplicationData as any)?.kycStatus === 'approved') {
-      effectiveKycStatus = 'approved';
+    const snapshotStatus = (kycApplicationData as any)?.status || (kycApplicationData as any)?.kycStatus;
+    if (snapshotStatus && snapshotStatus !== 'none') {
+      if (snapshotStatus === 'approved' || effectiveKycStatus === 'approved') {
+        effectiveKycStatus = 'approved';
+      } else if (snapshotStatus === 'rejected' || effectiveKycStatus === 'rejected') {
+        effectiveKycStatus = 'rejected';
+      } else if (!effectiveKycStatus || effectiveKycStatus === 'none') {
+        effectiveKycStatus = snapshotStatus;
+      }
+    }
+
+    if (!effectiveKycStatus) {
+      effectiveKycStatus = kycRecord ? 'pending' : 'none';
     }
 
     // Auto-heal DB users table if mismatch detected
@@ -1095,7 +1106,7 @@ export class AuthService implements OnModuleInit {
       }
     }
 
-    const governmentIdType = user.governmentIdType || (kycApplicationData as any)?.governmentIdType || 'NID';
+    const governmentIdType = user.governmentIdType || (kycApplicationData as any)?.governmentIdType || null;
     const governmentId = user.governmentId || (kycApplicationData as any)?.governmentId || (user as any).nationalIdentity || null;
     const idDocument = user.idDocument || (kycApplicationData as any)?.idDocument || (kycApplicationData as any)?.documentFrontUrl || null;
 
@@ -1381,7 +1392,11 @@ export class AuthService implements OnModuleInit {
       }
 
       if (query.hasKyc === 'true' || query.hasKyc === true) {
-        qb.andWhere("user.kycStatus IS NOT NULL AND user.kycStatus != 'none'");
+        qb.andWhere(
+          `((user.kycStatus IS NOT NULL AND user.kycStatus != 'none')
+            OR (user.kycstatus IS NOT NULL AND user.kycstatus != 'none')
+            OR EXISTS (SELECT 1 FROM kyc_application k WHERE k."userId" = user.userId OR k."userId" = user.id::text OR k."userId" = user.email))`
+        );
       }
 
       if (query.startDate) {
@@ -1399,17 +1414,19 @@ export class AuthService implements OnModuleInit {
       }
       const users = await qb.getMany();
 
-      const kycUserIds = users
-        .filter((u) => u.kycStatus && String(u.kycStatus).toLowerCase() !== 'none')
-        .map((u) => u.userId)
-        .filter(Boolean);
+      const kycSearchIds = new Set<string>();
+      users.forEach((u) => {
+        if (u.userId) kycSearchIds.add(u.userId);
+        if (u.id) kycSearchIds.add(u.id);
+        if (u.email) kycSearchIds.add(u.email);
+      });
 
       let kycRecords: KycApplication[] = [];
-      if (kycUserIds.length > 0) {
-        // Fetch in chunks of 500 to avoid Postgres IN clause limits
+      if (kycSearchIds.size > 0) {
+        const idList = Array.from(kycSearchIds);
         const chunkSize = 500;
-        for (let i = 0; i < kycUserIds.length; i += chunkSize) {
-          const chunk = kycUserIds.slice(i, i + chunkSize);
+        for (let i = 0; i < idList.length; i += chunkSize) {
+          const chunk = idList.slice(i, i + chunkSize);
           const records = await this.kycApplicationRepository.find({
             where: { userId: In(chunk) }
           });
@@ -1419,10 +1436,17 @@ export class AuthService implements OnModuleInit {
 
       const sanitizedUsers = users.map((user) => {
         const { password, ...rest } = user as any;
-        const kyc = kycRecords.find(k => k.userId === user.userId);
+        const kyc = kycRecords.find(k => k.userId === user.userId || k.userId === user.id || k.userId === user.email);
         if (kyc && kyc.applicationData) {
           rest.kycApplicationData = kyc.applicationData;
         }
+        // Harmonize real kycStatus so admin queue receives actual status even after container rebuilds
+        const realStatus = (user.kycStatus && user.kycStatus !== 'none')
+          ? user.kycStatus
+          : ((user as any).kycstatus && (user as any).kycstatus !== 'none'
+              ? (user as any).kycstatus
+              : ((kyc?.applicationData as any)?.status || (kyc ? 'pending' : 'none')));
+        rest.kycStatus = realStatus;
         return rest;
       });
 

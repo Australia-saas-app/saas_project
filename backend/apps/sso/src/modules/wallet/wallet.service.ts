@@ -526,9 +526,9 @@ export class WalletService implements OnModuleInit {
           };
         }
         const user = await this.findUserSafe(userId);
-        const searchIds = [userId];
-        if (user?.userId && !searchIds.includes(user.userId)) searchIds.push(user.userId);
-        if (user?.id && !searchIds.includes(user.id)) searchIds.push(user.id);
+        const searchIds = Array.from(
+          new Set([userId, user?.userId, user?.id, user?.email].filter(Boolean) as string[])
+        );
 
         let walletId: string | null = null;
         try {
@@ -542,7 +542,15 @@ export class WalletService implements OnModuleInit {
         }
 
         if (type && type.toLowerCase().includes('withdraw')) {
-          whereClause = baseTargets.map((cond) => ({ ...cond, type: TransactionType.WITHDRAWAL }));
+          whereClause = [
+            ...baseTargets.map((cond) => ({ ...cond, type: 'withdrawal' as any })),
+            ...baseTargets.map((cond) => ({ ...cond, type: 'WITHDRAWAL' as any })),
+          ];
+        } else if (type && type.toLowerCase().includes('deposit')) {
+          whereClause = [
+            ...baseTargets.map((cond) => ({ ...cond, type: 'deposit' as any })),
+            ...baseTargets.map((cond) => ({ ...cond, type: 'DEPOSIT' as any })),
+          ];
         } else {
           whereClause = baseTargets.map((cond) => (type ? { ...cond, type: type.toLowerCase() as any } : cond));
         }
@@ -612,16 +620,42 @@ export class WalletService implements OnModuleInit {
         });
       }
 
-      const userIds = Array.from(new Set(transactions.map((t) => t.userId).filter((id): id is string => Boolean(id))));
+      // Gather all user IDs, emails, and wallet IDs from all transactions
+      const txUserIds = transactions
+        .map((t) => t.userId)
+        .filter((id): id is string => Boolean(id) && id !== 'user');
+      const txMetaEmails = transactions
+        .map((t) => t.metadata?.userEmail)
+        .filter((em): em is string => Boolean(em) && typeof em === 'string' && em.includes('@'));
+      const txMetaUserIds = transactions
+        .map((t) => t.metadata?.userId)
+        .filter((id): id is string => Boolean(id) && typeof id === 'string' && id !== 'user');
+
+      const allWalletIds = Array.from(new Set(transactions.map((t) => t.walletId).filter((wid): wid is string => Boolean(wid))));
+
       const userMap = new Map<string, any>();
-      if (userIds.length > 0) {
+
+      // Fetch all wallets referenced by transactions
+      let wallets: Wallet[] = [];
+      if (allWalletIds.length > 0) {
+        try {
+          wallets = await this.walletRepository.find({
+            where: allWalletIds.map((wid) => ({ id: wid })),
+          });
+        } catch { }
+      }
+
+      const walletOwnerIds = wallets.map((w) => w.userId).filter((uid): uid is string => Boolean(uid) && uid !== 'user');
+      const combinedUserIds = Array.from(new Set([...txUserIds, ...txMetaUserIds, ...txMetaEmails, ...walletOwnerIds]));
+
+      if (combinedUserIds.length > 0) {
         try {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          const validUuids = userIds.filter((uId) => uuidRegex.test(uId));
+          const validUuids = combinedUserIds.filter((uId) => uuidRegex.test(uId));
           const users = await this.userRepository.find({
             where: [
-              ...userIds.map((uId) => ({ userId: uId })),
-              ...userIds.map((uId) => ({ email: uId })),
+              ...combinedUserIds.map((uId) => ({ userId: uId })),
+              ...combinedUserIds.map((uId) => ({ email: uId })),
               ...(validUuids.length > 0 ? validUuids.map((uId) => ({ id: uId })) : []),
             ],
           });
@@ -630,57 +664,41 @@ export class WalletService implements OnModuleInit {
             if (u.id) userMap.set(u.id, u);
             if (u.email) userMap.set(u.email, u);
           });
+
+          // Link wallets to their resolved user objects
+          wallets.forEach((w) => {
+            if (w.userId) {
+              const u = userMap.get(w.userId);
+              if (u) {
+                userMap.set(`wallet_${w.id}`, u);
+              }
+            }
+          });
         } catch { }
       }
 
-      // If any transaction did not match a user directly, check its wallet owner
-      try {
-        const orphanWalletIds = Array.from(
-          new Set(
-            transactions
-              .filter((t) => (!t.userId || !userMap.has(t.userId)) && Boolean(t.walletId))
-              .map((t) => t.walletId)
-              .filter((wid): wid is string => Boolean(wid))
-          )
-        );
-        if (orphanWalletIds.length > 0) {
-          const wallets = await this.walletRepository.find({
-            where: orphanWalletIds.map((wid) => ({ id: wid })),
-          });
-          const extraOwnerIds = wallets.map((w) => w.userId).filter((uid): uid is string => Boolean(uid));
-          if (extraOwnerIds.length > 0) {
-            const extraUsers = await this.userRepository.find({
-              where: [
-                ...extraOwnerIds.map((uId) => ({ userId: uId })),
-                ...extraOwnerIds.map((uId) => ({ email: uId })),
-              ],
-            });
-            extraUsers.forEach((u) => {
-              if (u.userId) userMap.set(u.userId, u);
-              if (u.id) userMap.set(u.id, u);
-              if (u.email) userMap.set(u.email, u);
-            });
-            wallets.forEach((w) => {
-              if (w.userId) {
-                const u = userMap.get(w.userId);
-                if (u) userMap.set(`wallet_${w.id}`, u);
-              }
-            });
-          }
-        }
-      } catch {}
-
       const mapped = transactions.map((t) => {
-        const user = (t.userId ? userMap.get(t.userId) : null) || (t.walletId ? userMap.get(`wallet_${t.walletId}`) : null);
-        const userEmail = t.metadata?.userEmail || user?.email || (t.userId && t.userId.includes('@') ? t.userId : undefined);
-        const userName = t.metadata?.userName || user?.fullName || (user as any)?.name || user?.username || 'User';
-        const role = t.metadata?.role || user?.accountType || (user as any)?.role || 'USER';
+        const user = (t.userId ? userMap.get(t.userId) : null)
+          || (t.metadata?.userEmail ? userMap.get(t.metadata.userEmail) : null)
+          || (t.metadata?.userId ? userMap.get(t.metadata.userId) : null)
+          || (t.walletId ? userMap.get(`wallet_${t.walletId}`) : null);
+
+        const resolvedUserId = user?.userId || user?.id || t.metadata?.userId || (t.userId && t.userId !== 'user' ? t.userId : '') || '';
+        const userEmail = user?.email || t.metadata?.userEmail || (t.userId && t.userId.includes('@') ? t.userId : '') || '';
+        const userName = user?.fullName || (user as any)?.name || t.metadata?.userName || user?.username || '';
+        const role = user?.accountType || (user as any)?.role || t.metadata?.role || (resolvedUserId.toUpperCase().startsWith('BUS') ? 'BUSINESS' : resolvedUserId.toUpperCase().startsWith('AFF') ? 'AFFILIATE' : 'USER');
+
+        // Auto-heal missing or dummy userId on transaction asynchronously
+        if (user && (!t.userId || t.userId === 'user')) {
+          this.transactionRepository.update(t.id, { userId: user.userId || user.id }).catch(() => {});
+        }
+
         return {
           id: t.id,
           transactionId: t.transactionId,
           requestId: t.transactionId || t.id,
-          userId: t.userId || user?.userId || user?.id,
-          businessUserId: t.userId || user?.userId || user?.id || 'user',
+          userId: resolvedUserId,
+          businessUserId: resolvedUserId,
           userName,
           userEmail,
           role,
@@ -689,6 +707,7 @@ export class WalletService implements OnModuleInit {
             userEmail,
             userName,
             role,
+            userId: resolvedUserId,
           },
           type: t.type || 'WITHDRAWAL',
           amount: Number(t.amount || 0),
@@ -841,7 +860,7 @@ export class WalletService implements OnModuleInit {
       if (!user) return [];
 
       let list: any[] = [];
-      if (Array.isArray(user.paymentMethods)) {
+      if (Array.isArray(user.paymentMethods) && user.paymentMethods.length > 0) {
         list = [...user.paymentMethods];
       } else {
         try {
@@ -851,11 +870,12 @@ export class WalletService implements OnModuleInit {
           );
           const rawRow = raw?.[0];
           const rawMethods = rawRow?.paymentMethods || rawRow?.paymentmethods;
-          if (Array.isArray(rawMethods)) {
+          if (Array.isArray(rawMethods) && rawMethods.length > 0) {
             list = [...rawMethods];
           } else if (typeof rawMethods === 'string') {
             try {
-              list = JSON.parse(rawMethods);
+              const parsed = JSON.parse(rawMethods);
+              if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
             } catch { }
           }
         } catch { }

@@ -168,7 +168,7 @@ function parseWithdrawalRecord(w: any): WithdrawalRequestItem | null {
   return {
     id: finalId,
     requestId: reqId,
-    businessUserId: uId || "user",
+    businessUserId: uId,
     userName: w.userName || w.metadata?.userName || w.businessName || undefined,
     userEmail: w.userEmail || w.email || w.metadata?.userEmail || (uId && uId.includes("@") ? uId : undefined),
     role: resolvedRole,
@@ -1263,13 +1263,13 @@ export default function WithdrawalRequestsLayout() {
                       {selectedItem.role === "BUSINESS"
                         ? "Business User Name"
                         : selectedItem.role === "AFFILIATE"
-                        ? "Affiliate Name"
+                        ? "Affiliate User Name"
                         : selectedItem.role === "USER"
                         ? "User Name"
                         : "Requester Name"}
                     </span>
                     <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">
-                      {selectedItem.userName || (selectedItem.role === "BUSINESS" ? "Business User" : selectedItem.role === "AFFILIATE" ? "Affiliate Partner" : "Verified User")}
+                      {selectedItem.userName || "—"}
                     </span>
                   </div>
                   <div>
@@ -1277,13 +1277,13 @@ export default function WithdrawalRequestsLayout() {
                       {selectedItem.role === "BUSINESS"
                         ? "Business User ID"
                         : selectedItem.role === "AFFILIATE"
-                        ? "Affiliate ID"
+                        ? "Affiliate User ID"
                         : selectedItem.role === "USER"
                         ? "User ID"
                         : "Requester ID"}
                     </span>
                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
-                      {selectedItem.businessUserId}
+                      {selectedItem.businessUserId || "—"}
                     </span>
                   </div>
                   <div>
@@ -1293,13 +1293,7 @@ export default function WithdrawalRequestsLayout() {
                   <div>
                     <span className="text-slate-400 font-semibold text-xs block">Email Address</span>
                     <span className="font-medium text-slate-700 dark:text-slate-300 text-xs truncate block" title={selectedItem.userEmail}>
-                      {selectedItem.userEmail && selectedItem.userEmail !== "user@platform.com"
-                        ? selectedItem.userEmail
-                        : selectedItem.businessUserId && selectedItem.businessUserId.includes("@")
-                        ? selectedItem.businessUserId
-                        : selectedItem.userName && selectedItem.userName !== "User"
-                        ? `${selectedItem.userName.toLowerCase().replace(/[^a-z0-9]/g, "")}@account`
-                        : "requester@verified.user"}
+                      {selectedItem.userEmail || "—"}
                     </span>
                   </div>
                 </div>

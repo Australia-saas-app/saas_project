@@ -47,33 +47,55 @@ docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
   -- Harmonize case-sensitive kycstatus and kycStatus columns
   UPDATE users SET \"kycStatus\" = kycstatus WHERE (\"kycStatus\" IS NULL OR \"kycStatus\" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';
   UPDATE users SET kycstatus = \"kycStatus\" WHERE (kycstatus IS NULL OR kycstatus = 'none') AND \"kycStatus\" IS NOT NULL AND \"kycStatus\" != 'none';
-  -- Sync approved KYC status from kyc_application to users table
+  -- Synchronize exact KYC status from kyc_application to users table if users table is empty/none
   UPDATE users u
-  SET \"kycStatus\" = 'approved', kycstatus = 'approved'
-  FROM kyc_application k
-  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
-    AND (k.\"applicationData\"->>'status' = 'approved' OR k.\"applicationData\"->>'kycStatus' = 'approved');
-  -- Sync pending KYC status from kyc_application to users table if currently none
-  UPDATE users u
-  SET \"kycStatus\" = 'pending', kycstatus = 'pending'
+  SET \"kycStatus\" = (k.\"applicationData\"->>'status')::varchar, kycstatus = (k.\"applicationData\"->>'status')::varchar
   FROM kyc_application k
   WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
     AND (u.\"kycStatus\" IS NULL OR u.\"kycStatus\" = 'none')
-    AND (k.\"applicationData\"->>'status' = 'pending' OR k.\"applicationData\"->>'appliedAt' IS NOT NULL);
-  -- Bidirectional sync: if users table is approved, ensure kyc_application snapshot status is approved
+    AND k.\"applicationData\"->>'status' IS NOT NULL
+    AND k.\"applicationData\"->>'status' != 'none';
+
+  -- Synchronize exact KYC status from users table to kyc_application if kyc_application has no status
   UPDATE kyc_application k
-  SET \"applicationData\" = jsonb_set(COALESCE(k.\"applicationData\", '{}'::jsonb), '{status}', '\"approved\"'::jsonb, true)
+  SET \"applicationData\" = jsonb_set(COALESCE(k.\"applicationData\", '{}'::jsonb), '{status}', to_jsonb(u.\"kycStatus\"), true)
   FROM users u
   WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
-    AND (u.\"kycStatus\" = 'approved' OR u.kycstatus = 'approved')
-    AND (k.\"applicationData\"->>'status' IS NULL OR k.\"applicationData\"->>'status' != 'approved');
+    AND u.\"kycStatus\" IS NOT NULL
+    AND u.\"kycStatus\" != 'none'
+    AND (k.\"applicationData\"->>'status' IS NULL OR k.\"applicationData\"->>'status' = 'none');
+  -- 3. Harmonize paymentMethods column
+  UPDATE users SET \"paymentMethods\" = paymentmethods WHERE (\"paymentMethods\" IS NULL OR \"paymentMethods\" = '[]'::jsonb) AND paymentmethods IS NOT NULL AND paymentmethods != '[]'::jsonb;
+  UPDATE users SET paymentmethods = \"paymentMethods\" WHERE (paymentmethods IS NULL OR paymentmethods = '[]'::jsonb) AND \"paymentMethods\" IS NOT NULL AND \"paymentMethods\" != '[]'::jsonb;
+  -- 4. Create payment_cards table if not exists
+  CREATE TABLE IF NOT EXISTS payment_cards (
+    id SERIAL PRIMARY KEY,
+    \"userId\" varchar(100) NOT NULL,
+    \"cardHolderName\" varchar(100) NOT NULL,
+    last4 varchar(4) NOT NULL,
+    \"cardBrand\" varchar(50) NOT NULL,
+    \"cardType\" varchar(50) NOT NULL,
+    \"expiryMonth\" varchar(5) NOT NULL,
+    \"expiryYear\" varchar(4) NOT NULL,
+    \"encryptedCardToken\" text,
+    status varchar(50) DEFAULT 'active',
+    \"isDefault\" boolean DEFAULT false,
+    \"billingAddress\" varchar(255),
+    \"billingCity\" varchar(100),
+    \"billingState\" varchar(100),
+    \"billingZipCode\" varchar(20),
+    \"billingCountry\" varchar(100),
+    \"createdAt\" TIMESTAMP DEFAULT NOW(),
+    \"updatedAt\" TIMESTAMP DEFAULT NOW()
+  );
+  ALTER TABLE payment_cards ALTER COLUMN \"userId\" TYPE VARCHAR(100);
   -- Relate orphan transactions dynamically to their respective wallet's owner
   UPDATE transactions t
   SET \"userId\" = w.\"userId\"
   FROM wallets w
   WHERE t.\"walletId\" = w.id
-    AND (t.\"userId\" IS NULL OR t.\"userId\" = '')
-    AND w.\"userId\" IS NOT NULL AND w.\"userId\" != '';
+    AND (t.\"userId\" IS NULL OR t.\"userId\" = '' OR t.\"userId\" = 'user')
+    AND w.\"userId\" IS NOT NULL AND w.\"userId\" != '' AND w.\"userId\" != 'user';
 " 2>/dev/null || true
 
 # 5. Restart Kong to establish fresh upstream connections
