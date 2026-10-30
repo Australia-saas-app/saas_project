@@ -109,6 +109,12 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   fullName: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true, unique: true })
+  username: string;
+
+  @Column({ type: 'text', nullable: true })
+  bio: string;
+
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   email: string;
 
@@ -117,6 +123,9 @@ export class User {
 
   @Column({ type: 'varchar', length: 255 })
   password: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  recoveryKey: string;
 
   @Column({ type: 'varchar', length: 10, default: 'USD' })
   currency: string;
@@ -152,6 +161,9 @@ export class User {
   @Column({ type: 'varchar', length: 100, nullable: true })
   governmentId: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  governmentIdType: string;
+
   @Column({ type: 'text', nullable: true })
   idDocument: string;
 
@@ -161,6 +173,24 @@ export class User {
     default: UserStatus.ACTIVE,
   })
   status: UserStatus;
+
+  @Column({
+    type: 'varchar',
+    default: 'none',
+  })
+  kycStatus: string;
+
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  trustedIps: string[];
+
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  paymentMethods: Array<{
+    id: string;
+    type: string;
+    isDefault?: boolean;
+    data?: any;
+    createdAt?: string;
+  }>;
 
   @Column({ type: 'jsonb', nullable: true })
   statusHistory: {
