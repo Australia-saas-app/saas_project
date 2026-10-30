@@ -37,7 +37,7 @@ jobs:
             git reset --hard origin/main
             
             # Make sure deploy scripts are executable
-            chmod +x deploy.sh clean-rebuild.sh
+            chmod +x deploy.sh clean-rebuild.sh heal-schema.sh
             
             # Run the deployment script
             ./deploy.sh
