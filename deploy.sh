@@ -64,27 +64,67 @@ if echo "$CHANGED_FILES" | grep -q "^backend/apps/user-profile/"; then
   SERVICES_TO_BUILD+=("saas-backend-user-profile")
 fi
 
-# If docker-compose or global files changed, or if first commit, build core apps
-if echo "$CHANGED_FILES" | grep -q "docker-compose\.yml\|deploy\.sh"; then
-  echo "📦 Configuration files changed. Ensuring all services are updated..."
-  SERVICES_TO_BUILD=()
+BUILD_ALL=false
+
+# If docker-compose or global files changed, rebuild all services fresh
+if echo "$CHANGED_FILES" | grep -qE "docker-compose\.yml|deploy\.sh|clean-rebuild\.sh"; then
+  echo "📦 Configuration files changed. Triggering full build for all services..."
+  BUILD_ALL=true
 fi
 
 # 2. Build ONLY changed services, or start all if no specific services changed
-if [ ${#SERVICES_TO_BUILD[@]} -gt 0 ]; then
+if [ "$BUILD_ALL" = "true" ]; then
+  echo "🔨 Full Build: Rebuilding all containers fresh..."
+  docker compose up -d --build --remove-orphans
+elif [ ${#SERVICES_TO_BUILD[@]} -gt 0 ]; then
   echo "⚡ Fast Build: Rebuilding ONLY changed services: ${SERVICES_TO_BUILD[*]}..."
   docker compose up -d --build "${SERVICES_TO_BUILD[@]}"
 else
-  echo "⚡ Updating containers without unnecessary rebuilds..."
+  echo "⚡ Updating running containers..."
   docker compose up -d --remove-orphans
 fi
 
-# 3. Self-healing database check: ensure constraints and user links are intact
+# 3. Self-healing database check: ensure constraints, columns, and user links are intact
 echo "🔒 Verifying database schema and user records..."
 sleep 3
 docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
+  ALTER TABLE transactions ALTER COLUMN \"userId\" TYPE VARCHAR(100);
+  ALTER TABLE wallets ALTER COLUMN \"userId\" TYPE VARCHAR(100);
   ALTER TABLE transactions ALTER COLUMN \"userId\" DROP NOT NULL;
   ALTER TABLE wallets ALTER COLUMN \"userId\" DROP NOT NULL;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"trustedIps\" JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"paymentMethods\" JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"governmentIdType\" VARCHAR(50);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"governmentId\" VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"idDocument\" TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"recoveryKey\" VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"kycStatus\" VARCHAR(50) DEFAULT 'none';
+  -- Harmonize recoveryKey case sensitivity
+  UPDATE users SET \"recoveryKey\" = recoverykey WHERE \"recoveryKey\" IS NULL AND recoverykey IS NOT NULL;
+  UPDATE users SET recoverykey = \"recoveryKey\" WHERE recoverykey IS NULL AND \"recoveryKey\" IS NOT NULL;
+  -- Harmonize case-sensitive kycstatus and kycStatus columns
+  UPDATE users SET \"kycStatus\" = kycstatus WHERE (\"kycStatus\" IS NULL OR \"kycStatus\" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';
+  UPDATE users SET kycstatus = \"kycStatus\" WHERE (kycstatus IS NULL OR kycstatus = 'none') AND \"kycStatus\" IS NOT NULL AND \"kycStatus\" != 'none';
+  -- Sync approved KYC status from kyc_application to users table
+  UPDATE users u
+  SET \"kycStatus\" = 'approved', kycstatus = 'approved'
+  FROM kyc_application k
+  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
+    AND (k.\"applicationData\"->>'status' = 'approved' OR k.\"applicationData\"->>'kycStatus' = 'approved');
+  -- Sync pending KYC status from kyc_application to users table if currently none
+  UPDATE users u
+  SET \"kycStatus\" = 'pending', kycstatus = 'pending'
+  FROM kyc_application k
+  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
+    AND (u.\"kycStatus\" IS NULL OR u.\"kycStatus\" = 'none')
+    AND (k.\"applicationData\"->>'status' = 'pending' OR k.\"applicationData\"->>'appliedAt' IS NOT NULL);
+  -- Bidirectional sync: if users table is approved, ensure kyc_application snapshot status is approved
+  UPDATE kyc_application k
+  SET \"applicationData\" = jsonb_set(COALESCE(k.\"applicationData\", '{}'::jsonb), '{status}', '\"approved\"'::jsonb, true)
+  FROM users u
+  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
+    AND (u.\"kycStatus\" = 'approved' OR u.kycstatus = 'approved')
+    AND (k.\"applicationData\"->>'status' IS NULL OR k.\"applicationData\"->>'status' != 'approved');
   -- Relate orphan transactions dynamically to their respective wallet's owner
   UPDATE transactions t
   SET \"userId\" = w.\"userId\"
@@ -94,7 +134,11 @@ docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
     AND w.\"userId\" IS NOT NULL AND w.\"userId\" != '';
 " 2>/dev/null || true
 
-# 4. Verify running services
+# 4. Synchronize Kong Gateway so newly started containers route immediately
+echo "🔄 Synchronizing Kong Gateway..."
+docker compose restart kong 2>/dev/null || true
+
+# 5. Verify running services
 echo "🔍 Checking container status..."
 docker compose ps
 

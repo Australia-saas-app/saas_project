@@ -342,6 +342,15 @@ export class AuthService implements OnModuleInit {
       throw error;
     }
 
+    if (registerDto.recoveryKey?.trim()) {
+      try {
+        await this.userRepository.query(
+          `UPDATE users SET "recoveryKey" = $1, recoverykey = $1 WHERE id = $2`,
+          [registerDto.recoveryKey.trim(), savedUser.id]
+        );
+      } catch {}
+    }
+
     if (!registerDto.otp) {
       const otp = this.otpUtil.generateOTP(6, normalizedEmail || normalizedPhone);
       const otpKey = `otp:${normalizedEmail || normalizedPhone}:registration`;
@@ -885,7 +894,18 @@ export class AuthService implements OnModuleInit {
       throw new BadRequestException('Recovery key is required');
     }
     const cleanKey = recoveryKey.trim();
-    const user = await this.userRepository.findOne({ where: { recoveryKey: cleanKey } });
+    let user = await this.userRepository.findOne({ where: { recoveryKey: cleanKey } });
+    if (!user) {
+      try {
+        const rawUsers = await this.userRepository.query(
+          `SELECT * FROM users WHERE "recoveryKey" = $1 OR recoverykey = $1 LIMIT 1`,
+          [cleanKey]
+        );
+        if (rawUsers && rawUsers.length > 0) {
+          user = rawUsers[0];
+        }
+      } catch {}
+    }
     if (!user) {
       throw new BadRequestException('Invalid recovery key');
     }
@@ -1031,9 +1051,50 @@ export class AuthService implements OnModuleInit {
       try { permanentAddress = JSON.parse(permanentAddress); } catch {}
     }
 
-    const effectiveKycStatus = (user.kycStatus && user.kycStatus !== 'none')
+    let effectiveKycStatus = (user.kycStatus && user.kycStatus !== 'none')
       ? user.kycStatus
-      : ((kycApplicationData as any)?.status || (kycRecord ? 'pending' : 'none'));
+      : ((user as any).kycstatus && (user as any).kycstatus !== 'none'
+          ? (user as any).kycstatus
+          : ((kycApplicationData as any)?.status || (kycRecord ? 'pending' : 'none')));
+
+    // If separate table snapshot indicates approval, honor it as approved
+    if ((kycApplicationData as any)?.status === 'approved' || (kycApplicationData as any)?.kycStatus === 'approved') {
+      effectiveKycStatus = 'approved';
+    }
+
+    // Auto-heal DB users table if mismatch detected
+    if (effectiveKycStatus && effectiveKycStatus !== 'none' && user.kycStatus !== effectiveKycStatus) {
+      user.kycStatus = effectiveKycStatus as any;
+      this.userRepository.query(
+        `UPDATE users SET "kycStatus" = $1, kycstatus = $1 WHERE id = $2 OR "userId" = $3`,
+        [effectiveKycStatus, user.id, user.userId]
+      ).catch(() => {});
+    }
+
+    // Auto-heal kyc_application table if user is approved but kycRecord is missing or missing status
+    if (effectiveKycStatus === 'approved') {
+      if (!kycRecord) {
+        this.kycApplicationRepository.save(
+          this.kycApplicationRepository.create({
+            userId: user.userId,
+            applicationData: {
+              fullName: user.fullName,
+              email: user.email,
+              status: 'approved',
+              approvedAt: new Date().toISOString(),
+            },
+          })
+        ).catch(() => {});
+      } else if ((kycApplicationData as any)?.status !== 'approved') {
+        kycRecord.applicationData = {
+          ...(kycRecord.applicationData || {}),
+          status: 'approved',
+          approvedAt: (kycRecord.applicationData as any)?.approvedAt || new Date().toISOString(),
+        };
+        this.kycApplicationRepository.save(kycRecord).catch(() => {});
+      }
+    }
+
     const governmentIdType = user.governmentIdType || (kycApplicationData as any)?.governmentIdType || 'NID';
     const governmentId = user.governmentId || (kycApplicationData as any)?.governmentId || (user as any).nationalIdentity || null;
     const idDocument = user.idDocument || (kycApplicationData as any)?.idDocument || (kycApplicationData as any)?.documentFrontUrl || null;
@@ -1063,6 +1124,10 @@ export class AuthService implements OnModuleInit {
         kycRejectionReason: (user as any).kycRejectionReason ?? null,
         twoFactorEnabled: user.twoFactorEnabled,
         twoFactorMethod: user.twoFactorMethod,
+        trustedIps: user.trustedIps || [],
+        paymentMethods: user.paymentMethods || [],
+        recoveryKey: user.recoveryKey || (user as any).recoverykey || null,
+        hasRecoveryKey: Boolean(user.recoveryKey || (user as any).recoverykey),
         createdAt: user.createdAt,
         businessName: user.businessName,
         businessType: user.businessType,
@@ -1214,6 +1279,12 @@ export class AuthService implements OnModuleInit {
       user.status = UserStatus.ACTIVE;
     }
     await this.userRepository.save(user);
+    try {
+      await this.userRepository.query(
+        `UPDATE users SET "governmentIdType" = $1, "governmentId" = $2, "idDocument" = $3 WHERE id = $4 OR "userId" = $5`,
+        [user.governmentIdType || null, user.governmentId || null, user.idDocument || null, user.id, user.userId]
+      );
+    } catch {}
 
     return {
       success: true,
@@ -1625,8 +1696,14 @@ export class AuthService implements OnModuleInit {
       user.status = UserStatus.ACTIVE;
     }
 
-    // Persist rejection reasons to separate kyc_application table
-    let kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+    // Persist rejection reasons / approval to separate kyc_application table
+    let kycRecord = await this.kycApplicationRepository.findOne({
+      where: [
+        { userId: user.userId },
+        ...(user.id ? [{ userId: user.id }] : []),
+        ...(user.email ? [{ userId: user.email }] : []),
+      ],
+    });
     if (kycStatus === 'rejected') {
       if (rejectionReasons) {
         if (!kycRecord) {
@@ -1635,12 +1712,14 @@ export class AuthService implements OnModuleInit {
             applicationData: {
               fullName: user.fullName,
               email: user.email,
+              status: 'rejected',
               rejectionReasons: rejectionReasons,
             },
           });
         } else {
           kycRecord.applicationData = {
             ...(kycRecord.applicationData || {}),
+            status: 'rejected',
             rejectionReasons: rejectionReasons,
           };
         }
@@ -1648,7 +1727,17 @@ export class AuthService implements OnModuleInit {
         (user as any).kycRejectionReason = JSON.stringify(rejectionReasons);
       }
     } else if (kycStatus === 'approved') {
-      if (kycRecord) {
+      if (!kycRecord) {
+        kycRecord = this.kycApplicationRepository.create({
+          userId: user.userId,
+          applicationData: {
+            fullName: user.fullName,
+            email: user.email,
+            status: 'approved',
+            approvedAt: new Date().toISOString(),
+          },
+        });
+      } else {
         if (kycRecord.applicationData?.rejectionReasons) {
           delete (kycRecord.applicationData as any).rejectionReasons;
         }
@@ -1657,8 +1746,8 @@ export class AuthService implements OnModuleInit {
           status: 'approved',
           approvedAt: new Date().toISOString(),
         };
-        await this.kycApplicationRepository.save(kycRecord);
       }
+      await this.kycApplicationRepository.save(kycRecord);
       (user as any).kycRejectionReason = null;
     }
 
@@ -1767,31 +1856,42 @@ export class AuthService implements OnModuleInit {
       throw new NotFoundException('User not found');
     }
 
-    // Load existing KYC record from separate table
-    let kycRecord = await this.kycApplicationRepository.findOne({ where: { userId: user.userId } });
+    // Load existing KYC record from separate table across all candidate user IDs
+    let kycRecord = await this.kycApplicationRepository.findOne({
+      where: [
+        { userId: user.userId },
+        ...(user.id ? [{ userId: user.id }] : []),
+        ...(user.email ? [{ userId: user.email }] : []),
+      ],
+    });
 
-    // ── Already under review — block re-submission, return saved snapshot ───
-    if (user.kycStatus === KycStatus.PENDING || user.kycStatus === KycStatus.SUBMITTED) {
+    const isCurrentApproved =
+      user.kycStatus === KycStatus.APPROVED ||
+      (user as any).kycstatus === 'approved' ||
+      (kycRecord?.applicationData as any)?.status === 'approved';
+
+    // ── Already approved — block re-submission ───────────────────────────────
+    if (isCurrentApproved) {
       return {
         success: true,
-        message: 'KYC Application already submitted and is pending review.',
+        message: 'KYC Application is already approved.',
         data: {
           userId: user.userId,
-          kycStatus: user.kycStatus,
+          kycStatus: KycStatus.APPROVED,
           kycApplicationData: kycRecord?.applicationData ?? null,
           alreadySubmitted: true,
         },
       };
     }
 
-    // ── Already approved — block re-submission ───────────────────────────────
-    if (user.kycStatus === KycStatus.APPROVED) {
+    // ── Already under review — block re-submission, return saved snapshot ───
+    if (user.kycStatus === KycStatus.PENDING || user.kycStatus === KycStatus.SUBMITTED || (kycRecord?.applicationData as any)?.status === 'pending') {
       return {
         success: true,
-        message: 'KYC Application is already approved.',
+        message: 'KYC Application already submitted and is pending review.',
         data: {
           userId: user.userId,
-          kycStatus: user.kycStatus,
+          kycStatus: KycStatus.PENDING,
           kycApplicationData: kycRecord?.applicationData ?? null,
           alreadySubmitted: true,
         },
@@ -1833,6 +1933,7 @@ export class AuthService implements OnModuleInit {
         commissionRate: clientApplicationData?.commissionRate !== undefined ? Number(clientApplicationData.commissionRate) : (user.percentageRate ? Number(user.percentageRate) : 20),
         percentageRate: clientApplicationData?.percentageRate !== undefined ? Number(clientApplicationData.percentageRate) : (user.percentageRate ? Number(user.percentageRate) : 20),
       } : {}),
+      status: 'pending',
       appliedAt: new Date().toISOString(),
       ...(isResubmission ? { resubmittedAt: new Date().toISOString() } : {}),
     };
@@ -1864,13 +1965,31 @@ export class AuthService implements OnModuleInit {
     if (clientApplicationData?.permanentAddress) {
       user.permanentAddress = clientApplicationData.permanentAddress;
     }
+    if (clientApplicationData?.governmentIdType) {
+      user.governmentIdType = clientApplicationData.governmentIdType;
+    }
+    if (clientApplicationData?.governmentId) {
+      user.governmentId = clientApplicationData.governmentId;
+    }
+    if (clientApplicationData?.idDocument || clientApplicationData?.documentUrl) {
+      user.idDocument = clientApplicationData.idDocument || clientApplicationData.documentUrl;
+    }
+    if (clientApplicationData?.nationality) {
+      user.nationality = clientApplicationData.nationality;
+    }
+    if (clientApplicationData?.gender) {
+      user.gender = clientApplicationData.gender;
+    }
+    if (clientApplicationData?.dateOfBirth) {
+      user.dateOfBirth = new Date(clientApplicationData.dateOfBirth);
+    }
     user.kycStatus = KycStatus.PENDING;
     (user as any).kycRejectionReason = null;
     await this.userRepository.save(user);
     try {
       await this.userRepository.query(
-        `UPDATE users SET "kycStatus" = $1, kycstatus = $1 WHERE id = $2 OR "userId" = $3`,
-        [KycStatus.PENDING, user.id, user.userId]
+        `UPDATE users SET "kycStatus" = $1, kycstatus = $1, "governmentIdType" = COALESCE($4, "governmentIdType"), "governmentId" = COALESCE($5, "governmentId"), "idDocument" = COALESCE($6, "idDocument") WHERE id = $2 OR "userId" = $3`,
+        [KycStatus.PENDING, user.id, user.userId, user.governmentIdType || null, user.governmentId || null, user.idDocument || null]
       );
     } catch {}
 

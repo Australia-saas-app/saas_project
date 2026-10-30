@@ -81,6 +81,26 @@ export class WalletService implements OnModuleInit {
       await this.userRepository.query(
         `ALTER TABLE payment_cards ALTER COLUMN "userId" TYPE varchar(100);`
       );
+      await this.userRepository.query(
+        `ALTER TABLE transactions ALTER COLUMN "userId" TYPE varchar(100);`
+      );
+      await this.userRepository.query(
+        `ALTER TABLE wallets ALTER COLUMN "userId" TYPE varchar(100);`
+      );
+      await this.userRepository.query(
+        `ALTER TABLE transactions ALTER COLUMN "userId" DROP NOT NULL;`
+      );
+      await this.userRepository.query(
+        `ALTER TABLE wallets ALTER COLUMN "userId" DROP NOT NULL;`
+      );
+      await this.userRepository.query(`
+        UPDATE transactions t
+        SET "userId" = w."userId"
+        FROM wallets w
+        WHERE t."walletId" = w.id
+          AND (t."userId" IS NULL OR t."userId" = '')
+          AND w."userId" IS NOT NULL AND w."userId" != '';
+      `);
     } catch { }
   }
 
@@ -89,40 +109,55 @@ export class WalletService implements OnModuleInit {
       throw new NotFoundException('User ID is required');
     }
     const user = await this.findUserSafe(userId);
+    const searchIds = Array.from(
+      new Set([userId, user?.userId, user?.id, user?.email].filter(Boolean) as string[])
+    );
+    const canonicalUserId = user?.userId || user?.id || userId;
 
-    const actualUserId = user?.userId || user?.id || userId;
-    let wallet = await this.walletRepository.findOne({
-      where: [{ userId: actualUserId }, { userId }],
+    // Search for all wallets linked to any of the user's IDs, prioritizing funded ones
+    const existingWallets = await this.walletRepository.find({
+      where: searchIds.map((id) => ({ userId: id })),
+      order: { balance: 'DESC', createdAt: 'ASC' },
     });
 
-    if (!wallet) {
-      wallet = this.walletRepository.create({
-        userId: actualUserId,
-        balance: 0,
-        currency: user?.currency || 'USD',
-      });
-      wallet = await this.walletRepository.save(wallet);
+    if (existingWallets.length > 0) {
+      const primaryWallet = existingWallets[0];
+
+      // If multiple wallets were created across rebuilds/relogins, merge them cleanly
+      if (existingWallets.length > 1) {
+        let extraBalance = 0;
+        for (let i = 1; i < existingWallets.length; i++) {
+          const extra = existingWallets[i];
+          extraBalance += Number(extra.balance || 0);
+          await this.transactionRepository.update(
+            { walletId: extra.id },
+            { walletId: primaryWallet.id, userId: canonicalUserId }
+          ).catch(() => {});
+          await this.walletRepository.delete({ id: extra.id }).catch(() => {});
+        }
+        if (extraBalance > 0) {
+          primaryWallet.balance = Number((Number(primaryWallet.balance || 0) + extraBalance).toFixed(2));
+        }
+      }
+
+      if (primaryWallet.userId !== canonicalUserId) {
+        primaryWallet.userId = canonicalUserId;
+      }
+      await this.walletRepository.save(primaryWallet).catch(() => {});
+      return primaryWallet;
     }
+
+    let wallet = this.walletRepository.create({
+      userId: canonicalUserId,
+      balance: 0,
+      currency: user?.currency || 'USD',
+    });
+    wallet = await this.walletRepository.save(wallet);
     return wallet;
   }
 
   async createWallet(userId: string): Promise<Wallet> {
-    const user = await this.findUserSafe(userId);
-    const actualUserId = user?.userId || user?.id || userId;
-
-    const existing = await this.walletRepository.findOne({
-      where: [{ userId: actualUserId }, { userId }],
-    });
-    if (existing) {
-      return existing;
-    }
-
-    const wallet = this.walletRepository.create({
-      userId: actualUserId,
-      currency: user?.currency || 'USD',
-    });
-
-    return await this.walletRepository.save(wallet);
+    return this.getWallet(userId);
   }
 
   async getBalance(userId: string): Promise<number> {
@@ -350,9 +385,14 @@ export class WalletService implements OnModuleInit {
     wallet.balance = balanceAfter;
     await this.walletRepository.save(wallet);
 
+    const user = (await this.findUserSafe(userId)) || (wallet.userId ? await this.findUserSafe(wallet.userId) : null);
+    const canonicalUserId = user?.userId || wallet.userId || user?.id || userId;
+    const txId = this.generateMixedAlphaNumericTxId('DEP');
+
     const tx = this.transactionRepository.create({
-      userId: wallet.userId || userId,
+      userId: canonicalUserId,
       walletId: wallet.id,
+      transactionId: txId,
       type: TransactionType.DEPOSIT,
       amount,
       currency: wallet.currency || 'USD',
@@ -362,17 +402,32 @@ export class WalletService implements OnModuleInit {
       paymentCardId: savedCard ? savedCard.id : undefined,
       balanceBefore,
       balanceAfter,
-      metadata: savedCard
-        ? {
-          cardId: savedCard.id,
-          cardBrand: savedCard.cardBrand,
-          last4: savedCard.last4,
-          cardHolder: savedCard.cardHolderName,
-        }
-        : undefined,
+      metadata: {
+        userEmail: user?.email || '',
+        userName: user?.fullName || (user as any)?.name || user?.username || 'User',
+        role: user?.accountType || (user as any)?.role || 'USER',
+        ...(savedCard
+          ? {
+            cardId: savedCard.id,
+            cardBrand: savedCard.cardBrand,
+            last4: savedCard.last4,
+            cardHolder: savedCard.cardHolderName,
+          }
+          : {}),
+      },
     });
 
-    await this.transactionRepository.save(tx);
+    const savedTx = await this.transactionRepository.save(tx);
+
+    // Guarantee userId is stored in DB column
+    if (canonicalUserId && savedTx?.id) {
+      try {
+        await this.transactionRepository.query(
+          `UPDATE transactions SET "userId" = $1 WHERE id = $2`,
+          [canonicalUserId, savedTx.id]
+        );
+      } catch {}
+    }
 
     return wallet;
   }
@@ -406,10 +461,12 @@ export class WalletService implements OnModuleInit {
     wallet.balance = balanceAfter;
     await this.walletRepository.save(wallet);
 
+    const user = (await this.findUserSafe(userId)) || (wallet.userId ? await this.findUserSafe(wallet.userId) : null);
+    const canonicalUserId = user?.userId || wallet.userId || user?.id || userId;
     const txId = this.generateMixedAlphaNumericTxId('WD');
 
     const tx = this.transactionRepository.create({
-      userId: wallet.userId || userId,
+      userId: canonicalUserId,
       walletId: wallet.id,
       transactionId: txId,
       type: TransactionType.WITHDRAWAL,
@@ -420,9 +477,25 @@ export class WalletService implements OnModuleInit {
       paymentMethod: method || 'wallet',
       balanceBefore,
       balanceAfter,
+      metadata: {
+        userEmail: user?.email || '',
+        userName: user?.fullName || (user as any)?.name || user?.username || 'User',
+        role: user?.accountType || (user as any)?.role || 'USER',
+        payoutMethod: method || 'wallet',
+      },
     });
 
     const savedTx = await this.transactionRepository.save(tx);
+
+    const withdrawUserId = tx.userId || canonicalUserId;
+    if (withdrawUserId && savedTx?.id) {
+      try {
+        await this.transactionRepository.query(
+          `UPDATE transactions SET "userId" = $1 WHERE id = $2`,
+          [withdrawUserId, savedTx.id]
+        );
+      } catch {}
+    }
 
     return {
       success: true,
@@ -560,17 +633,63 @@ export class WalletService implements OnModuleInit {
         } catch { }
       }
 
+      // If any transaction did not match a user directly, check its wallet owner
+      try {
+        const orphanWalletIds = Array.from(
+          new Set(
+            transactions
+              .filter((t) => (!t.userId || !userMap.has(t.userId)) && Boolean(t.walletId))
+              .map((t) => t.walletId)
+              .filter((wid): wid is string => Boolean(wid))
+          )
+        );
+        if (orphanWalletIds.length > 0) {
+          const wallets = await this.walletRepository.find({
+            where: orphanWalletIds.map((wid) => ({ id: wid })),
+          });
+          const extraOwnerIds = wallets.map((w) => w.userId).filter((uid): uid is string => Boolean(uid));
+          if (extraOwnerIds.length > 0) {
+            const extraUsers = await this.userRepository.find({
+              where: [
+                ...extraOwnerIds.map((uId) => ({ userId: uId })),
+                ...extraOwnerIds.map((uId) => ({ email: uId })),
+              ],
+            });
+            extraUsers.forEach((u) => {
+              if (u.userId) userMap.set(u.userId, u);
+              if (u.id) userMap.set(u.id, u);
+              if (u.email) userMap.set(u.email, u);
+            });
+            wallets.forEach((w) => {
+              if (w.userId) {
+                const u = userMap.get(w.userId);
+                if (u) userMap.set(`wallet_${w.id}`, u);
+              }
+            });
+          }
+        }
+      } catch {}
+
       const mapped = transactions.map((t) => {
-        const user = t.userId ? userMap.get(t.userId) : null;
+        const user = (t.userId ? userMap.get(t.userId) : null) || (t.walletId ? userMap.get(`wallet_${t.walletId}`) : null);
+        const userEmail = t.metadata?.userEmail || user?.email || (t.userId && t.userId.includes('@') ? t.userId : undefined);
+        const userName = t.metadata?.userName || user?.fullName || (user as any)?.name || user?.username || 'User';
+        const role = t.metadata?.role || user?.accountType || (user as any)?.role || 'USER';
         return {
           id: t.id,
           transactionId: t.transactionId,
           requestId: t.transactionId || t.id,
-          userId: t.userId,
-          businessUserId: t.userId,
-          userName: user?.fullName || user?.name || user?.username || 'User',
-          userEmail: user?.email,
-          role: user?.accountType || user?.role || 'USER',
+          userId: t.userId || user?.userId || user?.id,
+          businessUserId: t.userId || user?.userId || user?.id || 'user',
+          userName,
+          userEmail,
+          role,
+          metadata: {
+            ...t.metadata,
+            userEmail,
+            userName,
+            role,
+          },
           type: t.type || 'WITHDRAWAL',
           amount: Number(t.amount || 0),
           currency: t.currency || 'USD',

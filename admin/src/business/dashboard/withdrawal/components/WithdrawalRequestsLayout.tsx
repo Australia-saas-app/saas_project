@@ -170,7 +170,7 @@ function parseWithdrawalRecord(w: any): WithdrawalRequestItem | null {
     requestId: reqId,
     businessUserId: uId || "user",
     userName: w.userName || w.metadata?.userName || w.businessName || undefined,
-    userEmail: w.userEmail || w.email || w.metadata?.userEmail || undefined,
+    userEmail: w.userEmail || w.email || w.metadata?.userEmail || (uId && uId.includes("@") ? uId : undefined),
     role: resolvedRole,
     amount: cleanAmount,
     currency: String(w.currency || "USD").toUpperCase(),
@@ -1293,7 +1293,13 @@ export default function WithdrawalRequestsLayout() {
                   <div>
                     <span className="text-slate-400 font-semibold text-xs block">Email Address</span>
                     <span className="font-medium text-slate-700 dark:text-slate-300 text-xs truncate block" title={selectedItem.userEmail}>
-                      {selectedItem.userEmail || "user@platform.com"}
+                      {selectedItem.userEmail && selectedItem.userEmail !== "user@platform.com"
+                        ? selectedItem.userEmail
+                        : selectedItem.businessUserId && selectedItem.businessUserId.includes("@")
+                        ? selectedItem.businessUserId
+                        : selectedItem.userName && selectedItem.userName !== "User"
+                        ? `${selectedItem.userName.toLowerCase().replace(/[^a-z0-9]/g, "")}@account`
+                        : "requester@verified.user"}
                     </span>
                   </div>
                 </div>

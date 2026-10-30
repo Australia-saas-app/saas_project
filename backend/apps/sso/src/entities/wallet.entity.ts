@@ -18,8 +18,8 @@ export class Wallet {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // FK → users.userId (ULID / varchar)
-  @Column({ type: 'varchar', length: 26, nullable: true })
+  // FK → users.userId (ULID / varchar / UUID / email)
+  @Column({ type: 'varchar', length: 100, nullable: true })
   userId: string | null;
 
   @OneToOne(() => User, {

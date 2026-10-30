@@ -184,6 +184,18 @@ export class AppModule implements OnModuleInit {
         "createdAt" timestamp DEFAULT now(),
         "updatedAt" timestamp DEFAULT now()
       );`,
+      `ALTER TABLE transactions ALTER COLUMN "userId" TYPE VARCHAR(100);`,
+      `ALTER TABLE wallets ALTER COLUMN "userId" TYPE VARCHAR(100);`,
+      `ALTER TABLE transactions ALTER COLUMN "userId" DROP NOT NULL;`,
+      `ALTER TABLE wallets ALTER COLUMN "userId" DROP NOT NULL;`,
+      `UPDATE users SET "recoveryKey" = recoverykey WHERE "recoveryKey" IS NULL AND recoverykey IS NOT NULL;`,
+      `UPDATE users SET recoverykey = "recoveryKey" WHERE recoverykey IS NULL AND "recoveryKey" IS NOT NULL;`,
+      `UPDATE transactions t SET "userId" = w."userId" FROM wallets w WHERE t."walletId" = w.id AND (t."userId" IS NULL OR t."userId" = '') AND w."userId" IS NOT NULL AND w."userId" != '';`,
+      `UPDATE users SET "kycStatus" = kycstatus WHERE ("kycStatus" IS NULL OR "kycStatus" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';`,
+      `UPDATE users SET kycstatus = "kycStatus" WHERE (kycstatus IS NULL OR kycstatus = 'none') AND "kycStatus" IS NOT NULL AND "kycStatus" != 'none';`,
+      `UPDATE users u SET "kycStatus" = 'approved', kycstatus = 'approved' FROM kyc_application k WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (k."applicationData"->>'status' = 'approved' OR k."applicationData"->>'kycStatus' = 'approved');`,
+      `UPDATE users u SET "kycStatus" = 'pending', kycstatus = 'pending' FROM kyc_application k WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (u."kycStatus" IS NULL OR u."kycStatus" = 'none') AND (k."applicationData"->>'status' = 'pending' OR k."applicationData"->>'appliedAt' IS NOT NULL);`,
+      `UPDATE kyc_application k SET "applicationData" = jsonb_set(COALESCE(k."applicationData", '{}'::jsonb), '{status}', '"approved"'::jsonb, true) FROM users u WHERE (u."userId" = k."userId" OR u.id::text = k."userId" OR u.email = k."userId") AND (u."kycStatus" = 'approved' OR u.kycstatus = 'approved') AND (k."applicationData"->>'status' IS NULL OR k."applicationData"->>'status' != 'approved');`,
     ];
 
     for (const sql of columnStatements) {

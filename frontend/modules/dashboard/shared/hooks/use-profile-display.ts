@@ -117,6 +117,9 @@ export function useProfileDisplay() {
     if (u.governmentIdType && !(getProfileOverrides(rawUserId) as any).governmentIdType) {
       (patch as any).governmentIdType = String(u.governmentIdType);
     }
+    if ((u as any).kycApplicationData && !(getProfileOverrides(rawUserId) as any).kycApplicationData) {
+      (patch as any).kycApplicationData = (u as any).kycApplicationData;
+    }
     let dbAddr = u.permanentAddress as ProfileDataPatch["permanentAddress"] | undefined;
     if (!dbAddr && (u as any).kycApplicationData) {
       const snap = typeof (u as any).kycApplicationData === "string" 
@@ -356,10 +359,14 @@ export function useProfileDisplay() {
         : "")
 
   const governmentIdType =
-    (overrides as any).governmentIdType ??
+    (overrides as any).governmentIdType ||
     (user && "governmentIdType" in user && (user as any).governmentIdType
       ? String((user as any).governmentIdType)
-      : "")
+      : "") ||
+    ((user as any)?.kycApplicationData && typeof (user as any).kycApplicationData === "object"
+      ? (user as any).kycApplicationData?.governmentIdType
+      : "") ||
+    "NID";
 
   const permanentAddress = useMemo(() => {
     let oAddr = (overrides as any).permanentAddress;

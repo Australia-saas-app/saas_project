@@ -37,7 +37,7 @@ export default function RoleProfileCard({
   showDocumentButton = false,
   showDocuments = false,
 }: RoleProfileCardProps) {
-  const { rawUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, permanentAddress, kycApplicationData, kycRejectionReasons } =
+  const { rawUserId, fullName, email, joiningDate, avatarUrl, hasCustomAvatar, updateProfile, isActive, isKycVerified, kycStatus, status, documentUrl, documentFrontUrl, documentBackUrl, phone, dateOfBirth, nationality, gender, nationalIdentity, governmentIdType, permanentAddress, kycApplicationData, kycRejectionReasons } =
     useProfileDisplay();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const docUploadRef = useRef<HTMLInputElement>(null);
@@ -336,7 +336,7 @@ export default function RoleProfileCard({
           dateOfBirth,
           gender,
           nationalIdentity,
-          governmentIdType: (getProfileOverrides(rawUserId) as any).governmentIdType,
+          governmentIdType: governmentIdType || (getProfileOverrides(rawUserId) as any).governmentIdType || "NID",
           permanentAddress,
           avatarUrl,
           profilePhoto: avatarUrl,

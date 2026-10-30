@@ -129,10 +129,12 @@ export class TokenService {
       await this.ensureValidOtp(user, dto.otp);
     }
 
+    const forwardedIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || (req.headers['x-real-ip'] as string)?.trim() || req.ip || '127.0.0.1';
+
     const session = await this.createSessionForUser(user, client, {
       deviceId: dto.device_id,
       deviceName: dto.device_name,
-      ipAddress: req.ip,
+      ipAddress: forwardedIp,
       userAgent: req.headers['user-agent'] as string | undefined,
       loginRole: dto.login_role,
     });
@@ -140,6 +142,12 @@ export class TokenService {
     const now = new Date();
     user.lastLoginAt = now;
     user.lastActiveAt = now;
+    if (forwardedIp && forwardedIp !== 'Unknown IP' && forwardedIp !== '127.0.0.1') {
+      user.trustedIps = Array.from(new Set([...(user.trustedIps || []), forwardedIp, dto.device_id].filter(Boolean) as string[]));
+    }
+    if ((!user.kycStatus || user.kycStatus === ('none' as any)) && (user as any).kycstatus && (user as any).kycstatus !== 'none') {
+      user.kycStatus = (user as any).kycstatus;
+    }
     await this.userRepository.save(user);
 
     return this.issueTokens({
@@ -147,7 +155,7 @@ export class TokenService {
       client,
       scope,
       session,
-      ipAddress: req.ip,
+      ipAddress: forwardedIp,
       userAgent: req.headers['user-agent'] as string | undefined,
       fingerprint: dto.device_id,
     });
@@ -522,13 +530,20 @@ export class TokenService {
         email: options.user.email,
         phone: options.user.phone,
         status: options.user.status,
-        kycStatus: options.user.kycStatus,
+        kycStatus: (options.user.kycStatus && options.user.kycStatus !== 'none')
+          ? options.user.kycStatus
+          : (((options.user as any).kycstatus && (options.user as any).kycstatus !== 'none')
+              ? (options.user as any).kycstatus
+              : (options.user.kycStatus || 'none')),
         profilePhoto: options.user.profilePhoto,
         idDocument: options.user.idDocument,
         nationality: options.user.nationality,
         dateOfBirth: options.user.dateOfBirth,
         governmentId: options.user.governmentId,
+        governmentIdType: options.user.governmentIdType || 'NID',
         permanentAddress: options.user.permanentAddress,
+        trustedIps: options.user.trustedIps || [],
+        paymentMethods: options.user.paymentMethods || [],
         currency: options.user.currency,
         createdAt: options.user.createdAt,
       },

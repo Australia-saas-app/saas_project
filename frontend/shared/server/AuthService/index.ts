@@ -494,6 +494,10 @@ export const getCurrentUser = async () => {
           percentageRate,
           commissionRate,
           businessInfo,
+          trustedIps,
+          paymentMethods,
+          recoveryKey,
+          hasRecoveryKey,
         } = data.data;
         // Merge only DB-sourced fields; don't overwrite JWT claims
         if (profilePhoto !== undefined) merged.profilePhoto = profilePhoto;
@@ -506,6 +510,10 @@ export const getCurrentUser = async () => {
         if (permanentAddress !== undefined) merged.permanentAddress = permanentAddress;
         if (kycApplicationData !== undefined) merged.kycApplicationData = kycApplicationData;
         if (status !== undefined) merged.status = status;
+        if (trustedIps !== undefined) merged.trustedIps = trustedIps;
+        if (paymentMethods !== undefined) merged.paymentMethods = paymentMethods;
+        if (recoveryKey !== undefined) merged.recoveryKey = recoveryKey;
+        if (hasRecoveryKey !== undefined) merged.hasRecoveryKey = hasRecoveryKey;
         if (fullName !== undefined && !merged.fullName) merged.fullName = fullName;
         if (email !== undefined && !merged.email) merged.email = email;
         if (phone !== undefined) merged.phone = phone;

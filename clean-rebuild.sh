@@ -30,8 +30,43 @@ docker compose --progress=plain up -d --build --remove-orphans
 echo "🔒 4/5 Verifying database schema and user records..."
 sleep 4
 docker compose exec -T saas-postgres psql -U admin -d saas_db -c "
+  ALTER TABLE transactions ALTER COLUMN \"userId\" TYPE VARCHAR(100);
+  ALTER TABLE wallets ALTER COLUMN \"userId\" TYPE VARCHAR(100);
   ALTER TABLE transactions ALTER COLUMN \"userId\" DROP NOT NULL;
   ALTER TABLE wallets ALTER COLUMN \"userId\" DROP NOT NULL;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"trustedIps\" JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"paymentMethods\" JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"governmentIdType\" VARCHAR(50);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"governmentId\" VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"idDocument\" TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"recoveryKey\" VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS \"kycStatus\" VARCHAR(50) DEFAULT 'none';
+  -- Harmonize recoveryKey case sensitivity
+  UPDATE users SET \"recoveryKey\" = recoverykey WHERE \"recoveryKey\" IS NULL AND recoverykey IS NOT NULL;
+  UPDATE users SET recoverykey = \"recoveryKey\" WHERE recoverykey IS NULL AND \"recoveryKey\" IS NOT NULL;
+  -- Harmonize case-sensitive kycstatus and kycStatus columns
+  UPDATE users SET \"kycStatus\" = kycstatus WHERE (\"kycStatus\" IS NULL OR \"kycStatus\" = 'none') AND kycstatus IS NOT NULL AND kycstatus != 'none';
+  UPDATE users SET kycstatus = \"kycStatus\" WHERE (kycstatus IS NULL OR kycstatus = 'none') AND \"kycStatus\" IS NOT NULL AND \"kycStatus\" != 'none';
+  -- Sync approved KYC status from kyc_application to users table
+  UPDATE users u
+  SET \"kycStatus\" = 'approved', kycstatus = 'approved'
+  FROM kyc_application k
+  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
+    AND (k.\"applicationData\"->>'status' = 'approved' OR k.\"applicationData\"->>'kycStatus' = 'approved');
+  -- Sync pending KYC status from kyc_application to users table if currently none
+  UPDATE users u
+  SET \"kycStatus\" = 'pending', kycstatus = 'pending'
+  FROM kyc_application k
+  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
+    AND (u.\"kycStatus\" IS NULL OR u.\"kycStatus\" = 'none')
+    AND (k.\"applicationData\"->>'status' = 'pending' OR k.\"applicationData\"->>'appliedAt' IS NOT NULL);
+  -- Bidirectional sync: if users table is approved, ensure kyc_application snapshot status is approved
+  UPDATE kyc_application k
+  SET \"applicationData\" = jsonb_set(COALESCE(k.\"applicationData\", '{}'::jsonb), '{status}', '\"approved\"'::jsonb, true)
+  FROM users u
+  WHERE (u.\"userId\" = k.\"userId\" OR u.id::text = k.\"userId\" OR u.email = k.\"userId\")
+    AND (u.\"kycStatus\" = 'approved' OR u.kycstatus = 'approved')
+    AND (k.\"applicationData\"->>'status' IS NULL OR k.\"applicationData\"->>'status' != 'approved');
   -- Relate orphan transactions dynamically to their respective wallet's owner
   UPDATE transactions t
   SET \"userId\" = w.\"userId\"
